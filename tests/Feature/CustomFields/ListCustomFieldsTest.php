@@ -3,6 +3,8 @@
 use App\Filament\Resources\CustomFields\Pages\ListCustomFields;
 use App\Models\CustomField;
 use App\Models\User;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
 
@@ -189,4 +191,38 @@ test('pagination works correctly with many fields', function () {
 
     Livewire::test(ListCustomFields::class)
         ->assertCountTableRecords(25);
+});
+
+// Bulk delete action
+test('user can bulk delete custom fields', function () {
+    $fields = CustomField::factory()->count(3)->create([
+        'organization_id' => $this->org->id,
+    ]);
+
+    Livewire::test(ListCustomFields::class)
+        ->selectTableRecords($fields)
+        ->callAction(TestAction::make(DeleteBulkAction::class)->table()->bulk())
+        ->assertNotified()
+        ->assertCanNotSeeTableRecords($fields);
+
+    expect(CustomField::where('organization_id', $this->org->id)->count())->toBe(0);
+});
+
+test('bulk delete only removes selected records', function () {
+    $toDelete = CustomField::factory()->count(2)->create([
+        'organization_id' => $this->org->id,
+    ]);
+
+    $toKeep = CustomField::factory()->create([
+        'organization_id' => $this->org->id,
+        'name' => 'Keep Me',
+    ]);
+
+    Livewire::test(ListCustomFields::class)
+        ->selectTableRecords($toDelete)
+        ->callAction(TestAction::make(DeleteBulkAction::class)->table()->bulk())
+        ->assertNotified()
+        ->assertCanSeeTableRecords([$toKeep]);
+
+    expect(CustomField::find($toKeep->id))->not->toBeNull();
 });

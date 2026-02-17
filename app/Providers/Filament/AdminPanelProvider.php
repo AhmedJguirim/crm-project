@@ -41,6 +41,7 @@ class AdminPanelProvider extends PanelProvider
             ->registration(Register::class)
             ->tenant(Organization::class, slugAttribute: 'slug')
             ->tenantRegistration(RegisterOrganization::class)
+            ->databaseNotifications()
             ->tenantMenuItems([
                 // Show the current organization as a disabled item at the top of the switcher
                 Action::make('currentOrganization')

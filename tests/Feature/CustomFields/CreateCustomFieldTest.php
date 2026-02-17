@@ -309,3 +309,77 @@ test('unique toggle works correctly', function () {
     $field = CustomField::where('name', 'Unique Field')->first();
     expect($field->unique)->toBeTrue();
 });
+
+// Organization-scoped uniqueness
+test('same field name is allowed in a different organization', function () {
+    $otherUser = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
+    $otherOrg = $otherUser->personalOrganization();
+
+    CustomField::factory()->create([
+        'organization_id' => $otherOrg->id,
+        'name' => 'Shared Name',
+    ]);
+
+    Livewire::test(CreateCustomField::class)
+        ->fillForm([
+            'name' => 'Shared Name',
+            'type' => 'text',
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    expect(CustomField::where('name', 'Shared Name')->count())->toBe(2);
+});
+
+// Options sub-field validation
+test('option label is required for select type', function () {
+    Livewire::test(CreateCustomField::class)
+        ->fillForm([
+            'name' => 'Status',
+            'type' => 'select',
+            'options' => [
+                ['label' => '', 'value' => 'val'],
+            ],
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['options.0.label']);
+});
+
+test('option value is required for select type', function () {
+    Livewire::test(CreateCustomField::class)
+        ->fillForm([
+            'name' => 'Status',
+            'type' => 'select',
+            'options' => [
+                ['label' => 'Label', 'value' => ''],
+            ],
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['options.0.value']);
+});
+
+test('option label cannot exceed 255 characters', function () {
+    Livewire::test(CreateCustomField::class)
+        ->fillForm([
+            'name' => 'Status',
+            'type' => 'select',
+            'options' => [
+                ['label' => str_repeat('a', 256), 'value' => 'val'],
+            ],
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['options.0.label']);
+});
+
+test('option value cannot exceed 255 characters', function () {
+    Livewire::test(CreateCustomField::class)
+        ->fillForm([
+            'name' => 'Status',
+            'type' => 'select',
+            'options' => [
+                ['label' => 'Label', 'value' => str_repeat('a', 256)],
+            ],
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['options.0.value']);
+});

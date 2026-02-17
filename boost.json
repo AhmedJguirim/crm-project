@@ -7,13 +7,15 @@
     "mcp": true,
     "packages": [
         "filament/filament",
-        "spatie/boost-spatie-guidelines"
+        "spatie/boost-spatie-guidelines",
+        "laravel/fortify"
     ],
     "sail": false,
     "skills": [
         "fluxui-development",
         "livewire-development",
         "pest-testing",
-        "tailwindcss-development"
+        "tailwindcss-development",
+        "developing-with-fortify"
     ]
 }

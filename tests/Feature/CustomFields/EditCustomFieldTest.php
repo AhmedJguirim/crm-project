@@ -3,6 +3,7 @@
 use App\Filament\Resources\CustomFields\Pages\EditCustomField;
 use App\Models\CustomField;
 use App\Models\User;
+use Filament\Actions\DeleteAction;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
 
@@ -253,4 +254,111 @@ test('name cannot exceed 255 characters', function () {
         ->fillForm(['name' => str_repeat('a', 256)])
         ->call('save')
         ->assertHasFormErrors(['name' => 'max']);
+});
+
+// Delete action
+test('delete action exists on edit page', function () {
+    $field = CustomField::factory()->create([
+        'organization_id' => $this->org->id,
+    ]);
+
+    Livewire::test(EditCustomField::class, ['record' => $field->id])
+        ->assertActionExists(DeleteAction::class);
+});
+
+test('user can delete custom field from edit page', function () {
+    $field = CustomField::factory()->create([
+        'organization_id' => $this->org->id,
+    ]);
+
+    Livewire::test(EditCustomField::class, ['record' => $field->id])
+        ->callAction(DeleteAction::class)
+        ->assertNotified()
+        ->assertRedirect();
+
+    expect(CustomField::find($field->id))->toBeNull();
+});
+
+// Organization isolation
+test('same field name is allowed in a different organization', function () {
+    $otherUser = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
+    $otherOrg = $otherUser->personalOrganization();
+
+    CustomField::factory()->create([
+        'organization_id' => $otherOrg->id,
+        'name' => 'Shared Name',
+    ]);
+
+    $field = CustomField::factory()->create([
+        'organization_id' => $this->org->id,
+        'name' => 'My Field',
+    ]);
+
+    Livewire::test(EditCustomField::class, ['record' => $field->id])
+        ->fillForm(['name' => 'Shared Name'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+});
+
+// Position 'end' skips reorder logic
+test('saving with end position does not change field ordering', function () {
+    $field1 = CustomField::factory()->create([
+        'organization_id' => $this->org->id,
+        'name' => 'Field 1',
+        'order' => 1,
+    ]);
+
+    $field2 = CustomField::factory()->create([
+        'organization_id' => $this->org->id,
+        'name' => 'Field 2',
+        'order' => 2,
+    ]);
+
+    Livewire::test(EditCustomField::class, ['record' => $field1->id])
+        ->fillForm([
+            'name' => 'Field 1 Updated',
+            'position' => 'end',
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $orderedNames = CustomField::where('organization_id', $this->org->id)
+        ->orderBy('order')
+        ->pluck('name')
+        ->toArray();
+
+    expect($orderedNames)->toBe(['Field 1 Updated', 'Field 2']);
+});
+
+// afterSave resequencing
+test('afterSave resequences gapped orders to be sequential', function () {
+    $field1 = CustomField::factory()->create([
+        'organization_id' => $this->org->id,
+        'name' => 'Field 1',
+        'order' => 1,
+    ]);
+
+    CustomField::factory()->create([
+        'organization_id' => $this->org->id,
+        'name' => 'Field 2',
+        'order' => 5,
+    ]);
+
+    CustomField::factory()->create([
+        'organization_id' => $this->org->id,
+        'name' => 'Field 3',
+        'order' => 10,
+    ]);
+
+    Livewire::test(EditCustomField::class, ['record' => $field1->id])
+        ->fillForm(['name' => 'Field 1'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $orders = CustomField::where('organization_id', $this->org->id)
+        ->orderBy('order')
+        ->pluck('order')
+        ->toArray();
+
+    expect($orders)->toBe([1, 2, 3]);
 });
