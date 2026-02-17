@@ -1,0 +1,133 @@
+spec_version: 1.0
+task_id: TSK-2026-0015
+title: Implement Acceptance of Organization Invitations
+
+user_story: >-
+  As an invited user (registered or not),
+  I want to accept an invitation and join the Organization
+  so that I can access shared data.
+
+description: >-
+  Implement the invitation acceptance flow triggered by a unique accept link from the invitation email.
+  The link route must validate the token, check status (pending/expired/revoked), and handle three cases:
+  1. Guest user (not logged in): Redirect to registration form pre-filled with invited email, then auto-accept on successful registration.
+  2. Logged-in user with matching email: Auto-accept and add to Organization.
+  3. Logged-in user with non-matching email: Prompt to log out or use different account (or block for security).
+  On successful acceptance: add user to Organization with invited role via pivot, mark invite as accepted,
+  set new Organization as current tenant context, and redirect to dashboard with welcome notification.
+  Expired/revoked/invalid tokens show clear error with option to request new invite if applicable.
+
+scope:
+  max_complexity: medium
+  affected_components:
+    - backend/models/organization-invite
+    - backend/models/organization-user-pivot
+    - backend/controllers/invitation-accept
+    - backend/auth/registration
+    - filament/panel-tenancy
+    - frontend/auth-pages
+  new_endpoints: 1  # GET/POST accept route with token
+  new_database_tables: 0
+  estimated_hours: 10-14
+
+preconditions:
+  - Invitation sending and organization_invites table implemented (TSK-2026-0014)
+  - Registration flow extended for tenancy (TSK-2026-0011)
+  - Organization membership pivot and roles in place
+  - Tenancy context and switching functional
+
+functional_requirements:
+  - REQ-001: Public accept route accepting token parameter
+  - REQ-002: Token validation: existence, status, expiry, email match
+  - REQ-003: Handle guest user: pre-fill registration email, auto-accept post-registration
+  - REQ-004: Handle logged-in matching user: immediate acceptance
+  - REQ-005: On acceptance: add membership with role, update invite status, set current Organization
+  - REQ-006: Error pages for invalid/expired/revoked tokens
+
+acceptance_criteria:
+
+  - id: AC-001
+    scenario: Guest user accepts invitation
+    given:
+      - Valid pending invite for unregistered email
+    when:
+      - User clicks accept link (not logged in)
+      - Redirected to registration pre-filled with invited email
+      - User completes registration
+    then:
+      - User logged in
+      - Membership added with invited role
+      - Invite status updated to accepted
+      - Current Organization set to invited one
+      - Redirected to dashboard with welcome notification
+
+  - id: AC-002
+    scenario: Existing user accepts matching invite
+    given:
+      - Logged-in user with pending invite for their email
+    when:
+      - User clicks accept link
+    then:
+      - Membership added immediately
+      - Invite accepted
+      - Context switched to new Organization
+      - Dashboard loaded in new context
+
+  - id: AC-003
+    scenario: Logged-in user with non-matching email
+    given:
+      - Logged-in user clicks link for different email
+    when:
+      - Accept route accessed
+    then:
+      - Clear error: "Invitation email does not match logged-in account"
+      - Option to log out and try again
+
+  - id: AC-004
+    scenario: Invalid or expired token
+    given:
+      - Expired, revoked, or fake token in link
+    when:
+      - User accesses accept route
+    then:
+      - Error page displayed ("Invitation invalid or expired")
+      - Option to contact inviter or request new invite
+
+  - id: AC-005
+    scenario: Post-acceptance context
+    given:
+      - User accepts invite to new Organization
+    when:
+      - Redirected to dashboard
+    then:
+      - Data scoped to new Organization (e.g., empty if new)
+      - Switcher reflects new membership
+
+non_functional_requirements:
+  performance:
+    - Acceptance flow completes in <3s
+  security:
+    - Token validation strict
+    - Prevent acceptance of others' invites
+    - Auto-login only for fresh registrations
+  usability:
+    - Clear messaging and guidance on errors
+    - Seamless for common cases
+
+edge_cases:
+  - Invite already accepted → Error "Already accepted"
+  - User registers with different email → Block auto-accept
+  - Token tampering → Invalid error
+  - Multiple pending invites for same email → First valid acceptance wins
+
+dependencies:
+  - TSK-2026-0011  # Personal Organization Creation
+  - TSK-2026-0014  # Invite Users to Organization
+
+notes: >-
+  Route: GET /invite/accept/{token}
+  Use middleware for guest/logged-in branching.
+  Pre-fill registration email but allow change (with warning).
+  Update invite status atomically with membership creation.
+  Test all branches: guest, matching, non-matching, invalid.
+  Welcome notification: "Welcome to [Org Name]! You've joined as [role]."

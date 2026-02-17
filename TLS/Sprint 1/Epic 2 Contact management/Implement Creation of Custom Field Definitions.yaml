@@ -1,0 +1,137 @@
+spec_version: 1.0
+task_id: TSK-2026-0007
+title: Implement Creation of Custom Field Definitions
+
+user_story: >-
+  As an authenticated freelancer/consultant,
+  I want to create a new custom field template with a name, type, and attributes
+  so that I can extend contact data in a structured and consistent way.
+
+description: >-
+  Implement the create page for custom field definitions using FilamentPHP.
+  The page must be accessible via a "New Custom Field" button/action on the list page.
+  The form must include fields for name, type (with supported options), conditional options repeater
+  (visible only for select/multiselect types), unique toggle, and a position/order selector
+  for usability (e.g., insert at end by default or allow choice).
+  Server-side validation must enforce required fields, uniqueness per user, and type-specific rules.
+  On successful submission, the field is persisted, ordered correctly, and a success notification shown,
+  followed by redirect to the list page where the new field is visible.
+  Validation errors must display inline with form state preserved.
+
+scope:
+  max_complexity: simple
+  affected_components:
+    - backend/models/custom-field
+    - filament/resources/custom-field-resource
+    - frontend/filament-panel
+  new_endpoints: 0
+  new_database_tables: 0
+  estimated_hours: 6-10
+
+preconditions:
+  - CustomField model and custom_fields table exist (from list task)
+  - Custom fields list page implemented with "New Custom Field" action
+  - Filament resource registered and user scoping in place
+  - Supported field types defined (text, email, url, phone, number, date, textarea, select, multiselect)
+
+functional_requirements:
+  - REQ-001: "New Custom Field" button on list page routing to create form
+  - REQ-002: Form fields: Name (required), Type (select with supported types), unique (toggle)
+  - REQ-003: Conditional Options repeater (shown only for select/multiselect: label/value pairs)
+  - REQ-004: Position/order selector (e.g., "At the end" default, or insert after specific field)
+  - REQ-005: Server-side validation: name required/unique per user, valid type, options required for select types
+  - REQ-006: On success: persist field with correct order, success notification, redirect to list
+
+acceptance_criteria:
+
+  - id: AC-001
+    scenario: Successful creation with minimal valid data
+    given:
+      - Authenticated user on custom fields list page
+      - No existing field with same name
+    when:
+      - User clicks "New Custom Field"
+      - User enters unique name (e.g., "Website")
+      - User selects type (e.g., "url")
+      - User toggles unique as needed
+      - User submits form
+    then:
+      - New custom field record created in database with correct attributes and user_id
+      - Field appears at end of list (or chosen position)
+      - Success notification displayed
+      - Redirected to list page with new field visible
+
+  - id: AC-002
+    scenario: Creation with select type and options
+    given:
+      - User on create form
+    when:
+      - User selects "select" or "multiselect" type
+      - User adds multiple option rows (label/value pairs)
+      - User submits valid form
+    then:
+      - Options persisted correctly (as JSON or related table if applicable)
+      - Field created successfully
+
+  - id: AC-003
+    scenario: Validation errors on submission
+    given:
+      - User on create form
+    when:
+      - User submits missing name, duplicate name, or invalid options (e.g., empty options for select type)
+    then:
+      - Form remains on create page
+      - Inline errors displayed for each invalid field
+      - No record created
+      - Form state preserved (entered values retained)
+
+  - id: AC-004
+    scenario: Conditional options field visibility
+    given:
+      - User on create form
+    when:
+      - User changes type to select/multiselect
+    then:
+      - Options repeater becomes visible and editable
+    when:
+      - User changes type to non-select (e.g., text)
+    then:
+      - Options repeater hidden or cleared
+
+  - id: AC-005
+    scenario: Order/position handling on creation
+    given:
+      - User on create form with existing fields
+    when:
+      - User selects position (e.g., "At the beginning" or "After [field]")
+      - User submits valid form
+    then:
+      - New field inserted at chosen position
+      - Order column updated for all affected fields
+
+non_functional_requirements:
+  usability:
+    - Conditional fields reactive and intuitive
+    - Clear labels and help text where needed
+  performance:
+    - Form loads instantly
+    - Submission near-instantaneous
+  security:
+    - All input sanitized
+    - Uniqueness enforced at database level if possible
+
+edge_cases:
+  - Duplicate name attempt → Clear unique error
+  - Very long name or many options → Handled by validation/limits
+  - No existing fields → New field becomes first (order 1)
+
+dependencies:
+  - TSK-2026-0006  # List Custom Field Definitions
+
+notes: >-
+  Use Filament Form Builder with conditional visibility (visible() on type).
+  Repeater for options with label and value fields.
+  Implement position selector as dropdown populated from existing fields.
+  Default position: "At the end".
+  Store options as JSON in a dedicated column for simplicity.
+  Ensure new field is immediately queryable for future contact form integration.

@@ -1,0 +1,129 @@
+spec_version: 1.0
+task_id: TSK-2026-0017
+title: Implement Global Scoping of All Resources to Current Organization
+
+user_story: >-
+  As a user working in an Organization context,
+  I want all data (contacts, custom fields, tasks, interactions, etc.) automatically scoped to the current Organization
+  so that there is no data leakage or mixing.
+
+description: >-
+  Implement comprehensive tenancy scoping across all core resources to ensure data isolation
+  by current Organization. This includes:
+  - Adding organization_id foreign key to all relevant models/tables (Contact, CustomField, Task, Interaction, etc.)
+  - Creating and running migrations to add the column and backfill with current/personal Organization for existing data
+  - Applying global query scopes (or Filament tenancy configuration) to automatically filter all queries by current_organization_id
+  - Updating all Filament resources (list, create, edit, view) to respect tenancy automatically
+  - Ensuring relation managers and forms operate within the tenant context
+  - Handling fallback for queries outside tenancy (e.g., auth pages)
+  The scoping must be enforced server-side (middleware/global scopes) with no possibility of cross-Organization data access.
+  All existing features (custom fields, future contacts) must function identically but isolated per Organization.
+
+scope:
+  max_complexity: medium
+  affected_components:
+    - backend/models/all-core-models
+    - backend/migrations
+    - backend/scopes/global-tenancy-scope
+    - filament/resources/all-resources
+    - filament/panel-tenancy-configuration
+    - backend/middleware
+  new_endpoints: 0
+  new_database_tables: 0
+  estimated_hours: 12-16
+
+preconditions:
+  - Organization model and current tenant context fully implemented (TSK-2026-0011 to TSK-2026-0013)
+  - Core models (e.g., CustomField) exist and are in use
+  - Filament panel with resources configured
+  - Test data across multiple Organizations available
+
+functional_requirements:
+  - REQ-001: Add organization_id (nullable or with default) to all tenant-aware models/tables
+  - REQ-002: Migration to add column and backfill existing rows with user's personal Organization
+  - REQ-003: Global scope on models to filter by current_organization_id
+  - REQ-004: Filament tenancy integration (setTenant or equivalent) for automatic scoping
+  - REQ-005: All resource queries (index, create, edit) respect tenancy
+  - REQ-006: Relations (e.g., contact to custom values) scoped implicitly
+
+acceptance_criteria:
+
+  - id: AC-001
+    scenario: Data isolation across Organizations
+    given:
+      - Two Organizations with overlapping data (e.g., same contact name)
+    when:
+      - User switches to Organization A
+      - User views contacts/custom fields list
+    then:
+      - Only Organization A's data displayed
+      - Organization B's data not visible or queryable
+
+  - id: AC-002
+    scenario: Creation scoped correctly
+    given:
+      - User in Organization A context
+    when:
+      - User creates new contact or custom field
+    then:
+      - Record saved with organization_id of current Organization A
+      - Visible only in Organization A
+
+  - id: AC-003
+    scenario: Existing data migration
+    given:
+      - Pre-tenancy data exists (user_id scoped)
+    when:
+      - Migration run
+    then:
+      - All existing records assigned personal Organization of owner
+      - No data loss or orphans
+
+  - id: AC-004
+    scenario: Edit/view in correct context
+    given:
+      - User in Organization B
+      - Record belonging to Organization A
+    when:
+      - User attempts to edit/view via direct ID URL
+    then:
+      - 404 or access denied (not found in current tenant)
+      - No cross-tenancy leakage
+
+  - id: AC-005
+    scenario: Global enforcement
+    given:
+      - Raw query or bypassed UI
+    when:
+      - Attempt to query other Organization's data
+    then:
+      - Global scope prevents retrieval
+
+non_functional_requirements:
+  performance:
+    - Scoped queries add negligible overhead (<10% slower)
+    - Indexes on organization_id for fast filtering
+  security:
+    - No way to bypass scoping (server-side only)
+    - Policies reinforce tenancy
+  maintainability:
+    - New models automatically inherit scoping trait
+
+edge_cases:
+  - No current Organization (e.g., auth pages) → Scope disabled or fallback
+  - Legacy data without organization_id → Handled by migration/default
+  - Super-admin bypass (future) → Not in scope
+  - High-volume data → Backfill migration efficient
+
+dependencies:
+  - TSK-2026-0011  # Personal Organization Creation
+  - TSK-2026-0012  # Organization Switching
+  - All prior resource tasks (e.g., Custom Fields)
+
+notes: >-
+  Use Laravel global scope trait applied to base TenantModel.
+  Leverage Filament's native tenancy features (implements HasTenancy, getTenant).
+  Migration: Nullable initially, backfill via user's personal org, then not nullable.
+  Update all Filament resources to use tenancy-aware queries.
+  Test thoroughly with multi-Organization seeded data.
+  This task retrofits existing resources—run after core features are stable.

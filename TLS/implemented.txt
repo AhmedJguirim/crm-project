@@ -1,0 +1,9 @@
+Implement User Login
+Implement User Logout
+Implement User Registration (Sign Up)
+Implement Automatic Personal Organization Creation on User Signup (TSK-2026-0011)
+Implement Organization Switching (TSK-2026-0012)
+Implement Creation of Additional Organizations (TSK-2026-0013)
+Implement Invitation of Users to Organization (TSK-2026-0014)
+Implement Acceptance of Organization Invitations (TSK-2026-0015)
+Implement Management of Organization Members and Roles (TSK-2026-0016)

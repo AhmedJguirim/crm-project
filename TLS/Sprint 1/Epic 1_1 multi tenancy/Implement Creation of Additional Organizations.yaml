@@ -1,0 +1,136 @@
+spec_version: 1.0
+task_id: TSK-2026-0013
+title: Implement Creation of Additional Organizations
+
+user_story: >-
+  As an authenticated user,
+  I want to create a new Organization
+  so that I can separate projects, clients, or team workspaces.
+
+description: >-
+  Implement functionality for authenticated users to create additional Organizations
+  beyond their personal one. The creation form must be accessible via a prominent "+ New Organization"
+  action (e.g., in the organization switcher dropdown or settings page).
+  The form requires only a name; optional fields include description and logo upload.
+  On successful creation, a new Organization record is persisted, the user is assigned
+  as Owner via pivot with role 'owner', and the new Organization is immediately set
+  as the current tenant context (updating session and user preference).
+  A success notification is shown, and the user is redirected to the dashboard
+  or list page with the new context active. The organization switcher must reflect
+  the new Organization instantly.
+
+scope:
+  max_complexity: medium
+  affected_components:
+    - backend/models/organization
+    - backend/models/organization-user-pivot
+    - filament/resources/organization-resource
+    - filament/panel-navigation
+    - frontend/switcher-component
+    - backend/middleware/tenancy
+  new_endpoints: 0
+  new_database_tables: 0
+  estimated_hours: 8-12
+
+preconditions:
+  - Organization model, pivot, and personal Organization creation implemented (TSK-2026-0011)
+  - Organization switching fully functional (TSK-2026-0012)
+  - Filament panel with tenancy context active
+  - User authenticated and has at least personal Organization
+
+functional_requirements:
+  - REQ-001: "+ New Organization" action in switcher or dedicated settings page
+  - REQ-002: Creation form: Name (required), Description (optional textarea), Logo (optional image upload)
+  - REQ-003: Server-side validation: name required and unique across all Organizations
+  - REQ-004: On success: create Organization, assign user as 'owner', set as current tenant
+  - REQ-005: Update organization switcher to include new Organization
+  - REQ-006: Success notification and context switch
+
+acceptance_criteria:
+
+  - id: AC-001
+    scenario: Successful creation of new Organization
+    given:
+      - Authenticated user with existing personal Organization
+    when:
+      - User clicks "+ New Organization"
+      - User enters valid unique name (e.g., "Client XYZ Project")
+      - User optionally adds description and logo
+      - User submits form
+    then:
+      - New Organization record created
+      - Pivot record assigns user as 'owner'
+      - Current tenant/session updated to new Organization
+      - Success notification displayed ("Organization created successfully")
+      - Redirect/refresh shows new context (e.g., empty dashboard for new Organization)
+      - Switcher dropdown now includes new Organization (highlighted as current)
+
+  - id: AC-002
+    scenario: Validation errors on creation
+    given:
+      - User on creation form
+    when:
+      - User submits empty name or duplicate name (matching existing global Organization)
+    then:
+      - Form remains open
+      - Inline errors displayed (e.g., "The name field is required", "Name already taken")
+      - No record created
+      - Form state preserved
+
+  - id: AC-003
+    scenario: Optional fields handling
+    given:
+      - User creates Organization with only name
+    when:
+      - Form submitted
+    then:
+      - Organization created successfully with null/empty description and no logo
+      - Context switched correctly
+
+  - id: AC-004
+    scenario: Immediate reflection in switcher
+    given:
+      - User creates new Organization
+    when:
+      - User navigates to switcher post-creation
+    then:
+      - New Organization listed and selectable
+      - Selecting it switches context correctly
+
+  - id: AC-005
+    scenario: Logo upload functionality
+    given:
+      - User uploads valid image file
+    when:
+      - Form submitted
+    then:
+      - Logo stored and associated with Organization
+      - Displayed in switcher or settings if applicable
+
+non_functional_requirements:
+  performance:
+    - Creation and context switch complete in <2s
+  usability:
+    - Form intuitive and accessible from common locations
+    - Clear success feedback
+  security:
+    - Only authenticated users can create
+    - Automatic ownership prevents orphan Organizations
+
+edge_cases:
+  - Very long Organization name → Validated/truncated
+  - Invalid/large logo file → Validation error (size/type)
+  - Creation during active session in another Organization → Switches to new one seamlessly
+  - Global name uniqueness conflict → Clear error
+
+dependencies:
+  - TSK-2026-0011  # Automatic Personal Organization Creation on Signup
+  - TSK-2026-0012  # Organization Switching
+
+notes: >-
+  Use Filament Resource for Organization create page (or modal form in switcher).
+  Logo: Store via Spatie Media Library or simple disk upload.
+  Name uniqueness: Global across all Organizations (not per user).
+  Ensure creation transaction includes pivot and context update.
+  Test with multiple Organizations per user.
+  Switcher should refresh dynamically (Livewire) after creation.

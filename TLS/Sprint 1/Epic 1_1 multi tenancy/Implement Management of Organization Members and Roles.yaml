@@ -1,0 +1,138 @@
+spec_version: 1.0
+task_id: TSK-2026-0016
+title: Implement Management of Organization Members and Roles
+
+user_story: >-
+  As an Organization owner/admin,
+  I want to view, edit roles, and remove members
+  so that I can control access and permissions.
+
+description: >-
+  Implement a comprehensive members management interface in Organization settings.
+  The page must display a table of all current members with columns for name, email, role,
+  join date, and actions. Only owners and admins can access this page.
+  Actions include: change role (dropdown to admin/member/viewer), remove member (with confirmation),
+  and transfer ownership (for current owner only, selecting another member as new owner).
+  Removing a member deletes the pivot record. Owner cannot be removed or demoted without transfer.
+  Transfer ownership updates roles atomically. All changes trigger success/error notifications.
+  The interface must reflect real-time updates and enforce permission checks server-side.
+
+scope:
+  max_complexity: medium
+  affected_components:
+    - backend/models/organization-user-pivot
+    - filament/resources/organization-resource (members page)
+    - backend/policies/permissions
+    - frontend/filament-panel
+  new_endpoints: 0
+  new_database_tables: 0
+  estimated_hours: 10-14
+
+preconditions:
+  - Organization membership pivot with roles implemented
+  - Invitation and acceptance flows complete (members can be added)
+  - Role-based permission checks in place (owner/admin only)
+  - Organization settings page exists
+
+functional_requirements:
+  - REQ-001: Members list table accessible only to owner/admin
+  - REQ-002: Table columns: Name, Email, Role (badge), Joined At, Actions
+  - REQ-003: Action: Change role via inline dropdown or modal
+  - REQ-004: Action: Remove member with confirmation modal
+  - REQ-005: Action: Transfer ownership (owner only, select new owner)
+  - REQ-006: Server-side validation and permission enforcement
+  - REQ-007: Real-time updates and notifications
+
+acceptance_criteria:
+
+  - id: AC-001
+    scenario: View members list as admin
+    given:
+      - Owner/admin in Organization with multiple members
+    when:
+      - User navigates to members management page
+    then:
+      - Table displays all members with correct details
+      - Actions visible for each member (except self-restrictions)
+
+  - id: AC-002
+    scenario: Change member role
+    given:
+      - Owner/admin viewing members
+      - Member with role 'member'
+    when:
+      - User changes role to 'admin'
+      - User confirms/submits
+    then:
+      - Pivot role updated
+      - Success notification
+      - Table reflects new role instantly
+
+  - id: AC-003
+    scenario: Remove member
+    given:
+      - Owner/admin
+      - Non-owner member
+    when:
+      - User clicks remove and confirms
+    then:
+      - Pivot record deleted
+      - Member no longer in list
+      - Success notification
+      - Removed user loses access on next request
+
+  - id: AC-004
+    scenario: Transfer ownership
+    given:
+      - Current owner
+      - At least one other member
+    when:
+      - Owner selects transfer to another member and confirms
+    then:
+      - Current owner role becomes 'admin' or configurable
+      - New member role set to 'owner'
+      - Changes atomic and reflected immediately
+      - Success notification
+
+  - id: AC-005
+    scenario: Permission restrictions
+    given:
+      - Non-owner/admin user
+    when:
+      - User attempts to access members page or actions
+    then:
+      - Access denied / page hidden
+      - No changes possible
+    given:
+      - Owner attempts to remove self
+    then:
+      - Action blocked with error
+
+non_functional_requirements:
+  performance:
+    - List loads and actions complete <1s
+  usability:
+    - Confirmation modals with clear warnings (e.g., "Removing member is irreversible")
+    - Role badges color-coded
+  security:
+    - All actions gated by server-side policy
+    - Prevent owner lockout (always at least one owner)
+
+edge_cases:
+  - Single-member Organization (only owner) → Remove/transfer disabled
+  - Last admin removal → Warning if it leaves only owner
+  - Role change on self (admin to member) → Allowed but warned
+  - Concurrent changes → Optimistic locking or error
+
+dependencies:
+  - TSK-2026-0011  # Personal Organization Creation
+  - TSK-2026-0014  # Invite Users to Organization
+  - TSK-2026-0015  # Accept Organization Invitation
+
+notes: >-
+  Use Filament Table with custom actions/modals.
+  Role change: Inline edit or modal for safety.
+  Transfer ownership: Dedicated modal with member selector.
+  Ensure after removal, if user was in that Organization context, fallback to personal.
+  Test permission edge cases thoroughly.
+  Owner demotion on transfer: Default to 'admin'.

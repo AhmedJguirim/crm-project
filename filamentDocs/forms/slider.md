@@ -1,0 +1,673 @@
+# Source: https://filamentphp.com/docs/4.x/forms/slider
+
+Forms 
+
+# Slider 
+
+## [#](#introduction)Introduction
+
+The slider component allows you to drag a handle across a track to select one or more numeric values:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+
+![Slider](/docs/4.x/images/light/forms/fields/slider/simple.jpg) ![Slider](/docs/4.x/images/dark/forms/fields/slider/simple.jpg)
+
+The [noUiSlider](https://refreshless.com/nouislider) package is used for this component, and much of its API is based upon that library.
+
+NOTE
+
+Due to their nature, slider fields can never be empty. The value of the field can never be `null` or an empty array. If a slider field is empty, the user will not have a handle to drag across the track.
+
+Because of this, slider fields have a default value set out of the box, which is set to the minimum value allowed in the [range](#controlling-the-range-of-the-slider) of the slider. The default value is used when a form is empty, for example on the Create page of a resource. To learn more about default values, check out the [`default()` documentation](overview#setting-the-default-value-of-a-field).
+
+## [#](#controlling-the-range-of-the-slider)Controlling the range of the slider
+
+The minimum and maximum values that can be selected by the slider are 0 and 100 by default. Filament will automatically apply validation rules to ensure that users cannot exceed these values. You can adjust these with the `range()` method:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 40, maxValue: 80)
+
+As well as allowing static values, the `range()` method also accepts functions to dynamically calculate them. You can inject various utilities into the functions as parameters. [ Learn more about utility injection. ](/docs/4.x/forms/overview#field-utility-injection) Utility | Type | Parameter | Description 
+---|---|---|--- 
+Field | `Filament\Forms\Components\Field` | `$component` | The current field component instance. 
+Get function | `Filament\Schemas\Components\Utilities\Get` | `$get` | A function for retrieving values from the current form data. Validation is not run. 
+Livewire | `Livewire\Component` | `$livewire` | The Livewire component instance. 
+Eloquent model FQN | `?string<Illuminate\Database\Eloquent\Model>` | `$model` | The Eloquent model FQN for the current schema. 
+Operation | `string` | `$operation` | The current operation being performed by the schema. Usually `create`, `edit`, or `view`. 
+Raw state | `mixed` | `$rawState` | The current value of the field, before state casts were applied. Validation is not run. 
+Eloquent record | `?Illuminate\Database\Eloquent\Model` | `$record` | The Eloquent record for the current schema. 
+State | `mixed` | `$state` | The current value of the field. Validation is not run. 
+ 
+![Slider with a customized range](/docs/4.x/images/light/forms/fields/slider/range.jpg) ![Slider with a customized range](/docs/4.x/images/dark/forms/fields/slider/range.jpg)
+
+### [#](#controlling-the-step-size)Controlling the step size
+
+By default, users can select any decimal value between the minimum and maximum. You can restrict the values to a specific step size using the `step()` method. Filament will automatically apply validation rules to ensure that users cannot deviate from this step size:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->step(10)
+
+As well as allowing a static value, the `step()` method also accepts a function to dynamically calculate it. You can inject various utilities into the function as parameters. [ Learn more about utility injection. ](/docs/4.x/forms/overview#field-utility-injection) Utility | Type | Parameter | Description 
+---|---|---|--- 
+Field | `Filament\Forms\Components\Field` | `$component` | The current field component instance. 
+Get function | `Filament\Schemas\Components\Utilities\Get` | `$get` | A function for retrieving values from the current form data. Validation is not run. 
+Livewire | `Livewire\Component` | `$livewire` | The Livewire component instance. 
+Eloquent model FQN | `?string<Illuminate\Database\Eloquent\Model>` | `$model` | The Eloquent model FQN for the current schema. 
+Operation | `string` | `$operation` | The current operation being performed by the schema. Usually `create`, `edit`, or `view`. 
+Raw state | `mixed` | `$rawState` | The current value of the field, before state casts were applied. Validation is not run. 
+Eloquent record | `?Illuminate\Database\Eloquent\Model` | `$record` | The Eloquent record for the current schema. 
+State | `mixed` | `$state` | The current value of the field. Validation is not run. 
+ 
+### [#](#limiting-the-number-of-decimal-places)Limiting the number of decimal places
+
+If you would rather allow the user to select any decimal value between the minimum and maximum instead of restricting them to a certain step size, you can define a number of decimal places that their selected values will be rounded to using the `decimalPlaces()` method:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->decimalPlaces(2)
+
+As well as allowing a static value, the `decimalPlaces()` method also accepts a function to dynamically calculate it. You can inject various utilities into the function as parameters. [ Learn more about utility injection. ](/docs/4.x/forms/overview#field-utility-injection) Utility | Type | Parameter | Description 
+---|---|---|--- 
+Field | `Filament\Forms\Components\Field` | `$component` | The current field component instance. 
+Get function | `Filament\Schemas\Components\Utilities\Get` | `$get` | A function for retrieving values from the current form data. Validation is not run. 
+Livewire | `Livewire\Component` | `$livewire` | The Livewire component instance. 
+Eloquent model FQN | `?string<Illuminate\Database\Eloquent\Model>` | `$model` | The Eloquent model FQN for the current schema. 
+Operation | `string` | `$operation` | The current operation being performed by the schema. Usually `create`, `edit`, or `view`. 
+Raw state | `mixed` | `$rawState` | The current value of the field, before state casts were applied. Validation is not run. 
+Eloquent record | `?Illuminate\Database\Eloquent\Model` | `$record` | The Eloquent record for the current schema. 
+State | `mixed` | `$state` | The current value of the field. Validation is not run. 
+ 
+### [#](#controlling-the-behavioral-padding-of-the-track)Controlling the behavioral padding of the track
+
+By default, users can select any value across the entire length of the track. You can add behavioral padding to the track using the `rangePadding()` method. This will ensure that the selected value is always at least a certain distance from the edges of the track. The minimum and maximum value validation that Filament applies to the slider by default will take the padding into account to ensure that users cannot exceed the padded range:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->rangePadding(10)
+
+As well as allowing a static value, the `rangePadding()` method also accepts a function to dynamically calculate it. You can inject various utilities into the function as parameters. [ Learn more about utility injection. ](/docs/4.x/forms/overview#field-utility-injection) Utility | Type | Parameter | Description 
+---|---|---|--- 
+Field | `Filament\Forms\Components\Field` | `$component` | The current field component instance. 
+Get function | `Filament\Schemas\Components\Utilities\Get` | `$get` | A function for retrieving values from the current form data. Validation is not run. 
+Livewire | `Livewire\Component` | `$livewire` | The Livewire component instance. 
+Eloquent model FQN | `?string<Illuminate\Database\Eloquent\Model>` | `$model` | The Eloquent model FQN for the current schema. 
+Operation | `string` | `$operation` | The current operation being performed by the schema. Usually `create`, `edit`, or `view`. 
+Raw state | `mixed` | `$rawState` | The current value of the field, before state casts were applied. Validation is not run. 
+Eloquent record | `?Illuminate\Database\Eloquent\Model` | `$record` | The Eloquent record for the current schema. 
+State | `mixed` | `$state` | The current value of the field. Validation is not run. 
+ 
+In this example, even though the minimum value is 0 and the maximum value is 100, the user will only be able to select values between 10 and 90. The padding will be applied to both ends of the track, so the selected value will always be at least 10 units away from the edges of the track.
+
+If you would like to control the padding on each side of the track separately, you can pass an array of two values to the `rangePadding()` method. The first value will be applied to the start of the track, and the second value will be applied to the end of the track:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->rangePadding([10, 20])
+
+### [#](#right-to-left-tracks)Right-to-left tracks
+
+By default, a track operates left-to-right. If the user is using a right-to-left locale (e.g. Arabic), the track will be displayed right-to-left automatically. You can also force the track to be displayed right-to-left using the `rtl()` method:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->rtl()
+
+Optionally, you may pass a boolean value to control if the slider should be right-to-left or not:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->rtl(FeatureFlag::active())
+
+As well as allowing a static value, the `rtl()` method also accepts a function to dynamically calculate it. You can inject various utilities into the function as parameters. [ Learn more about utility injection. ](/docs/4.x/forms/overview#field-utility-injection) Utility | Type | Parameter | Description 
+---|---|---|--- 
+Field | `Filament\Forms\Components\Field` | `$component` | The current field component instance. 
+Get function | `Filament\Schemas\Components\Utilities\Get` | `$get` | A function for retrieving values from the current form data. Validation is not run. 
+Livewire | `Livewire\Component` | `$livewire` | The Livewire component instance. 
+Eloquent model FQN | `?string<Illuminate\Database\Eloquent\Model>` | `$model` | The Eloquent model FQN for the current schema. 
+Operation | `string` | `$operation` | The current operation being performed by the schema. Usually `create`, `edit`, or `view`. 
+Raw state | `mixed` | `$rawState` | The current value of the field, before state casts were applied. Validation is not run. 
+Eloquent record | `?Illuminate\Database\Eloquent\Model` | `$record` | The Eloquent record for the current schema. 
+State | `mixed` | `$state` | The current value of the field. Validation is not run. 
+ 
+## [#](#adding-multiple-values-to-a-slider)Adding multiple values to a slider
+
+If the slider is set to an array of values, the user will be able to drag multiple handles across the track within the allowed range. Make sure that the slider has a [`default()` value](overview#setting-the-default-value-of-a-field) set to an array of values to use when a form is empty:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->default([20, 70])
+
+![Slider with multiple values](/docs/4.x/images/light/forms/fields/slider/multiple.jpg) ![Slider with multiple values](/docs/4.x/images/dark/forms/fields/slider/multiple.jpg)
+
+If you’re saving multiple slider values using Eloquent, you should be sure to add an `array` [cast](https://laravel.com/docs/eloquent-mutators#array-and-json-casting) to the model property:
+
+ use Illuminate\Database\Eloquent\Model;
+ 
+ class Post extends Model
+ {
+ /**
+ * @return array<string, string>
+ */
+ protected function casts(): array
+ {
+ return [
+ 'slider' => 'array',
+ ];
+ }
+ 
+ // ...
+ }
+
+## [#](#using-a-vertical-track)Using a vertical track
+
+You can display the slider as a vertical track instead of horizontal, you can use the `vertical()` method:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->vertical()
+
+![Vertical slider](/docs/4.x/images/light/forms/fields/slider/vertical.jpg) ![Vertical slider](/docs/4.x/images/dark/forms/fields/slider/vertical.jpg)
+
+Optionally, you may pass a boolean value to control if the slider should be vertical or not:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->vertical(FeatureFlag::active())
+
+As well as allowing a static value, the `vertical()` method also accepts a function to dynamically calculate it. You can inject various utilities into the function as parameters. [ Learn more about utility injection. ](/docs/4.x/forms/overview#field-utility-injection) Utility | Type | Parameter | Description 
+---|---|---|--- 
+Field | `Filament\Forms\Components\Field` | `$component` | The current field component instance. 
+Get function | `Filament\Schemas\Components\Utilities\Get` | `$get` | A function for retrieving values from the current form data. Validation is not run. 
+Livewire | `Livewire\Component` | `$livewire` | The Livewire component instance. 
+Eloquent model FQN | `?string<Illuminate\Database\Eloquent\Model>` | `$model` | The Eloquent model FQN for the current schema. 
+Operation | `string` | `$operation` | The current operation being performed by the schema. Usually `create`, `edit`, or `view`. 
+Raw state | `mixed` | `$rawState` | The current value of the field, before state casts were applied. Validation is not run. 
+Eloquent record | `?Illuminate\Database\Eloquent\Model` | `$record` | The Eloquent record for the current schema. 
+State | `mixed` | `$state` | The current value of the field. Validation is not run. 
+ 
+### [#](#top-to-bottom-tracks)Top-to-bottom tracks
+
+By default, a vertical track operates bottom-to-top. In [noUiSlider](https://refreshless.com/nouislider), this is the [right-to-left behavior](#right-to-left-tracks). To assign the minimum value to the top of the track, you can use the `rtl(false)` method:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->vertical()
+ ->rtl(false)
+
+## [#](#adding-tooltips-to-handles)Adding tooltips to handles
+
+You can add tooltips to the handles of the slider using the `tooltips()` method. The tooltip will display the current value of the handle:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->tooltips()
+
+![Slider with tooltips](/docs/4.x/images/light/forms/fields/slider/tooltips.jpg) ![Slider with tooltips](/docs/4.x/images/dark/forms/fields/slider/tooltips.jpg)
+
+Optionally, you may pass a boolean value to control if the slider should have tooltips or not:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->tooltips(FeatureFlag::active())
+
+When using multiple handles, multiple tooltips will be displayed, one for each handle. Tooltips also work with [vertical tracks](#using-a-vertical-track).
+
+![Vertical slider with tooltips](/docs/4.x/images/light/forms/fields/slider/tooltips-vertical.jpg) ![Vertical slider with tooltips](/docs/4.x/images/dark/forms/fields/slider/tooltips-vertical.jpg)
+
+### [#](#custom-tooltip-formatting)Custom tooltip formatting
+
+You can use JavaScript to customize the formatting of a tooltip. Pass a `RawJs` object to the `tooltips()` method, containing a JavaScript string expression to use. The current value to format will be available in the `$value` variable:
+
+ use Filament\Forms\Components\Slider;
+ use Filament\Support\RawJs;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->tooltips(RawJs::make(<<<'JS'
+ `$${$value.toFixed(2)}`
+ JS))
+
+![Slider with custom tooltip formatting](/docs/4.x/images/light/forms/fields/slider/tooltips-formatting.jpg) ![Slider with custom tooltip formatting](/docs/4.x/images/dark/forms/fields/slider/tooltips-formatting.jpg)
+
+### [#](#controlling-tooltips-for-multiple-handles-individually)Controlling tooltips for multiple handles individually
+
+If the slider is set to an array of values, you can control the tooltips for each handle separately by passing an array of values to the `tooltips()` method. The first value will be applied to the first handle, and the second value will be applied to the second handle, and so on:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->tooltips([true, false])
+
+![Slider with multiple tooltips](/docs/4.x/images/light/forms/fields/slider/tooltips-multiple.jpg) ![Slider with multiple tooltips](/docs/4.x/images/dark/forms/fields/slider/tooltips-multiple.jpg)
+
+## [#](#filling-a-track-with-color)Filling a track with color
+
+By default, the color of the track is not affected by the position of any handles it has. When using an individual handle, you can fill the part of the track before the handle with color using the `fillTrack()` method:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->fillTrack()
+
+![Slider with fill](/docs/4.x/images/light/forms/fields/slider/fill.jpg) ![Slider with fill](/docs/4.x/images/dark/forms/fields/slider/fill.jpg)
+
+Optionally, you may pass a boolean value to control if the slider should be filled or not:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->fillTrack(FeatureFlag::active())
+
+As well as allowing a static value, the `fillTrack()` method also accepts a function to dynamically calculate it. You can inject various utilities into the function as parameters. [ Learn more about utility injection. ](/docs/4.x/forms/overview#field-utility-injection) Utility | Type | Parameter | Description 
+---|---|---|--- 
+Field | `Filament\Forms\Components\Field` | `$component` | The current field component instance. 
+Get function | `Filament\Schemas\Components\Utilities\Get` | `$get` | A function for retrieving values from the current form data. Validation is not run. 
+Livewire | `Livewire\Component` | `$livewire` | The Livewire component instance. 
+Eloquent model FQN | `?string<Illuminate\Database\Eloquent\Model>` | `$model` | The Eloquent model FQN for the current schema. 
+Operation | `string` | `$operation` | The current operation being performed by the schema. Usually `create`, `edit`, or `view`. 
+Raw state | `mixed` | `$rawState` | The current value of the field, before state casts were applied. Validation is not run. 
+Eloquent record | `?Illuminate\Database\Eloquent\Model` | `$record` | The Eloquent record for the current schema. 
+State | `mixed` | `$state` | The current value of the field. Validation is not run. 
+ 
+When using multiple handles, you must manually specify which parts of the track should be filled by passing an array of `true` and `false` values, one for each section. The total number of values should be one more than the number of handles. The first value will be applied to the section before the first handle, the second value will be applied to the section between the first and second handles, and so on:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->fillTrack([false, true, false])
+
+![Slider with multiple fills](/docs/4.x/images/light/forms/fields/slider/fill-multiple.jpg) ![Slider with multiple fills](/docs/4.x/images/dark/forms/fields/slider/fill-multiple.jpg)
+
+Filling also works on [vertical tracks](#using-a-vertical-track):
+
+![Vertical slider with fill](/docs/4.x/images/light/forms/fields/slider/fill-vertical.jpg) ![Vertical slider with fill](/docs/4.x/images/dark/forms/fields/slider/fill-vertical.jpg)
+
+## [#](#adding-pips-to-tracks)Adding pips to tracks
+
+You can add pips to tracks, which are small markers that indicate the position of the handles. You can add pips to the track using the `pips()` method:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->pips()
+
+![Slider with pips](/docs/4.x/images/light/forms/fields/slider/pips.jpg) ![Slider with pips](/docs/4.x/images/dark/forms/fields/slider/pips.jpg)
+
+Pips also work when there are multiple handles:
+
+![Slider with multiple pips](/docs/4.x/images/light/forms/fields/slider/pips-multiple.jpg) ![Slider with multiple pips](/docs/4.x/images/dark/forms/fields/slider/pips-multiple.jpg)
+
+You can also add pips to [vertical tracks](#using-a-vertical-track):
+
+![Vertical slider with pips](/docs/4.x/images/light/forms/fields/slider/pips-vertical.jpg) ![Vertical slider with pips](/docs/4.x/images/dark/forms/fields/slider/pips-vertical.jpg)
+
+### [#](#adjusting-the-density-of-pips)Adjusting the density of pips
+
+By default, pips are displayed at a density of `10`. This means that for every 10 units of the track, a pip will be displayed. You can adjust this density using the `density` parameter of the `pips()` method:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->pips(density: 5)
+
+As well as allowing a static value, the `density` parameter also accepts a function to dynamically calculate it. You can inject various utilities into the function as parameters. [ Learn more about utility injection. ](/docs/4.x/forms/overview#field-utility-injection) Utility | Type | Parameter | Description 
+---|---|---|--- 
+Field | `Filament\Forms\Components\Field` | `$component` | The current field component instance. 
+Get function | `Filament\Schemas\Components\Utilities\Get` | `$get` | A function for retrieving values from the current form data. Validation is not run. 
+Livewire | `Livewire\Component` | `$livewire` | The Livewire component instance. 
+Eloquent model FQN | `?string<Illuminate\Database\Eloquent\Model>` | `$model` | The Eloquent model FQN for the current schema. 
+Operation | `string` | `$operation` | The current operation being performed by the schema. Usually `create`, `edit`, or `view`. 
+Raw state | `mixed` | `$rawState` | The current value of the field, before state casts were applied. Validation is not run. 
+Eloquent record | `?Illuminate\Database\Eloquent\Model` | `$record` | The Eloquent record for the current schema. 
+State | `mixed` | `$state` | The current value of the field. Validation is not run. 
+ 
+![Slider with a custom pips density](/docs/4.x/images/light/forms/fields/slider/pips-density.jpg) ![Slider with a custom pips density](/docs/4.x/images/dark/forms/fields/slider/pips-density.jpg)
+
+### [#](#custom-pip-label-formatting)Custom pip label formatting
+
+You can use JavaScript to customize the formatting of a pip label. Pass a `RawJs` object to the `pipsFormatter()` method, containing a JavaScript string expression to use. The current value to format will be available in the `$value` variable:
+
+ use Filament\Forms\Components\Slider;
+ use Filament\Support\RawJs;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->pips()
+ ->pipsFormatter(RawJs::make(<<<'JS'
+ `$${$value.toFixed(2)}`
+ JS))
+
+As well as allowing a static value, the `pipsFormatter()` method also accepts a function to dynamically calculate it. You can inject various utilities into the function as parameters. [ Learn more about utility injection. ](/docs/4.x/forms/overview#field-utility-injection) Utility | Type | Parameter | Description 
+---|---|---|--- 
+Field | `Filament\Forms\Components\Field` | `$component` | The current field component instance. 
+Get function | `Filament\Schemas\Components\Utilities\Get` | `$get` | A function for retrieving values from the current form data. Validation is not run. 
+Livewire | `Livewire\Component` | `$livewire` | The Livewire component instance. 
+Eloquent model FQN | `?string<Illuminate\Database\Eloquent\Model>` | `$model` | The Eloquent model FQN for the current schema. 
+Operation | `string` | `$operation` | The current operation being performed by the schema. Usually `create`, `edit`, or `view`. 
+Raw state | `mixed` | `$rawState` | The current value of the field, before state casts were applied. Validation is not run. 
+Eloquent record | `?Illuminate\Database\Eloquent\Model` | `$record` | The Eloquent record for the current schema. 
+State | `mixed` | `$state` | The current value of the field. Validation is not run. 
+ 
+![Slider with custom pips formatting](/docs/4.x/images/light/forms/fields/slider/pips-formatting.jpg) ![Slider with custom pips formatting](/docs/4.x/images/dark/forms/fields/slider/pips-formatting.jpg)
+
+### [#](#adding-pip-labels-to-steps-of-the-track)Adding pip labels to steps of the track
+
+If you are using [steps](#controlling-the-step-size) to restrict the movement of the track, you can add a pip label to each step. To do this, pass a `PipsMode::Steps` object to the `pips()` method:
+
+ use Filament\Forms\Components\Slider;
+ use Filament\Forms\Components\Slider\Enums\PipsMode;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->step(10)
+ ->pips(PipsMode::Steps)
+
+![Slider with pips on steps](/docs/4.x/images/light/forms/fields/slider/pips-steps.jpg) ![Slider with pips on steps](/docs/4.x/images/dark/forms/fields/slider/pips-steps.jpg)
+
+If you would like to add additional pips to the track without labels, you can [adjust the density](#adjusting-the-density-of-pips) of the pips as well:
+
+ use Filament\Forms\Components\Slider;
+ use Filament\Forms\Components\Slider\Enums\PipsMode;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->step(10)
+ ->pips(PipsMode::Steps, density: 5)
+
+![Slider with pips on steps and a custom density](/docs/4.x/images/light/forms/fields/slider/pips-steps-density.jpg) ![Slider with pips on steps and a custom density](/docs/4.x/images/dark/forms/fields/slider/pips-steps-density.jpg)
+
+### [#](#adding-pip-labels-to-percentage-positions-of-the-track)Adding pip labels to percentage positions of the track
+
+If you would like to add pip labels to the track at specific percentage positions, you can pass a `PipsMode::Positions` object to the `pips()` method. The percentage positions need to be defined in the `pipsValues()` method in an array of numbers:
+
+ use Filament\Forms\Components\Slider;
+ use Filament\Forms\Components\Slider\Enums\PipsMode;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->pips(PipsMode::Positions)
+ ->pipsValues([0, 25, 50, 75, 100])
+
+As well as allowing static values, the `pipsValues()` method also accepts a function to dynamically calculate them. You can inject various utilities into the function as parameters. [ Learn more about utility injection. ](/docs/4.x/forms/overview#field-utility-injection) Utility | Type | Parameter | Description 
+---|---|---|--- 
+Field | `Filament\Forms\Components\Field` | `$component` | The current field component instance. 
+Get function | `Filament\Schemas\Components\Utilities\Get` | `$get` | A function for retrieving values from the current form data. Validation is not run. 
+Livewire | `Livewire\Component` | `$livewire` | The Livewire component instance. 
+Eloquent model FQN | `?string<Illuminate\Database\Eloquent\Model>` | `$model` | The Eloquent model FQN for the current schema. 
+Operation | `string` | `$operation` | The current operation being performed by the schema. Usually `create`, `edit`, or `view`. 
+Raw state | `mixed` | `$rawState` | The current value of the field, before state casts were applied. Validation is not run. 
+Eloquent record | `?Illuminate\Database\Eloquent\Model` | `$record` | The Eloquent record for the current schema. 
+State | `mixed` | `$state` | The current value of the field. Validation is not run. 
+ 
+![Slider with pips on positions](/docs/4.x/images/light/forms/fields/slider/pips-positions.jpg) ![Slider with pips on positions](/docs/4.x/images/dark/forms/fields/slider/pips-positions.jpg)
+
+The [density](#adjusting-the-density-of-pips) still controls the spacing of the pips without labels.
+
+### [#](#adding-a-set-number-of-pip-labels-to-the-track)Adding a set number of pip labels to the track
+
+If you would like to add a set number of pip labels to the track, you can pass a `PipsMode::Count` object to the `pips()` method. The number of pips need to be defined in the `pipsValues()` method:
+
+ use Filament\Forms\Components\Slider;
+ use Filament\Forms\Components\Slider\Enums\PipsMode;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->pips(PipsMode::Count)
+ ->pipsValues(5)
+
+As well as allowing static values, the `pipsValues()` method also accepts a function to dynamically calculate them. You can inject various utilities into the function as parameters. [ Learn more about utility injection. ](/docs/4.x/forms/overview#field-utility-injection) Utility | Type | Parameter | Description 
+---|---|---|--- 
+Field | `Filament\Forms\Components\Field` | `$component` | The current field component instance. 
+Get function | `Filament\Schemas\Components\Utilities\Get` | `$get` | A function for retrieving values from the current form data. Validation is not run. 
+Livewire | `Livewire\Component` | `$livewire` | The Livewire component instance. 
+Eloquent model FQN | `?string<Illuminate\Database\Eloquent\Model>` | `$model` | The Eloquent model FQN for the current schema. 
+Operation | `string` | `$operation` | The current operation being performed by the schema. Usually `create`, `edit`, or `view`. 
+Raw state | `mixed` | `$rawState` | The current value of the field, before state casts were applied. Validation is not run. 
+Eloquent record | `?Illuminate\Database\Eloquent\Model` | `$record` | The Eloquent record for the current schema. 
+State | `mixed` | `$state` | The current value of the field. Validation is not run. 
+ 
+![Slider with a set number of pips](/docs/4.x/images/light/forms/fields/slider/pips-count.jpg) ![Slider with a set number of pips](/docs/4.x/images/dark/forms/fields/slider/pips-count.jpg)
+
+The [density](#adjusting-the-density-of-pips) still controls the spacing of the pips without labels.
+
+### [#](#adding-pip-labels-to-set-values-on-the-track)Adding pip labels to set values on the track
+
+Instead of defining [percentage positions](#adding-pip-labels-to-percentage-positions-of-the-track) or a [set number](#adding-a-set-number-of-pip-labels-to-the-track) of pip labels, you can also define a set of values to use for the pip labels. To do this, pass a `PipsMode::Values` object to the `pips()` method. The values need to be defined in the `pipsValues()` method in an array of numbers:
+
+ use Filament\Forms\Components\Slider;
+ use Filament\Forms\Components\Slider\Enums\PipsMode;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->pips(PipsMode::Values)
+ ->pipsValues([5, 15, 25, 35, 45, 55, 65, 75, 85, 95])
+
+As well as allowing static values, the `pipsValues()` method also accepts a function to dynamically calculate them. You can inject various utilities into the function as parameters. [ Learn more about utility injection. ](/docs/4.x/forms/overview#field-utility-injection) Utility | Type | Parameter | Description 
+---|---|---|--- 
+Field | `Filament\Forms\Components\Field` | `$component` | The current field component instance. 
+Get function | `Filament\Schemas\Components\Utilities\Get` | `$get` | A function for retrieving values from the current form data. Validation is not run. 
+Livewire | `Livewire\Component` | `$livewire` | The Livewire component instance. 
+Eloquent model FQN | `?string<Illuminate\Database\Eloquent\Model>` | `$model` | The Eloquent model FQN for the current schema. 
+Operation | `string` | `$operation` | The current operation being performed by the schema. Usually `create`, `edit`, or `view`. 
+Raw state | `mixed` | `$rawState` | The current value of the field, before state casts were applied. Validation is not run. 
+Eloquent record | `?Illuminate\Database\Eloquent\Model` | `$record` | The Eloquent record for the current schema. 
+State | `mixed` | `$state` | The current value of the field. Validation is not run. 
+ 
+![Slider with pips on values](/docs/4.x/images/light/forms/fields/slider/pips-values.jpg) ![Slider with pips on values](/docs/4.x/images/dark/forms/fields/slider/pips-values.jpg)
+
+The [density](#adjusting-the-density-of-pips) still controls the spacing of the pips without labels:
+
+ use Filament\Forms\Components\Slider;
+ use Filament\Forms\Components\Slider\Enums\PipsMode;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->pips(PipsMode::Values, density: 5)
+ ->pipsValues([5, 15, 25, 35, 45, 55, 65, 75, 85, 95])
+
+![Slider with pips on values and a custom density](/docs/4.x/images/light/forms/fields/slider/pips-values-density.jpg) ![Slider with pips on values and a custom density](/docs/4.x/images/dark/forms/fields/slider/pips-values-density.jpg)
+
+### [#](#manually-filtering-pips)Manually filtering pips
+
+For even more control over how pips are displayed on a track, you can use a JavaScript expression. The JavaScript expression should return different numbers based on the pip’s appearance:
+
+ * The expression should return `1` if a large pip label should be displayed.
+ * The expression should return `2` if a small pip label should be displayed.
+ * The expression should return `0` if a pip should be displayed without a label.
+ * The expression should return `-1` if a pip should not be displayed at all.
+
+The [density](#adjusting-the-density-of-pips) of the pips will control which values get passed to the JavaScript expression. The expression should use the `$value` variable to access the current value of the pip. The expression should be defined in a `RawJs` object and passed to the `pipsFilter()` method:
+
+ use Filament\Forms\Components\Slider;
+ use Filament\Support\RawJs;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->pips(density: 5)
+ ->pipsFilter(RawJs::make(<<<'JS'
+ ($value % 50) === 0
+ ? 1
+ : ($value % 10) === 0
+ ? 2
+ : ($value % 25) === 0
+ ? 0
+ : -1
+ JS))
+
+As well as allowing static values, the `pipsFilter()` method also accepts a function to dynamically calculate it. You can inject various utilities into the function as parameters. [ Learn more about utility injection. ](/docs/4.x/forms/overview#field-utility-injection) Utility | Type | Parameter | Description 
+---|---|---|--- 
+Field | `Filament\Forms\Components\Field` | `$component` | The current field component instance. 
+Get function | `Filament\Schemas\Components\Utilities\Get` | `$get` | A function for retrieving values from the current form data. Validation is not run. 
+Livewire | `Livewire\Component` | `$livewire` | The Livewire component instance. 
+Eloquent model FQN | `?string<Illuminate\Database\Eloquent\Model>` | `$model` | The Eloquent model FQN for the current schema. 
+Operation | `string` | `$operation` | The current operation being performed by the schema. Usually `create`, `edit`, or `view`. 
+Raw state | `mixed` | `$rawState` | The current value of the field, before state casts were applied. Validation is not run. 
+Eloquent record | `?Illuminate\Database\Eloquent\Model` | `$record` | The Eloquent record for the current schema. 
+State | `mixed` | `$state` | The current value of the field. Validation is not run. 
+ 
+In this example the `%` operator is used to determine the divisibility of the pip value. The expression will return `1` for every 50 units, `2` for every 10 units, `0` for every 25 units, and `-1` for all other values:
+
+![Slider with pips filter](/docs/4.x/images/light/forms/fields/slider/pips-filter.jpg) ![Slider with pips filter](/docs/4.x/images/dark/forms/fields/slider/pips-filter.jpg)
+
+## [#](#setting-a-minimum-difference-between-handles)Setting a minimum difference between handles
+
+To set a minimum distance between handles, you can use the `minDifference()` method, passing a number to it. This represents the real difference between the values of both handles, not their visual distance:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->minDifference(10)
+
+As well as allowing a static value, the `minDifference()` method also accepts a function to dynamically calculate it. You can inject various utilities into the function as parameters. [ Learn more about utility injection. ](/docs/4.x/forms/overview#field-utility-injection) Utility | Type | Parameter | Description 
+---|---|---|--- 
+Field | `Filament\Forms\Components\Field` | `$component` | The current field component instance. 
+Get function | `Filament\Schemas\Components\Utilities\Get` | `$get` | A function for retrieving values from the current form data. Validation is not run. 
+Livewire | `Livewire\Component` | `$livewire` | The Livewire component instance. 
+Eloquent model FQN | `?string<Illuminate\Database\Eloquent\Model>` | `$model` | The Eloquent model FQN for the current schema. 
+Operation | `string` | `$operation` | The current operation being performed by the schema. Usually `create`, `edit`, or `view`. 
+Raw state | `mixed` | `$rawState` | The current value of the field, before state casts were applied. Validation is not run. 
+Eloquent record | `?Illuminate\Database\Eloquent\Model` | `$record` | The Eloquent record for the current schema. 
+State | `mixed` | `$state` | The current value of the field. Validation is not run. 
+ 
+NOTE
+
+The `minDifference()` method does not impact the validation of the slider. A skilled user could manipulate the value of the slider using JavaScript to select a value that does not align with the minimum difference. They will still be prevented from selecting a value outside the range of the slider.
+
+## [#](#setting-a-maximum-difference-between-handles)Setting a maximum difference between handles
+
+To set a maximum distance between handles, you can use the `maxDifference()` method, passing a number to it. This represents the real difference between the values of both handles, not their visual distance:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->maxDifference(40)
+
+As well as allowing a static value, the `maxDifference()` method also accepts a function to dynamically calculate it. You can inject various utilities into the function as parameters. [ Learn more about utility injection. ](/docs/4.x/forms/overview#field-utility-injection) Utility | Type | Parameter | Description 
+---|---|---|--- 
+Field | `Filament\Forms\Components\Field` | `$component` | The current field component instance. 
+Get function | `Filament\Schemas\Components\Utilities\Get` | `$get` | A function for retrieving values from the current form data. Validation is not run. 
+Livewire | `Livewire\Component` | `$livewire` | The Livewire component instance. 
+Eloquent model FQN | `?string<Illuminate\Database\Eloquent\Model>` | `$model` | The Eloquent model FQN for the current schema. 
+Operation | `string` | `$operation` | The current operation being performed by the schema. Usually `create`, `edit`, or `view`. 
+Raw state | `mixed` | `$rawState` | The current value of the field, before state casts were applied. Validation is not run. 
+Eloquent record | `?Illuminate\Database\Eloquent\Model` | `$record` | The Eloquent record for the current schema. 
+State | `mixed` | `$state` | The current value of the field. Validation is not run. 
+ 
+NOTE
+
+The `maxDifference()` method does not impact the validation of the slider. A skilled user could manipulate the value of the slider using JavaScript to select a value that does not align with the maximum difference. They will still be prevented from selecting a value outside the range of the slider.
+
+## [#](#controlling-the-general-behavior-of-the-slider)Controlling the general behavior of the slider
+
+The `behavior()` method of the slider allows you to pass one or more `Behavior` objects to control the behavior of the slider. The available options are:
+
+ * `Behavior::Tap` \- The slider will smoothly move to the position of the tap when the user clicks on the track. This is a default behavior, so when applying another behavior, you should also include this one in the array if you want to preserve it.
+ * `Behavior::Drag` \- When there are two handles on the track, the user can drag the track to move both handles at the same time. The [`fillTrack([false, true, false])`](#filling-a-track-with-color) method must be used to ensure that the user has something to drag.
+ * `Behavior::Drag` and `Behavior::Fixed` \- When there are two handles on the track, the user can drag the track to move both handles at the same time, but they cannot change the distance between them. The [`fillTrack([false, true, false])`](#filling-a-track-with-color) method must be used to ensure that the user has something to drag. Be aware that the distance between the handles is not automatically validated on the backend, so a skilled user could manipulate the value of the slider using JavaScript to select a value with a different distance. They will still be prevented from selecting a value outside the range of the slider.
+ * `Behavior::Unconstrained` \- When there are multiple handles on the track, they can be dragged past each other. The [`minDifference()`](#setting-a-minimum-difference-between-handles) and [`maxDifference()`](#setting-a-maximum-difference-between-handles) methods will not work with this behavior.
+ * `Behavior::SmoothSteps` \- While dragging handles, they will not snap to the [steps](#controlling-the-step-size) of the track. Once the user releases the handle, it will snap to the nearest step.
+
+For example, to use `Behavior::Tap`, `Behavior::Drag` and `Behavior::SmoothSteps` all at once:
+
+ use Filament\Forms\Components\Slider;
+ use Filament\Forms\Components\Slider\Enums\Behavior;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->behavior([Behavior::Tap, Behavior::Drag, Behavior::SmoothSteps])
+
+To disable all behavior, including the default `Behavior::Tap`, you can use the `behavior(null)` method:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->behavior(null)
+
+## [#](#non-linear-tracks)Non-linear tracks
+
+You can create non-linear tracks, where certain parts of the track are compressed or expanded, by defining an array of percentage points in the `nonLinearPoints()` method of the slider. Each percentage key of the array should have a corresponding real value, which will be used to calculate the position of the handle on the track. The example below features [pips](#adding-pips-to-tracks) to demonstrate the non-linear behavior of the track:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->nonLinearPoints(['20%' => 50, '50%' => 75])
+ ->pips()
+
+As well as allowing static values, the `nonLinearPoints()` method also accepts a function to dynamically calculate them. You can inject various utilities into the function as parameters. [ Learn more about utility injection. ](/docs/4.x/forms/overview#field-utility-injection) Utility | Type | Parameter | Description 
+---|---|---|--- 
+Field | `Filament\Forms\Components\Field` | `$component` | The current field component instance. 
+Get function | `Filament\Schemas\Components\Utilities\Get` | `$get` | A function for retrieving values from the current form data. Validation is not run. 
+Livewire | `Livewire\Component` | `$livewire` | The Livewire component instance. 
+Eloquent model FQN | `?string<Illuminate\Database\Eloquent\Model>` | `$model` | The Eloquent model FQN for the current schema. 
+Operation | `string` | `$operation` | The current operation being performed by the schema. Usually `create`, `edit`, or `view`. 
+Raw state | `mixed` | `$rawState` | The current value of the field, before state casts were applied. Validation is not run. 
+Eloquent record | `?Illuminate\Database\Eloquent\Model` | `$record` | The Eloquent record for the current schema. 
+State | `mixed` | `$state` | The current value of the field. Validation is not run. 
+ 
+When using a non-linear track, you can also control the stepping for each section. By defining an array of two numbers for each percentage point, the first number will be used as the real value for percentage position, and the second number will be used as the step size for that section, active until the next percentage point:
+
+ use Filament\Forms\Components\Slider;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 100)
+ ->nonLinearPoints(['20%' => [50, 5], '50%' => [75, 1]])
+ ->pips()
+
+NOTE
+
+When using a non-linear track, the step values of certain track sections do not affect the validation of the slider. A skilled user could manipulate the value of the slider using JavaScript to select a value that does not align with a step value in the track. They will still be prevented from selecting a value outside the range of the slider.
+
+When using [pips](#adding-pips-to-tracks) with a non-linear track, you can ensure that pip labels are rounded and only displayed at selectable positions on the track. Otherwise, the stepping of a non-linear portion of the track could add labels to positions that are not selectable. To do this, use the `steppedPips()` method:
+
+ use Filament\Forms\Components\Slider;
+ use Filament\Forms\Components\Slider\Enums\PipsMode;
+ 
+ Slider::make('slider')
+ ->range(minValue: 0, maxValue: 10000)
+ ->nonLinearPoints(['10%' => [500, 500], '50%' => [4000, 1000]])
+ ->pips(PipsMode::Positions, density: 4)
+ ->pipsValues([0, 25, 50, 75, 100])
+ ->steppedPips()
+
+[Edit on GitHub](https://github.com/filamentphp/filament/edit/4.x/packages/forms/docs/19-slider.md)
+
+Still need help? Join our [Discord community](/discord) or open a [GitHub discussion](https://github.com/filamentphp/filament/discussions/new/choose)

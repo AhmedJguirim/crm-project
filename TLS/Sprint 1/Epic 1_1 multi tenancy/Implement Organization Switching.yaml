@@ -1,0 +1,134 @@
+spec_version: 1.0
+task_id: TSK-2026-0012
+title: Implement Organization Switching
+
+user_story: >-
+  As a user belonging to multiple Organizations,
+  I want to switch the current Organization context
+  so that I can work on different projects/clients without mixing data.
+
+description: >-
+  Implement a user interface and backend logic for switching between Organizations
+  that the authenticated user belongs to. A dropdown or menu must be placed prominently
+  in the Filament panel header/navigation (e.g., next to user avatar or in sidebar).
+  The menu must list all Organizations the user is a member of, showing current one highlighted.
+  Selecting an Organization updates the current tenant context (session or database preference),
+  refreshes/reloads the current page (or redirects to dashboard), and ensures all subsequent
+  queries and views are scoped to the selected Organization.
+  Default behavior: on login, set current Organization to the user's last used (stored preference)
+  or fallback to personal Organization. The switch must be instant, with visual feedback
+  (loading indicator if needed) and no data leakage across contexts.
+
+scope:
+  max_complexity: medium
+  affected_components:
+    - backend/models/organization
+    - backend/models/organization-user-pivot
+    - backend/middleware/tenancy
+    - filament/panel-layout
+    - frontend/navigation
+    - backend/user-preferences
+  new_endpoints: 1  # optional route/action for switch
+  new_database_tables: 0
+  estimated_hours: 10-14
+
+preconditions:
+  - Organization model, pivot, and personal Organization creation implemented (TSK-2026-0011)
+  - Filament tenancy middleware or custom context handling in place
+  - User can belong to multiple Organizations (seeded data for testing)
+  - Dashboard and other resources scoped to current Organization
+
+functional_requirements:
+  - REQ-001: Organization switcher UI component in panel header/sidebar
+  - REQ-002: Dropdown lists all user's Organizations (name, optional icon/description)
+  - REQ-003: Current Organization highlighted/indicated
+  - REQ-004: On selection: update session/current tenant and persist last_used_organization_id on user
+  - REQ-005: Page refresh or redirect to same route with new context
+  - REQ-006: Default on login: last used or personal Organization
+
+acceptance_criteria:
+
+  - id: AC-001
+    scenario: Switch Organization with multiple available
+    given:
+      - Authenticated user belongs to 3 Organizations (personal + 2 others)
+      - Currently on dashboard in Organization A
+    when:
+      - User opens Organization switcher
+      - User selects Organization B
+    then:
+      - Session tenant updated to Organization B
+      - Page refreshes/reloads
+      - All visible data now scoped to Organization B (e.g., custom fields list shows only B's fields)
+      - Switcher now highlights Organization B
+      - User's last_used_organization_id updated
+
+  - id: AC-002
+    scenario: Default Organization on fresh login
+    given:
+      - User with multiple Organizations, last_used preference set to Organization X
+    when:
+      - User logs in
+    then:
+      - Redirected to dashboard with Organization X as current
+      - Switcher shows X highlighted
+      - Data scoped correctly
+
+  - id: AC-003
+    scenario: Fallback to personal Organization
+    given:
+      - User with multiple Organizations but no last_used preference
+    when:
+      - User logs in
+    then:
+      - Personal Organization (created on signup) set as current
+      - Data scoped to personal
+
+  - id: AC-004
+    scenario: Switch with no reload needed (same page)
+    given:
+      - User on a resource page (e.g., contacts list)
+    when:
+      - User switches Organization
+    then:
+      - Page content updates dynamically or via refresh to show new Organization's data
+      - No errors or mixed data displayed
+
+  - id: AC-005
+    scenario: Single Organization case
+    given:
+      - User with only personal Organization
+    when:
+      - User views switcher
+    then:
+      - Switcher shows only one option (or hidden/disabled)
+      - No switching needed, context remains personal
+
+non_functional_requirements:
+  performance:
+    - Switch completes in <1s with smooth transition
+    - No full page reload if Livewire can handle dynamic update
+  usability:
+    - Clear visual indication of current Organization
+    - Keyboard-navigable dropdown
+    - Mobile-responsive placement
+  security:
+    - User can only switch to Organizations they belong to
+    - No exposure of other Organizations' data
+
+edge_cases:
+  - User removed from current Organization mid-session → Fallback to personal or logout
+  - Many Organizations (20+) → Dropdown scrollable and searchable if needed
+  - Concurrent switch attempts → Last selection wins
+  - No Organizations (impossible after signup) → Handled gracefully
+
+dependencies:
+  - TSK-2026-0011  # Automatic Personal Organization Creation on Signup
+
+notes: >-
+  Use Filament's built-in tenancy switcher if available, or custom Livewire component/Alpine dropdown.
+  Store last_used_organization_id on User model.
+  Action: POST route or Livewire method for switch to avoid GET vulnerabilities.
+  Ensure middleware reapplies tenancy on every request.
+  Test with seeded multi-Organization users.
+  Visual: Show Organization name boldly, optional avatar/initials.

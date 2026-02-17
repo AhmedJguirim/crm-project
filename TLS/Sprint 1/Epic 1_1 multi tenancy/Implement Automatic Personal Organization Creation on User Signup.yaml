@@ -1,0 +1,126 @@
+spec_version: 1.0
+task_id: TSK-2026-0011
+title: Implement Automatic Personal Organization Creation on User Signup
+
+user_story: >-
+  As a new freelancer/consultant signing up,
+  I want an Organization created automatically for me
+  so that all my data is scoped correctly from day one, even as a solo user.
+
+description: >-
+  Extend the user registration flow to automatically create a personal Organization
+  for every new user. The Organization name defaults to "[User's Name]'s Workspace"
+  or "Personal Workspace" if name is unavailable. The registering user is assigned
+  as the Owner of this Organization via a membership record with role 'owner'.
+  The newly created Organization is set as the user's current tenant context
+  (stored in session or user preferences). This process must be transparent—no additional
+  user input required—and must execute atomically within the registration transaction.
+  All subsequent authenticated requests will use this Organization as the tenant
+  until switching is implemented. Use Filament's tenancy features or custom middleware
+  to establish the current organization context post-registration.
+
+scope:
+  max_complexity: medium
+  affected_components:
+    - backend/models/organization
+    - backend/models/organization-user-pivot
+    - backend/auth/registration
+    - backend/migrations
+    - filament/panel-tenancy
+    - backend/middleware
+  new_endpoints: 0
+  new_database_tables: 2  # organizations, organization_user
+  estimated_hours: 10-14
+
+preconditions:
+  - Authentication and registration fully implemented (TSK-2026-0001)
+  - Filament panel configured and tenancy middleware ready for integration
+  - User model exists and registration creates users successfully
+
+functional_requirements:
+  - REQ-001: Create Organization model with fields: id, name, slug (optional), created_by (user_id)
+  - REQ-002: Create organization_user pivot with fields: organization_id, user_id, role (enum: owner, admin, member, viewer)
+  - REQ-003: Migration for both tables with proper indexes and foreign keys
+  - REQ-004: On successful user creation: atomically create personal Organization and membership
+  - REQ-005: Set current organization context (session or user default_organization_id)
+  - REQ-006: Default Organization name logic based on user's name
+
+acceptance_criteria:
+
+  - id: AC-001
+    scenario: Successful registration creates personal Organization
+    given:
+      - User completes registration with valid data (name "Ahmed Test", email, password)
+    when:
+      - Registration form is submitted successfully
+    then:
+      - User record created
+      - New Organization record created with name "Ahmed Test's Workspace" or similar
+      - Pivot record created with user as 'owner'
+      - Current session tenant set to new Organization
+      - Redirect to dashboard occurs with Organization context active
+
+  - id: AC-002
+    scenario: Registration with missing name fallback
+    given:
+      - Registration where name field is optional/empty
+    when:
+      - Valid registration submitted without name
+    then:
+      - Organization created with fallback name (e.g., "Personal Workspace")
+      - Ownership and context set correctly
+
+  - id: AC-003
+    scenario: Atomic transaction safety
+    given:
+      - Simulated failure after user creation but before Organization creation
+    when:
+      - Registration process encounters error mid-transaction
+    then:
+      - Entire operation rolled back
+      - No partial data (user without Organization or vice versa)
+
+  - id: AC-004
+    scenario: Post-registration context verification
+    given:
+      - Newly registered user redirected to dashboard
+    when:
+      - User accesses any protected resource (e.g., custom fields list)
+    then:
+      - Queries automatically scoped to the new personal Organization
+      - No errors due to missing tenant
+
+  - id: AC-005
+    scenario: Existing user re-registration prevented
+    given:
+      - Duplicate email attempt
+    when:
+      - Registration submitted with existing email
+    then:
+      - Standard duplicate email validation error
+      - No Organization created
+
+non_functional_requirements:
+  performance:
+    - Organization creation adds negligible delay (<500ms) to registration
+  security:
+    - Ownership strictly assigned to registering user
+    - No way to create Organization without authenticated ownership
+  usability:
+    - Completely transparent to user—no additional forms or steps
+
+edge_cases:
+  - Very long user name → Organization name truncated sensibly
+  - Concurrent registrations → Unique constraints prevent collisions
+  - Registration via future invitation flow → Handled separately (not in scope)
+
+dependencies:
+  - TSK-2026-0001  # Sign Up (registration flow to extend)
+
+notes: >-
+  Use database transaction in registration controller/service.
+  Leverage Filament tenancy (setCurrentTenant) or custom middleware to store current_organization_id in session.
+  Seed test data for verification.
+  Role enum should be defined for future extensibility.
+  Default name: prefer "{{user.name}}'s Workspace", fallback "Personal Workspace".
+  This task establishes the tenancy foundation—subsequent resources must scope to current organization.

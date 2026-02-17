@@ -1,0 +1,126 @@
+spec_version: 1.0
+task_id: TSK-2026-0004
+title: Implement Simple Onboarding Tour/Wizard
+
+user_story: >-
+  As a new user who just signed up or logged in for the first time,
+  I want a quick guided onboarding experience
+  so that I can start using the CRM immediately without feeling lost.
+
+description: >-
+  Implement a lightweight, non-blocking, multi-step onboarding tour that activates only once
+  after a user's first successful registration or login.
+  The tour consists of 3-4 simple steps: welcome message, prompt to import or add contacts,
+  brief overview of key features, and completion.
+  It must be dismissible at any time (via Skip or Close), with progress persisted
+  (onboarding_completed flag on User model).
+  Use a modal sequence or guided tour component (Alpine.js or simple Livewire modals)
+  for a modern, non-intrusive feel. Tour must not block core functionality
+  and should redirect or focus on relevant sections (e.g., link to CSV import).
+  On subsequent logins, the tour must not appear.
+
+scope:
+  max_complexity: simple
+  affected_components:
+    - backend/user-model
+    - frontend/dashboard
+    - frontend/onboarding
+  new_endpoints: 0
+  new_database_tables: 0
+  estimated_hours: 6-10
+
+preconditions:
+  - Authentication system fully implemented (registration, login from previous tasks)
+  - Dashboard page exists and is accessible post-login
+  - User model has a boolean field (onboarding_completed, default false)
+  - Tailwind CSS and Alpine.js/Livewire available for modal implementation
+
+functional_requirements:
+  - REQ-001: Add onboarding_completed boolean column to users table (migration if needed)
+  - REQ-002: Trigger tour check on successful registration/login redirect to dashboard
+  - REQ-003: Display multi-step modal/tour only if onboarding_completed = false
+  - REQ-004: Tour steps: Welcome, Import/Add contacts prompt (with action links), Key features overview, Completion
+  - REQ-005: Allow skip/completion at any step, setting flag to true
+  - REQ-006: Responsive, branded design consistent with auth pages
+
+acceptance_criteria:
+
+  - id: AC-001
+    scenario: Onboarding tour displays on first login after registration
+    given:
+      - New user completes registration (from TSK-2026-0001)
+      - onboarding_completed = false
+    when:
+      - User is redirected to dashboard
+    then:
+      - Onboarding tour modal opens automatically
+      - Step 1 (welcome) displayed with Next/Skip options
+      - Progress through steps possible
+      - Links in steps (e.g., to import) functional
+
+  - id: AC-002
+    scenario: Complete or skip tour persists flag
+    given:
+      - Tour is active on first dashboard load
+    when:
+      - User clicks Skip or completes all steps
+    then:
+      - Tour closes
+      - onboarding_completed set to true in database
+      - Success toast optional ("You're all set!" or similar)
+
+  - id: AC-003
+    scenario: No tour on subsequent logins
+    given:
+      - User has completed or skipped onboarding (flag = true)
+    when:
+      - User logs in again
+    then:
+      - Direct redirect to dashboard
+      - No tour modal appears
+
+  - id: AC-004
+    scenario: Tour is dismissible and non-blocking
+    given:
+      - Tour is active
+    when:
+      - User closes modal or clicks Skip
+    then:
+      - Tour disappears
+      - User can interact with dashboard normally
+      - Flag set to true (no re-trigger)
+
+  - id: AC-005
+    scenario: Tour triggers after first direct login (no prior registration in session)
+    given:
+      - Existing user with onboarding_completed = false (e.g., seeded or legacy)
+    when:
+      - User logs in for the "first" time
+    then:
+      - Tour activates on dashboard load
+
+non_functional_requirements:
+  accessibility:
+    - Modal keyboard-navigable (Esc to close, arrow keys for steps if applicable)
+    - Screen-reader friendly announcements
+  performance:
+    - Tour loads instantly, no page reload required
+    - Minimal JavaScript footprint
+  usability:
+    - Mobile-responsive modal
+    - Clear, concise copy in steps
+
+edge_cases:
+  - User refreshes page during tour → Tour state preserved or restarts gracefully
+  - User navigates away mid-tour → Flag remains false until explicit completion/skip
+  - Concurrent sessions → Flag syncs correctly
+
+dependencies:
+  - TSK-2026-0001  # Sign Up (for post-registration trigger)
+  - TSK-2026-0002  # Log In (for post-login trigger)
+
+notes: >-
+  Implement as Alpine.js-driven modal sequence for lightness, or Livewire if dynamic elements needed.
+  Steps should include actionable links (e.g., "Import contacts now" → open import modal or navigate).
+  Keep tour short and valuable; avoid overwhelming new users.
+  Migration for onboarding_completed column if not already present.
