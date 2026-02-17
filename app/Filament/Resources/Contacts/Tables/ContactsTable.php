@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\Contacts\Tables;
 
 use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -25,10 +25,10 @@ class ContactsTable
                 TextColumn::make('phone')
                     ->toggleable(),
 
-                TextColumn::make('tags.name')
+                TextColumn::make('tags')
                     ->badge()
-                    ->color(fn ($record, $state) => null)
-                    ->formatStateUsing(fn ($state) => $state)
+                    ->color(fn ($record, $state) => $state['color'])
+                    ->formatStateUsing(fn ($state) => $state['name'])
                     ->separator(',')
                     ->toggleable(),
 
@@ -44,7 +44,7 @@ class ContactsTable
                     ->preload(),
             ])
             ->defaultSort('created_at', 'desc')
-            ->recordAction(EditAction::class)
+            ->recordAction(ViewAction::class)
             ->bulkActions([
                 DeleteBulkAction::make(),
             ])
