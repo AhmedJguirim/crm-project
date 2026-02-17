@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Contacts\Tables;
 
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\ViewAction;
+use Filament\Support\Colors\Color;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -27,8 +28,8 @@ class ContactsTable
 
                 TextColumn::make('tags')
                     ->badge()
-                    ->color(fn ($record, $state) => $state['color'])
-                    ->formatStateUsing(fn ($state) => $state['name'])
+                    ->color(fn ($record, $state): array => Color::hex($state['color'] ?? '#94a3b8'))
+                    ->formatStateUsing(fn ($state): string => $state['name'])
                     ->separator(',')
                     ->toggleable(),
 

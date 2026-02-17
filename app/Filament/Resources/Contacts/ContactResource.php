@@ -15,6 +15,7 @@ use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Support\Colors\Color;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -50,7 +51,9 @@ class ContactResource extends Resource
                 TextEntry::make('tags.name')
                     ->label('Tags')
                     ->badge()
-                    ->color(fn (string $state, Contact $record): ?string => $record->tags->firstWhere('name', $state)?->color)
+                    ->color(fn (string $state, Contact $record): array => Color::hex(
+                        $record->tags->firstWhere('name', $state)?->color ?? '#94a3b8'
+                    ))
                     ->separator(',')
                     ->columnSpanFull(),
             ]),
