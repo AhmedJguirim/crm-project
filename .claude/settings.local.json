@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__laravel-boost__application-info",
+      "mcp__laravel-boost__database-schema",
+      "mcp__laravel-boost__list-artisan-commands",
+      "mcp__laravel-boost__search-docs"
+    ]
+  }
+}
