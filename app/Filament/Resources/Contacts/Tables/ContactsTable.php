@@ -2,9 +2,17 @@
 
 namespace App\Filament\Resources\Contacts\Tables;
 
+use App\Enums\ActivityType;
+use App\Models\Activity;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Notifications\Notification;
 use Filament\Support\Colors\Color;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -46,6 +54,39 @@ class ContactsTable
             ])
             ->defaultSort('created_at', 'desc')
             ->recordAction(ViewAction::class)
+            ->recordActions([
+                Action::make('logActivity')
+                    ->label('Log')
+                    ->icon(Heroicon::OutlinedPencilSquare)
+                    ->color('gray')
+                    ->modalHeading('Quick Log Activity')
+                    ->schema([
+                        Select::make('type')
+                            ->options(ActivityType::class)
+                            ->required(),
+
+                        DateTimePicker::make('occurred_at')
+                            ->label('Date & Time')
+                            ->required()
+                            ->default(now())
+                            ->native(false),
+
+                        Textarea::make('notes')
+                            ->rows(3),
+                    ])
+                    ->action(function (array $data, $record): void {
+                        Activity::create([
+                            ...$data,
+                            'contact_id' => $record->getKey(),
+                            'user_id' => auth()->id(),
+                        ]);
+
+                        Notification::make()
+                            ->title('Activity logged')
+                            ->success()
+                            ->send();
+                    }),
+            ])
             ->bulkActions([
                 DeleteBulkAction::make(),
             ])

@@ -2,92 +2,132 @@
 
 namespace App\Filament\Resources\Contacts\Pages;
 
+use App\Enums\ActivityOutcome;
+use App\Enums\ActivityType;
 use App\Filament\Resources\Contacts\ContactResource;
-use App\Models\CustomField;
+use App\Filament\Resources\Contacts\Widgets\ContactActivityFeed;
+use App\Filament\Resources\Contacts\Widgets\ContactDetailsWidget;
+use App\Models\Activity;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
-use Filament\Facades\Filament;
-use Filament\Infolists\Components\TextEntry;
-use Filament\Resources\Pages\ViewRecord;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Notifications\Notification;
+use Filament\Resources\Pages\Concerns\InteractsWithRecord;
+use Filament\Resources\Pages\Page;
 use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Support\Icons\Heroicon;
 
-class ViewContact extends ViewRecord
+class ViewContact extends Page
 {
+    use InteractsWithRecord;
+
     protected static string $resource = ContactResource::class;
+
+    protected string $view = 'filament.resources.contacts.pages.view-contact';
+
+    public function mount(int|string $record): void
+    {
+        $this->record = $this->resolveRecord($record);
+    }
+
+    public function getFooterWidgetsColumns(): int|array
+    {
+        return 3;
+    }
+
+    protected function getFooterWidgets(): array
+    {
+        return [
+            ContactDetailsWidget::class,
+            ContactActivityFeed::class,
+        ];
+    }
 
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('customFields')
-                ->label('Custom Fields')
-                ->icon(Heroicon::OutlinedTableCells)
-                ->color('gray')
-                ->schema(fn (): array => $this->buildCustomFieldsModalSchema())
-                ->modalHeading('Custom Field Values')
-                ->modalSubmitAction(false)
-                ->modalCancelActionLabel('Close')
-                ->slideOver(),
+            Action::make('logActivity')
+                ->label('Log Activity')
+                ->icon(Heroicon::OutlinedPencilSquare)
+                ->color('primary')
+                ->modalHeading('Log Activity')
+                ->schema([
+                    Grid::make(2)->schema([
+                        Select::make('type')
+                            ->options(ActivityType::class)
+                            ->required()
+                            ->live(),
 
-            EditAction::make(),
+                        DateTimePicker::make('occurred_at')
+                            ->label('Date & Time')
+                            ->required()
+                            ->default(now())
+                            ->native(false),
+                    ]),
+
+                    TextInput::make('duration_minutes')
+                        ->label('Duration (minutes)')
+                        ->numeric()
+                        ->minValue(1)
+                        ->maxValue(1440)
+                        ->suffix('min')
+                        ->visible(function (Get $get): bool {
+                            $type = $get('type');
+
+                            if ($type instanceof ActivityType) {
+                                return $type->hasDuration();
+                            }
+
+                            return ActivityType::tryFrom($type ?? '')?->hasDuration() ?? false;
+                        }),
+
+                    TextInput::make('subject')
+                        ->maxLength(255),
+
+                    Textarea::make('notes')
+                        ->rows(3),
+
+                    Select::make('outcome')
+                        ->options(ActivityOutcome::class),
+
+                    Toggle::make('create_follow_up')
+                        ->label('Create follow-up')
+                        ->default(false)
+                        ->live(),
+
+                    DateTimePicker::make('follow_up_at')
+                        ->label('Follow-up Date')
+                        ->default(now()->addWeek())
+                        ->native(false)
+                        ->visible(fn (Get $get): bool => (bool) $get('create_follow_up')),
+                ])
+                ->action(function (array $data): void {
+                    $activityData = collect($data)->except(['create_follow_up'])->toArray();
+
+                    if (! ($data['create_follow_up'] ?? false)) {
+                        $activityData['follow_up_at'] = null;
+                    }
+
+                    $activityData['contact_id'] = $this->getRecord()->getKey();
+                    $activityData['user_id'] = auth()->id();
+
+                    Activity::create($activityData);
+
+                    Notification::make()
+                        ->title('Activity logged')
+                        ->success()
+                        ->send();
+
+                    $this->dispatch('activityLogged');
+                }),
+
+            EditAction::make()
+                ->record($this->getRecord()),
         ];
-    }
-
-    /** @return array<int, mixed> */
-    private function buildCustomFieldsModalSchema(): array
-    {
-        $record = $this->getRecord();
-        $customFields = CustomField::where('organization_id', Filament::getTenant()->id)
-            ->orderBy('order')
-            ->get();
-
-        if ($customFields->isEmpty()) {
-            return [
-                TextEntry::make('no_fields')
-                    ->hiddenLabel()
-                    ->state('No custom fields have been defined for this organization yet.'),
-            ];
-        }
-
-        $values = $record->custom_field_values ?? [];
-
-        $entries = $customFields->map(function (CustomField $field) use ($values): TextEntry {
-            $rawValue = $values[(string) $field->id] ?? null;
-
-            $displayValue = match (true) {
-                is_array($rawValue) => $this->formatMultiselectValue($field, $rawValue),
-                $field->type === 'select' && ! blank($rawValue) => $this->formatSelectValue($field, $rawValue),
-                blank($rawValue) => '—',
-                default => (string) $rawValue,
-            };
-
-            return TextEntry::make("custom_field_{$field->id}")
-                ->label($field->name)
-                ->state($displayValue);
-        })->all();
-
-        return [
-            Grid::make(2)->schema($entries),
-        ];
-    }
-
-    private function formatSelectValue(CustomField $field, string $value): string
-    {
-        $options = collect($field->options ?? [])->pluck('label', 'value');
-
-        return $options[$value] ?? $value;
-    }
-
-    /** @param array<int, string> $values */
-    private function formatMultiselectValue(CustomField $field, array $values): string
-    {
-        if (empty($values)) {
-            return '—';
-        }
-
-        $options = collect($field->options ?? [])->pluck('label', 'value');
-        $labels = collect($values)->map(fn (string $v) => $options[$v] ?? $v);
-
-        return $labels->join(', ');
     }
 }
