@@ -4,7 +4,15 @@
       "mcp__laravel-boost__application-info",
       "mcp__laravel-boost__database-schema",
       "mcp__laravel-boost__list-artisan-commands",
-      "mcp__laravel-boost__search-docs"
+      "mcp__laravel-boost__search-docs",
+      "Bash(php artisan test:*)",
+      "Bash(npm run build:*)",
+      "mcp__laravel-boost__tinker",
+      "Bash(vendor/bin/pint:*)"
     ]
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "laravel-boost"
+  ]
 }

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[ObservedBy([ContactObserver::class])]
 class Contact extends Model
@@ -38,5 +39,10 @@ class Contact extends Model
     public function tags(): BelongsToMany
     {
         return $this->belongsToMany(Tag::class, 'contact_tag');
+    }
+
+    public function activities(): HasMany
+    {
+        return $this->hasMany(Activity::class);
     }
 }
