@@ -1,0 +1,83 @@
+spec_version: 1.0
+task_id: TSK-2026-0022
+title: Implement Full Task Creation Form
+
+user_story: >-
+  As a freelancer/consultant,
+  I want a full task creation form
+  so that I can create detailed tasks with all necessary information.
+
+description: >-
+  Implement the complete task creation form in Filament. 
+  The form must be accessible from the Tasks resource "New Task" button 
+  and allow setting all important fields with good defaults for speed.
+
+functional_requirements:
+  - REQ-001: Form fields: Title (required), Due Date & Time, Contact (searchable select), Type, Priority, Notes (textarea)
+  - REQ-002: Smart defaults: Due date = today + 3 days, Type = Follow-up, Priority = Medium, Status = Pending
+  - REQ-003: Contact field is optional (for general reminders)
+  - REQ-004: On successful save: task is created, success notification shown, redirect to Tasks list
+  - REQ-005: Form validation for required fields
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Create task with all fields filled
+    given:
+      - User is on Tasks list page
+    when:
+      - User clicks "New Task"
+      - Fills title, selects due date, contact, type, priority and notes
+      - Submits form
+    then:
+      - Task is saved in database with correct values
+      - Success notification is shown
+      - User is redirected back to Tasks list
+      - New task appears in the list
+
+  - id: AC-002
+    scenario: Create task with minimal data
+    given:
+      - User opens full create form
+    when:
+      - User only fills title and submits
+    then:
+      - Task is created with smart defaults (due +3 days, Medium priority, Follow-up type)
+
+  - id: AC-003
+    scenario: Validation errors
+    given:
+      - User on create form
+    when:
+      - User submits without title
+    then:
+      - Inline error "Title is required"
+      - Form stays open with values preserved
+
+  - id: AC-004
+    scenario: Contact pre-fill not applicable here
+    given:
+      - Full form opened from Tasks list
+    when:
+      - User creates task
+    then:
+      - Contact field is empty by default (optional)
+
+non_functional_requirements:
+  performance:
+    - Form loads instantly
+  usability:
+    - Clean, well-labeled fields
+    - Date picker is easy to use on mobile
+
+edge_cases:
+  - Very long title or notes
+  - Selecting a contact from another organization (should be blocked)
+  - Leaving due date empty
+
+dependencies:
+  - Implement Tasks Model and Database Table
+
+notes:
+  - Use Filament Form Builder
+  - Contact field uses searchable select
+  - Priority and Type use Select with nice badges

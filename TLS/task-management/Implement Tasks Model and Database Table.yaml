@@ -1,0 +1,88 @@
+spec_version: 1.0
+task_id: TSK-2026-0021
+title: Implement Tasks Model and Database Table
+
+user_story: >-
+  As a freelancer/consultant,
+  I want the Tasks model and database table created
+  so that I can start tracking my follow-ups and reminders properly.
+
+description: >-
+  Create the Task model and its migration. The table must support everything freelancers need
+  for fast task management: title, due date, linked contact, type, priority, notes, status,
+  and automatic scoping to the current Organization.
+
+functional_requirements:
+  - REQ-001: Create Task Eloquent model with proper relationships (belongsTo Organization, belongsTo Contact, belongsTo User as creator)
+  - REQ-002: Create migration for tasks table
+  - REQ-003: Table columns: id, organization_id, contact_id (nullable), title, due_at (datetime), type (string), priority (string), notes (text), status (string), completed_at (nullable datetime), created_by (user_id), timestamps
+  - REQ-004: Add global scope to automatically filter by current Organization
+  - REQ-005: Define status enum: pending, done
+  - REQ-006: Define type enum: call, email, meeting, follow_up, invoice, other
+  - REQ-007: Define priority enum: high, medium, low
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Model and table are created successfully
+    given:
+      - Fresh database
+    when:
+      - Migration is run
+    then:
+      - tasks table exists with all required columns and indexes
+      - Task model exists and can be instantiated
+
+  - id: AC-002
+    scenario: Organization scoping works on model
+    given:
+      - Task model with global scope
+    when:
+      - Querying tasks while in Organization A
+    then:
+      - Only tasks belonging to Organization A are returned
+
+  - id: AC-003
+    scenario: Relationships are correctly defined
+    given:
+      - A task linked to a contact and organization
+    when:
+      - Calling $task->contact or $task->organization
+    then:
+      - Correct related models are returned
+
+  - id: AC-004
+    scenario: Default values and casts
+    given:
+      - New Task created without status
+    when:
+      - Task is saved
+    then:
+      - Status defaults to "pending"
+
+  - id: AC-005
+    scenario: Enums are enforced
+    given:
+      - Attempting to save invalid status or priority
+    when:
+      - Model save is called
+    then:
+      - Validation or cast prevents invalid values
+
+non_functional_requirements:
+  performance:
+    - Indexes on organization_id, due_at, status, contact_id for fast queries
+  maintainability:
+    - Clear, documented model with casts and relationships
+
+edge_cases:
+  - Task with no contact (general reminder)
+  - Null due_at (someday tasks)
+  - Very long notes or titles
+
+dependencies:
+  - Implement Global Scoping of All Resources to Current Organization
+
+notes:
+  - Use Laravel enum casts where possible
+  - Add scope methods like scopeOverdue(), scopeDueThisWeek()
+  - This is the foundation — all future task features depend on it

@@ -1,0 +1,94 @@
+spec_version: 1.0
+task_id: TSK-2026-0020
+title: Implement Tasks List Page (View My Tasks)
+
+user_story: >-
+  As a freelancer/consultant,
+  I want a clean Tasks list page with smart filters
+  so that I can quickly see what needs my attention.
+
+description: >-
+  Create a dedicated Tasks resource in Filament that shows all tasks belonging to the current Organization.
+  The page must be clean, fast, and focused on what freelancers care about most: overdue items first, then upcoming deadlines.
+  Include useful filters (Overdue, Today, This Week, Done) and visual highlighting for overdue tasks.
+
+functional_requirements:
+  - REQ-001: Dedicated Tasks index page accessible via sidebar navigation
+  - REQ-002: Table columns: Title, Contact (clickable), Due Date, Type, Priority (colored badge), Status
+  - REQ-003: Filters: Overdue, Today, This Week, All Pending, Done
+  - REQ-004: Default view shows Pending tasks sorted by due date (soonest first)
+  - REQ-005: Overdue tasks are visually highlighted (red row/background or strong badge)
+  - REQ-006: All data automatically scoped to current Organization
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Default view shows relevant tasks
+    given:
+      - User has tasks in current Organization (some overdue, some upcoming, some done)
+    when:
+      - User opens the Tasks page
+    then:
+      - Overdue tasks appear at the top in red
+      - Tasks are sorted by due date ascending
+      - Only current Organization's tasks are shown
+
+  - id: AC-002
+    scenario: Using filters
+    given:
+      - User is on Tasks list page
+    when:
+      - User selects "Today" filter
+    then:
+      - Only tasks due today are shown
+    when:
+      - User selects "Overdue" filter
+    then:
+      - Only overdue tasks are shown (highlighted red)
+
+  - id: AC-003
+    scenario: Done tasks visibility
+    given:
+      - User has completed tasks
+    when:
+      - User selects "Done" filter
+    then:
+      - Only completed tasks are displayed
+
+  - id: AC-004
+    scenario: Empty state
+    given:
+      - No tasks in current Organization
+    when:
+      - User opens Tasks page
+    then:
+      - Clean empty state is shown with button to create first task
+
+  - id: AC-005
+    scenario: Clickable contact
+    given:
+      - Task has a linked contact
+    when:
+      - User clicks the contact name in the table
+    then:
+      - User is taken to that contact's detail page
+
+non_functional_requirements:
+  performance:
+    - Page loads under 1 second even with 100+ tasks
+  usability:
+    - Clear visual hierarchy (overdue = most prominent)
+    - Mobile-friendly table
+
+edge_cases:
+  - No tasks at all
+  - All tasks in future
+  - Tasks from other Organizations are never visible
+  - Very long task titles are truncated with tooltip
+
+dependencies:
+  - Implement Tasks Model and Database Table
+
+notes:
+  - Use Filament Table with filters and badges
+  - Priority colors: High = red, Medium = orange, Low = blue
+  - Default sort must put overdue first

@@ -1,0 +1,93 @@
+spec_version: 1.0
+task_id: TSK-2026-0031
+title: Implement Task Notifications
+
+user_story: >-
+  As a freelancer/consultant,
+  I want email + in-app notifications for overdue and due-soon tasks
+  so I get reminded even when not in the app.
+
+description: >-
+  Implement both in-app and email notifications for tasks.
+  Send reminders the day before due date and when a task becomes overdue.
+  Include a daily morning digest email (optional) and a bell icon in the panel header showing unread notifications.
+
+functional_requirements:
+  - REQ-001: In-app notification bell in the top navbar showing count of unread notifications
+  - REQ-002: Notifications for "Due tomorrow" and "Overdue"
+  - REQ-003: Daily morning digest email (configurable) summarizing overdue + due today
+  - REQ-004: Clicking a notification marks it as read and navigates to the task or filtered Tasks list
+  - REQ-005: Notifications are scoped to current Organization
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Due-soon notification
+    given:
+      - A task is due tomorrow
+    when:
+      - Daily notification job runs
+    then:
+      - In-app notification appears
+      - Email is sent (if enabled)
+
+  - id: AC-002
+    scenario: Overdue notification
+    given:
+      - A task becomes overdue
+    when:
+      - Notification job runs
+    then:
+      - In-app notification is created with red indicator
+      - Email is sent immediately
+
+  - id: AC-003
+    scenario: Daily digest email
+    given:
+      - User has enabled daily digest
+    when:
+      - Morning cron job runs
+    then:
+      - One email is sent summarizing all overdue + due today tasks
+
+  - id: AC-004
+    scenario: Clicking notification
+    given:
+      - User has unread notifications
+    when:
+      - User clicks a notification in the bell menu
+    then:
+      - Notification is marked read
+      - User is taken to the relevant task or filtered Tasks list
+
+  - id: AC-005
+    scenario: No notifications
+    given:
+      - No due or overdue tasks
+    when:
+      - User opens notification bell
+    then:
+      - Shows "You're all caught up!"
+
+non_functional_requirements:
+  performance:
+    - Notification jobs run efficiently (queued)
+  usability:
+    - Clear, concise notification text with task title and due date
+
+edge_cases:
+  - User has disabled notifications
+  - Tasks snoozed or marked done before notification time
+  - Multiple tasks due on same day (digest groups them)
+
+dependencies:
+  - Implement Tasks Model and Database Table
+  - Implement Tasks List Page (View My Tasks)
+  - Implement Mark Task as Done
+  - Implement Snooze / Reschedule Task
+  - Implement Dashboard Tasks Widget
+
+notes:
+  - Use Laravel Notifications system
+  - Create a TaskDueSoon and TaskOverdue notification classes
+  - Add a notifications table migration if not already present
+  - Make email digest toggleable in user settings (future)

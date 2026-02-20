@@ -1,0 +1,81 @@
+spec_version: 1.0
+task_id: TSK-2026-0030
+title: Implement Dashboard Tasks Widget
+
+user_story: >-
+  As a freelancer/consultant,
+  I want a prominent dashboard widget showing “Overdue (X)” in red + “Due this week (Y)”
+  so I never miss important follow-ups.
+
+description: >-
+  Add a highly visible Tasks widget on the main dashboard that gives an instant overview
+  of what needs attention. The widget must highlight overdue tasks in red and show
+  the count of tasks due this week.
+
+functional_requirements:
+  - REQ-001: Widget placed prominently on the dashboard (top or first position)
+  - REQ-002: Shows two clear counts: Overdue (in red) and Due this week
+  - REQ-003: Overdue count is highlighted in red with strong visual emphasis
+  - REQ-004: Clicking the widget navigates to the Tasks list page with appropriate filter applied
+  - REQ-005: Widget automatically updates when tasks are marked done or snoozed
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Widget displays correct counts
+    given:
+      - User has 3 overdue tasks and 5 tasks due this week
+    when:
+      - User lands on the dashboard
+    then:
+      - Widget shows "Overdue (3)" in red
+      - Widget shows "Due this week (5)"
+
+  - id: AC-002
+    scenario: Clicking widget navigates with filter
+    given:
+      - Widget is visible on dashboard
+    when:
+      - User clicks the Overdue count
+    then:
+      - User is taken to Tasks list with "Overdue" filter active
+
+  - id: AC-003
+    scenario: Widget updates after task changes
+    given:
+      - Widget shows Overdue (2)
+    when:
+      - User marks one task as done from anywhere
+    then:
+      - Widget instantly updates to Overdue (1)
+
+  - id: AC-004
+    scenario: Empty state
+    given:
+      - User has no pending tasks
+    when:
+      - Dashboard loads
+    then:
+      - Widget shows "All caught up!" or "0 overdue • 0 this week"
+
+non_functional_requirements:
+  performance:
+    - Widget loads instantly (cached or very fast query)
+  usability:
+    - Large, bold numbers with clear labels
+    - Red color for overdue is highly visible
+
+edge_cases:
+  - No tasks at all
+  - Only future tasks (no overdue)
+  - Switching between Organizations (widget must update correctly)
+
+dependencies:
+  - Implement Tasks Model and Database Table
+  - Implement Tasks List Page (View My Tasks)
+  - Implement Mark Task as Done
+  - Implement Snooze / Reschedule Task
+
+notes:
+  - Use Filament Stats widget or custom Livewire component
+  - Make it reusable and cache counts per user/organization if needed
+  - Overdue = due_at < now() and status = pending

@@ -1,0 +1,84 @@
+spec_version: 1.0
+task_id: TSK-2026-0025
+title: Implement Quick Task Creation from Contacts Table (Row Action)
+
+user_story: >-
+  As a freelancer/consultant,
+  I want a row action “Add Task” on the contacts list
+  so that I can create tasks while browsing contacts.
+
+description: >-
+  Add a row-level action in the Contacts Filament table called “Add Task”.
+  When clicked, it opens the compact quick task modal with the selected contact
+  already pre-filled so the user can log a follow-up instantly while scanning the list.
+
+functional_requirements:
+  - REQ-001: Row action "Add Task" visible on every row in the Contacts index table
+  - REQ-002: Clicking the action opens the quick task modal
+  - REQ-003: The selected contact is automatically pre-filled and locked in the modal
+  - REQ-004: Modal contains minimal fields: Title (required), Due Date (default +3 days), Type (default Follow-up)
+  - REQ-005: On save: task is created, success toast shown, modal closes, user stays on the Contacts list page
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Open quick task from table row
+    given:
+      - User is on Contacts index page
+    when:
+      - User clicks "Add Task" on any row
+    then:
+      - Quick task modal opens with that contact pre-selected and locked
+
+  - id: AC-002
+    scenario: Create task for the selected contact
+    given:
+      - Quick task modal open from Contacts table row
+    when:
+      - User enters title and clicks "Create Task"
+    then:
+      - Task is saved with correct contact linked
+      - Success toast appears
+      - Modal closes
+      - User remains on the Contacts list page
+
+  - id: AC-003
+    scenario: Cancel from table row action
+    given:
+      - Quick task modal open from Contacts table
+    when:
+      - User clicks Cancel
+    then:
+      - Modal closes
+      - No task is created
+      - User stays on Contacts list
+
+  - id: AC-004
+    scenario: Validation from table row
+    given:
+      - Quick task modal open from Contacts table
+    when:
+      - User submits without title
+    then:
+      - Inline error shown
+      - Modal stays open
+
+non_functional_requirements:
+  performance:
+    - Action and modal open instantly
+  usability:
+    - Row action is clearly visible (icon + text or icon only with tooltip)
+
+edge_cases:
+  - Contact row has no name (fallback to email)
+  - User has no contacts (action disabled or hidden)
+  - Table is filtered or paginated
+
+dependencies:
+  - Implement Tasks Model and Database Table
+  - Implement Global Quick Task Creation (Floating Button + Modal)
+  - Implement Quick Task Creation from Contact Detail Page
+
+notes:
+  - Reuse the same compact quick task modal component
+  - Action should be a Filament Table Action
+  - Keep the modal as small and fast as the global version

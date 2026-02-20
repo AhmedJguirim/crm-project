@@ -1,0 +1,82 @@
+spec_version: 1.0
+task_id: TSK-2026-0027
+title: Implement Delete Task
+
+user_story: >-
+  As a freelancer/consultant,
+  I want to delete a task with confirmation
+  so that I can remove mistakes or cancelled items.
+
+description: >-
+  Add delete functionality for tasks with a clear confirmation step to prevent accidental deletion.
+  The action must be available from both the Tasks list page (row action) and the task detail page.
+
+functional_requirements:
+  - REQ-001: Delete action available on Tasks list (row action) and task detail page
+  - REQ-002: Clicking delete opens a confirmation modal with clear warning
+  - REQ-003: Modal requires explicit confirmation (e.g. "Yes, delete task")
+  - REQ-004: On confirmation: task is soft-deleted, success notification shown, list refreshes
+  - REQ-005: Deleted tasks are hidden from all lists and dashboard widget
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Delete task from list page
+    given:
+      - User is on Tasks list page
+    when:
+      - User clicks Delete on a task row
+      - Confirms in modal
+    then:
+      - Task is soft-deleted
+      - Success notification is shown
+      - Task disappears from the list immediately
+
+  - id: AC-002
+    scenario: Delete task from detail page
+    given:
+      - User is viewing a task detail page
+    when:
+      - User clicks Delete and confirms
+    then:
+      - Task is soft-deleted
+      - User is redirected to Tasks list page
+      - Success notification shown
+
+  - id: AC-003
+    scenario: Cancel deletion
+    given:
+      - Delete confirmation modal is open
+    when:
+      - User clicks Cancel or closes modal
+    then:
+      - Modal closes
+      - Task is not deleted
+
+  - id: AC-004
+    scenario: Deleted task is hidden
+    given:
+      - Task was just deleted
+    when:
+      - User views Tasks list or dashboard widget
+    then:
+      - Deleted task no longer appears anywhere
+
+non_functional_requirements:
+  usability:
+    - Clear warning text in modal ("This action cannot be undone")
+    - One-click confirmation for speed
+
+edge_cases:
+  - Deleting an already completed task
+  - Deleting a task with long title/notes
+  - Attempting to delete from another organization (blocked by tenancy)
+
+dependencies:
+  - Implement Tasks Model and Database Table
+  - Implement Tasks List Page (View My Tasks)
+  - Implement Edit Task
+
+notes:
+  - Use soft deletes (deleted_at column)
+  - Filament DeleteAction with custom modal content
+  - After delete, refresh table or redirect cleanly

@@ -1,0 +1,81 @@
+spec_version: 1.0
+task_id: TSK-2026-0028
+title: Implement Mark Task as Done (One-Click)
+
+user_story: >-
+  As a freelancer/consultant,
+  I want a one-click “Mark Done” action
+  so that I can close tasks instantly without extra steps.
+
+description: >-
+  Add a fast one-click way to mark any task as completed from both the Tasks list and task detail page.
+  The action should instantly update the task status, record the completion time, give immediate visual feedback,
+  and remove the task from overdue/upcoming views.
+
+functional_requirements:
+  - REQ-001: "Mark Done" action available on every task row in the Tasks list
+  - REQ-002: "Mark Done" button/action available on the task detail page
+  - REQ-003: On click: set status to "done", fill completed_at timestamp, save instantly
+  - REQ-004: Show success toast and update UI immediately (task disappears from pending views)
+  - REQ-005: Action is disabled or hidden for already completed tasks
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Mark task done from list page
+    given:
+      - User is on Tasks list page with pending tasks
+    when:
+      - User clicks "Mark Done" on a task row
+    then:
+      - Task status changes to "done"
+      - Task disappears from the default pending view instantly
+      - Success toast shown ("Task marked as done")
+
+  - id: AC-002
+    scenario: Mark task done from detail page
+    given:
+      - User is viewing a task detail page
+    when:
+      - User clicks "Mark Done"
+    then:
+      - Task is marked done
+      - Success toast shown
+      - User is redirected back to Tasks list (or stays on detail with updated status)
+
+  - id: AC-003
+    scenario: Already completed task
+    given:
+      - Task is already marked as done
+    when:
+      - User views the task
+    then:
+      - "Mark Done" action is hidden or disabled
+
+  - id: AC-004
+    scenario: Visual feedback after marking done
+    given:
+      - User marks a task done
+    when:
+      - Tasks list or dashboard widget refreshes
+    then:
+      - Task no longer appears in Overdue or This Week sections
+
+non_functional_requirements:
+  performance:
+    - Action completes and UI updates in under 800ms
+  usability:
+    - One single click – no confirmation needed for speed
+
+edge_cases:
+  - Marking an overdue task as done
+  - Marking a task that has a future due date
+  - Clicking Mark Done multiple times quickly (only once should work)
+
+dependencies:
+  - Implement Tasks Model and Database Table
+  - Implement Tasks List Page (View My Tasks)
+
+notes:
+  - Use Filament Action with ->icon('heroicon-o-check') and green color
+  - Update completed_at = now() when marking done
+  - Add scopeCompleted() on model for easy filtering

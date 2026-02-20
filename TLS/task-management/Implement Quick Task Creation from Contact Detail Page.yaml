@@ -1,0 +1,83 @@
+spec_version: 1.0
+task_id: TSK-2026-0024
+title: Implement Quick Task Creation from Contact Detail Page
+
+user_story: >-
+  As a freelancer/consultant,
+  I want to create a task directly from a contact’s detail page (with contact pre-filled)
+  so that follow-ups are instant.
+
+description: >-
+  Add a prominent "Quick Task" action on the Contact detail/view page.
+  When clicked, it opens the compact quick task modal with the current contact already selected and focused.
+  This allows users to log a follow-up in seconds while viewing the contact.
+
+functional_requirements:
+  - REQ-001: "Quick Task" button/action visible on every Contact detail page
+  - REQ-002: Clicking the button opens the quick task modal
+  - REQ-003: The selected contact is pre-filled and locked in the modal
+  - REQ-004: Modal contains minimal fields: Title (required), Due Date (default +3 days), Type (default Follow-up)
+  - REQ-005: On save: task is created, success toast shown, modal closes, user stays on the same contact page
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Open quick task from contact page
+    given:
+      - User is viewing a specific contact detail page
+    when:
+      - User clicks "Quick Task" button
+    then:
+      - Quick task modal opens
+      - The current contact is already selected and cannot be changed
+
+  - id: AC-002
+    scenario: Create quick task for the viewed contact
+    given:
+      - Quick task modal is open from a contact page
+    when:
+      - User enters title and clicks "Create Task"
+    then:
+      - Task is saved with the correct contact linked
+      - Success toast is shown
+      - Modal closes
+      - User remains on the same contact page
+
+  - id: AC-003
+    scenario: Cancel quick task from contact
+    given:
+      - Quick task modal is open from contact page
+    when:
+      - User clicks Cancel
+    then:
+      - Modal closes
+      - No task is created
+      - User stays on contact page
+
+  - id: AC-004
+    scenario: Validation in quick modal from contact
+    given:
+      - Quick task modal open from contact page
+    when:
+      - User submits without title
+    then:
+      - Inline error for title
+      - Modal remains open
+
+non_functional_requirements:
+  performance:
+    - Modal opens and saves instantly
+  usability:
+    - Button is clearly visible and labeled "Quick Task" or has icon + tooltip
+
+edge_cases:
+  - Contact has no name (fallback to email)
+  - User switches organization while on contact page (modal should respect current org)
+
+dependencies:
+  - Implement Tasks Model and Database Table
+  - Implement Global Quick Task Creation (Floating Button + Modal)
+
+notes:
+  - Reuse the same compact modal component from the global quick task
+  - Pre-fill contact via URL parameter or Livewire state
+  - Button can be in the header or as a prominent action card

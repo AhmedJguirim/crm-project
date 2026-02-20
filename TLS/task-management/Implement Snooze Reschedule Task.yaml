@@ -1,0 +1,84 @@
+spec_version: 1.0
+task_id: TSK-2026-0029
+title: Implement Snooze / Reschedule Task
+
+user_story: >-
+  As a freelancer/consultant,
+  I want one-click snooze options (1 day, 3 days, 1 week, custom)
+  so that I can easily postpone tasks.
+
+description: >-
+  Add quick snooze and reschedule functionality to tasks. Users must be able to postpone 
+  a task with one click using common presets or choose a custom date. The action must be 
+  available from both the Tasks list and task detail page.
+
+functional_requirements:
+  - REQ-001: Snooze action available on task rows in Tasks list and on task detail page
+  - REQ-002: Preset snooze options: +1 day, +3 days, +1 week
+  - REQ-003: "Custom" option that opens a date/time picker
+  - REQ-004: On selection: update task due_at field, show success toast, refresh UI instantly
+  - REQ-005: Action disabled for completed tasks
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: One-click preset snooze from list
+    given:
+      - User is on Tasks list page with pending tasks
+    when:
+      - User clicks Snooze → chooses "+3 days"
+    then:
+      - Task due date is updated +3 days
+      - Success toast shown ("Task snoozed for 3 days")
+      - Task moves to correct position in list
+
+  - id: AC-002
+    scenario: Custom reschedule
+    given:
+      - User opens snooze menu
+    when:
+      - User selects "Custom" and picks new date/time
+      - Confirms
+    then:
+      - Task due_at is updated to chosen date
+      - Success notification shown
+      - UI refreshes with new due date
+
+  - id: AC-003
+    scenario: Snooze overdue task
+    given:
+      - Task is overdue
+    when:
+      - User snoozes it for 1 week
+    then:
+      - Task is no longer shown as overdue
+      - New due date is correctly applied
+
+  - id: AC-004
+    scenario: Snooze disabled on completed tasks
+    given:
+      - Task is already marked done
+    when:
+      - User views task actions
+    then:
+      - Snooze / Reschedule options are hidden or disabled
+
+non_functional_requirements:
+  performance:
+    - Snooze action completes and UI updates in under 800ms
+  usability:
+    - Clear preset labels and easy custom picker
+
+edge_cases:
+  - Snoozing a task due today
+  - Choosing custom date in the past (allow with warning or prevent)
+  - Rapid successive snoozes
+
+dependencies:
+  - Implement Tasks Model and Database Table
+  - Implement Tasks List Page (View My Tasks)
+  - Implement Mark Task as Done
+
+notes:
+  - Use Filament Action with dropdown menu for presets
+  - Custom option opens small date picker modal
+  - Update due_at field only (do not change status)

@@ -1,0 +1,93 @@
+spec_version: 1.0
+task_id: TSK-2026-0023
+title: Implement Global Quick Task Creation (Floating Button + Modal)
+
+user_story: >-
+  As a freelancer/consultant,
+  I want a floating “+ Quick Task” button anywhere in the app
+  so that I can create a task in under 5 seconds.
+
+description: >-
+  Add a prominent floating action button visible on every page in the Filament panel.
+  When clicked, it opens a small, fast modal for quick task creation with minimal fields
+  and smart defaults so users can log a follow-up or reminder instantly without leaving their current screen.
+
+functional_requirements:
+  - REQ-001: Floating "+" button visible on all pages (bottom-right, consistent style)
+  - REQ-002: Clicking the button opens a compact modal with minimal fields
+  - REQ-003: Modal fields: Title (required), Due Date (default +3 days), Contact (optional searchable select), Type (default Follow-up)
+  - REQ-004: One big "Create Task" button that saves and closes modal instantly
+  - REQ-005: After save: success toast, modal closes, user stays on the same page
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Open quick task modal from anywhere
+    given:
+      - User is on any page (dashboard, contacts, custom fields, etc.)
+    when:
+      - User clicks the floating "+" button
+    then:
+      - Compact modal opens immediately
+
+  - id: AC-002
+    scenario: Create task with minimal input
+    given:
+      - Quick task modal is open
+    when:
+      - User types a title and clicks "Create Task"
+    then:
+      - Task is created with smart defaults
+      - Success toast appears
+      - Modal closes
+      - User remains on the same page
+
+  - id: AC-003
+    scenario: Quick task with contact
+    given:
+      - Quick task modal is open
+    when:
+      - User selects a contact and adds title
+      - Clicks "Create Task"
+    then:
+      - Task is saved with the selected contact linked
+
+  - id: AC-004
+    scenario: Cancel quick creation
+    given:
+      - Quick task modal is open
+    when:
+      - User clicks Cancel or outside the modal
+    then:
+      - Modal closes
+      - No task is created
+
+  - id: AC-005
+    scenario: Validation
+    given:
+      - Quick task modal is open
+    when:
+      - User clicks "Create Task" without entering title
+    then:
+      - Inline error shown for title
+      - Modal stays open
+
+non_functional_requirements:
+  performance:
+    - Modal opens and saves in under 1 second
+  usability:
+    - Very minimal modal (fits on mobile)
+    - Smart defaults make it feel instant
+
+edge_cases:
+  - No contacts exist yet
+  - Very long title
+  - User is on Tasks page already (still works the same)
+
+dependencies:
+  - Implement Tasks Model and Database Table
+  - Implement Full Task Creation Form
+
+notes:
+  - Use Livewire/Alpine for the floating button and modal
+  - Keep modal height small (max 5 fields)
+  - Button should have tooltip "Quick Task"

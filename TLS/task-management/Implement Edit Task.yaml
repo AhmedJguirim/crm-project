@@ -1,0 +1,89 @@
+spec_version: 1.0
+task_id: TSK-2026-0026
+title: Implement Edit Task
+
+user_story: >-
+  As a freelancer/consultant,
+  I want to edit any task
+  so that I can correct or update details when needed.
+
+description: >-
+  Add full edit functionality for tasks. Users must be able to update title, due date, contact, type, 
+  priority, and notes from both the Tasks list and task detail page.
+
+functional_requirements:
+  - REQ-001: Edit action available on Tasks list (row action) and task detail page
+  - REQ-002: Edit form pre-fills all current task values
+  - REQ-003: Form includes all fields: Title, Due Date, Contact (searchable), Type, Priority, Notes
+  - REQ-004: On successful save: update the task, show success notification, refresh the page/list
+  - REQ-005: Proper validation for required fields
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Edit task from list page
+    given:
+      - User is on Tasks list page
+    when:
+      - User clicks Edit on any task row
+    then:
+      - Edit form opens with all current values pre-filled
+
+  - id: AC-002
+    scenario: Successful update
+    given:
+      - Edit form is open with existing task data
+    when:
+      - User changes title, due date and notes then saves
+    then:
+      - Task is updated in database
+      - Success notification is shown
+      - List or detail page refreshes with new values
+
+  - id: AC-003
+    scenario: Cancel editing
+    given:
+      - User has opened edit form
+    when:
+      - User clicks Cancel
+    then:
+      - Form closes
+      - No changes are saved
+
+  - id: AC-004
+    scenario: Validation on edit
+    given:
+      - Edit form is open
+    when:
+      - User removes title and tries to save
+    then:
+      - Inline error "Title is required" is shown
+      - Form remains open
+
+  - id: AC-005
+    scenario: Contact can be changed
+    given:
+      - Task already has a linked contact
+    when:
+      - User changes the contact in edit form and saves
+    then:
+      - Task is now linked to the new contact
+
+non_functional_requirements:
+  performance:
+    - Edit form opens and saves instantly
+  usability:
+    - Same form layout as full create for consistency
+
+edge_cases:
+  - Editing a completed task (should allow)
+  - Editing task with no contact (can add one)
+  - Very long notes field
+
+dependencies:
+  - Implement Tasks Model and Database Table
+  - Implement Full Task Creation Form
+  - Implement Tasks List Page (View My Tasks)
+
+notes:
+  - Reuse the same form component as the full create form (Filament EditRecord)
+  - Update the table row instantly after edit if possible
