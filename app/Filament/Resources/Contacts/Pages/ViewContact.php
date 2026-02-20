@@ -95,11 +95,6 @@ class ViewContact extends Page
                     Select::make('outcome')
                         ->options(ActivityOutcome::class),
 
-                    Toggle::make('create_follow_up')
-                        ->label('Create follow-up')
-                        ->default(false)
-                        ->live(),
-
                     DateTimePicker::make('follow_up_at')
                         ->label('Follow-up Date')
                         ->default(now()->addWeek())
@@ -108,10 +103,6 @@ class ViewContact extends Page
                 ])
                 ->action(function (array $data): void {
                     $activityData = collect($data)->except(['create_follow_up'])->toArray();
-
-                    if (! ($data['create_follow_up'] ?? false)) {
-                        $activityData['follow_up_at'] = null;
-                    }
 
                     $activityData['contact_id'] = $this->getRecord()->getKey();
                     $activityData['user_id'] = auth()->id();
