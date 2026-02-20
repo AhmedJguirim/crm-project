@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Contacts\Tables;
 
 use App\Enums\ActivityType;
+use App\Filament\Actions\QuickTaskAction;
 use App\Models\Activity;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteBulkAction;
@@ -55,6 +56,8 @@ class ContactsTable
             ->defaultSort('created_at', 'desc')
             ->recordAction(ViewAction::class)
             ->recordActions([
+                QuickTaskAction::makeForContactsTable(),
+
                 Action::make('logActivity')
                     ->label('Log')
                     ->icon(Heroicon::OutlinedPencilSquare)
