@@ -1,7 +1,9 @@
 @import '../../../../vendor/filament/filament/resources/css/theme.css';
  
 @source '../../../../app/Filament/**/*';
+@source '../../../../app/Livewire/**/*';
 @source '../../../../resources/views/filament/**/*';
+@source '../../../../resources/views/livewire/**/*';
 
 @theme {
     --color-primary-50: #eff6ff;
