@@ -29,9 +29,9 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index('organization_id');
-            $table->index('due_at');
-            $table->index('status');
-            $table->index('contact_id');
+            $table->index(['organization_id','due_at']);
+            $table->index(['organization_id','status']);
+            $table->index(['organization_id','contact_id']);
         });
     }
 

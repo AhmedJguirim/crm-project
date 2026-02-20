@@ -12,12 +12,14 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[ObservedBy([TaskObserver::class])]
 class Task extends Model
 {
     /** @use HasFactory<\Database\Factories\TaskFactory> */
     use HasFactory;
+    use SoftDeletes;
 
     protected $fillable = [
         'organization_id',
@@ -37,6 +39,7 @@ class Task extends Model
         return [
             'due_at' => 'datetime',
             'completed_at' => 'datetime',
+            'deleted_at' => 'datetime',
             'type' => TaskType::class,
             'priority' => TaskPriority::class,
             'status' => TaskStatus::class,
@@ -80,6 +83,11 @@ class Task extends Model
     public function scopeDueThisWeek(Builder $query): Builder
     {
         return $query->whereBetween('due_at', [now()->startOfWeek(), now()->endOfWeek()]);
+    }
+
+    public function scopeCompleted(Builder $query): Builder
+    {
+        return $query->where('status', TaskStatus::Done);
     }
 
     public function isOverdue(): bool
