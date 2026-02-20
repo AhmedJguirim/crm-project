@@ -30,6 +30,7 @@ test('tasks table has required columns', function () {
             'notes',
             'status',
             'completed_at',
+            'deleted_at',
             'created_by',
             'created_at',
             'updated_at',
