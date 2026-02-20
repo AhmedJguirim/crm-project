@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Contacts\Pages;
 
 use App\Enums\ActivityOutcome;
 use App\Enums\ActivityType;
+use App\Filament\Actions\QuickTaskAction;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Contacts\Widgets\ContactActivityFeed;
 use App\Filament\Resources\Contacts\Widgets\ContactDetailsWidget;
@@ -51,6 +52,8 @@ class ViewContact extends Page
     protected function getHeaderActions(): array
     {
         return [
+            QuickTaskAction::makeForContact($this->getRecord()),
+
             Action::make('logActivity')
                 ->label('Log Activity')
                 ->icon(Heroicon::OutlinedPencilSquare)
