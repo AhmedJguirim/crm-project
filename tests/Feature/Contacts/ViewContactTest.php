@@ -1,6 +1,9 @@
 <?php
 
+use App\Enums\ContactStatus;
+use App\Enums\LeadSource;
 use App\Filament\Resources\Contacts\Pages\ViewContact;
+use App\Filament\Resources\Contacts\Widgets\ContactDetailsWidget;
 use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\Tag;
@@ -36,12 +39,10 @@ test('view page shows contact name, email, and phone', function () {
         'phone' => '+1234567890',
     ]);
 
-    Livewire::test(ViewContact::class, ['record' => $contact->id])
-        ->assertSchemaStateSet([
-            'name' => 'Alice Smith',
-            'email' => 'alice@example.com',
-            'phone' => '+1234567890',
-        ]);
+    Livewire::test(ContactDetailsWidget::class, ['record' => $contact])
+        ->assertSee('Alice Smith')
+        ->assertSee('alice@example.com')
+        ->assertSee('+1234567890');
 });
 
 test('view page shows tags', function () {
@@ -54,6 +55,37 @@ test('view page shows tags', function () {
         ->assertOk();
 
     expect($contact->tags()->count())->toBe(1);
+});
+
+test('view page shows contact status badge in details widget', function () {
+    $contact = Contact::factory()->create([
+        'organization_id' => $this->org->id,
+        'status' => ContactStatus::Partner,
+    ]);
+
+    Livewire::test(ContactDetailsWidget::class, ['record' => $contact])
+        ->assertSee('Partner');
+});
+
+test('view page shows lead source in details widget when set', function () {
+    $contact = Contact::factory()->create([
+        'organization_id' => $this->org->id,
+        'lead_source' => LeadSource::Referral,
+    ]);
+
+    Livewire::test(ContactDetailsWidget::class, ['record' => $contact])
+        ->assertSee('Lead Source')
+        ->assertSee('Referral');
+});
+
+test('view page hides lead source section when null', function () {
+    $contact = Contact::factory()->create([
+        'organization_id' => $this->org->id,
+        'lead_source' => null,
+    ]);
+
+    Livewire::test(ContactDetailsWidget::class, ['record' => $contact])
+        ->assertDontSee('Lead Source');
 });
 
 // ── Header actions ────────────────────────────────────────────────────────────

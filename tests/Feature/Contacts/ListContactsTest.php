@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\ContactStatus;
+use App\Enums\LeadSource;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
 use App\Models\Contact;
 use App\Models\Tag;
@@ -37,6 +39,8 @@ test('table displays required columns', function () {
     Livewire::test(ListContacts::class)
         ->assertTableColumnExists('name')
         ->assertTableColumnExists('email')
+        ->assertTableColumnExists('status')
+        ->assertTableColumnExists('lead_source')
         ->assertTableColumnExists('created_at');
 });
 
@@ -123,6 +127,40 @@ test('table can be filtered by tag', function () {
         ->filterTable('tags', [$tag->id])
         ->assertCanSeeTableRecords([$tagged])
         ->assertCanNotSeeTableRecords([$untagged]);
+});
+
+test('table can be filtered by status', function () {
+    $activeClient = Contact::factory()->create([
+        'organization_id' => $this->org->id,
+        'status' => ContactStatus::ActiveClient,
+    ]);
+
+    $prospect = Contact::factory()->create([
+        'organization_id' => $this->org->id,
+        'status' => ContactStatus::Prospect,
+    ]);
+
+    Livewire::test(ListContacts::class)
+        ->filterTable('status', [ContactStatus::ActiveClient->value])
+        ->assertCanSeeTableRecords([$activeClient])
+        ->assertCanNotSeeTableRecords([$prospect]);
+});
+
+test('table can be filtered by lead source', function () {
+    $linkedIn = Contact::factory()->create([
+        'organization_id' => $this->org->id,
+        'lead_source' => LeadSource::LinkedIn,
+    ]);
+
+    $referral = Contact::factory()->create([
+        'organization_id' => $this->org->id,
+        'lead_source' => LeadSource::Referral,
+    ]);
+
+    Livewire::test(ListContacts::class)
+        ->filterTable('lead_source', [LeadSource::LinkedIn->value])
+        ->assertCanSeeTableRecords([$linkedIn])
+        ->assertCanNotSeeTableRecords([$referral]);
 });
 
 // Organization isolation

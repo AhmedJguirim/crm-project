@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\Contacts\Tables;
 
 use App\Enums\ActivityType;
+use App\Enums\ContactStatus;
+use App\Enums\LeadSource;
 use App\Filament\Actions\QuickTaskAction;
 use App\Models\Activity;
 use Filament\Actions\Action;
@@ -32,8 +34,17 @@ class ContactsTable
                     ->searchable()
                     ->sortable(),
 
+                TextColumn::make('status')
+                    ->badge()
+                    ->sortable(),
+
                 TextColumn::make('phone')
                     ->toggleable(),
+
+                TextColumn::make('lead_source')
+                    ->label('Lead Source')
+                    ->badge()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('tags')
                     ->badge()
@@ -48,6 +59,15 @@ class ContactsTable
                     ->toggleable(),
             ])
             ->filters([
+                SelectFilter::make('status')
+                    ->options(ContactStatus::class)
+                    ->multiple(),
+
+                SelectFilter::make('lead_source')
+                    ->label('Lead Source')
+                    ->options(LeadSource::class)
+                    ->multiple(),
+
                 SelectFilter::make('tags')
                     ->relationship('tags', 'name')
                     ->multiple()

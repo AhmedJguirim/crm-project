@@ -6,6 +6,14 @@
             <div>
                 <dt class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Name</dt>
                 <dd class="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $record->name }}</dd>
+
+                @if($record->status)
+                    <div class="mt-2">
+                        <x-filament::badge :color="$record->status->getColor()" :icon="$record->status->getIcon()" size="lg">
+                            {{ $record->status->getLabel() }}
+                        </x-filament::badge>
+                    </div>
+                @endif
             </div>
 
             <div>
@@ -42,6 +50,17 @@
                                 {{ $tag->name }}
                             </x-filament::badge>
                         @endforeach
+                    </dd>
+                </div>
+            @endif
+
+            @if($record->lead_source)
+                <div>
+                    <dt class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Lead Source</dt>
+                    <dd class="mt-1">
+                        <x-filament::badge :color="$record->lead_source->getColor()" :icon="$record->lead_source->getIcon()">
+                            {{ $record->lead_source->getLabel() }}
+                        </x-filament::badge>
                     </dd>
                 </div>
             @endif

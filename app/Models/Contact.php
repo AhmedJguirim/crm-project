@@ -2,8 +2,11 @@
 
 namespace App\Models;
 
+use App\Enums\ContactStatus;
+use App\Enums\LeadSource;
 use App\Observers\ContactObserver;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,15 +23,24 @@ class Contact extends Model
         'organization_id',
         'name',
         'email',
+        'status',
         'phone',
+        'lead_source',
         'custom_field_values',
     ];
 
     protected function casts(): array
     {
         return [
+            'status' => ContactStatus::class,
+            'lead_source' => LeadSource::class,
             'custom_field_values' => 'array',
         ];
+    }
+
+    public function scopeActiveClients(Builder $query): Builder
+    {
+        return $query->where('status', ContactStatus::ActiveClient->value);
     }
 
     public function organization(): BelongsTo
@@ -44,5 +56,10 @@ class Contact extends Model
     public function activities(): HasMany
     {
         return $this->hasMany(Activity::class);
+    }
+
+    public function deals(): HasMany
+    {
+        return $this->hasMany(Deal::class);
     }
 }

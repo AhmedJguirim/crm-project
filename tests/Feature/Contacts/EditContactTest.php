@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\ContactStatus;
+use App\Enums\LeadSource;
 use App\Filament\Resources\Contacts\Pages\EditContact;
 use App\Models\Contact;
 use App\Models\CustomField;
@@ -22,14 +24,18 @@ test('edit form is pre-populated with existing contact data', function () {
         'organization_id' => $this->org->id,
         'name' => 'Alice',
         'email' => 'alice@example.com',
+        'status' => ContactStatus::Prospect,
         'phone' => '+1234567890',
+        'lead_source' => LeadSource::LinkedIn,
     ]);
 
     Livewire::test(EditContact::class, ['record' => $contact->id])
         ->assertFormSet([
             'name' => 'Alice',
             'email' => 'alice@example.com',
+            'status' => ContactStatus::Prospect,
             'phone' => '+1234567890',
+            'lead_source' => LeadSource::LinkedIn,
         ]);
 });
 
@@ -95,6 +101,44 @@ test('user can update contact tags', function () {
         ->assertHasNoFormErrors();
 
     expect($contact->fresh()->tags()->pluck('id')->toArray())->toBe([$tag2->id]);
+});
+
+test('user can update contact status and lead source', function () {
+    $contact = Contact::factory()->create([
+        'organization_id' => $this->org->id,
+        'status' => ContactStatus::Lead,
+        'lead_source' => LeadSource::Website,
+    ]);
+
+    Livewire::test(EditContact::class, ['record' => $contact->id])
+        ->fillForm([
+            'status' => ContactStatus::ActiveClient,
+            'lead_source' => LeadSource::Referral,
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($contact->fresh()->status)->toBe(ContactStatus::ActiveClient)
+        ->and($contact->fresh()->lead_source)->toBe(LeadSource::Referral);
+});
+
+test('user can clear contact status and lead source', function () {
+    $contact = Contact::factory()->create([
+        'organization_id' => $this->org->id,
+        'status' => ContactStatus::Prospect,
+        'lead_source' => LeadSource::Inbound,
+    ]);
+
+    Livewire::test(EditContact::class, ['record' => $contact->id])
+        ->fillForm([
+            'status' => null,
+            'lead_source' => null,
+        ])
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($contact->fresh()->status)->toBeNull()
+        ->and($contact->fresh()->lead_source)->toBeNull();
 });
 
 // Validation on update

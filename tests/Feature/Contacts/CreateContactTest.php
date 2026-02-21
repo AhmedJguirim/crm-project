@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\ContactStatus;
+use App\Enums\LeadSource;
 use App\Filament\Resources\Contacts\Pages\CreateContact;
 use App\Models\Contact;
 use App\Models\CustomField;
@@ -38,14 +40,42 @@ test('user can create a contact with all fields', function () {
         ->fillForm([
             'name' => 'Jane Doe',
             'email' => 'jane@example.com',
+            'status' => ContactStatus::Prospect,
             'phone' => '+1234567890',
+            'lead_source' => LeadSource::Referral,
         ])
         ->call('create')
         ->assertHasNoFormErrors();
 
     $contact = Contact::where('email', 'jane@example.com')->first();
 
-    expect($contact->phone)->toBe('+1234567890');
+    expect($contact->phone)->toBe('+1234567890')
+        ->and($contact->status)->toBe(ContactStatus::Prospect)
+        ->and($contact->lead_source)->toBe(LeadSource::Referral);
+});
+
+test('create form defaults status to lead', function () {
+    Livewire::test(CreateContact::class)
+        ->assertFormSet([
+            'status' => ContactStatus::Lead,
+        ]);
+});
+
+test('user can create a contact with null status and null lead source', function () {
+    Livewire::test(CreateContact::class)
+        ->fillForm([
+            'name' => 'Null Lifecycle Contact',
+            'email' => 'null-lifecycle@example.com',
+            'status' => null,
+            'lead_source' => null,
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $contact = Contact::where('email', 'null-lifecycle@example.com')->first();
+
+    expect($contact->status)->toBeNull()
+        ->and($contact->lead_source)->toBeNull();
 });
 
 test('user can create a contact with tags', function () {
