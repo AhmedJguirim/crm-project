@@ -90,7 +90,7 @@ class ContactsTable
                             ->send();
                     }),
             ])
-            ->bulkActions([
+            ->toolbarActions([
                 DeleteBulkAction::make(),
             ])
             ->emptyStateHeading('No contacts yet')
