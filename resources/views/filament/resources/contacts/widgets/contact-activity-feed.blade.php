@@ -119,14 +119,6 @@
                                     <p class="mt-1 whitespace-pre-line text-sm text-gray-500 dark:text-gray-400">{{ $activity->notes }}</p>
                                 @endif
 
-                                {{-- Follow-up --}}
-                                @if($activity->follow_up_at)
-                                    <div class="mt-2 inline-flex items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-xs font-medium text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                                        <x-filament::icon icon="heroicon-o-bell-alert" class="h-3.5 w-3.5" />
-                                        Follow-up: {{ $activity->follow_up_at->format('M j, Y \a\t g:i A') }}
-                                    </div>
-                                @endif
-
                                 {{-- Footer --}}
                                 @if($activity->user)
                                     <p class="mt-2 text-xs text-gray-400 dark:text-gray-600">

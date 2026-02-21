@@ -4,17 +4,22 @@ namespace App\Filament\Resources\Contacts\Pages;
 
 use App\Enums\ActivityOutcome;
 use App\Enums\ActivityType;
+use App\Enums\DealStage;
+use App\Enums\DealStatus;
 use App\Filament\Actions\QuickTaskAction;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Contacts\Widgets\ContactActivityFeed;
 use App\Filament\Resources\Contacts\Widgets\ContactDetailsWidget;
 use App\Models\Activity;
+use App\Models\Deal;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
+use Filament\Facades\Filament;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\Page;
@@ -97,14 +102,57 @@ class ViewContact extends Page
                     Select::make('outcome')
                         ->options(ActivityOutcome::class),
 
-                    DateTimePicker::make('follow_up_at')
-                        ->label('Follow-up Date')
-                        ->default(now()->addWeek())
-                        ->native(false)
-                        ->visible(fn (Get $get): bool => (bool) $get('create_follow_up')),
+                    Select::make('deal_id')
+                        ->label('Deal')
+                        ->options(fn (): array => Deal::query()
+                            ->where('organization_id', Filament::getTenant()?->id)
+                            ->where('contact_id', $this->getRecord()->getKey())
+                            ->orderBy('title')
+                            ->pluck('title', 'id')
+                            ->all())
+                        ->searchable()
+                        ->preload()
+                        ->nullable()
+                        ->createOptionForm([
+                            TextInput::make('title')
+                                ->required()
+                                ->maxLength(255),
+                            Select::make('stage')
+                                ->options(DealStage::class)
+                                ->default(DealStage::Lead)
+                                ->required(),
+                            TextInput::make('value')
+                                ->numeric()
+                                ->minValue(0)
+                                ->nullable(),
+                            Select::make('currency')
+                                ->options([
+                                    'USD' => 'USD',
+                                    'EUR' => 'EUR',
+                                    'GBP' => 'GBP',
+                                ])
+                                ->default('USD')
+                                ->required(),
+                            Textarea::make('deal_notes')
+                                ->rows(3)
+                                ->nullable(),
+                        ])
+                        ->createOptionUsing(function (array $data): int {
+                            return Deal::create([
+                                'organization_id' => Filament::getTenant()?->id,
+                                'contact_id' => $this->getRecord()->getKey(),
+                                'title' => $data['title'],
+                                'stage' => $data['stage'],
+                                'value' => $data['value'] ?? null,
+                                'currency' => $data['currency'],
+                                'notes' => $data['deal_notes'] ?? null,
+                                'status' => DealStatus::Open,
+                                'created_by' => auth()->id(),
+                            ])->getKey();
+                        }),
                 ])
                 ->action(function (array $data): void {
-                    $activityData = collect($data)->except(['create_follow_up'])->toArray();
+                    $activityData = collect($data)->toArray();
 
                     $activityData['contact_id'] = $this->getRecord()->getKey();
                     $activityData['user_id'] = auth()->id();

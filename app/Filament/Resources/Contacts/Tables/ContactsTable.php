@@ -4,11 +4,15 @@ namespace App\Filament\Resources\Contacts\Tables;
 
 use App\Enums\ActivityType;
 use App\Enums\ContactStatus;
+use App\Enums\DealStage;
+use App\Enums\DealStatus;
 use App\Enums\LeadSource;
 use App\Filament\Actions\QuickTaskAction;
 use App\Models\Activity;
+use App\Models\Deal;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteBulkAction;
+use Filament\Facades\Filament;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
@@ -83,7 +87,7 @@ class ContactsTable
                     ->icon(Heroicon::OutlinedPencilSquare)
                     ->color('gray')
                     ->modalHeading('Quick Log Activity')
-                    ->schema([
+                    ->schema(fn ($record): array => [
                         Select::make('type')
                             ->options(ActivityType::class)
                             ->required(),
@@ -93,6 +97,55 @@ class ContactsTable
                             ->required()
                             ->default(now())
                             ->native(false),
+
+                        Select::make('deal_id')
+                            ->label('Deal')
+                            ->options(fn (): array => Deal::query()
+                                ->where('organization_id', Filament::getTenant()?->id)
+                                ->where('contact_id', $record->getKey())
+                                ->orderBy('title')
+                                ->pluck('title', 'id')
+                                ->all())
+                            ->searchable()
+                            ->preload()
+                            ->nullable()
+                            ->createOptionForm([
+                                \Filament\Forms\Components\TextInput::make('title')
+                                    ->required()
+                                    ->maxLength(255),
+                                Select::make('stage')
+                                    ->options(DealStage::class)
+                                    ->default(DealStage::Lead)
+                                    ->required(),
+                                \Filament\Forms\Components\TextInput::make('value')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->nullable(),
+                                Select::make('currency')
+                                    ->options([
+                                        'USD' => 'USD',
+                                        'EUR' => 'EUR',
+                                        'GBP' => 'GBP',
+                                    ])
+                                    ->default('USD')
+                                    ->required(),
+                                Textarea::make('notes')
+                                    ->rows(3)
+                                    ->nullable(),
+                            ])
+                            ->createOptionUsing(function (array $data) use ($record): int {
+                                return Deal::create([
+                                    'organization_id' => Filament::getTenant()?->id,
+                                    'contact_id' => $record->getKey(),
+                                    'title' => $data['title'],
+                                    'stage' => $data['stage'],
+                                    'value' => $data['value'] ?? null,
+                                    'currency' => $data['currency'],
+                                    'notes' => $data['notes'] ?? null,
+                                    'status' => DealStatus::Open,
+                                    'created_by' => auth()->id(),
+                                ])->getKey();
+                            }),
 
                         Textarea::make('notes')
                             ->rows(3),

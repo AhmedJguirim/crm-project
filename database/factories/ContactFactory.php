@@ -16,7 +16,9 @@ class ContactFactory extends Factory
             'organization_id' => Organization::factory(),
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
+            'status' => null,
             'phone' => fake()->optional(0.6)->phoneNumber(),
+            'lead_source' => null,
             'custom_field_values' => [],
         ];
     }
