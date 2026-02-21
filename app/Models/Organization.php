@@ -73,6 +73,11 @@ class Organization extends Model
         return $this->hasMany(OrganizationInvite::class);
     }
 
+    public function deals(): HasMany
+    {
+        return $this->hasMany(Deal::class);
+    }
+
     /**
      * Check if a pending (non-expired) invite already exists for the given email.
      * Used to prevent duplicate invitations.

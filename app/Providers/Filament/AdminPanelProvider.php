@@ -2,10 +2,15 @@
 
 namespace App\Providers\Filament;
 
-use App\Livewire\Filament\QuickTaskFloatingButton;
 use App\Filament\Pages\Auth\Login;
 use App\Filament\Pages\Auth\Register;
 use App\Filament\Pages\Tenancy\RegisterOrganization;
+use App\Filament\Widgets\ContactsOverviewWidget;
+use App\Filament\Widgets\DashboardTasksWidget;
+use App\Filament\Widgets\DealsOverviewWidget;
+use App\Filament\Widgets\RecentActivitiesWidget;
+use App\Filament\Widgets\RevenueOverviewWidget;
+use App\Livewire\Filament\QuickTaskFloatingButton;
 use App\Models\Organization;
 use App\Models\OrganizationInvite;
 use App\Models\User;
@@ -140,12 +145,17 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
+                DealsOverviewWidget::class,
+                RevenueOverviewWidget::class,
+                ContactsOverviewWidget::class,
+                DashboardTasksWidget::class,
+                RecentActivitiesWidget::class,
                 AccountWidget::class,
                 FilamentInfoWidget::class,
             ])
             ->renderHook(
                 PanelsRenderHook::BODY_END,
-                fn (): string => Blade::render('@livewire(\'' . QuickTaskFloatingButton::class . '\')')
+                fn (): string => Blade::render('@livewire(\''.QuickTaskFloatingButton::class.'\')')
             )
             ->middleware([
                 EncryptCookies::class,

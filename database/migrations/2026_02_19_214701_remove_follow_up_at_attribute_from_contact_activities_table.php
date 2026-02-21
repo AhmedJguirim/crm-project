@@ -22,7 +22,7 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('contact_activities', function (Blueprint $table) {
-           $table->dateTime('follow_up_at')->nullable();
+            $table->dateTime('follow_up_at')->nullable();
         });
     }
 };

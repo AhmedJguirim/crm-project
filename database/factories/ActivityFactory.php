@@ -29,7 +29,6 @@ class ActivityFactory extends Factory
             'subject' => fake()->optional(0.6)->sentence(4),
             'notes' => fake()->optional(0.7)->paragraph(),
             'outcome' => fake()->optional(0.5)->randomElement(ActivityOutcome::cases()),
-            'follow_up_at' => fake()->optional(0.3)->dateTimeBetween('now', '+30 days'),
         ];
     }
 
@@ -46,10 +45,4 @@ class ActivityFactory extends Factory
         return $this->state(fn (): array => ['outcome' => $outcome]);
     }
 
-    public function withFollowUp(): static
-    {
-        return $this->state(fn (): array => [
-            'follow_up_at' => fake()->dateTimeBetween('now', '+30 days'),
-        ]);
-    }
 }

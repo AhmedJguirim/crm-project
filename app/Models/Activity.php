@@ -28,7 +28,7 @@ class Activity extends Model
         'subject',
         'notes',
         'outcome',
-        'follow_up_at',
+        'deal_id'
     ];
 
     protected function casts(): array
@@ -37,7 +37,6 @@ class Activity extends Model
             'type' => ActivityType::class,
             'outcome' => ActivityOutcome::class,
             'occurred_at' => 'datetime',
-            'follow_up_at' => 'datetime',
             'duration_minutes' => 'integer',
         ];
     }

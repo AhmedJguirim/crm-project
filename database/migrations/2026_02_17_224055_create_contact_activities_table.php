@@ -19,7 +19,6 @@ return new class extends Migration
             $table->string('subject', 255)->nullable();
             $table->text('notes')->nullable();
             $table->string('outcome')->nullable();
-            $table->dateTime('follow_up_at')->nullable();
             $table->timestamps();
 
             $table->index(['contact_id', 'occurred_at']);

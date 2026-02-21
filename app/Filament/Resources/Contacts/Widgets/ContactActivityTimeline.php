@@ -64,7 +64,6 @@ class ContactActivityTimeline extends Widget
                 'subject' => $activity->subject,
                 'notes' => $activity->notes,
                 'outcome_label' => $activity->outcome?->getLabel(),
-                'follow_up_at' => $activity->follow_up_at?->toIso8601String(),
                 'user_name' => $activity->user?->name,
             ])
             ->values()

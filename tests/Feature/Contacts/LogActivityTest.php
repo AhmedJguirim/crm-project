@@ -7,6 +7,7 @@ use App\Filament\Resources\Contacts\Pages\ViewContact;
 use App\Filament\Resources\Contacts\Widgets\ContactActivityFeed;
 use App\Models\Activity;
 use App\Models\Contact;
+use App\Models\Deal;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
@@ -38,8 +39,7 @@ test('full form creates activity with all fields', function () {
             'subject' => 'Quarterly review',
             'notes' => 'Discussed project timeline.',
             'outcome' => ActivityOutcome::Positive->value,
-            'create_follow_up' => true,
-            'follow_up_at' => '2026-02-22 10:00:00',
+
         ])
         ->assertHasNoActionErrors()
         ->assertNotified();
@@ -53,7 +53,6 @@ test('full form creates activity with all fields', function () {
         ->and($activity->subject)->toBe('Quarterly review')
         ->and($activity->notes)->toBe('Discussed project timeline.')
         ->and($activity->outcome)->toBe(ActivityOutcome::Positive)
-        ->and($activity->follow_up_at->format('Y-m-d H:i:s'))->toBe('2026-02-22 10:00:00')
         ->and($activity->user_id)->toBe($this->user->id)
         ->and($activity->organization_id)->toBe($this->org->id);
 });
@@ -63,7 +62,7 @@ test('full form creates activity with minimal fields', function () {
         ->callAction('logActivity', [
             'type' => ActivityType::Email->value,
             'occurred_at' => '2026-02-15 10:00:00',
-            'create_follow_up' => false,
+
         ])
         ->assertHasNoActionErrors()
         ->assertNotified();
@@ -76,30 +75,15 @@ test('full form creates activity with minimal fields', function () {
         ->and($activity->subject)->toBeNull()
         ->and($activity->notes)->toBeNull()
         ->and($activity->outcome)->toBeNull()
-        ->and($activity->follow_up_at)->toBeNull();
 });
 
-test('full form clears follow_up_at when create_follow_up is false', function () {
-    Livewire::test(ViewContact::class, ['record' => $this->contact->id])
-        ->callAction('logActivity', [
-            'type' => ActivityType::Note->value,
-            'occurred_at' => '2026-02-15 10:00:00',
-            'create_follow_up' => false,
-            'follow_up_at' => '2026-02-22 10:00:00',
-        ])
-        ->assertHasNoActionErrors();
-
-    $activity = Activity::where('contact_id', $this->contact->id)->first();
-
-    expect($activity->follow_up_at)->toBeNull();
-});
 
 test('full form validates required fields', function () {
     Livewire::test(ViewContact::class, ['record' => $this->contact->id])
         ->callAction('logActivity', [
             'type' => null,
             'occurred_at' => null,
-            'create_follow_up' => false,
+            
         ])
         ->assertHasActionErrors([
             'type' => 'required',
@@ -114,7 +98,7 @@ test('full form auto-assigns organization via observer', function () {
         ->callAction('logActivity', [
             'type' => ActivityType::Note->value,
             'occurred_at' => '2026-02-15 10:00:00',
-            'create_follow_up' => false,
+            
         ])
         ->assertHasNoActionErrors();
 
@@ -131,10 +115,17 @@ test('quick log activity action exists on table', function () {
 });
 
 test('quick form creates activity from table', function () {
+    $deal = Deal::factory()->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $this->contact->id,
+        'created_by' => $this->user->id,
+    ]);
+
     Livewire::test(ListContacts::class)
         ->callTableAction('logActivity', $this->contact, [
             'type' => ActivityType::WhatsApp->value,
             'occurred_at' => '2026-02-15 14:00:00',
+            'deal_id' => $deal->id,
             'notes' => 'Quick check-in via WhatsApp.',
         ])
         ->assertHasNoTableActionErrors()
@@ -144,9 +135,32 @@ test('quick form creates activity from table', function () {
 
     expect($activity)->not->toBeNull()
         ->and($activity->type)->toBe(ActivityType::WhatsApp)
+        ->and($activity->deal_id)->toBe($deal->id)
         ->and($activity->notes)->toBe('Quick check-in via WhatsApp.')
         ->and($activity->user_id)->toBe($this->user->id)
         ->and($activity->organization_id)->toBe($this->org->id);
+});
+
+test('full form can link activity to selected deal', function () {
+    $deal = Deal::factory()->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $this->contact->id,
+        'created_by' => $this->user->id,
+    ]);
+
+    Livewire::test(ViewContact::class, ['record' => $this->contact->id])
+        ->callAction('logActivity', [
+            'type' => ActivityType::Call->value,
+            'occurred_at' => '2026-02-15 10:00:00',
+            'deal_id' => $deal->id,
+            
+        ])
+        ->assertHasNoActionErrors();
+
+    $activity = Activity::where('contact_id', $this->contact->id)->latest('id')->first();
+
+    expect($activity)->not->toBeNull()
+        ->and($activity->deal_id)->toBe($deal->id);
 });
 
 test('quick form validates required fields', function () {
@@ -254,7 +268,7 @@ test('activity is scoped to the contact organization', function () {
         ->callAction('logActivity', [
             'type' => ActivityType::Email->value,
             'occurred_at' => '2026-02-15 10:00:00',
-            'create_follow_up' => false,
+            
         ])
         ->assertHasNoActionErrors();
 
