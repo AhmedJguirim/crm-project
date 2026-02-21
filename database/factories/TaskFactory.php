@@ -24,6 +24,7 @@ class TaskFactory extends Factory
         return [
             'organization_id' => Organization::factory(),
             'contact_id' => null,
+            'deal_id' => null,
             'title' => fake()->sentence(5),
             'due_at' => fake()->optional(0.85)->dateTimeBetween('-3 days', '+10 days'),
             'type' => fake()->randomElement(TaskType::cases()),

@@ -3,11 +3,11 @@
 namespace App\Notifications;
 
 use App\Models\Organization;
-use Illuminate\Support\Collection;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Collection;
 
 class TaskDailyDigestNotification extends Notification implements ShouldQueue
 {

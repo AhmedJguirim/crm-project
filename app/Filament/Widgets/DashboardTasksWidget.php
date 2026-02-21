@@ -13,9 +13,9 @@ class DashboardTasksWidget extends StatsOverviewWidget
 {
     protected ?string $pollingInterval = '15s';
 
-    protected static ?int $sort = -10;
+    protected static ?int $sort = -16;
 
-    protected int|string|array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 2;
 
     protected function getStats(): array
     {

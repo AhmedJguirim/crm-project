@@ -19,11 +19,13 @@ class Task extends Model
 {
     /** @use HasFactory<\Database\Factories\TaskFactory> */
     use HasFactory;
+
     use SoftDeletes;
 
     protected $fillable = [
         'organization_id',
         'contact_id',
+        'deal_id',
         'title',
         'due_at',
         'type',
@@ -65,6 +67,11 @@ class Task extends Model
     public function contact(): BelongsTo
     {
         return $this->belongsTo(Contact::class);
+    }
+
+    public function deal(): BelongsTo
+    {
+        return $this->belongsTo(Deal::class);
     }
 
     public function creator(): BelongsTo
