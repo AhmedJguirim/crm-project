@@ -6,6 +6,7 @@ use App\Enums\TaskType;
 use App\Filament\Resources\Tasks\Pages\CreateTask;
 use App\Filament\Resources\Tasks\TaskResource;
 use App\Models\Contact;
+use App\Models\Deal;
 use App\Models\Task;
 use App\Models\User;
 use Filament\Facades\Filament;
@@ -86,6 +87,26 @@ test('contact from another organization is rejected', function () {
         ])
         ->call('create')
         ->assertHasFormErrors(['contact_id']);
+});
+
+test('deal must belong to selected contact', function () {
+    $selectedContact = Contact::factory()->create(['organization_id' => $this->org->id]);
+    $otherContact = Contact::factory()->create(['organization_id' => $this->org->id]);
+
+    $otherContactDeal = Deal::factory()->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $otherContact->id,
+        'created_by' => $this->user->id,
+    ]);
+
+    Livewire::test(CreateTask::class)
+        ->fillForm([
+            'title' => 'Invalid deal for selected contact',
+            'contact_id' => $selectedContact->id,
+            'deal_id' => $otherContactDeal->id,
+        ])
+        ->call('create')
+        ->assertHasFormErrors(['deal_id']);
 });
 
 test('newly created task appears in pending list', function () {

@@ -8,6 +8,7 @@ use App\Filament\Resources\Tasks\Pages\EditTask;
 use App\Filament\Resources\Tasks\Pages\ListTasks;
 use App\Livewire\Filament\QuickTaskFloatingButton;
 use App\Models\Contact;
+use App\Models\Deal;
 use App\Models\Task;
 use App\Models\User;
 use Filament\Facades\Filament;
@@ -26,9 +27,18 @@ afterEach(function () {
 });
 
 test('global floating quick task action creates task with minimal data', function () {
+    $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
+    $deal = Deal::factory()->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $contact->id,
+        'created_by' => $this->user->id,
+    ]);
+
     Livewire::test(QuickTaskFloatingButton::class)
         ->callAction('quickTask', [
             'title' => 'Global quick follow-up',
+            'contact_id' => $contact->id,
+            'deal_id' => $deal->id,
             'type' => TaskType::FollowUp,
         ])
         ->assertHasNoActionErrors()
@@ -41,19 +51,26 @@ test('global floating quick task action creates task with minimal data', functio
         ->and($task->status)->toBe(TaskStatus::Pending)
         ->and($task->organization_id)->toBe($this->org->id)
         ->and($task->created_by)->toBe($this->user->id)
-        ->and($task->contact_id)->toBeNull()
+        ->and($task->contact_id)->toBe($contact->id)
+        ->and($task->deal_id)->toBe($deal->id)
         ->and($task->type)->toBe(TaskType::FollowUp)
         ->and($task->due_at?->isSameDay(now()->addDays(3)))->toBeTrue();
 });
 
 test('contact detail quick task action creates task locked to the viewed contact', function () {
     $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
+    $deal = Deal::factory()->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $contact->id,
+        'created_by' => $this->user->id,
+    ]);
 
     Livewire::test(ViewContact::class, ['record' => $contact->id])
         ->assertActionExists('quickTask')
         ->callAction('quickTask', [
             'title' => 'Contact detail quick task',
             'contact_id' => $contact->id,
+            'deal_id' => $deal->id,
             'type' => TaskType::Call,
         ])
         ->assertHasNoActionErrors()
@@ -64,17 +81,24 @@ test('contact detail quick task action creates task locked to the viewed contact
     expect($task)->not->toBeNull()
         ->and($task->title)->toBe('Contact detail quick task')
         ->and($task->contact_id)->toBe($contact->id)
+        ->and($task->deal_id)->toBe($deal->id)
         ->and($task->status)->toBe(TaskStatus::Pending);
 });
 
 test('contacts table add task action creates task locked to row contact', function () {
     $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
+    $deal = Deal::factory()->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $contact->id,
+        'created_by' => $this->user->id,
+    ]);
 
     Livewire::test(ListContacts::class)
         ->assertTableActionExists('addTask')
         ->callTableAction('addTask', $contact, [
             'title' => 'Row action quick task',
             'contact_id' => $contact->id,
+            'deal_id' => $deal->id,
             'type' => TaskType::Email,
         ])
         ->assertHasNoTableActionErrors()
@@ -85,6 +109,7 @@ test('contacts table add task action creates task locked to row contact', functi
     expect($task)->not->toBeNull()
         ->and($task->title)->toBe('Row action quick task')
         ->and($task->contact_id)->toBe($contact->id)
+        ->and($task->deal_id)->toBe($deal->id)
         ->and($task->status)->toBe(TaskStatus::Pending);
 });
 
