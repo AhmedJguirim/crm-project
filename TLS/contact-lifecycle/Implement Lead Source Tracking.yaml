@@ -1,0 +1,105 @@
+spec_version: 1.0
+task_id: TSK-2026-0041
+title: Implement Lead Source Tracking
+
+user_story: >-
+  As a freelancer/consultant,
+  I want to record where each contact came from (referral, LinkedIn, Upwork, etc.)
+  so that I can understand which channels bring me the best clients and double down on
+  what is working.
+
+description: >-
+  Add a lead_source field to the Contact model capturing the acquisition channel for each
+  contact. Lead source is distinct from contact status — it answers "how did we first
+  connect?" rather than "what is our current relationship?". The field uses a predefined
+  enum covering the most common channels for freelancers and consultants, with an "Other"
+  fallback. It is optional on all forms and existing contacts are unaffected.
+
+functional_requirements:
+  - REQ-001: Create LeadSource enum — Referral, LinkedIn, Upwork, ColdOutreach, Conference, Website, SocialMedia, Inbound, Other — implementing HasLabel, HasColor, HasIcon
+  - REQ-002: Create migration adding lead_source column (string, nullable) to contacts table
+  - REQ-003: Update Contact model — add lead_source to $fillable, cast to LeadSource enum
+  - REQ-004: Update ContactForm — add Lead Source select field using LeadSource enum options, positioned after phone field, not required (nullable), with placeholder "Select source..."
+  - REQ-005: Update ContactsTable — add Lead Source column (default hidden / toggleable via column visibility), add Lead Source multi-select filter
+  - REQ-006: Update ContactDetailsWidget blade — show lead source with its icon and label below the tags section, hidden when null
+  - REQ-007: Do not add lead_source to the Contact list's default visible columns — it is toggleable via column visibility menu
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Migration does not affect existing contacts
+    given:
+      - Database with existing contacts (no lead_source column)
+    when:
+      - Migration is run
+    then:
+      - lead_source column is added as nullable
+      - All existing contacts have lead_source=null
+      - No existing data is changed
+
+  - id: AC-002
+    scenario: Lead source visible on contact detail page when set
+    given:
+      - A contact with lead_source=Referral
+    when:
+      - User views the contact detail page
+    then:
+      - "Referral" is shown with its icon in the ContactDetailsWidget
+      - Uses the Referral icon from LeadSource enum
+
+  - id: AC-003
+    scenario: Lead source hidden on contact detail page when null
+    given:
+      - A contact with lead_source=null
+    when:
+      - User views the contact detail page
+    then:
+      - No lead source section or placeholder is shown in the widget
+
+  - id: AC-004
+    scenario: Lead source filter returns correct contacts
+    given:
+      - Contact A — lead_source=LinkedIn
+      - Contact B — lead_source=Referral
+      - Contact C — lead_source=null
+    when:
+      - User applies the "LinkedIn" lead source filter
+    then:
+      - Only Contact A is shown
+
+  - id: AC-005
+    scenario: Lead source column is hidden by default in table
+    given:
+      - User opens the Contacts list for the first time
+    when:
+      - No column visibility settings have been changed
+    then:
+      - Lead Source column is not visible in the table by default
+      - User can toggle it on via the column visibility menu
+
+  - id: AC-006
+    scenario: Saving contact without lead source is valid
+    given:
+      - User creates a contact and leaves Lead Source blank
+    when:
+      - Form is submitted
+    then:
+      - Contact is saved with lead_source=null
+      - No validation error
+
+non_functional_requirements:
+  usability:
+    - LeadSource enum icons are recognizable for each channel (LinkedIn=Globe, Referral=Users, Upwork=Briefcase)
+    - Filter supports multi-select (user can filter "LinkedIn OR Referral")
+
+edge_cases:
+  - Future CSV import — if lead_source is not in the CSV columns, it defaults to null (not to "Other")
+  - Unknown lead source value in DB (e.g., legacy data) — ContactStatus cast returns null gracefully
+
+dependencies:
+  - Contacts resource must exist (already implemented)
+
+notes:
+  - LeadSource enum keys — Referral, LinkedIn, Upwork, ColdOutreach, Conference, Website, SocialMedia, Inbound, Other
+  - Labels — "Referral", "LinkedIn", "Upwork", "Cold Outreach", "Conference", "Website", "Social Media", "Inbound", "Other"
+  - Icon suggestions — Referral: Heroicon::OutlinedUsers, LinkedIn: Heroicon::OutlinedGlobeAlt, Upwork: Heroicon::OutlinedBriefcase, Conference: Heroicon::OutlinedBuildingOffice, Website: Heroicon::OutlinedComputerDesktop, ColdOutreach: Heroicon::OutlinedEnvelope
+  - Lead source data will be aggregated in the Business Overview Dashboard (TSK-2026-0042)

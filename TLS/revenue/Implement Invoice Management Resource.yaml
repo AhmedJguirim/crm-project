@@ -1,0 +1,119 @@
+spec_version: 1.0
+task_id: TSK-2026-0038
+title: Implement Invoice Management Resource
+
+user_story: >-
+  As a freelancer/consultant,
+  I want to create, view, and manage invoices from within the CRM
+  so that I can track what I have billed and follow up on outstanding or overdue payments
+  without switching to a separate accounting tool.
+
+description: >-
+  Create the InvoiceResource Filament resource providing full CRUD management for invoices.
+  The list page gives an immediate view of billing health — color-coded status badges make
+  overdue and outstanding invoices instantly visible. The create and edit forms allow
+  capturing all relevant billing details. Quick actions on the view/list pages allow marking
+  invoices as Sent or Paid in one click, covering the most common status transitions.
+
+functional_requirements:
+  - REQ-001: Create InvoiceResource with navigation sort 4, Heroicon::OutlinedDocumentText icon, label "Invoices"
+  - REQ-002: List page columns — Invoice #, Contact (clickable link), Deal (if linked, clickable), Amount (formatted with currency), Status (colored badge using InvoiceStatus enum colors), Issued, Due (red if overdue), Paid date (shown when status=Paid/Partial)
+  - REQ-003: List page filters — Status (multi-select), Contact (search select), Date range on issued_at, toggle "Overdue only"
+  - REQ-004: List page default sort — due_at ascending (most urgent first), with overdue invoices visually highlighted
+  - REQ-005: Create/Edit form — contact (searchable select, required), deal (optional searchable select filtered by selected contact), invoice_number (text, auto-suggested as INV-YYYY-NNN based on last invoice number), amount (decimal, required), currency (select: USD, EUR, GBP, CAD, AUD), status (select using InvoiceStatus), issued_at (date, default today), due_at (date, required), paid_at (date, visible only when status=Paid or Partial), notes (textarea, optional)
+  - REQ-006: View page — summary card with all invoice fields, status badge prominent
+  - REQ-007: View page action — "Mark as Sent" (visible when status=Draft) — sets status=Sent
+  - REQ-008: View page action — "Mark as Paid" (visible when status=Sent/Partial/Overdue) — sets status=Paid, sets paid_at=today if null
+  - REQ-009: View page action — "Cancel Invoice" (visible when status != Cancelled/Paid) — sets status=Cancelled with confirmation modal
+  - REQ-010: Table row action — "Mark as Paid" quick action on list page (same as REQ-008)
+  - REQ-011: All data scoped to current Organization
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Invoice list shows correct data with status badges
+    given:
+      - Invoices with statuses Draft, Sent, Paid, Overdue in current Organization
+    when:
+      - User opens the Invoices page
+    then:
+      - Each invoice row shows correct status badge with correct color
+      - Overdue invoices have red due date text
+
+  - id: AC-002
+    scenario: Create invoice with auto-suggested invoice number
+    given:
+      - Last invoice number was INV-2026-003
+    when:
+      - User opens Create Invoice form
+    then:
+      - invoice_number field is pre-filled with "INV-2026-004"
+      - User can override the suggested number
+
+  - id: AC-003
+    scenario: Mark as Paid sets correct fields
+    given:
+      - An invoice with status=Sent and no paid_at date
+    when:
+      - User clicks "Mark as Paid" on the view page
+    then:
+      - Invoice status is set to Paid
+      - paid_at is set to today's date
+      - View page refreshes showing Paid status badge
+
+  - id: AC-004
+    scenario: paid_at field visibility is conditional
+    given:
+      - User is on Create Invoice form with status=Sent
+    when:
+      - User changes status to Paid
+    then:
+      - paid_at date field becomes visible in the form
+
+  - id: AC-005
+    scenario: Deal filter is scoped to selected contact
+    given:
+      - Contact A has 2 deals; Contact B has 1 deal
+    when:
+      - User selects Contact A in the Create Invoice form
+    then:
+      - The deal select shows only Contact A's deals
+
+  - id: AC-006
+    scenario: Overdue filter returns correct invoices
+    given:
+      - Invoice with status=Sent and due_at=yesterday
+      - Invoice with status=Sent and due_at=tomorrow
+    when:
+      - User applies "Overdue only" filter
+    then:
+      - Only the past-due Sent invoice is shown
+
+  - id: AC-007
+    scenario: Org scoping prevents cross-org access
+    given:
+      - Invoices exist for Organization A and Organization B
+    when:
+      - User logged into Organization A views the Invoices page
+    then:
+      - Only Organization A's invoices are visible
+
+non_functional_requirements:
+  usability:
+    - Currency amounts formatted with thousand separators and two decimal places
+    - Overdue invoices visually prominent (red due date, or row highlight)
+    - Quick "Mark as Paid" from list avoids need to navigate to view page for common action
+  performance:
+    - Invoice list loads in < 1 second with up to 500 invoices
+
+edge_cases:
+  - Invoice linked to a deal that has since been marked Lost — still valid, show deal title with strikethrough or "Lost" label
+  - Two invoices for the same contact — both visible in list, no merging
+  - invoice_number uniqueness collision (user typed a number that already exists) — validation error
+
+dependencies:
+  - Implement Invoice Model and Database Table
+
+notes:
+  - Currency select options in MVP — USD, EUR, GBP, CAD, AUD; can be expanded later
+  - Auto-suggest for invoice_number is a UX hint, not enforced — users may have their own numbering
+  - No PDF generation in this task — that is future scope

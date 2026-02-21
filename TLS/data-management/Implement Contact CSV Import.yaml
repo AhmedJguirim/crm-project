@@ -1,0 +1,158 @@
+spec_version: 1.0
+task_id: TSK-2026-0043
+title: Implement Contact CSV Import
+
+user_story: >-
+  As a freelancer/consultant,
+  I want to import my existing contacts from a CSV spreadsheet
+  so that I can get started quickly without manually entering each contact one by one.
+
+description: >-
+  Add a "Import Contacts" action to the Contacts list page that guides the user through
+  a multi-step import wizard. The wizard handles file upload, column mapping, a preview
+  step to catch obvious problems, and a summary result screen. Duplicate contacts are
+  detected by email within the organization and skipped gracefully. Tags referenced in
+  the CSV are created on the fly if they do not exist. Large imports (> 100 rows) are
+  offloaded to a queued job so the UI stays responsive. No external packages are required —
+  the implementation uses PHP's built-in CSV functions and Laravel collections.
+
+functional_requirements:
+  - REQ-001: Add "Import Contacts" Action button on ListContacts header (Heroicon::OutlinedArrowUpTray icon)
+  - REQ-002: Step 1 — File Upload — accepts .csv files up to 5MB; rejects non-CSV files with clear error; reads and parses the header row to extract column names
+  - REQ-003: Step 2 — Field Mapping — displays detected CSV column names; user maps each column to one of: Name, Email, Phone, Tags, Status, Lead Source, (Skip); Name and Email mappings are required; all others optional
+  - REQ-004: Step 3 — Preview — displays first 5 data rows with mapped values applied; flags rows with missing email (red) or potential issues (amber); shows a count of rows with detected issues; user can proceed or go back
+  - REQ-005: Step 4 — Import — processes all rows with the following logic:
+      a. Skip rows where mapped email is empty or not a valid email format
+      b. Skip rows where email already exists for the current Organization (duplicate)
+      c. Tags: split by comma, trim whitespace, find-or-create each tag within the org
+      d. Status: map label to ContactStatus enum value if provided (case-insensitive); null if unrecognized
+      e. Lead Source: map label to LeadSource enum value if provided; null if unrecognized
+      f. All contacts assigned to current Organization
+      g. If total row count > 100, dispatch a queued job and show "Import started" confirmation
+      h. If total row count ≤ 100, process synchronously and show result inline
+  - REQ-006: Step 4 result summary — shows: Imported (count), Skipped — duplicate email (count), Skipped — invalid/missing email (count), Failed — unexpected error (count, with optional error detail)
+  - REQ-007: Download a sample CSV template — link on Step 1 showing the expected format (headers: name, email, phone, tags, status, lead_source)
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Valid CSV imports contacts correctly
+    given:
+      - CSV with 3 rows — Alice (new), Bob (new), Carol (email already exists in org)
+    when:
+      - User completes the import wizard
+    then:
+      - Alice and Bob are created as contacts in the Organization
+      - Carol is skipped with "duplicate email" reason
+      - Result shows "Imported: 2, Skipped (duplicate): 1"
+    examples:
+      input_csv: |
+        name,email,phone,tags
+        Alice Smith,alice@example.com,+1234567890,"VIP,Prospect"
+        Bob Jones,bob@example.com,,
+        Carol Lee,carol@existing.com,,
+      expected_imported: 2
+      expected_skipped_duplicate: 1
+
+  - id: AC-002
+    scenario: Tags are created and linked correctly
+    given:
+      - A CSV row with tags "VIP, New Lead" where "VIP" exists and "New Lead" does not
+    when:
+      - Import runs
+    then:
+      - "VIP" tag is reused (not duplicated)
+      - "New Lead" tag is created for the Organization
+      - Both tags are linked to the imported contact
+
+  - id: AC-003
+    scenario: Rows with missing or invalid email are skipped
+    given:
+      - A CSV with one row missing email and one row with "not-an-email"
+    when:
+      - Import runs
+    then:
+      - Both rows are skipped
+      - Result shows "Skipped (invalid/missing email): 2"
+      - No contacts are created for those rows
+
+  - id: AC-004
+    scenario: Cross-organization email duplicate detection
+    given:
+      - Contact carol@example.com exists in Organization B
+    when:
+      - Importing carol@example.com into Organization A
+    then:
+      - Contact is imported into Organization A (not a duplicate — different org)
+      - Organization B's contact is unaffected
+
+  - id: AC-005
+    scenario: Large import is queued
+    given:
+      - A CSV with 150 valid rows
+    when:
+      - User completes the import wizard
+    then:
+      - Import is dispatched as a queued job
+      - User sees "Import started — you will be notified when complete" confirmation
+      - Wizard closes without blocking the UI
+
+  - id: AC-006
+    scenario: Non-CSV file is rejected at upload
+    given:
+      - User uploads a .xlsx or .pdf file
+    when:
+      - File is submitted on Step 1
+    then:
+      - Error message shown: "Please upload a valid CSV file"
+      - User remains on Step 1
+
+  - id: AC-007
+    scenario: Empty CSV shows appropriate message
+    given:
+      - User uploads a CSV with headers only and no data rows
+    when:
+      - Import wizard proceeds to Step 4
+    then:
+      - Result shows "Imported: 0" with "No data rows found in file" message
+
+  - id: AC-008
+    scenario: Sample CSV download provides correct template
+    given:
+      - User is on Step 1 of the import wizard
+    when:
+      - User clicks "Download Sample CSV"
+    then:
+      - A file is downloaded with headers: name, email, phone, tags, status, lead_source
+      - One example row is included
+
+non_functional_requirements:
+  performance:
+    - Synchronous import of 100 rows completes in < 10 seconds
+    - Queued import of 500 rows completes in < 60 seconds (background job)
+  security:
+    - Uploaded file is stored temporarily and deleted after processing (no permanent storage of user CSVs)
+    - File size and type validated server-side, not just client-side
+  usability:
+    - Step indicator shows current step (1 of 4)
+    - User can navigate back to previous steps to adjust mapping
+    - Preview highlights problematic rows in a distinct color before the user commits
+
+edge_cases:
+  - CSV with BOM (byte order mark) at start — strip BOM before parsing
+  - CSV with Windows line endings (CRLF) — PHP fgetcsv handles this natively
+  - CSV column with quoted values containing commas — PHP fgetcsv handles this correctly
+  - Tags field with extra whitespace — "VIP , Prospect " must be trimmed to "VIP" and "Prospect"
+  - Status value not matching any ContactStatus label — imported with status=null (no error)
+  - Lead source value not matching any LeadSource label — imported with lead_source=null (no error)
+
+dependencies:
+  - Contacts resource must exist (already implemented)
+  - Implement Contact Status Field
+  - Implement Lead Source Tracking
+
+notes:
+  - Use PHP's native fgetcsv() function — no league/csv or maatwebsite/excel package needed
+  - The import wizard is implemented as a Filament Action with a multi-step schema (Wizard component)
+  - For queued imports, dispatch ImportContactsJob with the mapped data array (not the raw file)
+  - Notify the user of queued import completion via Laravel database notification (using existing notification infrastructure)
+  - No custom fields are imported in this MVP — future enhancement

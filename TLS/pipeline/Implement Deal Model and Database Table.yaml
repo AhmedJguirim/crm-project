@@ -1,0 +1,95 @@
+spec_version: 1.0
+task_id: TSK-2026-0033
+title: Implement Deal Model and Database Table
+
+user_story: >-
+  As a freelancer/consultant,
+  I want a Deal model and database table
+  so that I can track opportunities through a sales pipeline from first contact to close.
+
+description: >-
+  Create the Deal Eloquent model and its migration. A Deal represents a business opportunity
+  linked to a Contact, moving through defined pipeline stages until it is won or lost.
+  The table must support everything needed for pipeline management: title, stage, expected
+  value, expected close date, and automatic scoping to the current Organization.
+  This is the foundational data layer for all pipeline features.
+
+functional_requirements:
+  - REQ-001: Create Deal Eloquent model with relationships (belongsTo Organization, belongsTo Contact nullable, belongsTo User as creator)
+  - REQ-002: Create migration for deals table
+  - REQ-003: Table columns — id, organization_id, contact_id (nullable FK), title (string), stage (string), value (decimal 10,2 nullable), currency (string default "USD"), expected_close_date (date nullable), notes (text nullable), status (string), won_at (timestamp nullable), lost_at (timestamp nullable), created_by (FK to users), timestamps
+  - REQ-004: Create DealStage enum with values — Lead, Discovery, ProposalSent, Negotiating, Won, Lost — implementing HasLabel, HasColor, HasIcon
+  - REQ-005: Create DealStatus enum with values — Open, Won, Lost — implementing HasLabel, HasColor
+  - REQ-006: Add global scope to automatically filter by current Organization
+  - REQ-007: Add model scopes — scopeOpen(), scopeWon(), scopeLost(), scopeByStage(DealStage $stage), scopeClosingThisWeek()
+  - REQ-008: Create DealFactory and DatabaseSeeder entry for development data
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Table and model are created successfully
+    given:
+      - Fresh database
+    when:
+      - Migration is run
+    then:
+      - deals table exists with all required columns
+      - Indexes exist on organization_id, contact_id, stage, status
+      - Deal model can be instantiated
+
+  - id: AC-002
+    scenario: Organization scoping works
+    given:
+      - Deals belonging to Organization A and Organization B
+    when:
+      - Querying Deal::all() while tenant is Organization A
+    then:
+      - Only Organization A's deals are returned
+
+  - id: AC-003
+    scenario: Relationships resolve correctly
+    given:
+      - A deal linked to a contact and created by a user
+    when:
+      - Calling $deal->contact, $deal->organization, $deal->creator
+    then:
+      - Correct related models are returned
+
+  - id: AC-004
+    scenario: Scope methods return correct subsets
+    given:
+      - Deals with statuses open, won, lost and various stages
+    when:
+      - Calling Deal::open(), Deal::won(), Deal::closingThisWeek()
+    then:
+      - Each scope returns only the matching records
+
+  - id: AC-005
+    scenario: Stage and status enums are enforced via casts
+    given:
+      - A Deal with stage cast to DealStage
+    when:
+      - Reading $deal->stage
+    then:
+      - Returns a DealStage enum instance, not a raw string
+
+non_functional_requirements:
+  performance:
+    - Indexes on organization_id, contact_id, stage, status, expected_close_date for fast pipeline queries
+  maintainability:
+    - DealStage and DealStatus enums implement HasLabel, HasColor, HasIcon for consistent Filament rendering
+    - Clear PHPDoc on scope methods
+
+edge_cases:
+  - Deal with no contact (org-level opportunity with unknown contact)
+  - Deal with null value (unquantified deal)
+  - Deal with null expected_close_date (open-ended engagement)
+  - Very long deal titles (> 255 chars should be rejected by validation, not DB)
+
+dependencies:
+  - Implement Global Scoping of All Resources to Current Organization
+
+notes:
+  - DealStage colors — Lead=gray, Discovery=blue, ProposalSent=amber, Negotiating=orange, Won=green, Lost=gray
+  - status=won must be set when stage=Won; status=lost when stage=Lost — enforced at application layer, not DB constraint
+  - won_at and lost_at are set by application logic when stage transitions to Won or Lost
+  - This is the foundation — TSK-2026-0034, TSK-2026-0035, TSK-2026-0036 all depend on it

@@ -1,0 +1,109 @@
+spec_version: 1.0
+task_id: TSK-2026-0034
+title: Implement Deals Pipeline Board
+
+user_story: >-
+  As a freelancer/consultant,
+  I want a visual pipeline board that shows all my deals grouped by stage
+  so that I can instantly see where each opportunity stands and what needs attention.
+
+description: >-
+  Create the DealResource Filament resource with a Kanban-style pipeline board as its primary
+  view. Deals are displayed in columns representing each pipeline stage. Each card shows the
+  most actionable information at a glance — deal title, linked contact, expected value, and
+  close date. A standard table list view is also available for bulk filtering and sorting.
+  Creating a new deal is possible from both views.
+
+functional_requirements:
+  - REQ-001: Create DealResource with navigation sort 3, Heroicon::OutlinedBanknotes icon, label "Pipeline"
+  - REQ-002: Kanban board as the primary ListDeals view — one column per DealStage (Lead, Discovery, Proposal Sent, Negotiating, Won, Lost)
+  - REQ-003: Each deal card displays — deal title, contact name (clickable link to ViewContact), formatted value with currency, expected close date (red if past due)
+  - REQ-004: Stage columns display deal count and total stage value in the column header
+  - REQ-005: Won column cards have green tinted background; Lost column cards have gray tinted background
+  - REQ-006: Table list view (toggle) with columns — Title, Contact, Value, Stage (badge), Status (badge), Expected Close, Created At
+  - REQ-007: Table filters — Stage (multi-select), Status (Open / Won / Lost), Contact (search), Closing This Week toggle
+  - REQ-008: Create Deal modal — fields: title (required), contact (searchable select, optional), stage (select with enum, default Lead), value (numeric, optional), currency (select, default USD), expected_close_date (date, optional), notes (textarea, optional)
+  - REQ-009: All data automatically scoped to current Organization
+  - REQ-010: Empty stage columns display a clean empty state with "No deals in this stage" message
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Kanban board renders all stage columns with correct cards
+    given:
+      - Deals exist across multiple stages for the current Organization
+    when:
+      - User opens the Pipeline (Deals) page
+    then:
+      - Six columns appear (Lead, Discovery, Proposal Sent, Negotiating, Won, Lost)
+      - Each deal card appears in the correct stage column
+      - Column header shows deal count and total value for that stage
+
+  - id: AC-002
+    scenario: Deals from other organizations are never shown
+    given:
+      - Deals exist for Organization A and Organization B
+      - Current tenant is Organization A
+    when:
+      - User opens the Pipeline page
+    then:
+      - Only Organization A's deals are visible
+
+  - id: AC-003
+    scenario: Clicking a deal card navigates to deal detail
+    given:
+      - A deal card is visible on the Kanban board
+    when:
+      - User clicks the deal card
+    then:
+      - User is taken to the Deal Detail page for that deal
+
+  - id: AC-004
+    scenario: Creating a new deal from the board
+    given:
+      - User is on the Pipeline page
+    when:
+      - User clicks "New Deal" and fills the modal form
+    then:
+      - Deal is created and appears in the correct stage column immediately
+      - A success notification is shown
+
+  - id: AC-005
+    scenario: Table view shows correct data with filters
+    given:
+      - Multiple deals with different stages and statuses
+    when:
+      - User switches to table view and applies "Won" status filter
+    then:
+      - Only won deals appear in the table
+
+  - id: AC-006
+    scenario: Empty stage column shows clean empty state
+    given:
+      - No deals exist in the "Negotiating" stage
+    when:
+      - User views the Kanban board
+    then:
+      - Negotiating column shows "No deals in this stage" empty state without errors
+
+non_functional_requirements:
+  performance:
+    - Kanban board loads all columns in a single query per stage, not N+1
+    - Board renders in < 1.5 seconds with up to 200 deals
+  usability:
+    - Won and Lost stages are visually distinct (color) from open stages
+    - Overdue expected close dates are highlighted in red on cards
+    - Currency values are formatted with thousand separators
+
+edge_cases:
+  - No deals at all — board shows all 6 empty columns with empty states
+  - Deal with no contact — card shows "No contact" placeholder
+  - Deal with no value — value area is blank, not shown as "$0"
+  - Very long deal title — truncated with ellipsis on card
+
+dependencies:
+  - Implement Deal Model and Database Table
+
+notes:
+  - The Kanban view is the primary interaction surface; the table view is secondary
+  - Do not implement drag-and-drop stage changes in this task — that is future scope
+  - Stage column order must match the sales flow — Lead → Discovery → Proposal Sent → Negotiating → Won → Lost

@@ -1,0 +1,119 @@
+spec_version: 1.0
+task_id: TSK-2026-0042
+title: Implement Business Overview Dashboard
+
+user_story: >-
+  As a freelancer/consultant,
+  I want a rich dashboard that shows the health of my business at a glance —
+  pipeline value, revenue, active clients, overdue tasks, and recent activity —
+  so that I can start every work session knowing exactly where things stand.
+
+description: >-
+  Upgrade the Filament dashboard from its current minimal state (single task widget) into
+  a comprehensive business overview page. The dashboard assembles all the individual widgets
+  built in the pipeline and revenue tasks, adds two new widgets (Contacts Overview and Recent
+  Activities), and arranges them in a clear visual hierarchy. The top row presents financial
+  and pipeline health; the bottom shows operational status (tasks and recent interactions).
+  All widgets are org-scoped and link to their respective resource pages.
+
+functional_requirements:
+  - REQ-001: Arrange existing and new widgets on the Filament Dashboard page in the following layout:
+      Row 1 (2-column grid) — DealsOverviewWidget (TSK-2026-0036) + RevenueOverviewWidget (TSK-2026-0039)
+      Row 2 (3-column grid) — ContactsOverviewWidget (new) + DashboardTasksWidget (existing, col span 2)
+      Row 3 (full width) — RecentActivitiesWidget (new)
+  - REQ-002: Create ContactsOverviewWidget extending StatsOverviewWidget — stats: Total Contacts (all statuses), Active Clients (status=ActiveClient count), New This Month (created_at in current month), Leads (status=Lead count); each stat links to Contacts list filtered by status
+  - REQ-003: Create RecentActivitiesWidget — shows last 10 activities across all contacts in the Organization, ordered by occurred_at descending; each row: contact name (link to ViewContact), activity type badge, subject (if any), occurred_at; no pagination (fixed list of 10); link to Contacts page at the bottom
+  - REQ-004: Both new widgets are scoped to current Organization via global scope
+  - REQ-005: Dashboard page title is "Dashboard" (unchanged)
+  - REQ-006: All widget "View all →" links navigate to the correct resource list page
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Dashboard renders all widgets without errors
+    given:
+      - A user logged into an Organization with contacts, deals, invoices, tasks, and activities
+    when:
+      - User navigates to the Dashboard
+    then:
+      - All 5 widget areas render without PHP errors or blank sections
+      - Each widget shows its heading
+
+  - id: AC-002
+    scenario: ContactsOverviewWidget shows correct counts
+    given:
+      - Organization has 10 total contacts — 4 ActiveClient, 3 Lead, 2 Prospect, 1 PastClient
+      - 2 contacts were created this month
+    when:
+      - Dashboard loads
+    then:
+      - Total Contacts: 10
+      - Active Clients: 4
+      - New This Month: 2
+      - Leads: 3
+
+  - id: AC-003
+    scenario: RecentActivitiesWidget shows last 10 activities in order
+    given:
+      - 15 activities exist across multiple contacts in the Organization
+    when:
+      - Dashboard loads
+    then:
+      - Exactly 10 activities are shown
+      - They are ordered by occurred_at descending (most recent first)
+      - Each row shows the contact name as a clickable link
+
+  - id: AC-004
+    scenario: Organization isolation across all widgets
+    given:
+      - Organization A and Organization B each have contacts, deals, invoices, tasks, activities
+      - Current tenant is Organization A
+    when:
+      - Dashboard loads
+    then:
+      - No widget shows data from Organization B
+
+  - id: AC-005
+    scenario: Empty state — organization with no data
+    given:
+      - A brand new Organization with no contacts, deals, invoices, tasks, or activities
+    when:
+      - Dashboard loads
+    then:
+      - All widgets render with zero-state values (0 contacts, $0 revenue, etc.)
+      - No errors or blank widget sections
+
+  - id: AC-006
+    scenario: Widget links navigate to correct pages
+    given:
+      - User is on the dashboard
+    when:
+      - User clicks "View all →" on the DealsOverviewWidget
+    then:
+      - User is taken to the Deals (Pipeline) list page
+
+non_functional_requirements:
+  performance:
+    - Dashboard page fully loaded in < 2 seconds on typical data (< 500 contacts, < 100 deals)
+    - Each widget fires its own queries independently (Livewire parallel rendering)
+  usability:
+    - Widget layout is responsive — on mobile, widgets stack to full width
+    - Consistent visual hierarchy — financial widgets at top, operational at bottom
+
+edge_cases:
+  - ContactsOverviewWidget when ContactStatus feature is not yet deployed — counts show null-safe behavior
+  - RecentActivitiesWidget when a linked contact has been deleted — show "Deleted Contact" placeholder
+
+dependencies:
+  - Implement Deal Model and Database Table
+  - Implement Deals Pipeline Board
+  - Implement Deals Dashboard Widget
+  - Implement Invoice Model and Database Table
+  - Implement Invoice Management Resource
+  - Implement Revenue Dashboard Widget
+  - Implement Contact Status Field
+
+notes:
+  - DashboardTasksWidget already exists — do not rewrite it, only position it in the layout
+  - ContactsOverviewWidget counts depend on ContactStatus enum from TSK-2026-0040
+  - If TSK-2026-0040 is not yet deployed, ContactsOverviewWidget should show only Total Contacts and New This Month (graceful degradation)
+  - This is the final assembly task for the first major feature sprint

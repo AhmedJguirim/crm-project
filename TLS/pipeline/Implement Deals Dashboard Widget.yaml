@@ -1,0 +1,85 @@
+spec_version: 1.0
+task_id: TSK-2026-0036
+title: Implement Deals Dashboard Widget
+
+user_story: >-
+  As a freelancer/consultant,
+  I want a pipeline overview widget on my dashboard
+  so that I can instantly see the health and value of my open opportunities without navigating to the Pipeline page.
+
+description: >-
+  Create a DealsOverviewWidget for the Filament dashboard that shows key pipeline metrics
+  at a glance. The widget displays two stat groups: the open pipeline (total open deal count
+  and combined value) and this month's performance (won deal count and total won value for
+  the current calendar month). A secondary row shows a breakdown of open deals by stage so
+  the consultant can spot bottlenecks. All figures are scoped to the current Organization.
+
+functional_requirements:
+  - REQ-001: Create DealsOverviewWidget extending StatsOverviewWidget (Filament built-in)
+  - REQ-002: Stat 1 — "Open Deals" (count of deals with status=open, link to Pipeline page filtered to open)
+  - REQ-003: Stat 2 — "Pipeline Value" (sum of value on open deals, formatted with currency symbol, link to Pipeline page)
+  - REQ-004: Stat 3 — "Won This Month" (count of deals with status=won and won_at in current calendar month, link to Pipeline page filtered to won)
+  - REQ-005: Stat 4 — "Revenue Won This Month" (sum of value on won deals this month, formatted with currency)
+  - REQ-006: Below the stats — a compact stage breakdown list showing open deal count per stage (Lead: N, Discovery: N, etc.) — only stages with count > 0 shown
+  - REQ-007: Register widget on the Filament Dashboard page
+  - REQ-008: All queries scoped to current Organization via global scope
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Widget renders correct open pipeline figures
+    given:
+      - Organization A has 5 open deals totalling $25,000
+      - Organization B has 3 open deals totalling $10,000
+      - Current tenant is Organization A
+    when:
+      - Dashboard loads
+    then:
+      - Widget shows "5" for Open Deals and "$25,000" for Pipeline Value
+
+  - id: AC-002
+    scenario: Won This Month stat reflects only current month
+    given:
+      - 2 deals won last month (total $8,000) and 1 deal won this month ($3,500)
+    when:
+      - Dashboard loads in the current month
+    then:
+      - "Won This Month" shows 1 and "Revenue Won This Month" shows $3,500
+
+  - id: AC-003
+    scenario: Stage breakdown only shows stages with deals
+    given:
+      - Open deals exist in Lead and Negotiating stages only
+    when:
+      - Dashboard loads
+    then:
+      - Stage breakdown shows "Lead: 2, Negotiating: 1" — other stages not listed
+
+  - id: AC-004
+    scenario: Empty state when no deals exist
+    given:
+      - Organization has no deals
+    when:
+      - Dashboard loads
+    then:
+      - Widget shows 0 for all stats without errors; stage breakdown is hidden
+
+non_functional_requirements:
+  performance:
+    - All stats computed in ≤ 3 database queries total (no N+1)
+    - Widget loads in < 500ms
+  usability:
+    - Currency formatted with locale-appropriate separators (e.g., $25,000.00)
+    - Stats use Filament's built-in color system — green for Won, primary for open
+
+edge_cases:
+  - All deals have null value — Pipeline Value shows "No value recorded" or "$0"
+  - Mixed currencies in pipeline — sum shown in default currency (USD) with note "multiple currencies"
+
+dependencies:
+  - Implement Deal Model and Database Table
+  - Implement Deals Pipeline Board
+
+notes:
+  - Use Filament's StatsOverviewWidget for the stat cards (consistent with DashboardTasksWidget pattern)
+  - The stage breakdown below the stats is a simple blade partial inside the widget view
+  - This widget is one of several assembled in TSK-2026-0042 (Business Overview Dashboard)

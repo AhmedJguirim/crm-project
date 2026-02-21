@@ -1,0 +1,105 @@
+spec_version: 1.0
+task_id: TSK-2026-0040
+title: Implement Contact Status Field
+
+user_story: >-
+  As a freelancer/consultant,
+  I want each contact to have an explicit lifecycle status (Lead, Prospect, Active Client, etc.)
+  so that I can instantly tell who I'm currently working with versus who I'm still pursuing,
+  and filter my contact list accordingly.
+
+description: >-
+  Add a status field to the Contact model representing the contact's position in the
+  client lifecycle. This replaces the current implicit use of tags for lifecycle tracking
+  with an explicit, first-class enum field. The status is visible throughout the contact
+  experience — as a badge in the list, prominently in the detail view, and as a filter.
+  New contacts default to "Lead" status. The field is optional (nullable) to keep existing
+  data intact.
+
+functional_requirements:
+  - REQ-001: Create ContactStatus enum — Lead, Prospect, ActiveClient, PastClient, Partner — implementing HasLabel, HasColor, HasIcon
+  - REQ-002: Create migration adding status column (string, nullable, no default) to contacts table
+  - REQ-003: Update Contact model — add status to $fillable, cast to ContactStatus enum
+  - REQ-004: Add scope method scopeActiveClients() to Contact model (status=ActiveClient)
+  - REQ-005: Update ContactForm — add Status select field using ContactStatus enum options, positioned after email field, not required (nullable)
+  - REQ-006: Update ContactsTable — add Status column with badge (using enum color), add Status multi-select filter
+  - REQ-007: Update ContactDetailsWidget blade — show status badge prominently below the contact name (or next to it), hidden when null
+  - REQ-008: Update CreateContact default — pre-select Lead status on the create form
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Status column exists and existing contacts are unaffected
+    given:
+      - Migration is run on a database with existing contacts
+    when:
+      - Querying existing contacts
+    then:
+      - All existing contacts have status=null
+      - No existing records are modified
+
+  - id: AC-002
+    scenario: Status badge appears in contact list
+    given:
+      - Contacts with statuses Lead, ActiveClient, and null
+    when:
+      - User opens the Contacts list
+    then:
+      - Lead contact shows a badge labeled "Lead" with the Lead color
+      - ActiveClient contact shows "Active Client" badge with green color
+      - Contact with null status shows no badge (blank cell, not an error)
+
+  - id: AC-003
+    scenario: Status filter works correctly
+    given:
+      - Contacts with statuses Lead, Prospect, and ActiveClient
+    when:
+      - User selects "Active Client" in the Status filter
+    then:
+      - Only contacts with status=ActiveClient are shown
+
+  - id: AC-004
+    scenario: Status badge shown in ContactDetailsWidget
+    given:
+      - A contact with status=Partner
+    when:
+      - User opens the contact detail page
+    then:
+      - "Partner" badge appears below the contact name in the left panel
+      - Badge uses the Partner color defined in ContactStatus enum
+
+  - id: AC-005
+    scenario: New contact form defaults to Lead status
+    given:
+      - User opens Create Contact form
+    when:
+      - The form loads
+    then:
+      - Status field is pre-selected to "Lead"
+
+  - id: AC-006
+    scenario: Status is optional — contact can be saved without status
+    given:
+      - User creates a contact without selecting a status (clears the default)
+    when:
+      - Form is submitted
+    then:
+      - Contact is saved with status=null
+      - No validation error is shown
+
+non_functional_requirements:
+  usability:
+    - Status badge colors must be visually distinct — Lead=gray, Prospect=blue, ActiveClient=green, PastClient=amber, Partner=purple
+    - Badge in detail view is large enough to be immediately readable without being dominant
+
+edge_cases:
+  - Contacts created via CSV import (future feature) with no status — default to null, not "Lead"
+  - Filtering by multiple statuses simultaneously — should use OR logic (any of the selected)
+
+dependencies:
+  - Contacts resource must exist (already implemented)
+
+notes:
+  - ContactStatus enum keys — Lead, Prospect, ActiveClient, PastClient, Partner
+  - Labels — "Lead", "Prospect", "Active Client", "Past Client", "Partner"
+  - Icons suggestion — Lead: Heroicon::OutlinedUser, ActiveClient: Heroicon::OutlinedBriefcase, Partner: Heroicon::OutlinedHandRaised
+  - scopeActiveClients() is used by the Dashboard Contacts Overview Widget (TSK-2026-0042)

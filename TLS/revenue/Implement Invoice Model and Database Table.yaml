@@ -1,0 +1,97 @@
+spec_version: 1.0
+task_id: TSK-2026-0037
+title: Implement Invoice Model and Database Table
+
+user_story: >-
+  As a freelancer/consultant,
+  I want an Invoice model and database table
+  so that I can track what I have billed, what has been paid, and what is overdue — all
+  within the same CRM where I manage my clients and pipeline.
+
+description: >-
+  Create the Invoice Eloquent model and its migration. An Invoice represents a billing record
+  linked to a Contact and optionally to a Deal. The model tracks the full lifecycle of a
+  freelancer invoice from draft through to payment. The goal is not to generate invoices
+  but to record and monitor their status alongside the rest of the client relationship data.
+  This model is the foundation for the Invoice Resource and Revenue Widget.
+
+functional_requirements:
+  - REQ-001: Create Invoice Eloquent model with relationships — belongsTo Organization, belongsTo Contact, belongsTo Deal (nullable)
+  - REQ-002: Create migration for invoices table
+  - REQ-003: Table columns — id, organization_id, contact_id (FK), deal_id (nullable FK), invoice_number (string), amount (decimal 10,2), currency (string default "USD"), status (string), issued_at (date), due_at (date), paid_at (date nullable), notes (text nullable), timestamps
+  - REQ-004: Unique constraint on (organization_id, invoice_number) — same invoice number can exist in different orgs but not within one
+  - REQ-005: Create InvoiceStatus enum — Draft, Sent, Paid, Partial, Overdue, Cancelled — implementing HasLabel, HasColor, HasIcon
+  - REQ-006: Add global scope to automatically filter by current Organization
+  - REQ-007: Add model scopes — scopePaid(), scopeOutstanding() (status in Sent/Partial/Overdue), scopeOverdue() (due_at < today AND status in Sent/Partial), scopeThisMonth() (issued_at in current calendar month)
+  - REQ-008: Create InvoiceFactory and seeder entry for development data
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Table and model are created successfully
+    given:
+      - Fresh database
+    when:
+      - Migration is run
+    then:
+      - invoices table exists with all required columns
+      - Unique index exists on (organization_id, invoice_number)
+      - Indexes exist on organization_id, contact_id, status, due_at
+
+  - id: AC-002
+    scenario: Organization scoping works
+    given:
+      - Invoices belonging to Organization A and Organization B
+    when:
+      - Querying Invoice::all() while tenant is Organization A
+    then:
+      - Only Organization A's invoices are returned
+
+  - id: AC-003
+    scenario: scopeOverdue returns correct records
+    given:
+      - Invoice A — status=Sent, due_at=yesterday
+      - Invoice B — status=Sent, due_at=tomorrow
+      - Invoice C — status=Paid, due_at=yesterday
+    when:
+      - Calling Invoice::overdue()
+    then:
+      - Only Invoice A is returned
+
+  - id: AC-004
+    scenario: scopeOutstanding includes all unpaid active statuses
+    given:
+      - Invoices with statuses — Draft, Sent, Partial, Overdue, Paid, Cancelled
+    when:
+      - Calling Invoice::outstanding()
+    then:
+      - Returns only Sent, Partial, and Overdue invoices
+
+  - id: AC-005
+    scenario: Unique invoice number constraint per organization
+    given:
+      - Invoice with invoice_number "INV-2026-001" exists for Organization A
+    when:
+      - Attempting to create a second Invoice with "INV-2026-001" for Organization A
+    then:
+      - Database constraint prevents the duplicate
+
+non_functional_requirements:
+  performance:
+    - Indexes on organization_id, contact_id, status, due_at, issued_at for fast financial queries
+  maintainability:
+    - InvoiceStatus enum implements HasLabel, HasColor, HasIcon for consistent Filament badge rendering
+    - Clear PHPDoc on scope methods describing the SQL logic
+
+edge_cases:
+  - Invoice with no deal linked (standalone invoice not from a pipeline deal)
+  - Invoice with paid_at set but status still Sent (data inconsistency) — application should validate
+  - Invoice amount of zero (valid for credit notes or pro-bono work)
+
+dependencies:
+  - Implement Deal Model and Database Table
+
+notes:
+  - InvoiceStatus colors — Draft=gray, Sent=blue, Paid=green, Partial=amber, Overdue=red, Cancelled=gray
+  - Auto-marking invoices as Overdue is handled by the scopeOverdue() query filter, not a migration or DB trigger
+  - invoice_number format suggestion — INV-YYYY-NNN — is enforced at application layer, not DB
+  - This is the foundation for TSK-2026-0038 (Invoice Resource) and TSK-2026-0039 (Revenue Widget)

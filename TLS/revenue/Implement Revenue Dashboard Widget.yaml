@@ -1,0 +1,111 @@
+spec_version: 1.0
+task_id: TSK-2026-0039
+title: Implement Revenue Dashboard Widget
+
+user_story: >-
+  As a freelancer/consultant,
+  I want a revenue summary widget on my dashboard
+  so that I can instantly see how much I've earned this month, what's still outstanding,
+  and whether any invoices are overdue — without opening the Invoices page.
+
+description: >-
+  Create a RevenueOverviewWidget for the Filament dashboard that surfaces the most
+  critical financial metrics for a freelancer. The widget shows four stats: paid revenue
+  this calendar month, total outstanding amount (sent/partial invoices), overdue invoice
+  count and value (shown with a danger color when > 0), and year-to-date paid revenue.
+  All stats are scoped to the current Organization. A "View Invoices" link provides quick
+  navigation to the full invoice list.
+
+functional_requirements:
+  - REQ-001: Create RevenueOverviewWidget extending StatsOverviewWidget (Filament built-in)
+  - REQ-002: Stat 1 — "Paid This Month" — sum of amount on invoices with status=Paid and paid_at in current calendar month; color=success; icon=BankNotes
+  - REQ-003: Stat 2 — "Outstanding" — sum of amount on invoices with status in (Sent, Partial, Overdue); color=warning; icon=Clock
+  - REQ-004: Stat 3 — "Overdue Invoices" — count of invoices with status=Overdue OR (status=Sent AND due_at < today); displayed as "{count} invoice(s)" with sum value below; color=danger when count > 0, else color=gray; icon=ExclamationCircle
+  - REQ-005: Stat 4 — "YTD Revenue" — sum of amount on invoices with status=Paid and paid_at in current calendar year; color=primary; icon=ChartBar
+  - REQ-006: Widget registered on the Filament Dashboard page
+  - REQ-007: All queries scoped to current Organization via global scope
+  - REQ-008: Widget description/footer includes "View Invoices →" link to InvoiceResource list
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Paid This Month stat reflects current month only
+    given:
+      - Invoice paid last month for $3,000
+      - Invoice paid this month for $5,000
+    when:
+      - Dashboard loads in the current month
+    then:
+      - "Paid This Month" shows $5,000 (not $8,000)
+
+  - id: AC-002
+    scenario: Outstanding includes all unpaid active invoices
+    given:
+      - Invoice A — status=Sent, amount=1,000
+      - Invoice B — status=Partial, amount=2,000
+      - Invoice C — status=Overdue, amount=500
+      - Invoice D — status=Paid, amount=3,000
+    when:
+      - Dashboard loads
+    then:
+      - Outstanding shows $3,500 (A + B + C, not D)
+
+  - id: AC-003
+    scenario: Overdue stat uses danger color when overdue invoices exist
+    given:
+      - 2 invoices are overdue (status=Sent, due_at in the past)
+    when:
+      - Dashboard loads
+    then:
+      - Overdue Invoices stat shows "2 invoices" with red/danger color
+
+  - id: AC-004
+    scenario: Overdue stat is neutral when no overdue invoices
+    given:
+      - No invoices are overdue
+    when:
+      - Dashboard loads
+    then:
+      - Overdue Invoices stat shows "0 invoices" with gray/neutral color
+
+  - id: AC-005
+    scenario: Organization isolation — other org's invoices never counted
+    given:
+      - Organization A has $10,000 paid this month
+      - Organization B has $50,000 paid this month
+      - Current tenant is Organization A
+    when:
+      - Dashboard loads
+    then:
+      - "Paid This Month" shows $10,000
+
+  - id: AC-006
+    scenario: YTD Revenue spans entire calendar year
+    given:
+      - Paid invoices spread across Jan–Jun of the current year, totalling $30,000
+      - Paid invoice from previous year — $20,000
+    when:
+      - Dashboard loads
+    then:
+      - YTD Revenue shows $30,000 (not $50,000)
+
+non_functional_requirements:
+  performance:
+    - All 4 stats computed in ≤ 4 database queries (one per stat or aggregate)
+    - Widget loads in < 500ms
+  usability:
+    - All monetary values formatted with currency symbol and thousand separators
+    - Danger color on overdue stat draws immediate attention when action is needed
+
+edge_cases:
+  - No invoices at all — all stats show $0 or "0 invoices" without errors
+  - All invoices in foreign currency — sums shown in default currency with note "mixed currencies"
+  - Invoice marked Paid but paid_at is null — excluded from "Paid This Month" (treat as incomplete data)
+
+dependencies:
+  - Implement Invoice Model and Database Table
+  - Implement Invoice Management Resource
+
+notes:
+  - This widget is assembled alongside DealsOverviewWidget in TSK-2026-0042 (Business Overview Dashboard)
+  - Use Filament's StatsOverviewWidget::Stat for each metric for visual consistency
+  - "Overdue" detection: use Invoice::overdue() scope — status=Overdue OR (status in [Sent, Partial] AND due_at < today())

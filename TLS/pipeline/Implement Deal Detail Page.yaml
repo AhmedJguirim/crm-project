@@ -1,0 +1,109 @@
+spec_version: 1.0
+task_id: TSK-2026-0035
+title: Implement Deal Detail Page
+
+user_story: >-
+  As a freelancer/consultant,
+  I want a detailed view of each deal that shows its current status, linked contact,
+  and associated activities and tasks
+  so that I can manage the full context of an opportunity in one place.
+
+description: >-
+  Create the ViewDeal page within DealResource. The page uses the same 2-column layout
+  established in ViewContact — deal metadata on the left (~33%) and a combined task/activity
+  feed on the right (~67%). One-click actions allow moving a deal to Won or Lost without
+  opening an edit form. The Log Activity and Add Task actions on this page pre-link to the
+  deal's contact, reducing friction in the follow-up workflow.
+
+functional_requirements:
+  - REQ-001: Create ViewDeal page within DealResource using Page + InteractsWithRecord (custom page, no default ViewRecord infolist)
+  - REQ-002: Left panel (DealDetailsWidget) — stage badge, status indicator, value (formatted with currency), linked contact (clickable link to ViewContact), expected close date (highlighted red if past due and status=open), won_at or lost_at date when terminal, notes
+  - REQ-003: Right panel (DealActivityFeed) — ordered list of activities linked to the deal's contact, most recent first, same visual style as ContactActivityFeed; no date filters needed in MVP
+  - REQ-004: Header action — Edit Deal (EditAction linking to EditDeal page)
+  - REQ-005: Header action — Move to Won (Action, visible only when status=open) — sets status=won, stage=Won, won_at=now; shows confirmation modal; dispatches activityLogged event
+  - REQ-006: Header action — Move to Lost (Action, visible only when status=open) — sets status=lost, stage=Lost, lost_at=now; shows confirmation modal
+  - REQ-007: Header action — Log Activity — same modal as on ViewContact, pre-sets contact_id from deal's contact
+  - REQ-008: Breadcrumbs — Pipeline › {contact name or "No Contact"} › {deal title}
+  - REQ-009: Create a basic EditDeal page with a standard Filament EditRecord form — all deal fields editable
+
+acceptance_criteria:
+  - id: AC-001
+    scenario: Deal detail renders with correct metadata
+    given:
+      - A deal with stage=ProposalSent, value=5000 USD, linked to a contact, and notes
+    when:
+      - User navigates to the Deal Detail page
+    then:
+      - Left panel shows stage badge "Proposal Sent", formatted value "$5,000.00", clickable contact name, and notes
+      - Right panel shows activities linked to the contact
+
+  - id: AC-002
+    scenario: Move to Won action updates deal correctly
+    given:
+      - A deal with status=open
+    when:
+      - User clicks "Move to Won" and confirms
+    then:
+      - Deal status is set to won, stage is set to Won, won_at is set to current timestamp
+      - Page refreshes to show updated state
+      - "Move to Won" and "Move to Lost" actions are no longer visible
+
+  - id: AC-003
+    scenario: Move to Lost action updates deal correctly
+    given:
+      - A deal with status=open
+    when:
+      - User clicks "Move to Lost" and confirms
+    then:
+      - Deal status is set to lost, stage is set to Lost, lost_at is set to current timestamp
+      - Page refreshes to show updated state
+
+  - id: AC-004
+    scenario: Log Activity on deal page pre-links to contact
+    given:
+      - A deal linked to a contact
+    when:
+      - User logs an activity from the Deal Detail page
+    then:
+      - Activity is created with the deal's contact_id set
+      - Activity appears in the right panel feed
+
+  - id: AC-005
+    scenario: Already-closed deal does not show Win/Loss actions
+    given:
+      - A deal with status=won
+    when:
+      - User views the Deal Detail page
+    then:
+      - "Move to Won" and "Move to Lost" header actions are not visible
+      - won_at date is displayed in the left panel
+
+  - id: AC-006
+    scenario: Breadcrumbs are correct
+    given:
+      - A deal linked to "Alice Smith"
+    when:
+      - User views the Deal Detail page
+    then:
+      - Breadcrumbs show: Pipeline › Alice Smith › {deal title}
+
+non_functional_requirements:
+  usability:
+    - Layout mirrors ViewContact for consistency — users learn one pattern
+    - Won deals shown with green visual treatment; lost deals with gray/muted treatment
+  performance:
+    - Page loads in < 1 second; activity feed paginates if > 15 items
+
+edge_cases:
+  - Deal with no contact — "Log Activity" action is hidden or disabled; contact area shows "No contact"
+  - Deal with no activities — right panel shows empty state
+  - Very long notes — scrollable within the left panel section
+
+dependencies:
+  - Implement Deal Model and Database Table
+  - Implement Deals Pipeline Board
+
+notes:
+  - Use the same widget pattern as ViewContact (Page + InteractsWithRecord + footer widgets)
+  - DealActivityFeed can be a thin wrapper around ContactActivityFeed, filtered by the deal's contact
+  - Won/Lost confirmation modals must have distinct, clear language ("This will close the deal as Won")
