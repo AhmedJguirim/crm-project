@@ -1,6 +1,7 @@
 <?php
 
 use App\Filament\Resources\Deals\Pages\CreateDeal;
+use App\Filament\Resources\Deals\Pages\DealPipeline;
 use App\Filament\Resources\Deals\Pages\EditDeal;
 use App\Filament\Resources\Deals\Pages\ListDeals;
 use App\Filament\Resources\Deals\Pages\ViewDeal;
@@ -43,5 +44,10 @@ test('deals view page loads', function () {
     ]);
 
     Livewire::test(ViewDeal::class, ['record' => $deal->id])
+        ->assertOk();
+});
+
+test('deals pipeline page loads', function () {
+    Livewire::test(DealPipeline::class)
         ->assertOk();
 });
