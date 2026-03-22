@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Deals;
 
 use App\Filament\Resources\Deals\Pages\CreateDeal;
+use App\Filament\Resources\Deals\Pages\DealPipeline;
 use App\Filament\Resources\Deals\Pages\EditDeal;
 use App\Filament\Resources\Deals\Pages\ListDeals;
 use App\Filament\Resources\Deals\Pages\ViewDeal;
@@ -59,6 +60,7 @@ class DealResource extends Resource
     {
         return [
             'index' => ListDeals::route('/'),
+            'pipeline' => DealPipeline::route('/pipeline'),
             'create' => CreateDeal::route('/create'),
             'view' => ViewDeal::route('/{record}'),
             'edit' => EditDeal::route('/{record}/edit'),

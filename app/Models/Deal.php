@@ -28,6 +28,7 @@ class Deal extends Model
         'won_at',
         'lost_at',
         'created_by',
+        'position',
     ];
 
     protected function casts(): array
