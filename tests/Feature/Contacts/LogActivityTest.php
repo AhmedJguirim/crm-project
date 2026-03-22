@@ -74,16 +74,15 @@ test('full form creates activity with minimal fields', function () {
         ->and($activity->duration_minutes)->toBeNull()
         ->and($activity->subject)->toBeNull()
         ->and($activity->notes)->toBeNull()
-        ->and($activity->outcome)->toBeNull()
+        ->and($activity->outcome)->toBeNull();
 });
-
 
 test('full form validates required fields', function () {
     Livewire::test(ViewContact::class, ['record' => $this->contact->id])
         ->callAction('logActivity', [
             'type' => null,
             'occurred_at' => null,
-            
+
         ])
         ->assertHasActionErrors([
             'type' => 'required',
@@ -98,7 +97,7 @@ test('full form auto-assigns organization via observer', function () {
         ->callAction('logActivity', [
             'type' => ActivityType::Note->value,
             'occurred_at' => '2026-02-15 10:00:00',
-            
+
         ])
         ->assertHasNoActionErrors();
 
@@ -153,7 +152,7 @@ test('full form can link activity to selected deal', function () {
             'type' => ActivityType::Call->value,
             'occurred_at' => '2026-02-15 10:00:00',
             'deal_id' => $deal->id,
-            
+
         ])
         ->assertHasNoActionErrors();
 
@@ -268,7 +267,7 @@ test('activity is scoped to the contact organization', function () {
         ->callAction('logActivity', [
             'type' => ActivityType::Email->value,
             'occurred_at' => '2026-02-15 10:00:00',
-            
+
         ])
         ->assertHasNoActionErrors();
 

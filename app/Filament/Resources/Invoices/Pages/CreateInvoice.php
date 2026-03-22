@@ -4,26 +4,55 @@ namespace App\Filament\Resources\Invoices\Pages;
 
 use App\Enums\InvoiceStatus;
 use App\Filament\Resources\Invoices\InvoiceResource;
+use App\Filament\Resources\Invoices\Schemas\InvoiceForm;
+use App\Models\Deal;
 use Filament\Resources\Pages\CreateRecord;
+use Livewire\Attributes\Url;
 
 class CreateInvoice extends CreateRecord
 {
     protected static string $resource = InvoiceResource::class;
 
+    #[Url(as: 'contact')]
+    public ?string $prefillContactId = null;
+
+    #[Url(as: 'deal')]
+    public ?string $prefillDealId = null;
+
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $status = $data['status'] instanceof InvoiceStatus
-            ? $data['status']
-            : InvoiceStatus::from($data['status']);
+        $data['status'] = InvoiceStatus::Draft;
+        $data['paid_at'] = null;
+        $data['invoice_number'] ??= InvoiceForm::nextInvoiceNumber();
 
-        if ($status === InvoiceStatus::Paid) {
-            $data['paid_at'] ??= today();
-        }
+        return $data;
+    }
 
-        if (! in_array($status, [InvoiceStatus::Paid, InvoiceStatus::Partial], true)) {
-            $data['paid_at'] = null;
+    protected function mutateFormDataBeforeFill(array $data): array
+    {
+        if ($this->prefillDealId) {
+            $deal = Deal::find($this->prefillDealId);
+
+            if ($deal) {
+                $data['deal_id'] = $deal->id;
+                $data['contact_id'] = $deal->contact_id;
+                $data['amount'] = $deal->value;
+                $data['currency'] = $deal->currency;
+            }
+        } elseif ($this->prefillContactId) {
+            $data['contact_id'] = (int) $this->prefillContactId;
         }
 
         return $data;
+    }
+
+    protected function getRedirectUrl(): string
+    {
+        return InvoiceResource::getUrl('view', ['record' => $this->record]);
+    }
+
+    protected function getCreatedNotificationTitle(): ?string
+    {
+        return 'Invoice created';
     }
 }

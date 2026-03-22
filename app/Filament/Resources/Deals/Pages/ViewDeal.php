@@ -11,6 +11,8 @@ use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Deals\DealResource;
 use App\Filament\Resources\Deals\Widgets\DealActivityFeed;
 use App\Filament\Resources\Deals\Widgets\DealDetailsWidget;
+use App\Filament\Resources\Deals\Widgets\DealInvoicesWidget;
+use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Models\Activity;
 use App\Models\Deal;
 use Filament\Actions\Action;
@@ -54,6 +56,7 @@ class ViewDeal extends Page
     {
         return [
             DealDetailsWidget::class,
+            DealInvoicesWidget::class,
             DealActivityFeed::class,
         ];
     }
@@ -103,7 +106,7 @@ class ViewDeal extends Page
                         ->label('Deal')
                         ->disabled()
                         ->dehydrated(false),
-                        
+
                     TextInput::make('contact_name')
                         ->label('Contact')
                         ->disabled()
@@ -216,6 +219,14 @@ class ViewDeal extends Page
 
                     $this->dispatch('activityLogged');
                 }),
+
+            Action::make('createInvoice')
+                ->label('Create Invoice')
+                ->icon(Heroicon::OutlinedDocumentCurrencyDollar)
+                ->color('gray')
+                ->url(fn (): string => InvoiceResource::getUrl('create', [
+                    'deal' => $this->getRecord()->getKey(),
+                ])),
 
             Action::make('moveToWon')
                 ->label('Move to Won')

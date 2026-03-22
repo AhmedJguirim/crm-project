@@ -34,7 +34,11 @@ class InvoiceForm
                     ->searchable()
                     ->preload()
                     ->live()
-                    ->afterStateUpdated(fn (Set $set): mixed => $set('deal_id', null))
+                    ->afterStateUpdated(function (Set $set): void {
+                        $set('deal_id', null);
+                        $set('amount', null);
+                        $set('currency', 'USD');
+                    })
                     ->rules([
                         fn () => Rule::exists(Contact::class, 'id')->where(
                             fn ($query) => $query->where('organization_id', Filament::getTenant()?->id)
@@ -45,6 +49,7 @@ class InvoiceForm
                     ->label('Deal')
                     ->nullable()
                     ->searchable()
+                    ->live()
                     ->options(function (Get $get): array {
                         $contactId = $get('contact_id');
 
@@ -55,15 +60,41 @@ class InvoiceForm
                         return Deal::query()
                             ->where('contact_id', $contactId)
                             ->orderByDesc('created_at')
-                            ->pluck('title', 'id')
+                            ->get()
+                            ->mapWithKeys(fn (Deal $deal): array => [
+                                $deal->id => $deal->value
+                                    ? "{$deal->title} — ".number_format((float) $deal->value, 2)." {$deal->currency}"
+                                    : $deal->title,
+                            ])
                             ->all();
-                    }),
+                    })
+                    ->afterStateUpdated(function (?string $state, Set $set): void {
+                        if (! $state) {
+                            return;
+                        }
+
+                        $deal = Deal::find($state);
+
+                        if (! $deal) {
+                            return;
+                        }
+
+                        if ($deal->value) {
+                            $set('amount', $deal->value);
+                        }
+
+                        $set('currency', $deal->currency);
+                    })
+                    ->helperText(fn (Get $get): ?string => $get('contact_id')
+                        ? null
+                        : 'Select a contact first'),
 
                 TextInput::make('invoice_number')
                     ->label('Invoice #')
                     ->required()
                     ->maxLength(255)
                     ->default(fn (): string => self::nextInvoiceNumber())
+                    ->readOnly()
                     ->unique(
                         table: Invoice::class,
                         column: 'invoice_number',
@@ -75,7 +106,8 @@ class InvoiceForm
                     ->numeric()
                     ->required()
                     ->minValue(0)
-                    ->step(0.01),
+                    ->step(0.01)
+                    ->prefix(fn (Get $get): string => $get('currency') ?? 'USD'),
 
                 Select::make('currency')
                     ->options([
@@ -86,22 +118,34 @@ class InvoiceForm
                         'AUD' => 'AUD',
                     ])
                     ->default('USD')
-                    ->required(),
+                    ->required()
+                    ->live(),
 
                 Select::make('status')
                     ->options(InvoiceStatus::class)
                     ->default(InvoiceStatus::Draft)
                     ->required()
-                    ->live(),
+                    ->live()
+                    ->hiddenOn('create'),
 
                 DatePicker::make('issued_at')
                     ->label('Issued')
                     ->default(today())
-                    ->required(),
+                    ->required()
+                    ->live()
+                    ->afterStateUpdated(function (?string $state, Set $set, Get $get): void {
+                        if (! $state || $get('due_at')) {
+                            return;
+                        }
+
+                        $set('due_at', now()->parse($state)->addDays(30)->format('Y-m-d'));
+                    }),
 
                 DatePicker::make('due_at')
                     ->label('Due')
-                    ->required(),
+                    ->required()
+                    ->default(fn (): string => today()->addDays(30)->format('Y-m-d'))
+                    ->helperText('Defaults to Net 30'),
 
                 DatePicker::make('paid_at')
                     ->label('Paid')
@@ -122,7 +166,7 @@ class InvoiceForm
             ]);
     }
 
-    private static function nextInvoiceNumber(): string
+    public static function nextInvoiceNumber(): string
     {
         $year = now()->year;
 
