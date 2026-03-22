@@ -11,6 +11,7 @@ use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Contacts\Widgets\ContactActivityFeed;
 use App\Filament\Resources\Contacts\Widgets\ContactDetailsWidget;
 use App\Models\Activity;
+use App\Models\CustomField;
 use App\Models\Deal;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
@@ -19,7 +20,7 @@ use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Toggle;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\Page;
@@ -166,6 +167,48 @@ class ViewContact extends Page
 
                     $this->dispatch('activityLogged');
                 }),
+            Action::make('customFields')
+                ->label('Custom Fields')
+                ->icon(Heroicon::OutlinedAdjustmentsHorizontal)
+                ->color('gray')
+                ->modalHeading('Custom Fields')
+                ->modalSubmitAction(false)
+                ->modalCancelActionLabel('Close')
+                ->schema(function (): array {
+                    $fields = CustomField::query()
+                        ->where('organization_id', Filament::getTenant()?->id)
+                        ->orderBy('order')
+                        ->get();
+
+                    if ($fields->isEmpty()) {
+                        return [
+                            TextEntry::make('empty')
+                                ->hiddenLabel()
+                                ->state('No custom fields defined for this organization.'),
+                        ];
+                    }
+
+                    $values = $this->getRecord()->custom_field_values ?? [];
+
+                    return $fields->map(function (CustomField $field) use ($values): TextEntry {
+                        $rawValue = $values[(string) $field->id] ?? null;
+
+                        $displayValue = match ($field->type) {
+                            'select' => collect($field->options ?? [])
+                                ->firstWhere('value', $rawValue)['label'] ?? $rawValue ?? '—',
+                            'multiselect' => collect($field->options ?? [])
+                                ->whereIn('value', (array) $rawValue)
+                                ->pluck('label')
+                                ->join(', ') ?: '—',
+                            default => $rawValue ?? '—',
+                        };
+
+                        return TextEntry::make("custom_field_{$field->id}")
+                            ->label($field->name)
+                            ->state($displayValue);
+                    })->all();
+                }),
+
             EditAction::make()
                 ->record($this->getRecord()),
         ];
