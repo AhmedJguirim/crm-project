@@ -123,6 +123,13 @@ class InvoicesTable
                         ]);
                     }),
 
+                Action::make('downloadPdf')
+                    ->label('PDF')
+                    ->icon(Heroicon::OutlinedArrowDownTray)
+                    ->color('gray')
+                    ->url(fn (Invoice $record): string => route('invoices.pdf', $record))
+                    ->openUrlInNewTab(),
+
                 ViewAction::make(),
                 EditAction::make(),
             ])

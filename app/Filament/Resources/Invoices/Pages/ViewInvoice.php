@@ -16,6 +16,13 @@ class ViewInvoice extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('downloadPdf')
+                ->label('Download PDF')
+                ->icon(Heroicon::OutlinedArrowDownTray)
+                ->color('gray')
+                ->url(fn (): string => route('invoices.pdf', $this->getRecord()))
+                ->openUrlInNewTab(),
+
             Action::make('markAsSent')
                 ->label('Mark as Sent')
                 ->icon(Heroicon::OutlinedPaperAirplane)

@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Contacts\DownloadFailedImportRowsController;
 use App\Http\Controllers\InviteAcceptController;
+use App\Http\Controllers\InvoicePdfController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -20,5 +21,10 @@ Route::get('/invite/accept/{token}', InviteAcceptController::class)
 Route::get('/contacts/import/failed-rows', DownloadFailedImportRowsController::class)
     ->middleware(['auth'])
     ->name('contacts.import.failed-rows');
+
+// Invoice PDF download (authenticated users only, tenant check in controller)
+Route::get('/invoices/{invoice}/pdf', InvoicePdfController::class)
+    ->middleware(['auth'])
+    ->name('invoices.pdf');
 
 require __DIR__.'/settings.php';
