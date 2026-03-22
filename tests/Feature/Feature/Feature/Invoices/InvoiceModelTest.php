@@ -90,6 +90,38 @@ test('invoice number is unique per organization', function () {
     })->toThrow(QueryException::class);
 });
 
+test('invoice stores payment terms and amount paid', function () {
+    $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
+
+    $invoice = Invoice::factory()->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $contact->id,
+        'amount' => 10000.00,
+        'amount_paid' => 3500.00,
+        'payment_terms' => 45,
+        'status' => InvoiceStatus::Partial,
+    ]);
+
+    $invoice->refresh();
+
+    expect((float) $invoice->amount)->toBe(10000.00)
+        ->and((float) $invoice->amount_paid)->toBe(3500.00)
+        ->and($invoice->payment_terms)->toBe(45)
+        ->and((float) $invoice->amount - (float) $invoice->amount_paid)->toBe(6500.00);
+});
+
+test('invoice amount paid defaults to zero', function () {
+    $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
+
+    $invoice = Invoice::factory()->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $contact->id,
+        'status' => InvoiceStatus::Draft,
+    ]);
+
+    expect((float) $invoice->amount_paid)->toBeGreaterThanOrEqual(0.00);
+});
+
 test('tenant scoping returns only current organization invoices', function () {
     $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
     $visible = Invoice::factory()->create(['organization_id' => $this->org->id, 'contact_id' => $contact->id]);

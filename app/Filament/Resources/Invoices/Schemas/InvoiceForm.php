@@ -121,11 +121,46 @@ class InvoiceForm
                     ->required()
                     ->live(),
 
+                Select::make('payment_terms')
+                    ->label('Payment Terms')
+                    ->options([
+                        7 => 'Net 7',
+                        14 => 'Net 14',
+                        15 => 'Net 15',
+                        30 => 'Net 30',
+                        45 => 'Net 45',
+                        60 => 'Net 60',
+                        90 => 'Net 90',
+                        0 => 'Due on Receipt',
+                    ])
+                    ->default(30)
+                    ->required()
+                    ->live()
+                    ->afterStateUpdated(function (?string $state, Set $set, Get $get): void {
+                        $issuedAt = $get('issued_at');
+
+                        if (! $issuedAt || $state === null) {
+                            return;
+                        }
+
+                        $set('due_at', now()->parse($issuedAt)->addDays((int) $state)->format('Y-m-d'));
+                    }),
+
                 Select::make('status')
                     ->options(InvoiceStatus::class)
                     ->default(InvoiceStatus::Draft)
                     ->required()
                     ->live()
+                    ->hiddenOn('create'),
+
+                TextInput::make('amount_paid')
+                    ->label('Amount Paid')
+                    ->numeric()
+                    ->minValue(0)
+                    ->step(0.01)
+                    ->default(0)
+                    ->prefix(fn (Get $get): string => $get('currency') ?? 'USD')
+                    ->helperText(fn (Get $get): ?string => self::balanceHelper($get))
                     ->hiddenOn('create'),
 
                 DatePicker::make('issued_at')
@@ -134,18 +169,18 @@ class InvoiceForm
                     ->required()
                     ->live()
                     ->afterStateUpdated(function (?string $state, Set $set, Get $get): void {
-                        if (! $state || $get('due_at')) {
+                        if (! $state) {
                             return;
                         }
 
-                        $set('due_at', now()->parse($state)->addDays(30)->format('Y-m-d'));
+                        $terms = (int) ($get('payment_terms') ?? 30);
+                        $set('due_at', now()->parse($state)->addDays($terms)->format('Y-m-d'));
                     }),
 
                 DatePicker::make('due_at')
                     ->label('Due')
                     ->required()
-                    ->default(fn (): string => today()->addDays(30)->format('Y-m-d'))
-                    ->helperText('Defaults to Net 30'),
+                    ->default(fn (): string => today()->addDays(30)->format('Y-m-d')),
 
                 DatePicker::make('paid_at')
                     ->label('Paid')
@@ -164,6 +199,25 @@ class InvoiceForm
                     ->nullable()
                     ->columnSpanFull(),
             ]);
+    }
+
+    private static function balanceHelper(Get $get): ?string
+    {
+        $amount = (float) ($get('amount') ?? 0);
+        $paid = (float) ($get('amount_paid') ?? 0);
+        $balance = $amount - $paid;
+
+        if ($balance <= 0 && $amount > 0) {
+            return 'Fully paid';
+        }
+
+        if ($paid > 0) {
+            $currency = $get('currency') ?? 'USD';
+
+            return 'Balance remaining: '.number_format($balance, 2)." {$currency}";
+        }
+
+        return null;
     }
 
     public static function nextInvoiceNumber(): string

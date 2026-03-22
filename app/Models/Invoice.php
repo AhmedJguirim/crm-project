@@ -23,7 +23,9 @@ class Invoice extends Model
         'deal_id',
         'invoice_number',
         'amount',
+        'amount_paid',
         'currency',
+        'payment_terms',
         'status',
         'issued_at',
         'due_at',
@@ -35,6 +37,8 @@ class Invoice extends Model
     {
         return [
             'amount' => 'decimal:2',
+            'amount_paid' => 'decimal:2',
+            'payment_terms' => 'integer',
             'status' => InvoiceStatus::class,
             'issued_at' => 'date',
             'due_at' => 'date',

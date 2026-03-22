@@ -34,7 +34,23 @@ class InvoiceInfolist
                             ->money(fn ($record): string => $record->currency)
                             ->label('Amount'),
 
+                        TextEntry::make('amount_paid')
+                            ->money(fn ($record): string => $record->currency)
+                            ->label('Amount Paid'),
+
                         TextEntry::make('currency'),
+
+                        TextEntry::make('payment_terms')
+                            ->label('Payment Terms')
+                            ->formatStateUsing(fn (?int $state): string => match ($state) {
+                                0 => 'Due on Receipt',
+                                default => "Net {$state}",
+                            }),
+
+                        TextEntry::make('balance')
+                            ->label('Balance Due')
+                            ->state(fn ($record): string => number_format((float) $record->amount - (float) $record->amount_paid, 2).' '.$record->currency)
+                            ->color(fn ($record): ?string => (float) $record->amount - (float) $record->amount_paid > 0 ? 'danger' : 'success'),
 
                         TextEntry::make('issued_at')
                             ->label('Issued')

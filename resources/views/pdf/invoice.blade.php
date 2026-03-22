@@ -255,8 +255,8 @@
                 <div class="info-value"><strong>{{ $invoice->due_at?->format('M j, Y') ?? '—' }}</strong></div>
             </div>
             <div class="date-col">
-                <div class="info-label">Paid Date</div>
-                <div class="info-value"><strong>{{ $invoice->paid_at?->format('M j, Y') ?? '—' }}</strong></div>
+                <div class="info-label">Payment Terms</div>
+                <div class="info-value"><strong>{{ $invoice->payment_terms === 0 ? 'Due on Receipt' : 'Net ' . $invoice->payment_terms }}</strong></div>
             </div>
         </div>
 
@@ -278,8 +278,18 @@
             </tbody>
             <tfoot>
                 <tr>
-                    <td>Total Due</td>
+                    <td>Subtotal</td>
                     <td>{{ Number::currency((float) $invoice->amount, $invoice->currency) }}</td>
+                </tr>
+                @if ((float) $invoice->amount_paid > 0)
+                    <tr>
+                        <td style="border-top: none; color: #15803d;">Amount Paid</td>
+                        <td style="border-top: none; font-size: 14px; color: #15803d;">- {{ Number::currency((float) $invoice->amount_paid, $invoice->currency) }}</td>
+                    </tr>
+                @endif
+                <tr>
+                    <td style="{{ (float) $invoice->amount_paid > 0 ? 'border-top: 2px solid #111827;' : 'border-top: none;' }}">Balance Due</td>
+                    <td style="{{ (float) $invoice->amount_paid > 0 ? 'border-top: 2px solid #111827;' : 'border-top: none;' }}">{{ Number::currency((float) $invoice->amount - (float) $invoice->amount_paid, $invoice->currency) }}</td>
                 </tr>
             </tfoot>
         </table>

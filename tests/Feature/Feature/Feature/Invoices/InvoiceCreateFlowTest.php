@@ -61,6 +61,25 @@ test('creating invoice always sets draft status', function () {
         ->and($invoice->paid_at)->toBeNull();
 });
 
+test('creating invoice defaults to Net 30 payment terms', function () {
+    Livewire::test(CreateInvoice::class)
+        ->fillForm([
+            'contact_id' => $this->contact->id,
+            'deal_id' => $this->deal->id,
+            'amount' => 5000.00,
+            'currency' => 'EUR',
+            'issued_at' => today()->format('Y-m-d'),
+            'due_at' => today()->addDays(30)->format('Y-m-d'),
+        ])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    $invoice = \App\Models\Invoice::latest()->first();
+
+    expect($invoice->payment_terms)->toBe(30)
+        ->and((float) $invoice->amount_paid)->toBe(0.00);
+});
+
 test('creating invoice requires contact and amount', function () {
     Livewire::test(CreateInvoice::class)
         ->fillForm([

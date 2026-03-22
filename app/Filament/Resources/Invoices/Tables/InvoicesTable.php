@@ -138,6 +138,8 @@ class InvoicesTable
                     DeleteBulkAction::make(),
                 ]),
             ])
-            ->defaultSort('due_at');
+            ->defaultSort('due_at')
+            ->emptyStateHeading('No invoices yet')
+            ->emptyStateDescription('Create your first invoice from a deal or start from scratch.');
     }
 }
