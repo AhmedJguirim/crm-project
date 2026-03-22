@@ -29,6 +29,13 @@ class TaskResource extends Resource
 
     protected static ?int $navigationSort = 2;
 
+    protected static ?string $recordTitleAttribute = 'title';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['title', 'contact.name'];
+    }
+
     public static function form(Schema $schema): Schema
     {
         return TaskForm::configure($schema);

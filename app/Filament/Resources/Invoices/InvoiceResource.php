@@ -28,6 +28,13 @@ class InvoiceResource extends Resource
 
     protected static ?int $navigationSort = 4;
 
+    protected static ?string $recordTitleAttribute = 'invoice_number';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['invoice_number', 'contact.name'];
+    }
+
     public static function form(Schema $schema): Schema
     {
         return InvoiceForm::configure($schema);

@@ -28,6 +28,13 @@ class ContactResource extends Resource
 
     protected static ?int $navigationSort = 1;
 
+    protected static ?string $recordTitleAttribute = 'name';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['name', 'email', 'phone'];
+    }
+
     public static function form(Schema $schema): Schema
     {
         return ContactForm::configure($schema);

@@ -9,11 +9,15 @@ use App\Enums\DealStatus;
 use App\Enums\LeadSource;
 use App\Filament\Actions\QuickTaskAction;
 use App\Models\Activity;
+use App\Models\Contact;
 use App\Models\Deal;
+use App\Models\Tag;
 use Filament\Actions\Action;
+use Filament\Actions\BulkAction;
+use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Facades\Filament;
 use Filament\Actions\ViewAction;
+use Filament\Facades\Filament;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -23,6 +27,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Collection;
 
 class ContactsTable
 {
@@ -164,7 +169,51 @@ class ContactsTable
                     }),
             ])
             ->toolbarActions([
-                DeleteBulkAction::make(),
+                BulkActionGroup::make([
+                    BulkAction::make('changeStatus')
+                        ->label('Change Status')
+                        ->icon(Heroicon::OutlinedArrowPath)
+                        ->schema([
+                            Select::make('status')
+                                ->options(ContactStatus::class)
+                                ->required(),
+                        ])
+                        ->action(function (Collection $records, array $data): void {
+                            $records->each(fn (Contact $contact) => $contact->update([
+                                'status' => $data['status'],
+                            ]));
+
+                            Notification::make()
+                                ->title("Updated {$records->count()} contacts")
+                                ->success()
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
+                    BulkAction::make('addTags')
+                        ->label('Add Tags')
+                        ->icon(Heroicon::OutlinedTag)
+                        ->schema([
+                            Select::make('tags')
+                                ->multiple()
+                                ->options(fn (): array => Tag::query()
+                                    ->where('organization_id', Filament::getTenant()?->id)
+                                    ->pluck('name', 'id')
+                                    ->all())
+                                ->required(),
+                        ])
+                        ->action(function (Collection $records, array $data): void {
+                            $records->each(fn (Contact $contact) => $contact->tags()->syncWithoutDetaching($data['tags']));
+
+                            Notification::make()
+                                ->title("Tagged {$records->count()} contacts")
+                                ->success()
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
+                    DeleteBulkAction::make(),
+                ]),
             ])
             ->emptyStateHeading('No contacts yet')
             ->emptyStateDescription('Add your first contact or import from CSV.');

@@ -29,6 +29,13 @@ class DealResource extends Resource
 
     protected static ?int $navigationSort = 3;
 
+    protected static ?string $recordTitleAttribute = 'title';
+
+    public static function getGloballySearchableAttributes(): array
+    {
+        return ['title', 'contact.name'];
+    }
+
     public static function form(Schema $schema): Schema
     {
         return DealForm::configure($schema);
