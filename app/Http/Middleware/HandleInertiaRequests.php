@@ -2,7 +2,10 @@
 
 namespace App\Http\Middleware;
 
+use App\Data\InertiaSharedData;
+use App\Data\OrganizationData;
 use App\Models\Organization;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -36,26 +39,35 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        $sharedData = new InertiaSharedData(
+            currentOrganization: $this->currentOrganization($request),
+            organizations: OrganizationData::collect(
+                $request->user()?->organizations()->orderBy('name')->get() ?? [],
+                'array',
+            ),
+        );
+
         return [
             ...parent::share($request),
-            'currentOrganization' => fn (): ?array => $this->currentOrganization($request),
-            'organizations' => fn (): array => $request->user()?->organizations()
-                ->orderBy('name')
-                ->get(['organizations.id', 'name', 'slug'])
-                ->map(fn (Organization $organization): array => $organization->only(['id', 'name', 'slug']))
-                ->all() ?? [],
+            ...$sharedData->toArray(),
         ];
     }
 
-    /** @return array{id: int, name: string, slug: string}|null */
-    private function currentOrganization(Request $request): ?array
+    /**
+     * Resolve the organization from the route: either bound directly
+     * (e.g. /app/{organization:slug}/tags) or through a bound record
+     * that belongs to one (e.g. /app/tags/{tag}).
+     */
+    private function currentOrganization(Request $request): ?OrganizationData
     {
-        $organization = $request->route('organization');
+        $organization = collect($request->route()?->parameters() ?? [])
+            ->filter(fn (mixed $parameter): bool => $parameter instanceof Model)
+            ->map(fn (Model $record): ?Organization => $record instanceof Organization
+                ? $record
+                : ($record->isRelation('organization') ? $record->organization : null))
+            ->filter()
+            ->first();
 
-        if (! $organization instanceof Organization) {
-            return null;
-        }
-
-        return $organization->only(['id', 'name', 'slug']);
+        return $organization ? OrganizationData::from($organization) : null;
     }
 }

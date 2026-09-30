@@ -1,7 +1,12 @@
 import { Head, Link, usePage } from '@inertiajs/react';
+import { useCurrentOrganization } from '../../hooks/useCurrentOrganization';
 
+/**
+ * @param {{ tags: App.Data.TagData[] }} props
+ */
 export default function TagsIndex({ tags }) {
-    const { currentOrganization, organizations } = usePage().props;
+    const currentOrganization = useCurrentOrganization();
+    const { organizations } = usePage().props;
 
     return (
         <>
@@ -38,15 +43,17 @@ export default function TagsIndex({ tags }) {
                 ) : (
                     <ul className="mt-8 flex flex-wrap gap-2">
                         {tags.map((tag) => (
-                            <li
-                                key={tag.id}
-                                className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-800"
-                            >
-                                <span
-                                    className="size-2.5 rounded-full"
-                                    style={{ backgroundColor: tag.color ?? '#94a3b8' }}
-                                />
-                                {tag.name}
+                            <li key={tag.id}>
+                                <Link
+                                    href={`/app/tags/${tag.id}`}
+                                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-3 py-1 text-sm text-slate-800 hover:bg-slate-100"
+                                >
+                                    <span
+                                        className="size-2.5 rounded-full"
+                                        style={{ backgroundColor: tag.color ?? '#94a3b8' }}
+                                    />
+                                    {tag.name}
+                                </Link>
                             </li>
                         ))}
                     </ul>

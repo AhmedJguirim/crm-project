@@ -1,5 +1,8 @@
 import { Head } from '@inertiajs/react';
 
+/**
+ * @param {{ appName: string }} props
+ */
 export default function Welcome({ appName }) {
     return (
         <>

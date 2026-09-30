@@ -51,3 +51,34 @@ test('users cannot view tags of an organization they do not belong to', function
         ->get(route('app.tags.index', $otherOrganization))
         ->assertForbidden();
 });
+
+test('members can view a single tag without the organization slug in the url', function () {
+    $organization = Organization::factory()->create();
+    $tag = Tag::factory()->for($organization)->create(['name' => 'Hot lead']);
+
+    $this->actingAs(memberOf($organization))
+        ->get(route('app.tags.show', $tag))
+        ->assertOk()
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('Tags/Show')
+            ->where('tag.id', $tag->id)
+            ->where('tag.name', 'Hot lead')
+            ->where('currentOrganization.slug', $organization->slug)
+        );
+});
+
+test('a tag from another organization returns not found', function () {
+    $organization = Organization::factory()->create();
+    $foreignTag = Tag::factory()->for(Organization::factory())->create();
+
+    $this->actingAs(memberOf($organization))
+        ->get(route('app.tags.show', $foreignTag))
+        ->assertNotFound();
+});
+
+test('guests are redirected to login when viewing a single tag', function () {
+    $tag = Tag::factory()->create();
+
+    $this->get(route('app.tags.show', $tag))
+        ->assertRedirect(route('login'));
+});

@@ -41,6 +41,10 @@ Route::middleware(HandleInertiaRequests::class)
             ->group(function () {
                 Route::get('/tags', [TagsController::class, 'index'])->name('tags.index');
             });
+
+        Route::get('/tags/{tag}', [TagsController::class, 'show'])
+            ->middleware('auth')
+            ->name('tags.show');
     });
 
 require __DIR__.'/settings.php';

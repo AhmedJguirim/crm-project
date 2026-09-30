@@ -2,11 +2,13 @@
 
 namespace App\Providers;
 
+use App\Filament\Http\Responses\LogoutResponse;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
+use Spatie\LaravelTypeScriptTransformer\TypeScriptTransformerApplicationServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -17,8 +19,22 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(
             \Filament\Auth\Http\Responses\Contracts\LogoutResponse::class,
-            \App\Filament\Http\Responses\LogoutResponse::class,
+            LogoutResponse::class,
         );
+
+        $this->registerTypeScriptTransformer();
+    }
+
+    /**
+     * The transformer is a dev dependency, so only register it when installed.
+     */
+    protected function registerTypeScriptTransformer(): void
+    {
+        if (! class_exists(TypeScriptTransformerApplicationServiceProvider::class)) {
+            return;
+        }
+
+        $this->app->register(TypeScriptTransformerServiceProvider::class);
     }
 
     /**
