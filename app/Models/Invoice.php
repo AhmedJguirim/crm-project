@@ -3,8 +3,9 @@
 namespace App\Models;
 
 use App\Enums\InvoiceStatus;
+use App\Models\Concerns\BelongsToOrganization;
 use App\Observers\InvoiceObserver;
-use Filament\Facades\Filament;
+use Database\Factories\InvoiceFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -14,7 +15,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 #[ObservedBy([InvoiceObserver::class])]
 class Invoice extends Model
 {
-    /** @use HasFactory<\Database\Factories\InvoiceFactory> */
+    use BelongsToOrganization;
+
+    /** @use HasFactory<InvoiceFactory> */
     use HasFactory;
 
     protected $fillable = [
@@ -44,22 +47,6 @@ class Invoice extends Model
             'due_at' => 'date',
             'paid_at' => 'date',
         ];
-    }
-
-    protected static function booted(): void
-    {
-        static::addGlobalScope('organization', function (Builder $builder): void {
-            $tenantId = Filament::getTenant()?->id;
-
-            if ($tenantId) {
-                $builder->where('organization_id', $tenantId);
-            }
-        });
-    }
-
-    public function organization(): BelongsTo
-    {
-        return $this->belongsTo(Organization::class);
     }
 
     public function contact(): BelongsTo

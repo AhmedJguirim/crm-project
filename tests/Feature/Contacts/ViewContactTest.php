@@ -2,6 +2,7 @@
 
 use App\Enums\ContactStatus;
 use App\Enums\LeadSource;
+use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Contacts\Pages\ViewContact;
 use App\Filament\Resources\Contacts\Widgets\ContactDetailsWidget;
 use App\Models\Contact;
@@ -10,7 +11,6 @@ use App\Models\Tag;
 use App\Models\User;
 use Filament\Actions\EditAction;
 use Filament\Facades\Filament;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -203,6 +203,6 @@ test('cannot view a contact from another organization', function () {
 
     // The resource scopes queries to the current tenant, so the record is not
     // found (404) rather than forbidden — the contact is invisible, not blocked.
-    expect(fn () => Livewire::test(ViewContact::class, ['record' => $otherContact->id]))
-        ->toThrow(ModelNotFoundException::class);
+    $this->get(ContactResource::getUrl('view', ['record' => $otherContact->id]))
+        ->assertNotFound();
 });

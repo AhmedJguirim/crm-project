@@ -4,7 +4,8 @@ namespace App\Models;
 
 use App\Enums\DealStage;
 use App\Enums\DealStatus;
-use Filament\Facades\Filament;
+use App\Models\Concerns\BelongsToOrganization;
+use Database\Factories\DealFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -13,7 +14,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Deal extends Model
 {
-    /** @use HasFactory<\Database\Factories\DealFactory> */
+    use BelongsToOrganization;
+
+    /** @use HasFactory<DealFactory> */
     use HasFactory;
 
     protected $fillable = [
@@ -42,22 +45,6 @@ class Deal extends Model
             'won_at' => 'datetime',
             'lost_at' => 'datetime',
         ];
-    }
-
-    protected static function booted(): void
-    {
-        static::addGlobalScope('organization', function (Builder $builder): void {
-            $tenantId = Filament::getTenant()?->id;
-
-            if ($tenantId) {
-                $builder->where('organization_id', $tenantId);
-            }
-        });
-    }
-
-    public function organization(): BelongsTo
-    {
-        return $this->belongsTo(Organization::class);
     }
 
     public function contact(): BelongsTo

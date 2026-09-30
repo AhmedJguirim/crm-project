@@ -166,7 +166,7 @@ test('same email is allowed in a different organization', function () {
         ->call('create')
         ->assertHasNoFormErrors();
 
-    expect(Contact::where('email', 'shared@example.com')->count())->toBe(2);
+    expect(Contact::withoutGlobalScope('organization')->where('email', 'shared@example.com')->count())->toBe(2);
 });
 
 // Custom field unique constraint

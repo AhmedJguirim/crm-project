@@ -1,7 +1,9 @@
 <?php
 
+use App\Enums\OrganizationRole;
 use App\Filament\Resources\CustomFields\Pages\ListCustomFields;
 use App\Models\CustomField;
+use App\Models\Organization;
 use App\Models\User;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\Testing\TestAction;
@@ -93,7 +95,7 @@ test('table can be sorted by name', function () {
 
     Livewire::test(ListCustomFields::class)
         ->sortTable('name')
-        ->assertCanSeeTableRecords(CustomField::all(), inOrder: true);
+        ->assertCanSeeTableRecords(CustomField::orderBy('order')->get(), inOrder: true);
 });
 
 // TSK-2026-0006 AC-004: Search functionality
@@ -151,8 +153,8 @@ test('switching organizations shows different custom fields', function () {
         'name' => 'Org 1 Field',
     ]);
 
-    $secondOrg = \App\Models\Organization::factory()->create(['created_by' => $this->user->id]);
-    $this->user->organizations()->attach($secondOrg, ['role' => \App\Enums\OrganizationRole::Owner->value]);
+    $secondOrg = Organization::factory()->create(['created_by' => $this->user->id]);
+    $this->user->organizations()->attach($secondOrg, ['role' => OrganizationRole::Owner->value]);
 
     $field2 = CustomField::factory()->create([
         'organization_id' => $secondOrg->id,

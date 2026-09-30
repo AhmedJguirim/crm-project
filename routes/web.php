@@ -36,15 +36,15 @@ Route::middleware(HandleInertiaRequests::class)
     ->group(function () {
         Route::inertia('/', 'Welcome', ['appName' => config('app.name')])->name('welcome');
 
-        // Route::middleware(['auth', 'can:view,organization'])
-        //     ->prefix('{organization:slug}')
-        //     ->group(function () {
-        //         Route::get('/tags', [TagsController::class, 'index'])->name('tags.index');
-        //     });
+        Route::middleware(['auth', 'can:view,organization'])
+            ->prefix('{organization:slug}')
+            ->group(function () {
+                Route::get('/tags', [TagsController::class, 'index'])->name('tags.index');
+            });
 
-        // Route::get('/tags/{tag}', [TagsController::class, 'show'])
-        //     ->middleware('auth')
-        //     ->name('tags.show');
+        Route::get('/tags/{tag}', [TagsController::class, 'show'])
+            ->middleware('auth')
+            ->name('tags.show');
     });
 
 require __DIR__.'/settings.php';

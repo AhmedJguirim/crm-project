@@ -13,7 +13,6 @@ use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\User;
 use Filament\Facades\Filament;
-use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Carbon;
 use Livewire\Livewire;
 
@@ -178,6 +177,6 @@ test('cannot view a deal from another organization', function () {
         'created_by' => $otherUser->id,
     ]);
 
-    expect(fn () => Livewire::test(ViewDeal::class, ['record' => $otherDeal->id]))
-        ->toThrow(ModelNotFoundException::class);
+    $this->get(DealResource::getUrl('view', ['record' => $otherDeal->id]))
+        ->assertNotFound();
 });

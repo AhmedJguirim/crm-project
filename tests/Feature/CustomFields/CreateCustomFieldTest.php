@@ -328,7 +328,7 @@ test('same field name is allowed in a different organization', function () {
         ->call('create')
         ->assertHasNoFormErrors();
 
-    expect(CustomField::where('name', 'Shared Name')->count())->toBe(2);
+    expect(CustomField::withoutGlobalScope('organization')->where('name', 'Shared Name')->count())->toBe(2);
 });
 
 // Options sub-field validation

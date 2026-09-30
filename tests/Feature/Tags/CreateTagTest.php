@@ -122,5 +122,5 @@ test('same tag name is allowed in a different organization', function () {
         ->call('create')
         ->assertHasNoFormErrors();
 
-    expect(Tag::where('name', 'Shared Name')->count())->toBe(2);
+    expect(Tag::withoutGlobalScope('organization')->where('name', 'Shared Name')->count())->toBe(2);
 });

@@ -4,19 +4,22 @@ namespace App\Models;
 
 use App\Enums\ContactStatus;
 use App\Enums\LeadSource;
+use App\Models\Concerns\BelongsToOrganization;
 use App\Observers\ContactObserver;
+use Database\Factories\ContactFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[ObservedBy([ContactObserver::class])]
 class Contact extends Model
 {
-    /** @use HasFactory<\Database\Factories\ContactFactory> */
+    use BelongsToOrganization;
+
+    /** @use HasFactory<ContactFactory> */
     use HasFactory;
 
     protected $fillable = [
@@ -41,11 +44,6 @@ class Contact extends Model
     public function scopeActiveClients(Builder $query): Builder
     {
         return $query->where('status', ContactStatus::ActiveClient->value);
-    }
-
-    public function organization(): BelongsTo
-    {
-        return $this->belongsTo(Organization::class);
     }
 
     public function tags(): BelongsToMany

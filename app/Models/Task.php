@@ -5,8 +5,9 @@ namespace App\Models;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
+use App\Models\Concerns\BelongsToOrganization;
 use App\Observers\TaskObserver;
-use Filament\Facades\Filament;
+use Database\Factories\TaskFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -17,7 +18,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 #[ObservedBy([TaskObserver::class])]
 class Task extends Model
 {
-    /** @use HasFactory<\Database\Factories\TaskFactory> */
+    use BelongsToOrganization;
+
+    /** @use HasFactory<TaskFactory> */
     use HasFactory;
 
     use SoftDeletes;
@@ -46,22 +49,6 @@ class Task extends Model
             'priority' => TaskPriority::class,
             'status' => TaskStatus::class,
         ];
-    }
-
-    protected static function booted(): void
-    {
-        static::addGlobalScope('organization', function (Builder $builder): void {
-            $tenantId = Filament::getTenant()?->id;
-
-            if ($tenantId) {
-                $builder->where('organization_id', $tenantId);
-            }
-        });
-    }
-
-    public function organization(): BelongsTo
-    {
-        return $this->belongsTo(Organization::class);
     }
 
     public function contact(): BelongsTo
