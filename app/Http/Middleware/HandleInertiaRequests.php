@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Organization;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -37,7 +38,24 @@ class HandleInertiaRequests extends Middleware
     {
         return [
             ...parent::share($request),
-            //
+            'currentOrganization' => fn (): ?array => $this->currentOrganization($request),
+            'organizations' => fn (): array => $request->user()?->organizations()
+                ->orderBy('name')
+                ->get(['organizations.id', 'name', 'slug'])
+                ->map(fn (Organization $organization): array => $organization->only(['id', 'name', 'slug']))
+                ->all() ?? [],
         ];
+    }
+
+    /** @return array{id: int, name: string, slug: string}|null */
+    private function currentOrganization(Request $request): ?array
+    {
+        $organization = $request->route('organization');
+
+        if (! $organization instanceof Organization) {
+            return null;
+        }
+
+        return $organization->only(['id', 'name', 'slug']);
     }
 }
