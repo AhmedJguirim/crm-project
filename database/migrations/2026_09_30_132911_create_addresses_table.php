@@ -15,10 +15,10 @@ return new class extends Migration
         Schema::create('addresses', function (Blueprint $table) {
             $table->id();
             $table->foreignIdFor(Organization::class)->constrained()->cascadeOnDelete();
-            $table->string('country');
-            $table->string('city');
-            $table->string('street');
-            $table->string('zip');
+            $table->string('country')->nullable();
+            $table->string('city')->nullable();
+            $table->string('street')->nullable();
+            $table->string('zip')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

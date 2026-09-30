@@ -198,5 +198,5 @@ test('CSV with custom field columns are processed correctly', function () {
     ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
 
     $contact = Contact::where('email', 'corp@example.com')->first();
-    expect($contact->custom_field_values[(string) $field->id])->toBe('Acme');
+    expect($contact->custom_field_values[$field->key])->toBe('Acme');
 });

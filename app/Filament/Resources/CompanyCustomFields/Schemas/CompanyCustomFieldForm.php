@@ -1,26 +1,36 @@
 <?php
 
-namespace App\Filament\Resources\CustomFields\Schemas;
+namespace App\Filament\Resources\CompanyCustomFields\Schemas;
 
 use App\Filament\Support\CustomFields\CustomFieldDefinitionFields;
-use App\Models\CustomField;
-use Filament\Facades\Filament;
+use App\Models\CompanyCustomField;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 
-class CustomFieldForm
+class CompanyCustomFieldForm
 {
     public static function configure(Schema $schema): Schema
     {
         return $schema
             ->components([
+                Select::make('company_type_id')
+                    ->label('Company Type')
+                    ->relationship('companyType', 'name')
+                    ->required()
+                    ->searchable()
+                    ->preload()
+                    ->live()
+                    ->disabledOn('edit')
+                    ->helperText('The company type this field applies to'),
+
                 TextInput::make('name')
                     ->required()
                     ->maxLength(255)
-                    ->unique(CustomField::class, 'name', ignoreRecord: true, modifyRuleUsing: function ($rule) {
-                        return $rule->where('organization_id', Filament::getTenant()->id);
+                    ->unique(CompanyCustomField::class, 'name', modifyRuleUsing: function ($rule, Get $get) {
+                        return $rule->where('company_type_id', $get('company_type_id'));
                     })
                     ->helperText('A descriptive name for this custom field'),
 
@@ -32,13 +42,14 @@ class CustomFieldForm
 
                 Toggle::make('unique')
                     ->label('Unique Value')
-                    ->helperText('Require unique values for this field across all contacts')
+                    ->helperText('Require unique values for this field across all companies')
                     ->default(false),
-                // TODO: make ordering more effective
+
                 Select::make('position')
                     ->label('Position')
-                    ->options(function ($record) {
-                        $fields = CustomField::where('organization_id', Filament::getTenant()->id)
+                    ->options(function ($record, Get $get) {
+                        $fields = CompanyCustomField::query()
+                            ->where('company_type_id', $record?->company_type_id ?? $get('company_type_id'))
                             ->when($record, fn ($query) => $query->where('id', '!=', $record->id))
                             ->orderBy('order')
                             ->get();
@@ -55,7 +66,7 @@ class CustomFieldForm
                         return $options;
                     })
                     ->default('end')
-                    ->helperText('Where to place this field in the list'),
+                    ->helperText('Where to place this field among the fields of this company type'),
             ]);
     }
 }

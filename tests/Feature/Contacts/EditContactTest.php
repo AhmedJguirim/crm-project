@@ -48,13 +48,13 @@ test('edit form pre-populates custom field values from JSON', function () {
         'order' => 1,
     ]);
 
-    $contact = Contact::factory()->withCustomFields([(string) $field->id => 'Acme Corp'])->create([
+    $contact = Contact::factory()->withCustomFields([$field->key => 'Acme Corp'])->create([
         'organization_id' => $this->org->id,
     ]);
 
     Livewire::test(EditContact::class, ['record' => $contact->id])
         ->assertFormSet([
-            "custom_fields.{$field->id}" => 'Acme Corp',
+            "custom_field_values.{$field->key}" => 'Acme Corp',
         ]);
 });
 
@@ -220,13 +220,13 @@ test('unique custom field ignores self on update', function () {
         'order' => 1,
     ]);
 
-    $contact = Contact::factory()->withCustomFields([(string) $field->id => 'EMP001'])->create([
+    $contact = Contact::factory()->withCustomFields([$field->key => 'EMP001'])->create([
         'organization_id' => $this->org->id,
     ]);
 
     Livewire::test(EditContact::class, ['record' => $contact->id])
         ->fillForm([
-            "custom_fields.{$field->id}" => 'EMP001',
+            "custom_field_values.{$field->key}" => 'EMP001',
         ])
         ->call('save')
         ->assertHasNoFormErrors();

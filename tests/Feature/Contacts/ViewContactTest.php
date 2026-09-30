@@ -132,7 +132,7 @@ test('custom fields modal shows text field value', function () {
         'order' => 1,
     ]);
 
-    $contact = Contact::factory()->withCustomFields([(string) $field->id => 'Acme Corp'])->create([
+    $contact = Contact::factory()->withCustomFields([$field->key => 'Acme Corp'])->create([
         'organization_id' => $this->org->id,
     ]);
 
@@ -141,7 +141,7 @@ test('custom fields modal shows text field value', function () {
         ->assertHasNoActionErrors();
 
     // Verify the value is stored correctly so the modal can display it
-    expect($contact->custom_field_values[(string) $field->id])->toBe('Acme Corp');
+    expect($contact->custom_field_values[$field->key])->toBe('Acme Corp');
 });
 
 test('custom fields modal shows select label instead of raw value', function () {
@@ -157,7 +157,7 @@ test('custom fields modal shows select label instead of raw value', function () 
         ],
     ]);
 
-    $contact = Contact::factory()->withCustomFields([(string) $field->id => 'active'])->create([
+    $contact = Contact::factory()->withCustomFields([$field->key => 'active'])->create([
         'organization_id' => $this->org->id,
     ]);
 
@@ -165,7 +165,7 @@ test('custom fields modal shows select label instead of raw value', function () 
         ->callAction('customFields')
         ->assertHasNoActionErrors();
 
-    expect($contact->custom_field_values[(string) $field->id])->toBe('active');
+    expect($contact->custom_field_values[$field->key])->toBe('active');
 });
 
 test('custom fields modal shows multiselect values as comma-separated labels', function () {
@@ -182,7 +182,7 @@ test('custom fields modal shows multiselect values as comma-separated labels', f
         ],
     ]);
 
-    $contact = Contact::factory()->withCustomFields([(string) $field->id => ['php', 'laravel']])->create([
+    $contact = Contact::factory()->withCustomFields([$field->key => ['php', 'laravel']])->create([
         'organization_id' => $this->org->id,
     ]);
 
@@ -190,7 +190,7 @@ test('custom fields modal shows multiselect values as comma-separated labels', f
         ->callAction('customFields')
         ->assertHasNoActionErrors();
 
-    expect($contact->custom_field_values[(string) $field->id])->toBe(['php', 'laravel']);
+    expect($contact->custom_field_values[$field->key])->toBe(['php', 'laravel']);
 });
 
 // ── Organization isolation ────────────────────────────────────────────────────

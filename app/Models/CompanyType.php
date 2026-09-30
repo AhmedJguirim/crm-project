@@ -24,4 +24,9 @@ class CompanyType extends Model
     {
         return $this->hasMany(Company::class);
     }
+
+    public function customFields(): HasMany
+    {
+        return $this->hasMany(CompanyCustomField::class)->orderBy('order');
+    }
 }

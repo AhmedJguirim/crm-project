@@ -21,6 +21,7 @@ use Filament\Facades\Filament;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Support\Colors\Color;
 use Filament\Support\Icons\Heroicon;
@@ -54,6 +55,13 @@ class ContactsTable
                     ->label('Lead Source')
                     ->badge()
                     ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('companies.name')
+                    ->label('Companies')
+                    ->badge()
+                    ->color('gray')
+                    ->placeholder('—')
+                    ->toggleable(),
 
                 TextColumn::make('tags')
                     ->badge()
@@ -115,14 +123,14 @@ class ContactsTable
                             ->preload()
                             ->nullable()
                             ->createOptionForm([
-                                \Filament\Forms\Components\TextInput::make('title')
+                                TextInput::make('title')
                                     ->required()
                                     ->maxLength(255),
                                 Select::make('stage')
                                     ->options(DealStage::class)
                                     ->default(DealStage::Lead)
                                     ->required(),
-                                \Filament\Forms\Components\TextInput::make('value')
+                                TextInput::make('value')
                                     ->numeric()
                                     ->minValue(0)
                                     ->nullable(),

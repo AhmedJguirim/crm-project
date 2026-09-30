@@ -4,24 +4,26 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\IsCustomField;
-use App\Observers\CustomFieldObserver;
-use Database\Factories\CustomFieldFactory;
+use App\Observers\CompanyCustomFieldObserver;
+use Database\Factories\CompanyCustomFieldFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[ObservedBy([CustomFieldObserver::class])]
-class CustomField extends Model
+#[ObservedBy([CompanyCustomFieldObserver::class])]
+class CompanyCustomField extends Model
 {
     use BelongsToOrganization;
 
-    /** @use HasFactory<CustomFieldFactory> */
+    /** @use HasFactory<CompanyCustomFieldFactory> */
     use HasFactory;
 
     use IsCustomField;
 
     protected $fillable = [
         'organization_id',
+        'company_type_id',
         'name',
         'type',
         'options',
@@ -29,10 +31,10 @@ class CustomField extends Model
         'order',
     ];
 
-    /** @return array{organization_id: int|null} */
+    /** @return array{company_type_id: int|null} */
     public function keyUniquenessScope(): array
     {
-        return ['organization_id' => $this->organization_id];
+        return ['company_type_id' => $this->company_type_id];
     }
 
     protected function casts(): array
@@ -42,5 +44,10 @@ class CustomField extends Model
             'unique' => 'boolean',
             'order' => 'integer',
         ];
+    }
+
+    public function companyType(): BelongsTo
+    {
+        return $this->belongsTo(CompanyType::class);
     }
 }

@@ -20,20 +20,4 @@ class EditContact extends EditRecord
                 ->modalSubmitActionLabel('Delete'),
         ];
     }
-
-    protected function mutateFormDataBeforeFill(array $data): array
-    {
-        $data['custom_fields'] = $data['custom_field_values'] ?? [];
-        unset($data['custom_field_values']);
-
-        return $data;
-    }
-
-    protected function mutateFormDataBeforeSave(array $data): array
-    {
-        $data['custom_field_values'] = $data['custom_fields'] ?? [];
-        unset($data['custom_fields']);
-
-        return $data;
-    }
 }

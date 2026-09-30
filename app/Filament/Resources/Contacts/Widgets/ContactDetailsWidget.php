@@ -2,8 +2,8 @@
 
 namespace App\Filament\Resources\Contacts\Widgets;
 
+use App\Models\Contact;
 use App\Models\CustomField;
-use Filament\Facades\Filament;
 use Filament\Widgets\Widget;
 use Illuminate\Database\Eloquent\Model;
 
@@ -17,50 +17,19 @@ class ContactDetailsWidget extends Widget
 
     protected function getViewData(): array
     {
-        $customFields = CustomField::where('organization_id', Filament::getTenant()->id)
-            ->orderBy('order')
-            ->get();
+        if (! $this->record instanceof Contact) {
+            return ['customFields' => collect()];
+        }
 
-        $values = $this->record?->custom_field_values ?? [];
-
-        $resolvedFields = $customFields->map(function (CustomField $field) use ($values): array {
-            $rawValue = $values[(string) $field->id] ?? null;
-
-            $displayValue = match (true) {
-                is_array($rawValue) => $this->formatMultiselectValue($field, $rawValue),
-                $field->type === 'select' && ! blank($rawValue) => $this->formatSelectValue($field, $rawValue),
-                blank($rawValue) => null,
-                default => (string) $rawValue,
-            };
-
-            return [
+        $resolvedFields = $this->record->customFieldDefinitions()
+            ->map(fn (CustomField $field): array => [
                 'label' => $field->name,
-                'value' => $displayValue,
-            ];
-        })->filter(fn (array $field): bool => $field['value'] !== null);
+                'value' => $field->formatValue($this->record->customFieldValue($field->key)),
+            ])
+            ->filter(fn (array $field): bool => $field['value'] !== null);
 
         return [
             'customFields' => $resolvedFields,
         ];
-    }
-
-    private function formatSelectValue(CustomField $field, string $value): string
-    {
-        $options = collect($field->options ?? [])->pluck('label', 'value');
-
-        return $options[$value] ?? $value;
-    }
-
-    /** @param array<int, string> $values */
-    private function formatMultiselectValue(CustomField $field, array $values): ?string
-    {
-        if (empty($values)) {
-            return null;
-        }
-
-        $options = collect($field->options ?? [])->pluck('label', 'value');
-        $labels = collect($values)->map(fn (string $v) => $options[$v] ?? $v);
-
-        return $labels->join(', ');
     }
 }

@@ -4,11 +4,14 @@ namespace App\Filament\Resources\Contacts\Schemas;
 
 use App\Enums\ContactStatus;
 use App\Enums\LeadSource;
+use App\Filament\Support\CustomFields\CustomFieldValuesSection;
 use App\Models\Contact;
+use App\Models\CustomField;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Collection;
 
 class ContactForm
 {
@@ -52,7 +55,17 @@ class ContactForm
                     ->preload()
                     ->searchable(),
 
-                ...ContactCustomFieldsSchema::buildComponents(),
+                Select::make('companies')
+                    ->multiple()
+                    ->relationship('companies', 'name')
+                    ->preload()
+                    ->searchable()
+                    ->helperText('Companies this contact works for'),
+
+                CustomFieldValuesSection::make(
+                    fn (): Collection => CustomField::query()->orderBy('order')->get(),
+                    Contact::class,
+                ),
             ]);
     }
 }

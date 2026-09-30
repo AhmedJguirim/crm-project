@@ -175,10 +175,8 @@ class ViewContact extends Page
                 ->modalSubmitAction(false)
                 ->modalCancelActionLabel('Close')
                 ->schema(function (): array {
-                    $fields = CustomField::query()
-                        ->where('organization_id', Filament::getTenant()?->id)
-                        ->orderBy('order')
-                        ->get();
+                    $record = $this->getRecord();
+                    $fields = $record->customFieldDefinitions();
 
                     if ($fields->isEmpty()) {
                         return [
@@ -188,25 +186,11 @@ class ViewContact extends Page
                         ];
                     }
 
-                    $values = $this->getRecord()->custom_field_values ?? [];
-
-                    return $fields->map(function (CustomField $field) use ($values): TextEntry {
-                        $rawValue = $values[(string) $field->id] ?? null;
-
-                        $displayValue = match ($field->type) {
-                            'select' => collect($field->options ?? [])
-                                ->firstWhere('value', $rawValue)['label'] ?? $rawValue ?? '—',
-                            'multiselect' => collect($field->options ?? [])
-                                ->whereIn('value', (array) $rawValue)
-                                ->pluck('label')
-                                ->join(', ') ?: '—',
-                            default => $rawValue ?? '—',
-                        };
-
-                        return TextEntry::make("custom_field_{$field->id}")
+                    return $fields
+                        ->map(fn (CustomField $field): TextEntry => TextEntry::make("custom_field_{$field->key}")
                             ->label($field->name)
-                            ->state($displayValue);
-                    })->all();
+                            ->state($field->formatValue($record->customFieldValue($field->key)) ?? '—'))
+                        ->all();
                 }),
 
             EditAction::make()

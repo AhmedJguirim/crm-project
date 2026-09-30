@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ContactStatus;
 use App\Enums\LeadSource;
 use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\HasCustomFieldValues;
 use App\Observers\ContactObserver;
 use Database\Factories\ContactFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -13,11 +14,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Collection;
 
 #[ObservedBy([ContactObserver::class])]
 class Contact extends Model
 {
     use BelongsToOrganization;
+    use HasCustomFieldValues;
 
     /** @use HasFactory<ContactFactory> */
     use HasFactory;
@@ -37,13 +40,27 @@ class Contact extends Model
         return [
             'status' => ContactStatus::class,
             'lead_source' => LeadSource::class,
-            'custom_field_values' => 'array',
         ];
     }
 
     public function scopeActiveClients(Builder $query): Builder
     {
         return $query->where('status', ContactStatus::ActiveClient->value);
+    }
+
+    /** @return Collection<int, CustomField> */
+    public function customFieldDefinitions(): Collection
+    {
+        return CustomField::query()
+            ->withoutGlobalScopes()
+            ->where('organization_id', $this->organization_id)
+            ->orderBy('order')
+            ->get();
+    }
+
+    public function companies(): BelongsToMany
+    {
+        return $this->belongsToMany(Company::class)->withTimestamps();
     }
 
     public function tags(): BelongsToMany

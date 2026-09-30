@@ -147,7 +147,7 @@ test('text custom field value is stored', function () {
     ], [$field->name => $field]);
 
     $contact = Contact::where('email', 'test@example.com')->first();
-    expect($contact->custom_field_values[(string) $field->id])->toBe('Acme Corp');
+    expect($contact->custom_field_values[$field->key])->toBe('Acme Corp');
 });
 
 test('number custom field is cast to float', function () {
@@ -167,7 +167,7 @@ test('number custom field is cast to float', function () {
     ], [$field->name => $field]);
 
     $contact = Contact::where('email', 'test@example.com')->first();
-    expect($contact->custom_field_values[(string) $field->id])->toBe(42.5);
+    expect($contact->custom_field_values[$field->key])->toBe(42.5);
 });
 
 test('non-numeric number field value returns error', function () {
@@ -207,7 +207,7 @@ test('date custom field parsed with d-m-Y format is stored', function () {
     ], [$field->name => $field]);
 
     $contact = Contact::where('email', 'test@example.com')->first();
-    expect($contact->custom_field_values[(string) $field->id])->toBe('2024-01-15');
+    expect($contact->custom_field_values[$field->key])->toBe('2024-01-15');
 });
 
 test('invalid date format returns error', function () {
@@ -239,7 +239,7 @@ test('unique field collision returns error', function () {
         'order' => 1,
     ]);
 
-    Contact::factory()->withCustomFields([(string) $field->id => 'EMP001'])->create([
+    Contact::factory()->withCustomFields([$field->key => 'EMP001'])->create([
         'organization_id' => $this->org->id,
     ]);
 
@@ -298,7 +298,7 @@ test('valid select value is stored', function () {
     ], [$field->name => $field]);
 
     $contact = Contact::where('email', 'test@example.com')->first();
-    expect($contact->custom_field_values[(string) $field->id])->toBe('active');
+    expect($contact->custom_field_values[$field->key])->toBe('active');
 });
 
 // parseMultiselectValue — semicolon-separated, validates options
@@ -358,7 +358,7 @@ test('multiselect values are stored as array', function () {
     ], [$field->name => $field]);
 
     $contact = Contact::where('email', 'test@example.com')->first();
-    expect($contact->custom_field_values[(string) $field->id])->toBe(['sports', 'tech']);
+    expect($contact->custom_field_values[$field->key])->toBe(['sports', 'tech']);
 });
 
 test('multiselect with invalid option returns error', function () {

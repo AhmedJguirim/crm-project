@@ -63,9 +63,9 @@ class ContactImportService
             }
 
             if ($field->unique) {
-                $checkValue = is_array($value) ? json_encode($value) : (string) $value;
-                $exists = Contact::where('organization_id', $this->organizationId)
-                    ->whereRaw('custom_field_values->>? = ?', [(string) $field->id, $checkValue])
+                $exists = Contact::query()
+                    ->where('organization_id', $this->organizationId)
+                    ->whereCustomFieldValue($field->key, $value)
                     ->exists();
 
                 if ($exists) {
@@ -73,7 +73,7 @@ class ContactImportService
                 }
             }
 
-            $customFieldValues[(string) $field->id] = $value;
+            $customFieldValues[$field->key] = $value;
         }
 
         $tagIds = $this->resolveTagIds($row['tags'] ?? '');

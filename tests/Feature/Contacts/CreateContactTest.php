@@ -179,7 +179,7 @@ test('unique custom field is validated on create', function () {
         'order' => 1,
     ]);
 
-    Contact::factory()->withCustomFields([(string) $field->id => 'EMP001'])->create([
+    Contact::factory()->withCustomFields([$field->key => 'EMP001'])->create([
         'organization_id' => $this->org->id,
     ]);
 
@@ -187,10 +187,10 @@ test('unique custom field is validated on create', function () {
         ->fillForm([
             'name' => 'New Contact',
             'email' => 'new@example.com',
-            "custom_fields.{$field->id}" => 'EMP001',
+            "custom_field_values.{$field->key}" => 'EMP001',
         ])
         ->call('create')
-        ->assertHasFormErrors(["custom_fields.{$field->id}"]);
+        ->assertHasFormErrors(["custom_field_values.{$field->key}"]);
 });
 
 test('multiselect custom field is stored as array', function () {
@@ -210,12 +210,12 @@ test('multiselect custom field is stored as array', function () {
         ->fillForm([
             'name' => 'Multi Contact',
             'email' => 'multi@example.com',
-            "custom_fields.{$field->id}" => ['sports', 'tech'],
+            "custom_field_values.{$field->key}" => ['sports', 'tech'],
         ])
         ->call('create')
         ->assertHasNoFormErrors();
 
     $contact = Contact::where('email', 'multi@example.com')->first();
 
-    expect($contact->custom_field_values[(string) $field->id])->toBe(['sports', 'tech']);
+    expect($contact->custom_field_values[$field->key])->toBe(['sports', 'tech']);
 });
