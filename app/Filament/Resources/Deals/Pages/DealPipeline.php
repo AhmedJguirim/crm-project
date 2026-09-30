@@ -97,7 +97,6 @@ class DealPipeline extends BoardResourcePage
         parent::moveCard($cardId, $targetColumnId, $afterCardId, $beforeCardId);
 
         $deal = Deal::query()
-            ->withoutGlobalScopes()
             ->find($cardId);
 
         if (! $deal) {

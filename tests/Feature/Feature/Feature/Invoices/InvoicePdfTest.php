@@ -63,7 +63,7 @@ test('invoice pdf is forbidden for other organizations', function () {
 
     $response = $this->get(route('invoices.pdf', $invoice));
 
-    $response->assertForbidden();
+    $response->assertNotFound();
 });
 
 test('invoice pdf requires authentication', function () {

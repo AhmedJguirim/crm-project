@@ -162,14 +162,14 @@ test('list tasks custom snooze updates due date', function () {
 
     Livewire::test(ListTasks::class)
         ->callTableAction('snoozeCustom', $task, [
-            'due_at' => '2026-03-02 11:30:00',
+            'due_at' => '2030-03-02 11:30:00',
         ])
         ->assertHasNoTableActionErrors()
         ->assertNotified();
 
     $task->refresh();
 
-    expect($task->due_at?->format('Y-m-d H:i:s'))->toBe('2026-03-02 11:30:00');
+    expect($task->due_at?->format('Y-m-d H:i:s'))->toBe('2030-03-02 11:30:00');
 });
 
 test('list task delete action soft deletes the task', function () {

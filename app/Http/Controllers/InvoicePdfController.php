@@ -10,7 +10,7 @@ class InvoicePdfController
 {
     public function __invoke(int $invoice): Response
     {
-        $invoice = Invoice::withoutGlobalScopes()->findOrFail($invoice);
+        $invoice = Invoice::findOrFail($invoice);
 
         $invoice->load(['contact', 'deal', 'organization']);
 
