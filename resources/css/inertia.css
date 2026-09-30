@@ -1,0 +1,4 @@
+@import 'tailwindcss';
+
+@source '../views/inertia.blade.php';
+@source '../js';

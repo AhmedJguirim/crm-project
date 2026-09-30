@@ -3,6 +3,7 @@
 use App\Http\Controllers\Contacts\DownloadFailedImportRowsController;
 use App\Http\Controllers\InviteAcceptController;
 use App\Http\Controllers\InvoicePdfController;
+use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -26,5 +27,13 @@ Route::get('/contacts/import/failed-rows', DownloadFailedImportRowsController::c
 Route::get('/invoices/{invoice}/pdf', InvoicePdfController::class)
     ->middleware(['auth'])
     ->name('invoices.pdf');
+
+// Inertia + React section (middleware scoped here to keep Filament/Livewire untouched)
+Route::middleware(HandleInertiaRequests::class)
+    ->prefix('app')
+    ->name('app.')
+    ->group(function () {
+        Route::inertia('/', 'Welcome', ['appName' => config('app.name')])->name('welcome');
+    });
 
 require __DIR__.'/settings.php';

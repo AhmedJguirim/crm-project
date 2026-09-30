@@ -1,6 +1,6 @@
 {
     "agents": [
-        "codex"
+        "claude_code"
     ],
     "guidelines": true,
     "herd_mcp": false,
@@ -8,14 +8,17 @@
     "packages": [
         "filament/filament",
         "spatie/boost-spatie-guidelines",
-        "laravel/fortify"
+        "laravel/fortify",
+        "relaticle/flowforge"
     ],
     "sail": false,
     "skills": [
         "fluxui-development",
         "livewire-development",
         "pest-testing",
+        "inertia-react-development",
         "tailwindcss-development",
-        "developing-with-fortify"
+        "developing-with-fortify",
+        "flowforge-development"
     ]
 }
