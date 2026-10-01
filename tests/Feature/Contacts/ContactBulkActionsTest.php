@@ -1,10 +1,12 @@
 <?php
 
 use App\Enums\ContactStatus;
+use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
 use App\Models\Contact;
 use App\Models\Tag;
 use App\Models\User;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
 
@@ -58,4 +60,55 @@ test('bulk add tags does not duplicate existing tags', function () {
         ]);
 
     expect($contact->fresh()->tags)->toHaveCount(1);
+});
+
+test('bulk delete soft deletes contacts', function () {
+    $contacts = Contact::factory()->count(2)->create([
+        'organization_id' => $this->org->id,
+    ]);
+
+    Livewire::test(ListContacts::class)
+        ->callTableBulkAction('delete', $contacts);
+
+    $contacts->each(fn (Contact $contact) => expect($contact->fresh()->trashed())->toBeTrue());
+    expect(Contact::onlyTrashed()->count())->toBe(2);
+});
+
+test('bulk restore brings back trashed contacts', function () {
+    $contacts = Contact::factory()->count(2)->create([
+        'organization_id' => $this->org->id,
+        'deleted_at' => now(),
+    ]);
+
+    Livewire::test(ListContacts::class)
+        ->filterTable('trashed', true)
+        ->callTableBulkAction('restore', $contacts);
+
+    expect(Contact::query()->count())->toBe(2);
+});
+
+test('trashed contact of another organization cannot be opened', function () {
+    $otherOrg = User::factory()->onboardingCompleted()->withPersonalOrganization()->create()->personalOrganization();
+
+    $ownTrashed = Contact::factory()->create([
+        'organization_id' => $this->org->id,
+        'deleted_at' => now(),
+    ]);
+    $foreignTrashed = Contact::factory()->create([
+        'organization_id' => $otherOrg->id,
+        'deleted_at' => now(),
+    ]);
+
+    $this->get(ContactResource::getUrl('edit', ['record' => $ownTrashed]))->assertOk();
+    $this->get(ContactResource::getUrl('edit', ['record' => $foreignTrashed]))->assertNotFound();
+});
+
+test('row delete action soft deletes the contact', function () {
+    $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
+
+    Livewire::test(ListContacts::class)
+        ->callAction(TestAction::make('delete')->table($contact))
+        ->assertNotified();
+
+    expect($contact->fresh()->trashed())->toBeTrue();
 });

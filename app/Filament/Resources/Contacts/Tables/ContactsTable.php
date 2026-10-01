@@ -15,7 +15,10 @@ use App\Models\Tag;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\ForceDeleteBulkAction;
+use Filament\Actions\RestoreBulkAction;
 use Filament\Actions\ViewAction;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DateTimePicker;
@@ -27,6 +30,7 @@ use Filament\Support\Colors\Color;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Collection;
 
@@ -89,10 +93,13 @@ class ContactsTable
                     ->relationship('tags', 'name')
                     ->multiple()
                     ->preload(),
+
+                TrashedFilter::make(),
             ])
             ->defaultSort('created_at', 'desc')
             ->recordAction(ViewAction::class)
             ->recordActions([
+                DeleteAction::make(),
                 QuickTaskAction::makeForContactsTable(),
 
                 Action::make('logActivity')
@@ -221,6 +228,8 @@ class ContactsTable
                         ->deselectRecordsAfterCompletion(),
 
                     DeleteBulkAction::make(),
+                    ForceDeleteBulkAction::make(),
+                    RestoreBulkAction::make(),
                 ]),
             ])
             ->emptyStateHeading('No contacts yet')
