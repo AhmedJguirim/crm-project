@@ -35,13 +35,13 @@ test('global floating quick task action creates task with minimal data', functio
     ]);
 
     Livewire::test(QuickTaskFloatingButton::class)
-        ->callAction('quickTask', [
-            'title' => 'Global quick follow-up',
-            'contact_id' => $contact->id,
-            'deal_id' => $deal->id,
-            'type' => TaskType::FollowUp,
-        ])
-        ->assertHasNoActionErrors()
+        ->mountAction('quickTask')
+        ->set('mountedActions.0.data.title', 'Global quick follow-up')
+        ->set('mountedActions.0.data.contact_id', $contact->id)
+        ->set('mountedActions.0.data.deal_id', $deal->id)
+        ->set('mountedActions.0.data.type', TaskType::FollowUp->value)
+        ->callMountedAction()
+        ->assertHasNoErrors()
         ->assertNotified();
 
     $task = Task::query()->latest('id')->first();
