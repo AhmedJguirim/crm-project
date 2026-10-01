@@ -54,6 +54,24 @@
                 </div>
             @endif
 
+            @if($segments->isNotEmpty())
+                <div>
+                    <dt class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Segments</dt>
+                    <dd class="mt-2 flex flex-wrap gap-1.5">
+                        @foreach($segments as $segment)
+                            <x-filament::badge
+                                tag="a"
+                                :href="\App\Filament\Resources\Segments\SegmentResource::getUrl('view', ['record' => $segment])"
+                                color="primary"
+                                :icon="\Filament\Support\Icons\Heroicon::OutlinedQueueList"
+                            >
+                                {{ $segment->name }}
+                            </x-filament::badge>
+                        @endforeach
+                    </dd>
+                </div>
+            @endif
+
             @if($record->lead_source)
                 <div>
                     <dt class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Lead Source</dt>

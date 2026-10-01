@@ -18,6 +18,7 @@ use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use UnitEnum;
 
 class CustomFieldResource extends Resource
 {
@@ -32,6 +33,8 @@ class CustomFieldResource extends Resource
     protected static ?string $modelLabel = 'Custom Field';
 
     protected static ?string $pluralModelLabel = 'Custom Fields';
+
+    protected static string|UnitEnum|null $navigationGroup = 'Audience';
 
     protected static ?int $navigationSort = 10;
 

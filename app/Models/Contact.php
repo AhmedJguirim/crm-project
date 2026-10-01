@@ -86,4 +86,9 @@ class Contact extends Model
     {
         return $this->hasMany(Invoice::class);
     }
+
+    public function segments(): BelongsToMany
+    {
+        return $this->belongsToMany(Segment::class)->withTimestamps();
+    }
 }

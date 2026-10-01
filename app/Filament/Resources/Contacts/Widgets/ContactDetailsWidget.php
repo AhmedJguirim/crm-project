@@ -18,7 +18,7 @@ class ContactDetailsWidget extends Widget
     protected function getViewData(): array
     {
         if (! $this->record instanceof Contact) {
-            return ['customFields' => collect()];
+            return ['customFields' => collect(), 'segments' => collect()];
         }
 
         $resolvedFields = $this->record->customFieldDefinitions()
@@ -30,6 +30,7 @@ class ContactDetailsWidget extends Widget
 
         return [
             'customFields' => $resolvedFields,
+            'segments' => $this->record->segments()->orderBy('name')->get(),
         ];
     }
 }

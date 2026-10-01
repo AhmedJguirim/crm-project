@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Contacts\Pages;
 
 use App\Filament\Resources\Contacts\ContactResource;
+use App\Jobs\ResyncContactSegments;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
@@ -23,5 +24,13 @@ class EditContact extends EditRecord
             ForceDeleteAction::make(),
             RestoreAction::make(),
         ];
+    }
+
+    /**
+     * Re-evaluate segments once relationships (tags, companies) have been saved too.
+     */
+    protected function afterSave(): void
+    {
+        ResyncContactSegments::dispatchForContacts($this->getRecord()->organization_id, [$this->getRecord()->getKey()]);
     }
 }

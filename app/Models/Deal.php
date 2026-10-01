@@ -5,13 +5,16 @@ namespace App\Models;
 use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Models\Concerns\BelongsToOrganization;
+use App\Observers\DealObserver;
 use Database\Factories\DealFactory;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+#[ObservedBy([DealObserver::class])]
 class Deal extends Model
 {
     use BelongsToOrganization;

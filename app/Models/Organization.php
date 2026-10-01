@@ -94,6 +94,11 @@ class Organization extends Model
         return $this->hasMany(CompanyType::class);
     }
 
+    public function segments(): HasMany
+    {
+        return $this->hasMany(Segment::class);
+    }
+
     /**
      * Check if a pending (non-expired) invite already exists for the given email.
      * Used to prevent duplicate invitations.

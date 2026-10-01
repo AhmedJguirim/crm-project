@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\CustomField;
+use App\Models\Segment;
 use App\Models\User;
 use App\Services\ContactImportService;
 use Filament\Actions\Action;
@@ -100,6 +101,8 @@ class ProcessContactImportJob implements ShouldQueue
 
         Storage::disk('local')->delete($this->filePath);
 
+        $this->syncPublishedSegments();
+
         $user = User::find($this->userId);
 
         if (! $user) {
@@ -134,6 +137,16 @@ class ProcessContactImportJob implements ShouldQueue
                     ->openUrlInNewTab(),
             ])
             ->sendToDatabase($user);
+    }
+
+    private function syncPublishedSegments(): void
+    {
+        Segment::query()
+            ->withoutGlobalScope('organization')
+            ->where('organization_id', $this->organizationId)
+            ->where('is_published', true)
+            ->pluck('id')
+            ->each(fn (int $segmentId) => SyncSegmentMembership::dispatch($segmentId));
     }
 
     /**

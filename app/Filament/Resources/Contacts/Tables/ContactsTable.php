@@ -8,6 +8,7 @@ use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\LeadSource;
 use App\Filament\Actions\QuickTaskAction;
+use App\Jobs\ResyncContactSegments;
 use App\Models\Activity;
 use App\Models\Contact;
 use App\Models\Deal;
@@ -33,6 +34,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
 class ContactsTable
@@ -92,6 +94,11 @@ class ContactsTable
 
                 SelectFilter::make('tags')
                     ->relationship('tags', 'name')
+                    ->multiple()
+                    ->preload(),
+
+                SelectFilter::make('segments')
+                    ->relationship('segments', 'name', fn (Builder $query): Builder => $query->where('is_published', true))
                     ->multiple()
                     ->preload(),
 
@@ -221,6 +228,8 @@ class ContactsTable
                         ])
                         ->action(function (Collection $records, array $data): void {
                             $records->each(fn (Contact $contact) => $contact->tags()->syncWithoutDetaching($data['tags']));
+
+                            ResyncContactSegments::dispatchForContacts(Filament::getTenant()?->id, $records->modelKeys());
 
                             Notification::make()
                                 ->title("Tagged {$records->count()} contacts")
