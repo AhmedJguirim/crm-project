@@ -57,13 +57,17 @@ class CustomFieldValuesSection
                     ->live()
                     ->dehydrated(false)
                     ->options(fn (Get $get): array => static::availableOptions($resolveFields($get), $get(static::ACTIVE_KEYS)))
-                    ->afterStateUpdated(function (mixed $state, Get $get, Set $set): void {
+                    ->afterStateUpdated(function (mixed $state, Get $get, Set $set) use ($resolveFields): void {
                         if (blank($state)) {
                             return;
                         }
 
                         $set(static::ACTIVE_KEYS, [...static::activeKeys($get(static::ACTIVE_KEYS)), $state]);
                         $set(static::PICKER_KEY, null);
+
+                        if ($resolveFields($get)->firstWhere('key', $state)?->type === 'multiselect') {
+                            $set('custom_field_values.'.$state, []);
+                        }
                     }),
 
                 Hidden::make(static::ACTIVE_KEYS)

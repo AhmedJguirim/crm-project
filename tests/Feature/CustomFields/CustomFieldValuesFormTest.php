@@ -255,6 +255,25 @@ test('adding a field from the picker displays it empty', function (string $owner
         ->assertFormSet(['custom_field_picker' => null]);
 })->with('owners');
 
+test('a multiselect added from the picker starts as an empty array and saves its selection', function (string $owner) {
+    $owner = customFieldValuesOwner($owner, $this->org);
+    $field = $owner->field([
+        'name' => 'Skills',
+        'type' => 'multiselect',
+        'options' => [['label' => 'PHP', 'value' => 'php'], ['label' => 'Go', 'value' => 'go']],
+    ]);
+    $record = $owner->record();
+
+    $page = Livewire::test($owner->editPage, ['record' => $record->getKey()]);
+    addCustomFieldsToForm($page, [$field->key])
+        ->assertSet("data.custom_field_values.{$field->key}", [])
+        ->fillForm(customFieldValuesFormState([$field->key => ['php', 'go']]))
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    expect($record->fresh()->custom_field_values)->toEqual([$field->key => ['php', 'go']]);
+})->with('owners');
+
 test('a field added but left empty is not stored', function (string $owner) {
     $owner = customFieldValuesOwner($owner, $this->org);
     $used = $owner->field(['name' => 'Industry']);
