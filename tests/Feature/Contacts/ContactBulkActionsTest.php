@@ -112,3 +112,17 @@ test('row delete action soft deletes the contact', function () {
 
     expect($contact->fresh()->trashed())->toBeTrue();
 });
+
+test('row restore action restores a trashed contact', function () {
+    $contact = Contact::factory()->create([
+        'organization_id' => $this->org->id,
+        'deleted_at' => now(),
+    ]);
+
+    Livewire::test(ListContacts::class)
+        ->filterTable('trashed', true)
+        ->callAction(TestAction::make('restore')->table($contact))
+        ->assertNotified();
+
+    expect($contact->fresh()->trashed())->toBeFalse();
+});
