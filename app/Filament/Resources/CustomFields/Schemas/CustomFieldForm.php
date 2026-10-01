@@ -22,6 +22,7 @@ class CustomFieldForm
                     ->unique(CustomField::class, 'name', ignoreRecord: true, modifyRuleUsing: function ($rule) {
                         return $rule->where('organization_id', Filament::getTenant()->id);
                     })
+                    ->validationMessages(['unique' => CustomFieldDefinitionFields::nameTakenMessage()])
                     ->helperText('A descriptive name for this custom field'),
 
                 CustomFieldDefinitionFields::key(),

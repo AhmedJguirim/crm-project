@@ -240,3 +240,29 @@ test('company type exposes its custom fields in order', function () {
 
     expect($this->companyType->customFields->pluck('id')->all())->toBe([$first->id, $second->id]);
 });
+
+test('the same field name is allowed in another organization', function () {
+    $otherOrg = Organization::factory()->create();
+    $otherType = CompanyType::factory()->create(['organization_id' => $otherOrg->id]);
+    CompanyCustomField::factory()->create([
+        'organization_id' => $otherOrg->id,
+        'company_type_id' => $otherType->id,
+        'name' => 'VAT Number',
+    ]);
+
+    Livewire::test(CreateCompanyCustomField::class)
+        ->fillForm(['company_type_id' => $this->companyType->id, 'name' => 'VAT Number', 'type' => 'text'])
+        ->call('create')
+        ->assertHasNoFormErrors();
+});
+
+test('cannot create a field for a company type of another organization', function () {
+    $otherType = CompanyType::factory()->create(['organization_id' => Organization::factory()->create()->id]);
+
+    Livewire::test(CreateCompanyCustomField::class)
+        ->fillForm(['company_type_id' => $otherType->id, 'name' => 'VAT Number', 'type' => 'text'])
+        ->call('create')
+        ->assertHasFormErrors(['company_type_id']);
+
+    expect(CompanyCustomField::query()->withoutGlobalScopes()->where('company_type_id', $otherType->id)->exists())->toBeFalse();
+});

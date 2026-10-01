@@ -1,9 +1,11 @@
 <?php
 
 use App\Filament\Resources\Companies\Pages\EditCompany;
+use App\Filament\Resources\CompanyCustomFields\Pages\CreateCompanyCustomField;
 use App\Filament\Resources\CompanyCustomFields\Pages\EditCompanyCustomField;
 use App\Filament\Resources\CompanyCustomFields\Pages\ListCompanyCustomFields;
 use App\Filament\Resources\Contacts\Pages\EditContact;
+use App\Filament\Resources\CustomFields\Pages\CreateCustomField;
 use App\Filament\Resources\CustomFields\Pages\EditCustomField;
 use App\Filament\Resources\CustomFields\Pages\ListCustomFields;
 use App\Models\Company;
@@ -32,6 +34,8 @@ function softDeleteOwner(string $owner, object $test): object
     return match ($owner) {
         'contact' => new class($organization)
         {
+            public string $createFieldPage = CreateCustomField::class;
+
             public string $editFieldPage = EditCustomField::class;
 
             public string $listPage = ListCustomFields::class;
@@ -41,6 +45,11 @@ function softDeleteOwner(string $owner, object $test): object
             public string $recordsLabel = 'contacts';
 
             public function __construct(public $organization) {}
+
+            public function formData(string $name): array
+            {
+                return ['name' => $name, 'type' => 'text'];
+            }
 
             public function field(array $attributes = []): CustomField
             {
@@ -61,6 +70,8 @@ function softDeleteOwner(string $owner, object $test): object
         },
         'company' => new class($organization, $companyType)
         {
+            public string $createFieldPage = CreateCompanyCustomField::class;
+
             public string $editFieldPage = EditCompanyCustomField::class;
 
             public string $listPage = ListCompanyCustomFields::class;
@@ -70,6 +81,11 @@ function softDeleteOwner(string $owner, object $test): object
             public string $recordsLabel = 'companies';
 
             public function __construct(public $organization, public CompanyType $companyType) {}
+
+            public function formData(string $name): array
+            {
+                return ['name' => $name, 'type' => 'text', 'company_type_id' => $this->companyType->id];
+            }
 
             public function field(array $attributes = []): CompanyCustomField
             {
@@ -237,4 +253,18 @@ test('a deleted field keeps its key reserved', function (string $owner) {
     $field->delete();
 
     expect($field->generateUniqueKey())->not->toBe($field->key);
+})->with(['contact', 'company']);
+
+test('a name taken by a deleted field invites the user to check the trashed fields', function (string $owner) {
+    $owner = softDeleteOwner($owner, $this);
+    $owner->field(['name' => 'LinkedIn'])->delete();
+
+    Livewire::test($owner->createFieldPage)
+        ->fillForm($owner->formData('LinkedIn'))
+        ->call('create')
+        ->assertHasFormErrors(['name' => 'unique']);
+
+    expect(Livewire::test($owner->createFieldPage)->fillForm($owner->formData('LinkedIn'))->call('create')->errors()->first('data.name'))
+        ->toContain('"Trashed" filter')
+        ->toContain('restore it');
 })->with(['contact', 'company']);

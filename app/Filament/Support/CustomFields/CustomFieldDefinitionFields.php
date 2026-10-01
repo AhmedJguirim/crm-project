@@ -28,6 +28,12 @@ class CustomFieldDefinitionFields
     /** @var array<int, string> */
     public const TYPES_WITH_OPTIONS = ['select', 'multiselect'];
 
+    public static function nameTakenMessage(): string
+    {
+        return 'A custom field with this name already exists. It may be a deleted one: '
+            .'check the "Trashed" filter of the list and restore it instead of creating a new field.';
+    }
+
     public static function key(): TextInput
     {
         return TextInput::make('key')

@@ -32,6 +32,7 @@ class CompanyCustomFieldForm
                     ->unique(CompanyCustomField::class, 'name', modifyRuleUsing: function ($rule, Get $get) {
                         return $rule->where('company_type_id', $get('company_type_id'));
                     })
+                    ->validationMessages(['unique' => CustomFieldDefinitionFields::nameTakenMessage()])
                     ->helperText('A descriptive name for this custom field'),
 
                 CustomFieldDefinitionFields::key(),
