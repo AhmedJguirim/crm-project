@@ -215,15 +215,16 @@ test('cannot open a field from another organization', function () {
         ->assertNotFound();
 });
 
-test('deleting a company type cascades to its custom fields', function () {
+test('company types cannot be force deleted, so their custom fields are kept', function () {
     CompanyCustomField::factory()->create([
         'organization_id' => $this->org->id,
         'company_type_id' => $this->companyType->id,
     ]);
 
-    $this->companyType->forceDelete();
+    expect(fn () => $this->companyType->forceDelete())->toThrow(LogicException::class);
 
-    expect(CompanyCustomField::withoutGlobalScopes()->count())->toBe(0);
+    $this->assertNotSoftDeleted($this->companyType);
+    expect(CompanyCustomField::withoutGlobalScopes()->count())->toBe(1);
 });
 
 test('company type exposes its custom fields in order', function () {

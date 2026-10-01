@@ -6,6 +6,7 @@ use App\Enums\ContactStatus;
 use App\Enums\LeadSource;
 use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\HasCustomFieldValues;
+use App\Models\Concerns\PreventsForceDeletion;
 use App\Observers\ContactObserver;
 use Database\Factories\ContactFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -26,6 +27,7 @@ class Contact extends Model
     /** @use HasFactory<ContactFactory> */
     use HasFactory;
 
+    use PreventsForceDeletion;
     use SoftDeletes;
 
     protected $fillable = [

@@ -5,7 +5,6 @@ namespace App\Filament\Resources\Contacts\Pages;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Jobs\ResyncContactSegments;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\ForceDeleteAction;
 use Filament\Actions\RestoreAction;
 use Filament\Resources\Pages\EditRecord;
 
@@ -21,7 +20,6 @@ class EditContact extends EditRecord
                 ->modalHeading('Delete Contact')
                 ->modalDescription('Are you sure you want to delete this contact? You can restore it later.')
                 ->modalSubmitActionLabel('Delete'),
-            ForceDeleteAction::make(),
             RestoreAction::make(),
         ];
     }

@@ -122,18 +122,18 @@ test('can soft delete, restore and force delete a company', function () {
     $this->assertNotSoftDeleted($this->company);
 });
 
-test('force delete is only available for trashed companies', function () {
+test('companies cannot be force deleted, only restored once trashed', function () {
     Livewire::test(EditCompany::class, ['record' => $this->company->id])
-        ->assertActionHidden(ForceDeleteAction::class)
+        ->assertActionDoesNotExist(ForceDeleteAction::class)
         ->assertActionHidden(RestoreAction::class);
 
     $this->company->delete();
 
     Livewire::test(EditCompany::class, ['record' => $this->company->id])
-        ->callAction(ForceDeleteAction::class)
-        ->assertRedirect();
+        ->assertActionDoesNotExist(ForceDeleteAction::class)
+        ->assertActionVisible(RestoreAction::class);
 
-    $this->assertModelMissing($this->company);
+    $this->assertSoftDeleted($this->company);
 });
 
 test('cannot open a company from another organization', function () {

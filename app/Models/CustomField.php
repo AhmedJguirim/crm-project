@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\IsCustomField;
+use App\Models\Concerns\PreventsForceDeletion;
 use App\Observers\CustomFieldObserver;
 use Database\Factories\CustomFieldFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -20,6 +21,7 @@ class CustomField extends Model
     use HasFactory;
 
     use IsCustomField;
+    use PreventsForceDeletion;
     use SoftDeletes;
 
     protected $fillable = [

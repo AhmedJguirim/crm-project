@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Data\Segments\SegmentRuleData;
 use App\Enums\SegmentStatus;
 use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\PreventsForceDeletion;
 use App\Services\Segments\SegmentFieldCatalog;
 use App\Services\Segments\SegmentQueryBuilder;
 use Database\Factories\SegmentFactory;
@@ -27,6 +28,7 @@ class Segment extends Model
     /** @use HasFactory<SegmentFactory> */
     use HasFactory;
 
+    use PreventsForceDeletion;
     use SoftDeletes;
 
     protected $fillable = [
