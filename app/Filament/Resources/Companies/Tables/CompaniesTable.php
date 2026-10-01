@@ -3,9 +3,11 @@
 namespace App\Filament\Resources\Companies\Tables;
 
 use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ForceDeleteBulkAction;
+use Filament\Actions\RestoreAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -65,6 +67,8 @@ class CompaniesTable
                 TrashedFilter::make(),
             ])
             ->recordActions([
+                RestoreAction::make(),
+                DeleteAction::make(),
                 EditAction::make(),
             ])
             ->toolbarActions([
