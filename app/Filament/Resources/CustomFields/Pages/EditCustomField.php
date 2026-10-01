@@ -3,8 +3,8 @@
 namespace App\Filament\Resources\CustomFields\Pages;
 
 use App\Filament\Resources\CustomFields\CustomFieldResource;
+use App\Filament\Support\CustomFields\CustomFieldDefinitionActions;
 use App\Models\CustomField;
-use Filament\Actions\DeleteAction;
 use Filament\Facades\Filament;
 use Filament\Resources\Pages\EditRecord;
 
@@ -15,11 +15,8 @@ class EditCustomField extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            DeleteAction::make()
-                ->requiresConfirmation()
-                ->modalHeading('Delete Custom Field')
-                ->modalDescription('Are you sure you want to delete this custom field? This action cannot be undone.')
-                ->modalSubmitActionLabel('Delete'),
+            CustomFieldDefinitionActions::delete('contacts'),
+            CustomFieldDefinitionActions::restore('contacts'),
         ];
     }
 

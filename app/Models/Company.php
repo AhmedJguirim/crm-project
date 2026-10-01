@@ -40,6 +40,7 @@ class Company extends Model
 
         return CompanyCustomField::query()
             ->withoutGlobalScopes()
+            ->withoutTrashed()
             ->where('company_type_id', $this->company_type_id)
             ->orderBy('order')
             ->get();

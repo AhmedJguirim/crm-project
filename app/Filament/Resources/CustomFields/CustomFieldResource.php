@@ -17,6 +17,7 @@ use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class CustomFieldResource extends Resource
 {
@@ -64,6 +65,15 @@ class CustomFieldResource extends Resource
         return parent::getEloquentQuery()
             ->where('organization_id', Filament::getTenant()->id)
             ->orderBy('order');
+    }
+
+    public static function getRecordRouteBindingEloquentQuery(): Builder
+    {
+        return parent::getRecordRouteBindingEloquentQuery()
+            ->where('organization_id', Filament::getTenant()->id)
+            ->withoutGlobalScopes([
+                SoftDeletingScope::class,
+            ]);
     }
 
     public static function getRelations(): array

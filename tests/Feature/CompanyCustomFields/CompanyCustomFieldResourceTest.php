@@ -203,7 +203,7 @@ test('can delete a field', function () {
     Livewire::test(EditCompanyCustomField::class, ['record' => $field->id])
         ->callAction(DeleteAction::class);
 
-    $this->assertModelMissing($field);
+    $this->assertSoftDeleted($field);
 });
 
 test('cannot open a field from another organization', function () {

@@ -56,6 +56,7 @@ class Contact extends Model
     {
         return CustomField::query()
             ->withoutGlobalScopes()
+            ->withoutTrashed()
             ->where('organization_id', $this->organization_id)
             ->orderBy('order')
             ->get();

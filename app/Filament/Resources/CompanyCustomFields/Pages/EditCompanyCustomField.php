@@ -3,8 +3,8 @@
 namespace App\Filament\Resources\CompanyCustomFields\Pages;
 
 use App\Filament\Resources\CompanyCustomFields\CompanyCustomFieldResource;
+use App\Filament\Support\CustomFields\CustomFieldDefinitionActions;
 use App\Models\CompanyCustomField;
-use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
 
 class EditCompanyCustomField extends EditRecord
@@ -14,11 +14,8 @@ class EditCompanyCustomField extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            DeleteAction::make()
-                ->requiresConfirmation()
-                ->modalHeading('Delete Company Custom Field')
-                ->modalDescription('Are you sure you want to delete this custom field? This action cannot be undone.')
-                ->modalSubmitActionLabel('Delete'),
+            CustomFieldDefinitionActions::delete('companies'),
+            CustomFieldDefinitionActions::restore('companies'),
         ];
     }
 

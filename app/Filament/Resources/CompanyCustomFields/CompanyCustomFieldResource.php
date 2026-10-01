@@ -16,6 +16,7 @@ use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class CompanyCustomFieldResource extends Resource
 {
@@ -61,6 +62,14 @@ class CompanyCustomFieldResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()->orderBy('order');
+    }
+
+    public static function getRecordRouteBindingEloquentQuery(): Builder
+    {
+        return parent::getRecordRouteBindingEloquentQuery()
+            ->withoutGlobalScopes([
+                SoftDeletingScope::class,
+            ]);
     }
 
     public static function getPages(): array

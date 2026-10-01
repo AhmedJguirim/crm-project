@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[ObservedBy([CompanyCustomFieldObserver::class])]
 class CompanyCustomField extends Model
@@ -20,6 +21,7 @@ class CompanyCustomField extends Model
     use HasFactory;
 
     use IsCustomField;
+    use SoftDeletes;
 
     protected $fillable = [
         'organization_id',
