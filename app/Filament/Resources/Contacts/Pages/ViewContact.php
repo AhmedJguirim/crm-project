@@ -176,20 +176,21 @@ class ViewContact extends Page
                 ->modalCancelActionLabel('Close')
                 ->schema(function (): array {
                     $record = $this->getRecord();
-                    $fields = $record->customFieldDefinitions();
+                    $fields = $record->customFieldDefinitions()
+                        ->filter(fn (CustomField $field): bool => $field->formatValue($record->customFieldValue($field->key)) !== null);
 
                     if ($fields->isEmpty()) {
                         return [
                             TextEntry::make('empty')
                                 ->hiddenLabel()
-                                ->state('No custom fields defined for this organization.'),
+                                ->state('This contact has no custom field values.'),
                         ];
                     }
 
                     return $fields
                         ->map(fn (CustomField $field): TextEntry => TextEntry::make("custom_field_{$field->key}")
                             ->label($field->name)
-                            ->state($field->formatValue($record->customFieldValue($field->key)) ?? '—'))
+                            ->state($field->formatValue($record->customFieldValue($field->key))))
                         ->all();
                 }),
 

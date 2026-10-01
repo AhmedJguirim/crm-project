@@ -24,7 +24,7 @@ test('create page renders', function () {
 });
 
 test('can create a company with type, address, notes and custom field values', function () {
-    CompanyCustomField::factory()->create([
+    $vatField = CompanyCustomField::factory()->create([
         'organization_id' => $this->org->id,
         'company_type_id' => $this->companyType->id,
         'name' => 'VAT Number',
@@ -33,6 +33,8 @@ test('can create a company with type, address, notes and custom field values', f
     ]);
 
     Livewire::test(CreateCompany::class)
+        ->fillForm(['company_type_id' => $this->companyType->id])
+        ->set('data.custom_field_picker', $vatField->key)
         ->fillForm([
             'name' => 'Acme Corp',
             'company_type_id' => $this->companyType->id,
@@ -41,7 +43,7 @@ test('can create a company with type, address, notes and custom field values', f
             'address.city' => 'Paris',
             'address.zip' => '75001',
             'address.country' => 'France',
-            'custom_field_values.vat_number' => 'FR123',
+            "custom_field_values.{$vatField->key}" => 'FR123',
         ])
         ->call('create')
         ->assertHasNoFormErrors()
@@ -53,7 +55,7 @@ test('can create a company with type, address, notes and custom field values', f
     expect($company->organization_id)->toBe($this->org->id)
         ->and($company->company_type_id)->toBe($this->companyType->id)
         ->and($company->notes)->toBe('Met at a conference.')
-        ->and($company->custom_field_values)->toBe(['vat_number' => 'FR123'])
+        ->and($company->custom_field_values)->toBe([$vatField->key => 'FR123'])
         ->and($company->address)->not->toBeNull()
         ->and($company->address->only(['organization_id', 'street', 'city', 'zip', 'country']))->toBe([
             'organization_id' => $this->org->id,
@@ -107,9 +109,10 @@ test('only shows the custom fields of the selected company type', function () {
     Livewire::test(CreateCompany::class)
         ->assertFormFieldDoesNotExist("custom_field_values.{$enterpriseField->key}")
         ->fillForm(['company_type_id' => $this->companyType->id])
-        ->assertFormFieldExists("custom_field_values.{$enterpriseField->key}")
-        ->assertFormFieldDoesNotExist("custom_field_values.{$startupField->key}")
+        ->assertFormFieldExists('custom_field_picker', fn ($picker): bool => $picker->getOptions() === [$enterpriseField->key => 'VAT Number'])
         ->fillForm(['company_type_id' => $startup->id])
+        ->assertFormFieldExists('custom_field_picker', fn ($picker): bool => $picker->getOptions() === [$startupField->key => 'Funding Stage'])
+        ->set('data.custom_field_picker', $startupField->key)
         ->assertFormFieldExists("custom_field_values.{$startupField->key}")
         ->assertFormFieldDoesNotExist("custom_field_values.{$enterpriseField->key}");
 });

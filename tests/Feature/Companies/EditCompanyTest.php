@@ -75,7 +75,7 @@ test('adds an address to a company that had none', function () {
 });
 
 test('changing the type shows the new type fields and keeps values of the previous type', function () {
-    CompanyCustomField::factory()->create([
+    $vatField = CompanyCustomField::factory()->create([
         'organization_id' => $this->org->id,
         'company_type_id' => $this->companyType->id,
         'name' => 'VAT Number',
@@ -83,27 +83,28 @@ test('changing the type shows the new type fields and keeps values of the previo
         'unique' => false,
     ]);
     $startup = CompanyType::factory()->create(['organization_id' => $this->org->id]);
-    CompanyCustomField::factory()->create([
+    $fundingField = CompanyCustomField::factory()->create([
         'organization_id' => $this->org->id,
         'company_type_id' => $startup->id,
         'name' => 'Funding Stage',
         'type' => 'text',
         'unique' => false,
     ]);
-    $this->company->update(['custom_field_values' => ['vat_number' => 'FR123']]);
+    $this->company->update(['custom_field_values' => [$vatField->key => 'FR123']]);
 
     Livewire::test(EditCompany::class, ['record' => $this->company->id])
         ->fillForm(['company_type_id' => $startup->id])
-        ->assertFormFieldExists('custom_field_values.funding_stage')
-        ->assertFormFieldDoesNotExist('custom_field_values.vat_number')
-        ->fillForm(['custom_field_values.funding_stage' => 'Seed'])
+        ->set('data.custom_field_picker', $fundingField->key)
+        ->assertFormFieldExists("custom_field_values.{$fundingField->key}")
+        ->assertFormFieldDoesNotExist("custom_field_values.{$vatField->key}")
+        ->fillForm(["custom_field_values.{$fundingField->key}" => 'Seed'])
         ->call('save')
         ->assertHasNoFormErrors();
 
     expect($this->company->fresh()->company_type_id)->toBe($startup->id)
         ->and($this->company->fresh()->custom_field_values)->toEqual([
-            'vat_number' => 'FR123',
-            'funding_stage' => 'Seed',
+            $vatField->key => 'FR123',
+            $fundingField->key => 'Seed',
         ]);
 });
 

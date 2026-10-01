@@ -25,6 +25,7 @@ use App\Models\Task;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
 
 class ItConsultingSeeder extends Seeder
 {
@@ -619,7 +620,7 @@ class ItConsultingSeeder extends Seeder
                     'address_id' => $address->id,
                     'name' => $data['name'],
                     'notes' => $data['notes'] ?? null,
-                    'custom_field_values' => $data['cf'],
+                    'custom_field_values' => $this->keyCompanyValues($data['type'], $data['cf']),
                 ]);
             }
 
@@ -627,6 +628,22 @@ class ItConsultingSeeder extends Seeder
         }
 
         return $companies;
+    }
+
+    /**
+     * @param  array<string, mixed>  $values  values keyed by the slugified field name
+     * @return array<string, mixed> values keyed by the fields' generated keys
+     */
+    private function keyCompanyValues(CompanyType $type, array $values): array
+    {
+        $keysBySlug = CompanyCustomField::query()
+            ->where('company_type_id', $type->id)
+            ->get()
+            ->mapWithKeys(fn (CompanyCustomField $field): array => [Str::slug($field->name, '_') => $field->key]);
+
+        return collect($values)
+            ->mapWithKeys(fn (mixed $value, string $slug): array => [$keysBySlug[$slug] => $value])
+            ->all();
     }
 
     private function companyField(CompanyType $type, string $name, string $fieldType, ?array $options, int $order, bool $unique = false): CompanyCustomField

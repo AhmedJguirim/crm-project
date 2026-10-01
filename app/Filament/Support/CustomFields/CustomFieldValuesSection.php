@@ -5,14 +5,19 @@ namespace App\Filament\Support\CustomFields;
 use App\Models\CompanyCustomField;
 use App\Models\CustomField;
 use Closure;
+use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Field;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 
@@ -20,11 +25,17 @@ use Illuminate\Support\Collection;
  * Renders and validates the custom field values of a record (contact, company, ...).
  *
  * Values are read from and written to the record's `custom_field_values` attribute,
- * keyed by each field's immutable key. Stored values of fields that are not rendered
- * (for example fields of another company type) are kept untouched on save.
+ * keyed by each field's immutable key. Only the fields the user added (or that already
+ * hold a value) are rendered, and only non-blank values are stored. Stored values of
+ * keys without a resolved definition (for example fields of another company type)
+ * are kept untouched on save.
  */
 class CustomFieldValuesSection
 {
+    protected const PICKER_KEY = 'custom_field_picker';
+
+    protected const ACTIVE_KEYS = 'active_custom_field_keys';
+
     /**
      * @param  Closure(Get): Collection<int, CustomField|CompanyCustomField>  $resolveFields
      * @param  class-string<Model>  $valuesModel  model whose stored values are checked for unique fields
@@ -35,12 +46,77 @@ class CustomFieldValuesSection
         string $heading = 'Additional Information',
     ): Section {
         return Section::make($heading)
-            ->statePath('custom_field_values')
             ->collapsible()
             ->columnSpanFull()
-            ->schema(fn (Get $get): array => static::components($resolveFields($get), $valuesModel))
             ->hidden(fn (Get $get): bool => $resolveFields($get)->isEmpty())
-            ->dehydrateStateUsing(fn (?array $state, ?Model $record): array => static::mergeWithStoredValues($state, $record));
+            ->schema([
+                Select::make(static::PICKER_KEY)
+                    ->label('Add a field')
+                    ->placeholder('Search fields by label...')
+                    ->searchable()
+                    ->live()
+                    ->dehydrated(false)
+                    ->options(fn (Get $get): array => static::availableOptions($resolveFields($get), $get(static::ACTIVE_KEYS)))
+                    ->afterStateUpdated(function (mixed $state, Get $get, Set $set): void {
+                        if (blank($state)) {
+                            return;
+                        }
+
+                        $set(static::ACTIVE_KEYS, [...static::activeKeys($get(static::ACTIVE_KEYS)), $state]);
+                        $set(static::PICKER_KEY, null);
+                    }),
+
+                Hidden::make(static::ACTIVE_KEYS)
+                    ->default([])
+                    ->dehydrated(false)
+                    ->afterStateHydrated(function (Hidden $component, ?Model $record): void {
+                        $component->state(array_keys(array_filter(
+                            $record?->custom_field_values ?? [],
+                            fn (mixed $value): bool => filled($value),
+                        )));
+                    }),
+
+                Group::make()
+                    ->statePath('custom_field_values')
+                    ->schema(fn (Get $get): array => static::components(
+                        static::activeFields($resolveFields($get), $get(static::ACTIVE_KEYS)),
+                        $valuesModel,
+                    ))
+                    ->dehydrateStateUsing(fn (?array $state, Get $get, ?Model $record): array => static::mergeWithStoredValues(
+                        $state,
+                        $record,
+                        $resolveFields($get)->pluck('key')->all(),
+                    )),
+            ]);
+    }
+
+    /**
+     * @param  Collection<int, CustomField|CompanyCustomField>  $fields
+     * @return array<string, string>
+     */
+    protected static function availableOptions(Collection $fields, mixed $activeKeys): array
+    {
+        return $fields
+            ->reject(fn (CustomField|CompanyCustomField $field): bool => in_array($field->key, static::activeKeys($activeKeys), true))
+            ->pluck('name', 'key')
+            ->all();
+    }
+
+    /**
+     * @param  Collection<int, CustomField|CompanyCustomField>  $fields
+     * @return Collection<int, CustomField|CompanyCustomField>
+     */
+    protected static function activeFields(Collection $fields, mixed $activeKeys): Collection
+    {
+        return $fields
+            ->filter(fn (CustomField|CompanyCustomField $field): bool => in_array($field->key, static::activeKeys($activeKeys), true))
+            ->values();
+    }
+
+    /** @return array<int, string> */
+    protected static function activeKeys(mixed $activeKeys): array
+    {
+        return is_array($activeKeys) ? $activeKeys : [];
     }
 
     /**
@@ -73,13 +149,30 @@ class CustomFieldValuesSection
             default => TextInput::make($field->key)->maxLength(255),
         };
 
-        $component->label($field->name);
+        $component
+            ->label($field->name)
+            ->hintAction(static::removeAction($field));
 
         if ($field->unique) {
             $component->rules([static::uniqueRule($field, $valuesModel)]);
         }
 
         return $component;
+    }
+
+    protected static function removeAction(CustomField|CompanyCustomField $field): Action
+    {
+        return Action::make("remove_{$field->key}")
+            ->label('Remove')
+            ->icon(Heroicon::OutlinedTrash)
+            ->color('danger')
+            ->action(function (Get $get, Set $set) use ($field): void {
+                $set('../'.static::ACTIVE_KEYS, array_values(array_diff(
+                    static::activeKeys($get('../'.static::ACTIVE_KEYS)),
+                    [$field->key],
+                )));
+                $set($field->key, null);
+            });
     }
 
     /** @param  class-string<Model>  $valuesModel */
@@ -104,10 +197,13 @@ class CustomFieldValuesSection
 
     /**
      * @param  array<string, mixed>|null  $state
+     * @param  array<int, string>  $definedKeys  keys of the definitions resolved for the record
      * @return array<string, mixed>
      */
-    public static function mergeWithStoredValues(?array $state, ?Model $record): array
+    public static function mergeWithStoredValues(?array $state, ?Model $record, array $definedKeys = []): array
     {
-        return array_replace($record?->custom_field_values ?? [], $state ?? []);
+        $keptValues = array_diff_key($record?->custom_field_values ?? [], array_flip($definedKeys));
+
+        return array_replace($keptValues, array_filter($state ?? [], fn (mixed $value): bool => filled($value)));
     }
 }

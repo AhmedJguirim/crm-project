@@ -184,6 +184,7 @@ test('unique custom field is validated on create', function () {
     ]);
 
     Livewire::test(CreateContact::class)
+        ->set('data.custom_field_picker', $field->key)
         ->fillForm([
             'name' => 'New Contact',
             'email' => 'new@example.com',
@@ -207,6 +208,7 @@ test('multiselect custom field is stored as array', function () {
     ]);
 
     Livewire::test(CreateContact::class)
+        ->set('data.custom_field_picker', $field->key)
         ->fillForm([
             'name' => 'Multi Contact',
             'email' => 'multi@example.com',

@@ -15,6 +15,12 @@ use App\Models\Task;
 use App\Models\User;
 use Database\Seeders\ItConsultingSeeder;
 use Filament\Facades\Filament;
+use Illuminate\Database\Eloquent\Model;
+
+function customFieldKey(Model $record, string $name): string
+{
+    return $record->customFieldDefinitions()->firstWhere('name', $name)->key;
+}
 
 test('it consulting seeder seeds core crm modules data', function () {
     $this->seed(ItConsultingSeeder::class);
@@ -73,15 +79,15 @@ test('it consulting seeder seeds companies with types, custom fields, addresses 
 
     expect($techCorp->companyType->name)->toBe('Enterprise')
         ->and($techCorp->address->city)->toBe('Paris')
-        ->and($techCorp->customFieldDefinitions()->pluck('key')->all())
-        ->toBe(['industry', 'employees', 'website', 'vat_number', 'annual_revenue_eur'])
-        ->and($techCorp->customFieldValue('vat_number'))->toBe('FR40303265045')
+        ->and($techCorp->customFieldDefinitions()->pluck('name')->all())
+        ->toBe(['Industry', 'Employees', 'Website', 'VAT Number', 'Annual Revenue (€)'])
+        ->and($techCorp->customFieldValue(customFieldKey($techCorp, 'VAT Number')))->toBe('FR40303265045')
         ->and($techCorp->contacts->pluck('email')->all())->toBe(['marcus.chen@techcorp.io']);
 
     $marcus = Contact::query()->where('email', 'marcus.chen@techcorp.io')->firstOrFail();
 
-    expect($marcus->customFieldValue('job_title'))->toBe('CTO')
-        ->and($marcus->customFieldValue('tech_stack'))->toBe(['laravel', 'aws', 'docker']);
+    expect($marcus->customFieldValue(customFieldKey($marcus, 'Job Title')))->toBe('CTO')
+        ->and($marcus->customFieldValue(customFieldKey($marcus, 'Tech Stack')))->toBe(['laravel', 'aws', 'docker']);
 
     $florian = Contact::query()->where('email', 'florian.dupont@freelance.io')->firstOrFail();
 
