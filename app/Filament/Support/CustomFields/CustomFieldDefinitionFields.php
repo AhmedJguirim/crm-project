@@ -35,7 +35,7 @@ class CustomFieldDefinitionFields
             ->disabled()
             ->dehydrated(false)
             ->visibleOn('edit')
-            ->helperText('Generated from the name on creation. It never changes, even if the field is renamed.');
+            ->helperText('Random identifier generated on creation. It never changes, even if the field is renamed.');
     }
 
     public static function type(): Select

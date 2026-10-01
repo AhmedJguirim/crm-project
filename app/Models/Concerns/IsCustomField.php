@@ -9,7 +9,7 @@ use Illuminate\Support\Str;
 /**
  * Shared behaviour of custom field definitions (contact and company custom fields).
  *
- * Every definition gets an immutable `key`, generated from its name on creation and unique
+ * Every definition gets an immutable `key`, generated randomly on creation (unrelated to its name) and unique
  * within the scope returned by keyUniquenessScope(). Values are stored under that key in `custom_field_values`,
  * so renaming a field never orphans the values already saved for it.
  */
@@ -41,21 +41,16 @@ trait IsCustomField
 
     public function generateUniqueKey(): string
     {
-        $baseKey = Str::slug((string) $this->name, '_') ?: 'field';
-
-        if (is_numeric($baseKey)) {
-            $baseKey = "field_{$baseKey}";
-        }
-
-        $key = $baseKey;
-        $suffix = 2;
-
-        while ($this->keyIsTaken($key)) {
-            $key = "{$baseKey}_{$suffix}";
-            $suffix++;
-        }
+        do {
+            $key = static::newRandomKey();
+        } while ($this->keyIsTaken($key));
 
         return $key;
+    }
+
+    public static function newRandomKey(): string
+    {
+        return 'cf_'.Str::lower(Str::random(12));
     }
 
     protected function keyIsTaken(string $key): bool

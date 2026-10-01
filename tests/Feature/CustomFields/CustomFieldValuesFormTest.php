@@ -179,14 +179,12 @@ test('stores values under the immutable field key on create', function (string $
     Livewire::test($owner->createPage)
         ->fillForm([
             ...$owner->formData(),
-            ...customFieldValuesFormState(['industry' => 'Software', 'skills' => ['php', 'go']]),
+            ...customFieldValuesFormState([$industry->key => 'Software', $skills->key => ['php', 'go']]),
         ])
         ->call('create')
         ->assertHasNoFormErrors();
 
-    expect($industry->key)->toBe('industry')
-        ->and($skills->key)->toBe('skills')
-        ->and($owner->latestRecord()->custom_field_values)->toEqual(['industry' => 'Software', 'skills' => ['php', 'go']]);
+    expect($owner->latestRecord()->custom_field_values)->toEqual([$industry->key => 'Software', $skills->key => ['php', 'go']]);
 })->with('owners');
 
 test('fills the edit form with the stored values', function (string $owner) {
@@ -195,7 +193,7 @@ test('fills the edit form with the stored values', function (string $owner) {
     $record = $owner->record([$field->key => 'Software']);
 
     Livewire::test($owner->editPage, ['record' => $record->getKey()])
-        ->assertFormSet(customFieldValuesFormState(['industry' => 'Software']));
+        ->assertFormSet(customFieldValuesFormState([$field->key => 'Software']));
 })->with('owners');
 
 test('updates values on edit and keeps stored values of fields not in the form', function (string $owner) {
@@ -204,11 +202,11 @@ test('updates values on edit and keeps stored values of fields not in the form',
     $record = $owner->record([$field->key => 'Software', 'legacy_field' => 'kept']);
 
     Livewire::test($owner->editPage, ['record' => $record->getKey()])
-        ->fillForm(customFieldValuesFormState(['industry' => 'Finance']))
+        ->fillForm(customFieldValuesFormState([$field->key => 'Finance']))
         ->call('save')
         ->assertHasNoFormErrors();
 
-    expect($record->fresh()->custom_field_values)->toEqual(['industry' => 'Finance', 'legacy_field' => 'kept']);
+    expect($record->fresh()->custom_field_values)->toEqual([$field->key => 'Finance', 'legacy_field' => 'kept']);
 })->with('owners');
 
 test('clearing a value stores null for that key', function (string $owner) {
@@ -217,11 +215,11 @@ test('clearing a value stores null for that key', function (string $owner) {
     $record = $owner->record([$field->key => 'Software']);
 
     Livewire::test($owner->editPage, ['record' => $record->getKey()])
-        ->fillForm(customFieldValuesFormState(['industry' => null]))
+        ->fillForm(customFieldValuesFormState([$field->key => null]))
         ->call('save')
         ->assertHasNoFormErrors();
 
-    expect($record->fresh()->customFieldValue('industry'))->toBeNull();
+    expect($record->fresh()->customFieldValue($field->key))->toBeNull();
 })->with('owners');
 
 test('renaming a field keeps its stored values attached', function (string $owner) {
@@ -232,8 +230,8 @@ test('renaming a field keeps its stored values attached', function (string $owne
     $field->update(['name' => 'Business Sector']);
 
     Livewire::test($owner->editPage, ['record' => $record->getKey()])
-        ->assertFormFieldExists('custom_field_values.industry', fn (Field $component): bool => $component->getLabel() === 'Business Sector')
-        ->assertFormSet(customFieldValuesFormState(['industry' => 'Software']));
+        ->assertFormFieldExists("custom_field_values.{$field->key}", fn (Field $component): bool => $component->getLabel() === 'Business Sector')
+        ->assertFormSet(customFieldValuesFormState([$field->key => 'Software']));
 })->with('owners');
 
 test('validates values against the field type', function (string $owner, string $type, mixed $invalidValue, string $errorPath) {
@@ -262,9 +260,9 @@ test('unique fields reject a value used by another record of the organization', 
     $owner->record([$field->key => 'REF-001']);
 
     Livewire::test($owner->createPage)
-        ->fillForm([...$owner->formData(), ...customFieldValuesFormState(['reference' => 'REF-001'])])
+        ->fillForm([...$owner->formData(), ...customFieldValuesFormState([$field->key => 'REF-001'])])
         ->call('create')
-        ->assertHasFormErrors(['custom_field_values.reference']);
+        ->assertHasFormErrors(["custom_field_values.{$field->key}"]);
 })->with('owners');
 
 test('unique fields compare numbers stored as numbers with submitted strings', function (string $owner) {
@@ -284,7 +282,7 @@ test('unique fields accept the record keeping its own value', function (string $
     $record = $owner->record([$field->key => 'REF-001']);
 
     Livewire::test($owner->editPage, ['record' => $record->getKey()])
-        ->fillForm(customFieldValuesFormState(['reference' => 'REF-001']))
+        ->fillForm(customFieldValuesFormState([$field->key => 'REF-001']))
         ->call('save')
         ->assertHasNoFormErrors();
 })->with('owners');
@@ -295,7 +293,7 @@ test('unique fields accept a value used in another organization', function (stri
     $owner->record([$field->key => 'REF-001'], Organization::factory()->create());
 
     Livewire::test($owner->createPage)
-        ->fillForm([...$owner->formData(), ...customFieldValuesFormState(['reference' => 'REF-001'])])
+        ->fillForm([...$owner->formData(), ...customFieldValuesFormState([$field->key => 'REF-001'])])
         ->call('create')
         ->assertHasNoFormErrors();
 })->with('owners');
@@ -306,7 +304,7 @@ test('non unique fields accept duplicated values', function (string $owner) {
     $owner->record([$field->key => 'Software']);
 
     Livewire::test($owner->createPage)
-        ->fillForm([...$owner->formData(), ...customFieldValuesFormState(['industry' => 'Software'])])
+        ->fillForm([...$owner->formData(), ...customFieldValuesFormState([$field->key => 'Software'])])
         ->call('create')
         ->assertHasNoFormErrors();
 })->with('owners');

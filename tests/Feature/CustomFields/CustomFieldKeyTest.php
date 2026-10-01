@@ -12,6 +12,7 @@ use App\Models\CustomField;
 use App\Models\Organization;
 use App\Models\User;
 use Filament\Facades\Filament;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -22,47 +23,33 @@ beforeEach(function () {
     $this->companyType = CompanyType::factory()->create(['organization_id' => $this->org->id]);
 });
 
-test('key is generated from the name', function (string $name, string $expectedKey) {
-    $field = CustomField::factory()->create(['organization_id' => $this->org->id, 'name' => $name]);
+test('key is a random string unrelated to the name', function (string $model) {
+    $attributes = ['organization_id' => $this->org->id, 'name' => 'LinkedIn'];
 
-    expect($field->key)->toBe($expectedKey);
+    if ($model === CompanyCustomField::class) {
+        $attributes['company_type_id'] = $this->companyType->id;
+    }
+
+    $first = $model::factory()->create($attributes);
+    $second = $model::factory()->create([...$attributes, 'name' => 'Twitter']);
+
+    expect($first->key)->toMatch('/^cf_[a-z0-9]{12}$/')
+        ->and($first->key)->not->toContain('linkedin')
+        ->and($second->key)->not->toBe($first->key);
 })->with([
-    ['Job Title', 'job_title'],
-    ['Hourly Rate (€)', 'hourly_rate_eur'],
-    ['  LinkedIn  URL ', 'linkedin_url'],
-    ['2024', 'field_2024'],
-    ['!!!', 'field'],
+    'contact fields' => [CustomField::class],
+    'company fields' => [CompanyCustomField::class],
 ]);
 
-test('key gets a numeric suffix when already taken in the organization', function () {
-    CustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'Job Title']);
-    $second = CustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'Job-Title']);
-    $third = CustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'job title!']);
+test('key generation retries when a generated key is already taken', function () {
+    $taken = CustomField::factory()->create(['organization_id' => $this->org->id]);
+    $field = CustomField::factory()->make(['organization_id' => $this->org->id]);
 
-    expect($second->key)->toBe('job_title_2')
-        ->and($third->key)->toBe('job_title_3');
-});
+    Str::createRandomStringsUsingSequence([substr($taken->key, 3), 'abcdefghijkl']);
 
-test('contact field keys are unique per organization only', function () {
-    $otherOrg = Organization::factory()->create();
+    expect($field->generateUniqueKey())->toBe('cf_abcdefghijkl');
 
-    $mine = CustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'Industry']);
-    $theirs = CustomField::factory()->create(['organization_id' => $otherOrg->id, 'name' => 'Industry']);
-
-    expect($mine->key)->toBe('industry')
-        ->and($theirs->key)->toBe('industry');
-});
-
-test('company field keys are unique per company type', function () {
-    $otherType = CompanyType::factory()->create(['organization_id' => $this->org->id]);
-
-    $first = CompanyCustomField::factory()->create(['organization_id' => $this->org->id, 'company_type_id' => $this->companyType->id, 'name' => 'Website']);
-    $otherTypeField = CompanyCustomField::factory()->create(['organization_id' => $this->org->id, 'company_type_id' => $otherType->id, 'name' => 'Website']);
-    $sameTypeField = CompanyCustomField::factory()->create(['organization_id' => $this->org->id, 'company_type_id' => $this->companyType->id, 'name' => 'Web site']);
-
-    expect($first->key)->toBe('website')
-        ->and($otherTypeField->key)->toBe('website')
-        ->and($sameTypeField->key)->toBe('web_site');
+    Str::createRandomStringsNormally();
 });
 
 test('key never changes when the field is renamed or the key is overwritten', function (string $model) {
@@ -73,11 +60,12 @@ test('key never changes when the field is renamed or the key is overwritten', fu
     }
 
     $field = $model::factory()->create($attributes);
+    $originalKey = $field->key;
 
     $field->update(['name' => 'Business Sector']);
     $field->forceFill(['key' => 'hacked'])->save();
 
-    expect($field->fresh()->key)->toBe('industry')
+    expect($field->fresh()->key)->toBe($originalKey)
         ->and($field->fresh()->name)->toBe('Business Sector');
 })->with([
     'contact fields' => [CustomField::class],
@@ -90,7 +78,7 @@ test('key is generated when creating a contact custom field from the panel', fun
         ->call('create')
         ->assertHasNoFormErrors();
 
-    expect(CustomField::query()->where('name', 'Preferred Language')->value('key'))->toBe('preferred_language');
+    expect(CustomField::query()->where('name', 'Preferred Language')->value('key'))->toMatch('/^cf_[a-z0-9]{12}$/');
 });
 
 test('key is generated when creating a company custom field from the panel', function () {
@@ -99,7 +87,7 @@ test('key is generated when creating a company custom field from the panel', fun
         ->call('create')
         ->assertHasNoFormErrors();
 
-    expect(CompanyCustomField::query()->where('name', 'VAT Number')->value('key'))->toBe('vat_number');
+    expect(CompanyCustomField::query()->where('name', 'VAT Number')->value('key'))->toMatch('/^cf_[a-z0-9]{12}$/');
 });
 
 test('edit forms show the key read-only and never save it', function (string $page, string $model) {
@@ -110,15 +98,16 @@ test('edit forms show the key read-only and never save it', function (string $pa
     }
 
     $field = $model::factory()->create($attributes);
+    $originalKey = $field->key;
 
     Livewire::test($page, ['record' => $field->id])
         ->assertFormFieldIsDisabled('key')
-        ->assertFormSet(['key' => 'industry'])
+        ->assertFormSet(['key' => $originalKey])
         ->fillForm(['name' => 'Sector', 'key' => 'sector'])
         ->call('save')
         ->assertHasNoFormErrors();
 
-    expect($field->fresh()->key)->toBe('industry')
+    expect($field->fresh()->key)->toBe($originalKey)
         ->and($field->fresh()->name)->toBe('Sector');
 })->with([
     'contact fields' => [EditCustomField::class, CustomField::class],
