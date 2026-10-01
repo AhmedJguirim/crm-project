@@ -18,6 +18,7 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\ForceDeleteBulkAction;
+use Filament\Actions\RestoreAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Actions\ViewAction;
 use Filament\Facades\Filament;
@@ -99,6 +100,7 @@ class ContactsTable
             ->defaultSort('created_at', 'desc')
             ->recordAction(ViewAction::class)
             ->recordActions([
+                RestoreAction::make(),
                 DeleteAction::make(),
                 QuickTaskAction::makeForContactsTable(),
 
