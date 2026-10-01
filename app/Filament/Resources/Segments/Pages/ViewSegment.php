@@ -3,12 +3,11 @@
 namespace App\Filament\Resources\Segments\Pages;
 
 use App\Filament\Resources\Segments\Actions\PublishSegmentAction;
+use App\Filament\Resources\Segments\Actions\SegmentDeletionActions;
 use App\Filament\Resources\Segments\SegmentResource;
 use App\Filament\Resources\Segments\Widgets\SegmentStatsOverview;
 use App\Models\Segment;
 use Filament\Actions\Action;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\RestoreAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Icons\Heroicon;
@@ -49,13 +48,9 @@ class ViewSegment extends ViewRecord
                 ->icon(Heroicon::OutlinedPencilSquare)
                 ->color('warning')
                 ->disabled(fn (Segment $record): bool => $record->is_syncing)
-                ->hidden(fn (Segment $record): bool => $record->trashed())
                 ->url(fn (Segment $record): string => SegmentResource::getUrl('rules', ['record' => $record])),
 
-            DeleteAction::make(),
-
-            RestoreAction::make()
-                ->after(fn (Segment $record) => SegmentResource::resyncAfterRestore($record)),
+            SegmentDeletionActions::delete(),
         ];
     }
 

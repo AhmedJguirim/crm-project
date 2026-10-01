@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Segments\Pages;
 use App\Data\Segments\SegmentConditionData;
 use App\Data\Segments\SegmentRuleData;
 use App\Filament\Resources\Segments\Actions\PublishSegmentAction;
+use App\Filament\Resources\Segments\Actions\SegmentDeletionActions;
 use App\Filament\Resources\Segments\Schemas\SegmentConditionForm;
 use App\Filament\Resources\Segments\Schemas\SegmentForm;
 use App\Filament\Resources\Segments\SegmentResource;
@@ -15,7 +16,6 @@ use App\Services\Segments\SegmentFieldCatalog;
 use App\Services\Segments\SegmentQueryBuilder;
 use Closure;
 use Filament\Actions\Action;
-use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
@@ -50,8 +50,6 @@ class SegmentRuleEngine extends Page
     public function mount(int|string $record): void
     {
         $this->record = $this->resolveRecord($record);
-
-        abort_if($this->segment()->trashed(), 404);
 
         $this->selectedRuleId = $this->rules()->first()?->id;
     }
@@ -143,7 +141,7 @@ class SegmentRuleEngine extends Page
                     Notification::make()->title('Segment renamed')->success()->send();
                 }),
 
-            DeleteAction::make()
+            SegmentDeletionActions::delete()
                 ->successRedirectUrl(SegmentResource::getUrl('index')),
         ];
     }

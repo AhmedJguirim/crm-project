@@ -3,21 +3,16 @@
 namespace App\Filament\Resources\Segments\Tables;
 
 use App\Enums\SegmentStatus;
+use App\Filament\Resources\Segments\Actions\SegmentDeletionActions;
 use App\Filament\Resources\Segments\SegmentResource;
 use App\Models\Segment;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\RestoreAction;
-use Filament\Actions\RestoreBulkAction;
 use Filament\Actions\ViewAction;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TernaryFilter;
-use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Collection;
 
 class SegmentsTable
 {
@@ -62,8 +57,6 @@ class SegmentsTable
             ->filters([
                 TernaryFilter::make('is_published')
                     ->label('Published'),
-
-                TrashedFilter::make(),
             ])
             ->recordActions([
                 ViewAction::make(),
@@ -72,20 +65,13 @@ class SegmentsTable
                     ->label('Edit')
                     ->icon(Heroicon::OutlinedPencilSquare)
                     ->color('warning')
-                    ->hidden(fn (Segment $record): bool => $record->trashed())
                     ->url(fn (Segment $record): string => SegmentResource::getUrl('rules', ['record' => $record])),
 
-                DeleteAction::make(),
-
-                RestoreAction::make()
-                    ->after(fn (Segment $record) => SegmentResource::resyncAfterRestore($record)),
+                SegmentDeletionActions::delete(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-
-                    RestoreBulkAction::make()
-                        ->after(fn (Collection $records) => $records->each(fn (Segment $record) => SegmentResource::resyncAfterRestore($record))),
+                    SegmentDeletionActions::deleteBulk(),
                 ]),
             ])
             ->defaultSort('created_at', 'desc')

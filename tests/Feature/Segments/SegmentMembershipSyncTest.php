@@ -134,20 +134,3 @@ describe('ResyncContactSegments', function () {
         Queue::assertNotPushed(ResyncContactSegments::class);
     });
 });
-
-describe('trashed segments', function () {
-    it('are neither synced nor updated when contacts change', function () {
-        $segment = Segment::factory()->for($this->org)->published()->withRules([leadsRule()])->create();
-        $segment->delete();
-        Queue::fake();
-
-        $this->artisan('segments:sync')->assertSuccessful();
-        Contact::factory()->for($this->org)->create(['status' => ContactStatus::Lead]);
-
-        Queue::assertNothingPushed();
-
-        SyncSegmentMembership::dispatchSync($segment->id);
-
-        expect($segment->contacts()->count())->toBe(0);
-    });
-});

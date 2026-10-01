@@ -5,6 +5,7 @@ use App\Data\Segments\SegmentRuleData;
 use App\Enums\ContactAttribute;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentOperator;
+use App\Exceptions\UsedInSegmentsException;
 use App\Filament\Resources\Contacts\Pages\EditContact;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
 use App\Filament\Resources\Segments\Pages\SegmentRuleEngine;
@@ -153,12 +154,13 @@ describe('contacts', function () {
     });
 
     it('does not offer trashed tags in filters and bulk actions', function () {
+        $active = Tag::factory()->for($this->org)->create(['name' => 'Active']);
         $this->vip->delete();
 
         Livewire::test(ListContacts::class)
-            ->assertTableFilterExists('tags', fn ($filter): bool => ! array_key_exists($this->vip->id, $filter->getOptions()))
+            ->assertFormFieldExists('tags.values', 'tableFiltersForm', fn ($select): bool => $select->getOptions() === [$active->id => 'Active'])
             ->mountAction(TestAction::make('addTags')->table()->bulk())
-            ->assertFormFieldExists('tags', fn ($field): bool => ! array_key_exists($this->vip->id, $field->getOptions()));
+            ->assertFormFieldExists('tags', fn ($field): bool => $field->getOptions() === [$active->id => 'Active']);
     });
 
     it('restores a trashed tag named in an import instead of duplicating it', function () {
@@ -188,12 +190,17 @@ describe('contacts', function () {
 });
 
 describe('segments', function () {
-    it('stops matching a trashed tag and resyncs the segments filtering on tags', function () {
+    it('cannot delete a tag used in segment conditions', function () {
+        vipTagSegment($this->vip);
+
+        expect(fn () => $this->vip->delete())->toThrow(UsedInSegmentsException::class);
+        $this->assertNotSoftDeleted($this->vip);
+    });
+
+    it('ignores trashed tags in conditions saved before they were deleted, and resyncs when they are restored', function () {
+        $this->vip->delete();
         $segment = vipTagSegment($this->vip);
         SyncSegmentMembership::dispatchSync($segment->id);
-        expect($segment->contacts()->count())->toBe(1);
-
-        $this->vip->delete();
 
         expect($segment->contacts()->count())->toBe(0);
 
@@ -202,9 +209,10 @@ describe('segments', function () {
         expect($segment->contacts()->count())->toBe(1);
     });
 
-    it('only resyncs the published segments that use tag conditions', function () {
+    it('only resyncs the published segments that use tag conditions when a tag is restored', function () {
+        $this->vip->delete();
         $tagSegment = vipTagSegment($this->vip);
-        $unpublished = vipTagSegment(Tag::factory()->for($this->org)->create());
+        $unpublished = vipTagSegment($this->vip);
         $unpublished->update(['is_published' => false]);
         Segment::factory()->for($this->org)->published()->withRules([
             new SegmentRuleData('rule-1', 'Names', [
@@ -213,15 +221,15 @@ describe('segments', function () {
         ])->create();
         Queue::fake();
 
-        $this->vip->delete();
+        $this->vip->restore();
 
         Queue::assertPushed(SyncSegmentMembership::class, 1);
         Queue::assertPushed(SyncSegmentMembership::class, fn (SyncSegmentMembership $job): bool => $job->segmentId === $tagSegment->id);
     });
 
     it('marks trashed tags in condition sentences and options', function () {
-        $segment = vipTagSegment($this->vip);
         $this->vip->delete();
+        $segment = vipTagSegment($this->vip);
         $active = Tag::factory()->for($this->org)->create(['name' => 'Active']);
         Tag::factory()->for($this->org)->create(['name' => 'Gone'])->delete();
 

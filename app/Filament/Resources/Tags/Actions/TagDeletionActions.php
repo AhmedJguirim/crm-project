@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Tags\Actions;
 
+use App\Filament\Support\SegmentUsageGuard;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\RestoreAction;
@@ -16,7 +17,7 @@ class TagDeletionActions
 {
     public static function delete(): DeleteAction
     {
-        return DeleteAction::make()
+        return SegmentUsageGuard::protectDelete(DeleteAction::make())
             ->requiresConfirmation()
             ->modalHeading(fn ($record): string => "Delete the \"{$record->name}\" tag?")
             ->modalDescription('This tag will be hidden from your contacts, filters and segments. '
@@ -27,7 +28,7 @@ class TagDeletionActions
 
     public static function deleteBulk(): DeleteBulkAction
     {
-        return DeleteBulkAction::make()
+        return SegmentUsageGuard::protectBulkDelete(DeleteBulkAction::make())
             ->requiresConfirmation()
             ->modalHeading('Delete the selected tags?')
             ->modalDescription('These tags will be hidden from your contacts, filters and segments. '

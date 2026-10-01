@@ -425,12 +425,12 @@ describe('publishing and drafts', function () {
     });
 });
 
-it('keeps a soft-deleted custom field selectable when editing its condition', function () {
+it('keeps a soft-deleted custom field selectable when editing a condition saved before it was deleted', function () {
     $field = CustomField::factory()->for($this->org)->text()->create(['name' => 'Industry']);
+    $field->delete();
     $segment = ruleEngineSegment([new SegmentRuleData('rule-1', 'Rule', [
         new SegmentConditionData('condition-1', SegmentConditionType::CustomField, $field->key, SegmentOperator::Contains, ['value' => 'tech']),
     ])]);
-    $field->delete();
 
     ruleEngine($segment)
         ->callAction(TestAction::make('editCondition')->arguments(['rule' => 'rule-1', 'condition' => 'condition-1']), ['text_value' => 'fin'])
@@ -439,9 +439,16 @@ it('keeps a soft-deleted custom field selectable when editing its condition', fu
     expect($segment->fresh()->workingRules()->sole()->conditions[0]->value)->toBe(['value' => 'fin']);
 });
 
-it('cannot edit the rules of a trashed segment', function () {
-    $segment = ruleEngineSegment([leadRule()]);
-    $segment->delete();
+it('only renders the draft buttons when they apply', function (array $attributes, bool $showsCancel, bool $showsSave) {
+    $segment = ruleEngineSegment([leadRule()], $attributes);
 
-    $this->get(SegmentResource::getUrl('rules', ['record' => $segment]))->assertNotFound();
-});
+    $page = ruleEngine($segment);
+
+    $showsCancel ? $page->assertSeeHtml('Cancel Changes') : $page->assertDontSeeHtml('Cancel Changes');
+    $showsSave ? $page->assertSeeHtml('Save Changes') : $page->assertDontSeeHtml('Save Changes');
+    $page->assertSeeHtml('Create a Rule');
+})->with([
+    'never published' => [[], false, false],
+    'published without changes' => [['is_published' => true], false, true],
+    'published with a draft' => [['is_published' => true, 'draft_rules' => [['id' => 'rule-1', 'name' => 'Changed', 'conditions' => []]]], true, true],
+]);

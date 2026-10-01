@@ -9,7 +9,6 @@ use App\Filament\Resources\Segments\RelationManagers\ContactsRelationManager;
 use App\Filament\Resources\Segments\Schemas\SegmentForm;
 use App\Filament\Resources\Segments\Schemas\SegmentInfolist;
 use App\Filament\Resources\Segments\Tables\SegmentsTable;
-use App\Jobs\SyncSegmentMembership;
 use App\Models\Segment;
 use BackedEnum;
 use Filament\Facades\Filament;
@@ -18,7 +17,6 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 use UnitEnum;
 
 class SegmentResource extends Resource
@@ -53,28 +51,6 @@ class SegmentResource extends Resource
         return parent::getEloquentQuery()
             ->where('organization_id', Filament::getTenant()->id)
             ->withCount('contacts');
-    }
-
-    /**
-     * Members were frozen while the segment was in the trash: bring a restored published segment up to date.
-     */
-    public static function resyncAfterRestore(Segment $segment): void
-    {
-        if (! $segment->is_published) {
-            return;
-        }
-
-        $segment->update(['is_syncing' => true]);
-
-        SyncSegmentMembership::dispatch($segment->id, auth()->id());
-    }
-
-    public static function getRecordRouteBindingEloquentQuery(): Builder
-    {
-        return parent::getRecordRouteBindingEloquentQuery()
-            ->withoutGlobalScopes([
-                SoftDeletingScope::class,
-            ]);
     }
 
     public static function getRelations(): array

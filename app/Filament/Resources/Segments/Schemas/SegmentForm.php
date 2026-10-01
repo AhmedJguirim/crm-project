@@ -24,10 +24,6 @@ class SegmentForm
             ->maxLength(255)
             ->unique(Segment::class, 'name', ignoreRecord: true, modifyRuleUsing: function ($rule) {
                 return $rule->where('organization_id', Filament::getTenant()->id);
-            })
-            ->validationMessages([
-                'unique' => 'A segment with this name already exists. It may be a deleted one: '
-                    .'check the "Trashed" filter of the list and restore it instead of creating a new segment.',
-            ]);
+            });
     }
 }

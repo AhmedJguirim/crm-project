@@ -2,8 +2,11 @@
 
 namespace App\Filament\Resources\CustomFields\Schemas;
 
+use App\Exceptions\UsedInSegmentsException;
 use App\Filament\Support\CustomFields\CustomFieldDefinitionFields;
 use App\Models\CustomField;
+use App\Services\Segments\SegmentUsage;
+use Closure;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -27,9 +30,25 @@ class CustomFieldForm
 
                 CustomFieldDefinitionFields::key(),
 
-                CustomFieldDefinitionFields::type(),
+                CustomFieldDefinitionFields::type()
+                    ->disabled(fn (?CustomField $record): bool => $record !== null && SegmentUsage::isUsed($record))
+                    ->helperText(fn (?CustomField $record): string => $record !== null && SegmentUsage::isUsed($record)
+                        ? 'The type cannot change while this field is used in the conditions of '.SegmentUsage::describeSegments(SegmentUsage::segmentsUsing($record)).'.'
+                        : 'The type of data this field will store'),
 
-                CustomFieldDefinitionFields::options(),
+                CustomFieldDefinitionFields::options()
+                    ->rule(fn (?CustomField $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($record): void {
+                        if ($record === null) {
+                            return;
+                        }
+
+                        $keptValues = collect($value)->pluck('value')->map(fn (mixed $optionValue): string => (string) $optionValue)->all();
+                        $removedUsedOptions = array_diff_key(SegmentUsage::usedOptionValues($record), array_flip($keptValues));
+
+                        if ($removedUsedOptions !== []) {
+                            $fail(UsedInSegmentsException::cannotRemoveOptions($record, $removedUsedOptions)->getMessage());
+                        }
+                    }),
 
                 Toggle::make('unique')
                     ->label('Unique Value')

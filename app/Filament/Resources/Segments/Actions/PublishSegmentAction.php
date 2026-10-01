@@ -22,7 +22,7 @@ class PublishSegmentAction
             ->color('success')
             ->requiresConfirmation()
             ->modalDescription('The segment members will be computed in the background. You will be notified when they are ready.')
-            ->visible(fn (Segment $record): bool => ! $record->is_published && ! $record->trashed())
+            ->visible(fn (Segment $record): bool => ! $record->is_published)
             ->disabled(fn (Segment $record): bool => ! $record->canBePublished())
             ->tooltip(fn (Segment $record): ?string => $record->canBePublished() ? null : 'Add at least one complete rule to publish this segment.')
             ->action(function (Segment $record, Action $action): void {

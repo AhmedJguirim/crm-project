@@ -2,7 +2,9 @@
 
 namespace App\Observers;
 
+use App\Exceptions\UsedInSegmentsException;
 use App\Models\CustomField;
+use App\Services\Segments\SegmentUsage;
 use Filament\Facades\Filament;
 
 class CustomFieldObserver
@@ -19,6 +21,33 @@ class CustomFieldObserver
         if (is_null($customField->order)) {
             $maxOrder = CustomField::where('organization_id', $customField->organization_id)->max('order') ?? 0;
             $customField->order = $maxOrder + 1;
+        }
+    }
+
+    /**
+     * Keep the type and the options used by segment conditions from changing, as that would break those conditions.
+     */
+    public function updating(CustomField $customField): void
+    {
+        if (! $customField->isDirty(['type', 'options'])) {
+            return;
+        }
+
+        $segments = SegmentUsage::segmentsUsing($customField);
+
+        if ($segments->isEmpty()) {
+            return;
+        }
+
+        if ($customField->isDirty('type')) {
+            throw UsedInSegmentsException::cannotChangeType($customField, $segments);
+        }
+
+        $keptValues = collect($customField->options ?? [])->pluck('value')->map(fn (mixed $value): string => (string) $value)->all();
+        $removedUsedOptions = array_diff_key(SegmentUsage::usedOptionValues($customField), array_flip($keptValues));
+
+        if ($removedUsedOptions !== []) {
+            throw UsedInSegmentsException::cannotRemoveOptions($customField, $removedUsedOptions);
         }
     }
 

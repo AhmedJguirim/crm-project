@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\IsCustomField;
+use App\Models\Concerns\PreventsDeletionWhileUsedInSegments;
 use App\Models\Concerns\PreventsForceDeletion;
 use App\Observers\CustomFieldObserver;
 use Database\Factories\CustomFieldFactory;
@@ -21,6 +22,7 @@ class CustomField extends Model
     use HasFactory;
 
     use IsCustomField;
+    use PreventsDeletionWhileUsedInSegments;
     use PreventsForceDeletion;
     use SoftDeletes;
 

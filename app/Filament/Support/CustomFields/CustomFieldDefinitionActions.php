@@ -2,6 +2,7 @@
 
 namespace App\Filament\Support\CustomFields;
 
+use App\Filament\Support\SegmentUsageGuard;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\RestoreAction;
@@ -20,7 +21,7 @@ class CustomFieldDefinitionActions
      */
     public static function delete(string $recordsLabel): DeleteAction
     {
-        return DeleteAction::make()
+        return SegmentUsageGuard::protectDelete(DeleteAction::make())
             ->requiresConfirmation()
             ->modalHeading(fn ($record): string => "Delete the \"{$record->name}\" field?")
             ->modalDescription(static::deleteDescription($recordsLabel, 'This field'))
@@ -30,7 +31,7 @@ class CustomFieldDefinitionActions
 
     public static function deleteBulk(string $recordsLabel): DeleteBulkAction
     {
-        return DeleteBulkAction::make()
+        return SegmentUsageGuard::protectBulkDelete(DeleteBulkAction::make())
             ->requiresConfirmation()
             ->modalHeading('Delete the selected fields?')
             ->modalDescription(static::deleteDescription($recordsLabel, 'These fields'))

@@ -6,7 +6,6 @@ use App\Data\Segments\SegmentRuleData;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentStatus;
 use App\Models\Concerns\BelongsToOrganization;
-use App\Models\Concerns\PreventsForceDeletion;
 use App\Services\Segments\SegmentFieldCatalog;
 use App\Services\Segments\SegmentQueryBuilder;
 use Database\Factories\SegmentFactory;
@@ -14,7 +13,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
-use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection;
 
 /**
@@ -29,9 +27,6 @@ class Segment extends Model
 
     /** @use HasFactory<SegmentFactory> */
     use HasFactory;
-
-    use PreventsForceDeletion;
-    use SoftDeletes;
 
     protected $fillable = [
         'organization_id',

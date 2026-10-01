@@ -235,7 +235,9 @@ class SegmentConditionForm
                 default => null,
             }],
             SegmentValueInput::Range => ['value' => $data['date_value'] ?? null, 'value_to' => $data['date_value_to'] ?? null],
-            SegmentValueInput::Multiple => ['values' => array_values((array) ($data['values'] ?? []))],
+            SegmentValueInput::Multiple => ['values' => in_array($type, [SegmentConditionType::Tags, SegmentConditionType::Company], true)
+                ? array_values(array_map('intval', (array) ($data['values'] ?? [])))
+                : array_values((array) ($data['values'] ?? []))],
             SegmentValueInput::Days => ['days' => $data['days'] ?? null],
             SegmentValueInput::Month => ['month' => $data['month'] ?? null],
             SegmentValueInput::DayAndMonth => ['month' => $data['month'] ?? null, 'day' => $data['day'] ?? null],

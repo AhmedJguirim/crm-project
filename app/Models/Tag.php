@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\PreventsDeletionWhileUsedInSegments;
 use App\Models\Concerns\PreventsForceDeletion;
 use App\Observers\TagObserver;
 use Database\Factories\TagFactory;
@@ -19,6 +20,7 @@ class Tag extends Model
     /** @use HasFactory<TagFactory> */
     use HasFactory;
 
+    use PreventsDeletionWhileUsedInSegments;
     use PreventsForceDeletion;
     use SoftDeletes;
 

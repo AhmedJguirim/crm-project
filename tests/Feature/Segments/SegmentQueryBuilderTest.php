@@ -373,3 +373,135 @@ describe('rule logic', function () {
         expect(segmentMatches($this->org, $condition))->toBe(['Alice']);
     });
 });
+
+describe('dates on both sources', function () {
+    beforeEach(function () {
+        $this->birthday = CustomField::factory()->for($this->org)->create(['name' => 'Birthday', 'type' => 'date']);
+
+        foreach (['A' => '2026-06-10 23:30:00', 'B' => '2026-05-01 08:00:00', 'C' => '2026-06-15 09:00:00'] as $name => $date) {
+            Contact::factory()->for($this->org)
+                ->withCustomFields([$this->birthday->key => substr($date, 0, 10)])
+                ->create(['name' => $name, 'created_at' => $date]);
+        }
+    });
+
+    it('applies every date operator the same way to the created date and to date custom fields', function (SegmentOperator $operator, array $value, array $expected) {
+        $onAttribute = segmentCondition(SegmentConditionType::Attribute, ContactAttribute::CreatedAt->value, $operator, $value);
+        $onCustomField = segmentCondition(SegmentConditionType::CustomField, $this->birthday->key, $operator, $value);
+
+        expect(segmentMatches($this->org, $onAttribute))->toBe($expected)
+            ->and(segmentMatches($this->org, $onCustomField))->toBe($expected);
+    })->with([
+        'before' => [SegmentOperator::Before, ['value' => '2026-06-10'], ['B']],
+        'after' => [SegmentOperator::After, ['value' => '2026-06-10'], ['C']],
+        'on (ignores the time of day)' => [SegmentOperator::On, ['value' => '2026-06-10'], ['A']],
+        'on or before' => [SegmentOperator::OnOrBefore, ['value' => '2026-06-10'], ['A', 'B']],
+        'on or after' => [SegmentOperator::OnOrAfter, ['value' => '2026-06-10'], ['A', 'C']],
+        'between (inclusive)' => [SegmentOperator::Between, ['value' => '2026-05-01', 'value_to' => '2026-06-10'], ['A', 'B']],
+        'within the last days (includes today)' => [SegmentOperator::WithinLastDays, ['days' => 7], ['A', 'C']],
+        'within the last days (boundary day included)' => [SegmentOperator::WithinLastDays, ['days' => 5], ['A', 'C']],
+        'more than days ago' => [SegmentOperator::MoreThanDaysAgo, ['days' => 30], ['B']],
+        'more than days ago (boundary day excluded)' => [SegmentOperator::MoreThanDaysAgo, ['days' => 5], ['B']],
+        'month is' => [SegmentOperator::MonthIs, ['month' => 6], ['A', 'C']],
+        'day and month is' => [SegmentOperator::DayAndMonthIs, ['month' => 5, 'day' => 1], ['B']],
+    ]);
+
+    it('treats missing date custom field values as blank', function () {
+        Contact::factory()->for($this->org)->create(['name' => 'D']);
+
+        expect(segmentMatches($this->org, segmentCondition(SegmentConditionType::CustomField, $this->birthday->key, SegmentOperator::IsBlank)))->toBe(['D'])
+            ->and(segmentMatches($this->org, segmentCondition(SegmentConditionType::CustomField, $this->birthday->key, SegmentOperator::IsNotBlank)))->toBe(['A', 'B', 'C']);
+    });
+});
+
+describe('more custom field types', function () {
+    it('compares numbers with every operator', function (SegmentOperator $operator, string $value, array $expected) {
+        $score = CustomField::factory()->for($this->org)->create(['type' => 'number']);
+
+        foreach (['Low' => 5, 'Mid' => '10', 'High' => -2.5] as $name => $number) {
+            Contact::factory()->for($this->org)->withCustomFields([$score->key => $number])->create(['name' => $name]);
+        }
+
+        expect(segmentMatches($this->org, segmentCondition(SegmentConditionType::CustomField, $score->key, $operator, ['value' => $value])))
+            ->toBe($expected);
+    })->with([
+        'less than' => [SegmentOperator::LessThan, '5', ['High']],
+        'greater than or equal to' => [SegmentOperator::GreaterThanOrEqualTo, '5', ['Low', 'Mid']],
+        'greater than (negative)' => [SegmentOperator::GreaterThan, '-3', ['High', 'Low', 'Mid']],
+        'equal to (decimal input)' => [SegmentOperator::EqualTo, '10.0', ['Mid']],
+    ]);
+
+    it('applies text operators to email, url, phone and text area custom fields', function (string $type, SegmentOperator $operator, string $value, array $expected) {
+        $field = CustomField::factory()->for($this->org)->create(['type' => $type]);
+        $values = [
+            'email' => ['A' => 'ann@acme.com', 'B' => 'bob@globex.com'],
+            'url' => ['A' => 'https://acme.com/pricing', 'B' => 'https://globex.com'],
+            'phone' => ['A' => '+216 555 0100', 'B' => '+33 555 0199'],
+            'textarea' => ['A' => "Met at the\nconference", 'B' => 'Cold call'],
+        ][$type];
+
+        foreach ($values as $name => $fieldValue) {
+            Contact::factory()->for($this->org)->withCustomFields([$field->key => $fieldValue])->create(['name' => $name]);
+        }
+
+        expect(segmentMatches($this->org, segmentCondition(SegmentConditionType::CustomField, $field->key, $operator, ['value' => $value])))
+            ->toBe($expected);
+    })->with([
+        'email domain' => ['email', SegmentOperator::IsFromDomain, 'ACME.com', ['A']],
+        'email not from domain' => ['email', SegmentOperator::IsNotFromDomain, 'acme.com', ['B']],
+        'url contains' => ['url', SegmentOperator::Contains, 'pricing', ['A']],
+        'phone starts with' => ['phone', SegmentOperator::StartsWith, '+216', ['A']],
+        'text area contains across lines' => ['textarea', SegmentOperator::Contains, 'the conference', []],
+        'text area ends with' => ['textarea', SegmentOperator::EndsWith, 'conference', ['A']],
+    ]);
+});
+
+describe('text matching details', function () {
+    it('matches LIKE wildcards and backslashes literally', function (string $value, array $expected) {
+        foreach (['a_b', 'axb', '50%', '50x', 'back\\slash'] as $name) {
+            Contact::factory()->for($this->org)->create(['name' => $name]);
+        }
+
+        expect(segmentMatches($this->org, segmentCondition(SegmentConditionType::Attribute, ContactAttribute::Name->value, SegmentOperator::Contains, ['value' => $value])))
+            ->toBe($expected);
+    })->with([
+        'underscore' => ['_', ['a_b']],
+        'percent' => ['%', ['50%']],
+        'backslash' => ['\\', ['back\\slash']],
+    ]);
+
+    it('matches the lead source and non-blank select attributes', function () {
+        Contact::factory()->for($this->org)->create(['name' => 'Ref', 'lead_source' => LeadSource::Referral]);
+        Contact::factory()->for($this->org)->create(['name' => 'Web', 'lead_source' => LeadSource::Website]);
+        Contact::factory()->for($this->org)->create(['name' => 'None', 'lead_source' => null]);
+
+        expect(segmentMatches($this->org, segmentCondition(SegmentConditionType::Attribute, ContactAttribute::LeadSource->value, SegmentOperator::Is, ['value' => LeadSource::Website->value])))->toBe(['Web'])
+            ->and(segmentMatches($this->org, segmentCondition(SegmentConditionType::Attribute, ContactAttribute::LeadSource->value, SegmentOperator::IsNotBlank)))->toBe(['Ref', 'Web']);
+    });
+});
+
+describe('incomplete rules', function () {
+    it('skips a whole rule when one of its conditions is incomplete, keeping the other rules', function () {
+        Contact::factory()->for($this->org)->create(['name' => 'Alice', 'status' => ContactStatus::Lead]);
+        Contact::factory()->for($this->org)->create(['name' => 'Bob', 'status' => ContactStatus::Partner]);
+
+        $rules = [
+            segmentRule(
+                segmentCondition(SegmentConditionType::Attribute, ContactAttribute::Status->value, SegmentOperator::Is, ['value' => ContactStatus::Partner->value]),
+                segmentCondition(SegmentConditionType::CustomField, 'cf_deleted', SegmentOperator::IsBlank),
+            ),
+            segmentRule(segmentCondition(SegmentConditionType::Attribute, ContactAttribute::Status->value, SegmentOperator::Is, ['value' => ContactStatus::Lead->value])),
+        ];
+
+        expect(segmentMatches($this->org, $rules))->toBe(['Alice']);
+    });
+
+    it('counts nothing for an incomplete list of conditions', function () {
+        Contact::factory()->for($this->org)->create();
+        $builder = SegmentQueryBuilder::forOrganization($this->org->id);
+
+        expect($builder->countConditions([]))->toBe(0)
+            ->and($builder->countConditions([segmentCondition(SegmentConditionType::Attribute, ContactAttribute::Name->value, SegmentOperator::Is)]))->toBe(0)
+            ->and($builder->countConditions([segmentCondition(SegmentConditionType::Attribute, ContactAttribute::Name->value, SegmentOperator::IsNotBlank)]))->toBe(1);
+    });
+});

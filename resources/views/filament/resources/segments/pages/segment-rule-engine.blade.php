@@ -25,9 +25,11 @@
 
             <x-slot name="afterHeader">
                 <div class="flex flex-wrap items-center gap-2">
-                    {{ $this->cancelChangesAction }}
-                    {{ $this->saveChangesAction }}
-                    {{ $this->createRuleAction }}
+                    @foreach ([$this->cancelChangesAction, $this->saveChangesAction, $this->createRuleAction] as $headerAction)
+                        @if ($headerAction->isVisible())
+                            {{ $headerAction }}
+                        @endif
+                    @endforeach
                 </div>
             </x-slot>
 

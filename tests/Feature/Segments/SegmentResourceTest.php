@@ -7,6 +7,7 @@ use App\Enums\ContactStatus;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentOperator;
 use App\Filament\Resources\Segments\Pages\ListSegments;
+use App\Filament\Resources\Segments\Pages\SegmentRuleEngine;
 use App\Filament\Resources\Segments\Pages\ViewSegment;
 use App\Filament\Resources\Segments\RelationManagers\ContactsRelationManager;
 use App\Filament\Resources\Segments\SegmentResource;
@@ -64,58 +65,37 @@ describe('list page', function () {
             ->assertHasActionErrors(['name' => 'unique']);
     });
 
-    it('soft deletes a segment and keeps its members', function () {
+    it('permanently deletes a segment and its member list, keeping the contacts', function () {
         $segment = Segment::factory()->for($this->org)->published()->create();
         $member = Contact::factory()->for($this->org)->create();
         $segment->contacts()->attach($member);
 
         Livewire::test(ListSegments::class)
+            ->assertTableActionDoesNotExist('restore')
             ->callAction(TestAction::make('delete')->table($segment))
             ->assertCanNotSeeTableRecords([$segment]);
 
-        $this->assertSoftDeleted($segment);
-        expect($segment->contacts()->count())->toBe(1);
+        $this->assertModelMissing($segment);
+        $this->assertDatabaseMissing('contact_segment', ['segment_id' => $segment->id]);
+        $this->assertModelExists($member);
     });
 
-    it('lists trashed segments and restores them, recomputing their members', function () {
-        $segment = Segment::factory()->for($this->org)->published()->withRules(publishableRules())->create();
-        $lead = Contact::factory()->for($this->org)->create(['status' => ContactStatus::Lead]);
-        $segment->delete();
+    it('permanently deletes segments in bulk', function () {
+        $segments = Segment::factory()->for($this->org)->count(2)->create();
 
         Livewire::test(ListSegments::class)
-            ->filterTable('trashed', true)
-            ->assertCanSeeTableRecords([$segment])
-            ->assertTableActionHidden('editRules', $segment)
-            ->callAction(TestAction::make('restore')->table($segment));
+            ->selectTableRecords($segments)
+            ->callAction(TestAction::make('delete')->table()->bulk());
 
-        $this->assertNotSoftDeleted($segment);
-        expect($segment->fresh()->is_syncing)->toBeFalse()
-            ->and($segment->contacts()->pluck('contacts.id')->all())->toBe([$lead->id]);
+        $segments->each(fn (Segment $segment) => $this->assertModelMissing($segment));
     });
 
-    it('explains that a trashed segment may hold the requested name', function () {
-        Segment::factory()->for($this->org)->create(['name' => 'Newsletter'])->delete();
+    it('warns that deleting a segment cannot be undone', function () {
+        $segment = Segment::factory()->for($this->org)->create(['name' => 'Newsletter']);
 
         Livewire::test(ListSegments::class)
-            ->callAction('create', ['name' => 'Newsletter'])
-            ->assertHasActionErrors(['name' => 'unique'])
-            ->assertMountedActionModalSee('check the "Trashed" filter of the list and restore it');
-    });
-
-    it('has no force delete actions', function () {
-        $segment = Segment::factory()->for($this->org)->create();
-        $segment->delete();
-
-        Livewire::test(ListSegments::class)
-            ->filterTable('trashed', true)
-            ->assertTableActionDoesNotExist('forceDelete')
-            ->assertTableBulkActionDoesNotExist('forceDelete');
-
-        Livewire::test(ViewSegment::class, ['record' => $segment->getRouteKey()])
-            ->assertActionDoesNotExist('forceDelete')
-            ->assertActionVisible('restore')
-            ->assertActionHidden('publish')
-            ->assertActionHidden('editRules');
+            ->mountAction(TestAction::make('delete')->table($segment))
+            ->assertMountedActionModalSee('This cannot be undone.');
     });
 });
 
@@ -181,3 +161,16 @@ describe('view page', function () {
         $this->get(SegmentResource::getUrl('view', ['record' => $segment]))->assertNotFound();
     });
 });
+
+it('permanently deletes a segment from its view and rules pages', function (string $page) {
+    $segment = Segment::factory()->for($this->org)->create();
+
+    Livewire::test($page, ['record' => $segment->getRouteKey()])
+        ->callAction('delete')
+        ->assertRedirect(SegmentResource::getUrl('index'));
+
+    $this->assertModelMissing($segment);
+})->with([
+    'view page' => ViewSegment::class,
+    'rules page' => SegmentRuleEngine::class,
+]);

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\HasCustomFieldValues;
+use App\Models\Concerns\PreventsDeletionWhileUsedInSegments;
 use App\Models\Concerns\PreventsForceDeletion;
 use Database\Factories\CompanyFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -21,6 +22,7 @@ class Company extends Model
     /** @use HasFactory<CompanyFactory> */
     use HasFactory;
 
+    use PreventsDeletionWhileUsedInSegments;
     use PreventsForceDeletion;
     use SoftDeletes;
 

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Companies\Tables;
 
+use App\Filament\Support\SegmentUsageGuard;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -67,12 +68,12 @@ class CompaniesTable
             ])
             ->recordActions([
                 RestoreAction::make(),
-                DeleteAction::make(),
+                SegmentUsageGuard::protectDelete(DeleteAction::make()),
                 EditAction::make(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    SegmentUsageGuard::protectBulkDelete(DeleteBulkAction::make()),
                     RestoreBulkAction::make(),
                 ]),
             ])

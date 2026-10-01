@@ -10,7 +10,6 @@ use App\Models\CompanyCustomField;
 use App\Models\CompanyType;
 use App\Models\Contact;
 use App\Models\CustomField;
-use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\User;
 use Filament\Facades\Filament;
@@ -41,7 +40,6 @@ it('refuses to permanently delete records', function (Closure $makeRecord) {
     'company custom field' => fn () => CompanyCustomField::factory()->for($this->org)->create([
         'company_type_id' => CompanyType::factory()->for($this->org)->create()->id,
     ]),
-    'segment' => fn () => Segment::factory()->for($this->org)->create(),
     'tag' => fn () => Tag::factory()->for($this->org)->create(),
     'address' => fn () => Address::factory()->create(['organization_id' => $this->org->id]),
 ]);
