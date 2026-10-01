@@ -176,4 +176,5 @@ test('user can delete a tag from the edit page', function () {
         ->assertRedirect();
 
     expect(Tag::find($tag->id))->toBeNull();
+    $this->assertSoftDeleted($tag);
 });

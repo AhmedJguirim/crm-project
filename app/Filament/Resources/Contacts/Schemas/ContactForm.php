@@ -52,6 +52,7 @@ class ContactForm
                         'name',
                         fn ($query) => $query->where('tags.organization_id', Filament::getTenant()->id)
                     )
+                    ->saveRelationshipsUsing(fn (Contact $record, ?array $state) => $record->syncTags($state ?? []))
                     ->preload()
                     ->searchable(),
 

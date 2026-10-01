@@ -2,11 +2,12 @@
 
 namespace App\Filament\Resources\Tags\Tables;
 
+use App\Filament\Resources\Tags\Actions\TagDeletionActions;
 use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\ColorColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 
 class TagsTable
@@ -23,14 +24,17 @@ class TagsTable
                     ->sortable(),
             ])
             ->filters([
-                //
+                TrashedFilter::make(),
             ])
             ->recordActions([
                 EditAction::make(),
+                TagDeletionActions::delete(),
+                TagDeletionActions::restore(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    TagDeletionActions::deleteBulk(),
+                    TagDeletionActions::restoreBulk(),
                 ]),
             ])
             ->emptyStateHeading('No tags yet')

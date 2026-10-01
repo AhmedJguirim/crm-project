@@ -144,7 +144,8 @@ class SegmentConditionDescriber
         return $this->namesCache[$model] ??= $model::query()
             ->withoutGlobalScopes()
             ->where('organization_id', $this->catalog->organizationId)
-            ->pluck('name', 'id')
+            ->get(['id', 'name', 'deleted_at'])
+            ->mapWithKeys(fn (Tag|Company|CompanyType $record): array => [$record->id => $record->name.($record->trashed() ? ' (deleted)' : '')])
             ->all();
     }
 

@@ -26,6 +26,7 @@ use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Str;
 
 /**
@@ -311,11 +312,15 @@ class SegmentConditionForm
     private static function multipleOptions(SegmentFieldCatalog $catalog, Get $get): array
     {
         $type = self::type($get);
+        $selectedIds = array_filter((array) $get('values'), fn (mixed $id): bool => is_numeric($id));
+
         $names = fn (string $model): array => $model::query()
             ->withoutGlobalScopes()
             ->where('organization_id', $catalog->organizationId)
+            ->where(fn (Builder $query): Builder => $query->whereNull('deleted_at')->orWhereIn('id', $selectedIds))
             ->orderBy('name')
-            ->pluck('name', 'id')
+            ->get(['id', 'name', 'deleted_at'])
+            ->mapWithKeys(fn (Tag|Company|CompanyType $record): array => [$record->id => $record->name.($record->trashed() ? ' (deleted)' : '')])
             ->all();
 
         return match (true) {

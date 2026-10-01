@@ -87,12 +87,14 @@ class ContactImportService
             ]
         );
 
-        $contact->tags()->sync($tagIds);
+        $contact->syncTags($tagIds);
 
         return ['success' => true, 'error' => null];
     }
 
     /**
+     * Resolve the tag names of an imported row, creating missing tags and restoring trashed ones.
+     *
      * @return array<int, int>
      */
     public function resolveTagIds(string $raw): array
@@ -105,9 +107,14 @@ class ContactImportService
         $ids = [];
 
         foreach ($tagNames as $tagName) {
-            $tag = Tag::firstOrCreate(
+            $tag = Tag::withTrashed()->firstOrCreate(
                 ['organization_id' => $this->organizationId, 'name' => $tagName]
             );
+
+            if ($tag->trashed()) {
+                $tag->restore();
+            }
+
             $ids[] = $tag->id;
         }
 

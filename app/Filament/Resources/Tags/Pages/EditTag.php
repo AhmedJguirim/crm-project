@@ -2,8 +2,8 @@
 
 namespace App\Filament\Resources\Tags\Pages;
 
+use App\Filament\Resources\Tags\Actions\TagDeletionActions;
 use App\Filament\Resources\Tags\TagResource;
-use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
 
 class EditTag extends EditRecord
@@ -13,11 +13,8 @@ class EditTag extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            DeleteAction::make()
-                ->requiresConfirmation()
-                ->modalHeading('Delete Tag')
-                ->modalDescription('Are you sure you want to delete this tag? This action cannot be undone.')
-                ->modalSubmitActionLabel('Delete'),
+            TagDeletionActions::delete(),
+            TagDeletionActions::restore(),
         ];
     }
 }

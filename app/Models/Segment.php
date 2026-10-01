@@ -3,12 +3,14 @@
 namespace App\Models;
 
 use App\Data\Segments\SegmentRuleData;
+use App\Enums\SegmentConditionType;
 use App\Enums\SegmentStatus;
 use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\PreventsForceDeletion;
 use App\Services\Segments\SegmentFieldCatalog;
 use App\Services\Segments\SegmentQueryBuilder;
 use Database\Factories\SegmentFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -54,6 +56,17 @@ class Segment extends Model
             'is_syncing' => 'boolean',
             'last_synced_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Segments whose published rules contain at least one condition of the given type.
+     */
+    public function scopeUsingConditionType(Builder $query, SegmentConditionType $type): Builder
+    {
+        return $query->whereRaw(
+            $query->qualifyColumn('rules').' @> CAST(? AS jsonb)',
+            [json_encode([['conditions' => [['type' => $type->value]]]])],
+        );
     }
 
     public function contacts(): BelongsToMany

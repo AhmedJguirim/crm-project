@@ -74,6 +74,18 @@ class Contact extends Model
         return $this->belongsToMany(Tag::class, 'contact_tag');
     }
 
+    /**
+     * Replace the contact's tags, keeping its trashed tags attached so they come back if the tag is restored.
+     *
+     * @param  array<int, int|string>  $tagIds
+     */
+    public function syncTags(array $tagIds): void
+    {
+        $trashedTagIds = $this->tags()->onlyTrashed()->pluck('tags.id')->all();
+
+        $this->tags()->sync(array_values(array_unique([...array_map('intval', $tagIds), ...$trashedTagIds])));
+    }
+
     public function activities(): HasMany
     {
         return $this->hasMany(Activity::class);
