@@ -33,9 +33,15 @@ class ContactImportService
         }
 
         // check email uniqueness
-        $existingContact = Contact::where('organization_id', $this->organizationId)
+        $existingContact = Contact::withTrashed()
+            ->where('organization_id', $this->organizationId)
             ->where('email', $email)
             ->first();
+
+        if ($existingContact?->trashed()) {
+            return ['success' => false, 'error' => "A deleted contact with email '{$email}' already exists. Restore it from the trash instead of importing it again."];
+        }
+
         if ($existingContact) {
             return ['success' => false, 'error' => "A contact with email '{$email}' already exists."];
         }
@@ -87,7 +93,7 @@ class ContactImportService
             ]
         );
 
-        $contact->syncTags($tagIds);
+        $contact->tags()->sync($tagIds);
 
         return ['success' => true, 'error' => null];
     }

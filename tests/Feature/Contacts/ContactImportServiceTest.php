@@ -408,3 +408,19 @@ test('parseDate rejects invalid format', function () {
 
     expect($result)->toBeFalse();
 });
+
+test('row matching a soft-deleted contact is reported instead of crashing', function () {
+    $trashed = Contact::factory()->create(['organization_id' => $this->org->id, 'email' => 'gone@example.com']);
+    $trashed->delete();
+
+    $result = $this->service->processRow([
+        'name' => 'Gone Again',
+        'email' => 'gone@example.com',
+        'phone' => '',
+        'tags' => '',
+    ], []);
+
+    expect($result['success'])->toBeFalse()
+        ->and($result['error'])->toContain('Restore it from the trash');
+    expect(Contact::withTrashed()->where('email', 'gone@example.com')->count())->toBe(1);
+});
