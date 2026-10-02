@@ -17,6 +17,9 @@ class ContactImportService
      * The contact is created without model events on purpose: segment membership comes from the full sync queued
      * when the import finishes. Any future Contact observer that should apply to imports must be called explicitly.
      *
+     * The insert falls back to the existing row on a unique violation, so a contact created by someone else after
+     * the existence check above is reported as a failed row instead of crashing the import.
+     *
      * @param  array<string, string>  $row
      * @param  array<string, CustomField>  $customFieldsByName
      * @return array{success: bool, error: ?string}
@@ -87,13 +90,14 @@ class ContactImportService
 
         $tagIds = $this->resolveTagIds($row['tags'] ?? '');
 
-        $contact = Contact::createQuietly([
-            'organization_id' => $this->organizationId,
-            'email' => $email,
-            'name' => $name,
-            'phone' => $phone,
-            'custom_field_values' => $customFieldValues,
-        ]);
+        $contact = Contact::withoutEvents(fn (): Contact => Contact::withTrashed()->createOrFirst(
+            ['organization_id' => $this->organizationId, 'email' => $email],
+            ['name' => $name, 'phone' => $phone, 'custom_field_values' => $customFieldValues],
+        ));
+
+        if (! $contact->wasRecentlyCreated) {
+            return ['success' => false, 'error' => "A contact with email '{$email}' already exists."];
+        }
 
         $contact->tags()->sync($tagIds);
 
@@ -101,7 +105,8 @@ class ContactImportService
     }
 
     /**
-     * Resolve the tag names of an imported row, creating missing tags and restoring trashed ones.
+     * Resolve the tag names of an imported row, creating missing tags and restoring trashed ones. `firstOrCreate()`
+     * already falls back to the existing row when someone else creates the tag in the meantime.
      *
      * @return array<int, int>
      */
