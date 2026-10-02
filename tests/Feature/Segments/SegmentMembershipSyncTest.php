@@ -446,3 +446,126 @@ describe('too many days in a stored condition', function () {
         expect($segment->contacts()->pluck('contacts.id')->all())->toBe([$lead->id]);
     });
 });
+
+describe('rules version', function () {
+    it('goes up when new rules are published', function () {
+        $segment = Segment::factory()->for($this->org)->published()->withRules([leadsRule()])->create();
+        $segment->storeWorkingRules([partnersRule()]);
+
+        expect($segment->fresh()->rules_version)->toBe(1);
+
+        $segment->fresh()->publishWorkingRules();
+
+        expect($segment->fresh()->rules_version)->toBe(2);
+    });
+
+    it('does not change for drafts, renames or sync flags', function (Closure $change) {
+        $segment = Segment::factory()->for($this->org)->published()->withRules([leadsRule()])->create();
+
+        $change($segment->fresh());
+
+        expect($segment->fresh()->rules_version)->toBe(1);
+    })->with([
+        'a draft rule' => [fn (Segment $segment) => $segment->storeWorkingRules([leadsRule(), partnersRule()])],
+        'a rename' => [fn (Segment $segment) => $segment->update(['name' => 'Renamed'])],
+        'the sync flags' => [fn (Segment $segment) => $segment->update(['is_syncing' => true, 'last_synced_at' => now()])],
+    ]);
+
+    it('starts at one for a new segment', function () {
+        expect(Segment::factory()->for($this->org)->create()->fresh()->rules_version)->toBe(1);
+    });
+});
+
+describe('lock window', function () {
+    it('computes the members before it locks the segment row and removes stale ones with NOT EXISTS', function () {
+        Contact::factory()->for($this->org)->create(['status' => ContactStatus::Lead]);
+        $segment = Segment::factory()->for($this->org)->published()->withRules([leadsRule()])->create();
+
+        DB::enableQueryLog();
+        SyncSegmentMembership::dispatchSync($segment->id);
+        $queries = collect(DB::getQueryLog())->pluck('query')->map(fn (string $query): string => strtolower($query))->values();
+
+        $computedAt = $queries->search(fn (string $query): bool => str_starts_with($query, 'insert into segment_sync_matches'));
+        $lockedAt = $queries->search(fn (string $query): bool => str_contains($query, 'from "segments"') && str_contains($query, 'for update'));
+        $removal = $queries->first(fn (string $query): bool => str_starts_with($query, 'delete from contact_segment'));
+
+        expect($computedAt)->not->toBeFalse()
+            ->and($lockedAt)->not->toBeFalse()
+            ->and($computedAt)->toBeLessThan($lockedAt)
+            ->and($removal)->toContain('not exists')
+            ->and($removal)->not->toContain('not in');
+    });
+
+    it('gives the same members as before and keeps the joined at dates', function () {
+        $alice = Contact::factory()->for($this->org)->create(['status' => ContactStatus::Lead]);
+        $bob = Contact::factory()->for($this->org)->create(['status' => ContactStatus::Partner]);
+        $carol = Contact::factory()->for($this->org)->create(['status' => ContactStatus::Lead]);
+        $segment = Segment::factory()->for($this->org)->published()->withRules([leadsRule()])->create(['is_syncing' => true]);
+        $segment->contacts()->attach($alice, ['created_at' => now()->subDays(30), 'updated_at' => now()->subDays(30)]);
+        $segment->contacts()->attach($bob);
+
+        SyncSegmentMembership::dispatchSync($segment->id);
+
+        $joinedAt = DB::table('contact_segment')->where('segment_id', $segment->id)->where('contact_id', $alice->id)->value('created_at');
+
+        expect(membersOfSegment($segment))->toBe(collect([$alice->id, $carol->id])->sort()->values()->all())
+            ->and(now()->parse($joinedAt)->isSameDay(now()->subDays(30)))->toBeTrue()
+            ->and($segment->fresh()->is_syncing)->toBeFalse()
+            ->and($segment->fresh()->last_synced_at)->not->toBeNull();
+    });
+
+    it('discards the result and queues a new sync when the rules are published during the compute phase', function () {
+        Queue::fake([SyncSegmentMembership::class]);
+        $user = User::factory()->create();
+        $alice = Contact::factory()->for($this->org)->create(['status' => ContactStatus::Lead]);
+        $bob = Contact::factory()->for($this->org)->create(['status' => ContactStatus::Partner]);
+        $segment = Segment::factory()->for($this->org)->published()->withRules([leadsRule()])->create(['is_syncing' => true]);
+        $segment->contacts()->attach($bob);
+        $bumped = false;
+        DB::listen(function (QueryExecuted $query) use ($segment, &$bumped): void {
+            if (! $bumped && str_starts_with(strtolower($query->sql), 'insert into segment_sync_matches')) {
+                $bumped = true;
+                DB::table('segments')->where('id', $segment->id)->update(['rules_version' => 2]);
+            }
+        });
+
+        (new SyncSegmentMembership($segment->id, $user->id))->handle();
+
+        expect($bumped)->toBeTrue()
+            ->and(membersOfSegment($segment))->toBe([$bob->id])
+            ->and($segment->fresh()->is_syncing)->toBeTrue()
+            ->and($user->notifications()->count())->toBe(0);
+        Queue::assertPushed(SyncSegmentMembership::class, 1);
+        Queue::assertPushed(SyncSegmentMembership::class, fn (SyncSegmentMembership $job): bool => $job->segmentId === $segment->id && $job->notifyUserId === $user->id);
+        expect(DB::table('contact_segment')->where('contact_id', $alice->id)->count())->toBe(0);
+    });
+
+    it('applies the result when only the draft changes during the compute phase', function () {
+        $alice = Contact::factory()->for($this->org)->create(['status' => ContactStatus::Lead]);
+        $segment = Segment::factory()->for($this->org)->published()->withRules([leadsRule()])->create(['is_syncing' => true]);
+        $drafted = false;
+        DB::listen(function (QueryExecuted $query) use ($segment, &$drafted): void {
+            if (! $drafted && str_starts_with(strtolower($query->sql), 'insert into segment_sync_matches')) {
+                $drafted = true;
+                DB::table('segments')->where('id', $segment->id)->update(['draft_rules' => json_encode([partnersRule()->toArray()])]);
+            }
+        });
+
+        SyncSegmentMembership::dispatchSync($segment->id);
+
+        expect($drafted)->toBeTrue()
+            ->and(membersOfSegment($segment))->toBe([$alice->id])
+            ->and($segment->fresh()->is_syncing)->toBeFalse()
+            ->and($segment->fresh()->draft_rules)->not->toBeNull();
+    });
+
+    it('can run twice in a row in the same connection', function () {
+        $alice = Contact::factory()->for($this->org)->create(['status' => ContactStatus::Lead]);
+        $segment = Segment::factory()->for($this->org)->published()->withRules([leadsRule()])->create();
+
+        SyncSegmentMembership::dispatchSync($segment->id);
+        SyncSegmentMembership::dispatchSync($segment->id);
+
+        expect(membersOfSegment($segment))->toBe([$alice->id]);
+    });
+});

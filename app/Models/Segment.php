@@ -23,6 +23,8 @@ use Illuminate\Support\Collection;
  *
  * `rules` holds the published definition used to compute membership (stored in `contact_segment`).
  * Once published, edits go to `draft_rules` until they are saved (copied to `rules`) or cancelled.
+ * `rules_version` goes up every time `rules` changes (never for drafts), so a job that worked from a copy of the
+ * rules can tell whether they were replaced in the meantime.
  */
 class Segment extends Model
 {
@@ -43,10 +45,17 @@ class Segment extends Model
 
     protected $attributes = [
         'rules' => '[]',
+        'rules_version' => 1,
     ];
 
     protected static function booted(): void
     {
+        static::saving(function (Segment $segment): void {
+            if ($segment->exists && $segment->isDirty('rules')) {
+                $segment->rules_version++;
+            }
+        });
+
         $forgetUsageIndex = fn () => app()->forgetInstance(SegmentUsageIndex::class);
 
         static::saved($forgetUsageIndex);
@@ -57,6 +66,7 @@ class Segment extends Model
     {
         return [
             'rules' => 'array',
+            'rules_version' => 'integer',
             'draft_rules' => 'array',
             'is_published' => 'boolean',
             'is_syncing' => 'boolean',

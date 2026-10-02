@@ -2,9 +2,11 @@
 
 namespace App\Jobs;
 
+use App\Exceptions\RulesChangedDuringSync;
 use App\Filament\Resources\Segments\SegmentResource;
 use App\Models\Segment;
 use App\Models\User;
+use Carbon\CarbonInterface;
 use DateTimeInterface;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
@@ -20,6 +22,9 @@ use Throwable;
  * removed, new matches are added, and contacts that still match keep their original "joined at" date.
  *
  * It runs on the `segments` queue, apart from the quick jobs, because it can take minutes on big segments.
+ *
+ * The segment row is only locked while the result is applied, never while it is computed, so editing the rules of a
+ * segment that is syncing doesn't wait for the sync.
  *
  * Only one sync per segment runs at a time: a sync that finds another one running is released and retried for up
  * to 30 minutes, and its overlap lock expires shortly after the job timeout so that a killed worker can't block the
@@ -77,46 +82,72 @@ class SyncSegmentMembership implements ShouldBeUniqueUntilProcessing, ShouldQueu
 
     public function handle(): void
     {
-        $now = now();
+        try {
+            $segment = DB::transaction(fn (): ?Segment => $this->computeAndApply(now()));
+        } catch (RulesChangedDuringSync) {
+            self::dispatch($this->segmentId, $this->notifyUserId);
 
-        $segment = DB::transaction(function () use ($now): ?Segment {
-            $segment = Segment::query()
-                ->withoutGlobalScope('organization')
-                ->lockForUpdate()
-                ->find($this->segmentId);
-
-            if (! $segment || ! $segment->is_published) {
-                return null;
-            }
-
-            $matchingContactIds = $segment->queryBuilder()
-                ->matching($segment->publishedRules())
-                ->select('contacts.id');
-
-            $segment->contacts()->newPivotStatement()
-                ->where('segment_id', $segment->id)
-                ->whereNotIn('contact_id', $matchingContactIds->clone())
-                ->delete();
-
-            $segment->contacts()->newPivotStatement()->insertOrIgnoreUsing(
-                ['segment_id', 'contact_id', 'created_at', 'updated_at'],
-                $matchingContactIds->clone()
-                    ->select([])
-                    ->selectRaw('?, contacts.id, ?, ?', [$segment->id, $now, $now])
-                    ->toBase(),
-            );
-
-            $segment->update([
-                'is_syncing' => false,
-                'last_synced_at' => $now,
-            ]);
-
-            return $segment;
-        });
+            return;
+        }
 
         if ($segment) {
             $this->notify($segment);
         }
+    }
+
+    /**
+     * Phase 1 evaluates the rules over all the contacts into a temporary table, without locking the segment: the
+     * rule editor saves its drafts on the same row and must not wait for it. Phase 2 locks the row, checks that the
+     * published rules are still the ones evaluated, and applies the result. If they changed, nothing is applied (the
+     * transaction is rolled back) and the caller queues a new sync.
+     *
+     * Raw SQL is used because the query builder has no temporary tables, no anti-join (`NOT EXISTS` plans much better
+     * than `NOT IN (subquery)` on large segments) and no `INSERT … SELECT … ON CONFLICT` with a table of its own.
+     * The table is dropped when the transaction ends; `WithoutOverlapping` keeps one sync per segment running.
+     *
+     * @throws RulesChangedDuringSync
+     */
+    private function computeAndApply(CarbonInterface $now): ?Segment
+    {
+        $segment = Segment::query()->withoutGlobalScope('organization')->find($this->segmentId);
+
+        if (! $segment || ! $segment->is_published) {
+            return null;
+        }
+
+        $versionRead = $segment->rules_version;
+
+        $matching = $segment->queryBuilder()
+            ->matching($segment->publishedRules())
+            ->select('contacts.id');
+
+        DB::statement('DROP TABLE IF EXISTS segment_sync_matches');
+        DB::statement('CREATE TEMPORARY TABLE segment_sync_matches (contact_id bigint PRIMARY KEY) ON COMMIT DROP');
+        DB::insert("INSERT INTO segment_sync_matches (contact_id) {$matching->toSql()} ON CONFLICT DO NOTHING", $matching->getBindings());
+        DB::statement('ANALYZE segment_sync_matches');
+
+        $locked = Segment::query()->withoutGlobalScope('organization')->lockForUpdate()->find($this->segmentId);
+
+        if (! $locked || ! $locked->is_published || $locked->rules_version !== $versionRead) {
+            throw new RulesChangedDuringSync;
+        }
+
+        DB::delete(
+            'DELETE FROM contact_segment cs WHERE cs.segment_id = ? AND NOT EXISTS (SELECT 1 FROM segment_sync_matches m WHERE m.contact_id = cs.contact_id)',
+            [$locked->id],
+        );
+
+        DB::insert(
+            'INSERT INTO contact_segment (segment_id, contact_id, created_at, updated_at) SELECT ?, m.contact_id, ?, ? FROM segment_sync_matches m ON CONFLICT (segment_id, contact_id) DO NOTHING',
+            [$locked->id, $now, $now],
+        );
+
+        $locked->update([
+            'is_syncing' => false,
+            'last_synced_at' => $now,
+        ]);
+
+        return $locked;
     }
 
     public function failed(?Throwable $exception): void
