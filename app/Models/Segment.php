@@ -10,6 +10,7 @@ use App\Enums\SegmentStatus;
 use App\Models\Concerns\BelongsToOrganization;
 use App\Services\Segments\SegmentFieldCatalog;
 use App\Services\Segments\SegmentQueryBuilder;
+use App\Services\Segments\SegmentUsageIndex;
 use Database\Factories\SegmentFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -43,6 +44,14 @@ class Segment extends Model
     protected $attributes = [
         'rules' => '[]',
     ];
+
+    protected static function booted(): void
+    {
+        $forgetUsageIndex = fn () => app()->forgetInstance(SegmentUsageIndex::class);
+
+        static::saved($forgetUsageIndex);
+        static::deleted($forgetUsageIndex);
+    }
 
     protected function casts(): array
     {

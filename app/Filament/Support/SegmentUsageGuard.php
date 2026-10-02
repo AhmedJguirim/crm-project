@@ -3,6 +3,7 @@
 namespace App\Filament\Support;
 
 use App\Services\Segments\SegmentUsage;
+use App\Services\Segments\SegmentUsageIndex;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Illuminate\Database\Eloquent\Model;
@@ -16,15 +17,15 @@ class SegmentUsageGuard
     public static function protectDelete(DeleteAction $action): DeleteAction
     {
         return $action
-            ->disabled(fn (Model $record): bool => SegmentUsage::isUsed($record))
+            ->disabled(fn (Model $record): bool => app(SegmentUsageIndex::class)->isUsed($record))
             ->tooltip(function (Model $record): ?string {
-                $segments = SegmentUsage::segmentsUsing($record);
+                $segmentNames = app(SegmentUsageIndex::class)->segmentNamesUsing($record);
 
-                if ($segments->isEmpty()) {
+                if ($segmentNames === []) {
                     return null;
                 }
 
-                return 'Used in the conditions of '.SegmentUsage::describeSegments($segments).'. Remove it from those conditions to delete it.';
+                return 'Used in the conditions of '.SegmentUsageIndex::describe($segmentNames).'. Remove it from those conditions to delete it.';
             });
     }
 

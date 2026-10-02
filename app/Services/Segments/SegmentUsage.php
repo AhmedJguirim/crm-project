@@ -85,9 +85,7 @@ class SegmentUsage
     /** @param  Collection<int, Segment>  $segments */
     public static function describeSegments(Collection $segments): string
     {
-        $names = $segments->pluck('name')->map(fn (string $name): string => "\"{$name}\"");
-
-        return ($names->count() === 1 ? 'the segment ' : 'the segments ').$names->join(', ', ' and ');
+        return SegmentUsageIndex::describe($segments->pluck('name')->all());
     }
 
     /**
