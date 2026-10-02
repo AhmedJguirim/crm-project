@@ -135,7 +135,7 @@ class ProcessContactImportJob implements ShouldQueue
                 }
             }
         } catch (UnreadableImportFileException) {
-            $this->handleUnreadableFile($importedCount);
+            $this->handleUnreadableFile($importedCount, $failedRows, $headers, $rowNumber);
 
             return;
         } finally {
@@ -175,13 +175,16 @@ class ProcessContactImportJob implements ShouldQueue
             ->warning()
             ->title('Import complete with errors')
             ->body("Imported: {$importedCount} | Failed: {$failedCount}\n\n{$errorSummary}")
-            ->actions([
-                Action::make('downloadFailedRows')
-                    ->label('Download failed rows')
-                    ->url(route('contacts.import.failed-rows', ['path' => $failedCsvPath]))
-                    ->openUrlInNewTab(),
-            ])
+            ->actions([$this->failedRowsAction($failedCsvPath)])
             ->sendToDatabase($user);
+    }
+
+    private function failedRowsAction(string $failedCsvPath): Action
+    {
+        return Action::make('downloadFailedRows')
+            ->label('Download failed rows')
+            ->url(route('contacts.import.failed-rows', ['path' => $failedCsvPath]))
+            ->openUrlInNewTab();
     }
 
     /**
@@ -196,7 +199,14 @@ class ProcessContactImportJob implements ShouldQueue
         return $tmpPath;
     }
 
-    private function handleUnreadableFile(int $importedCount): void
+    /**
+     * The file became unreadable: what was imported before is kept, so when rows were handled the user is told how far
+     * the import went instead of a plain failure.
+     *
+     * @param  array<int, array{row: int, data: array<string, string>, error: string}>  $failedRows
+     * @param  array<int, string>|null  $headers
+     */
+    private function handleUnreadableFile(int $importedCount, array $failedRows, ?array $headers, int $lastRowRead): void
     {
         Storage::disk('local')->delete($this->filePath);
 
@@ -210,11 +220,28 @@ class ProcessContactImportJob implements ShouldQueue
             return;
         }
 
-        Notification::make()
-            ->danger()
-            ->title('Import failed')
-            ->body("We couldn't read this file. Upload a CSV or an Excel (.xlsx) file whose first sheet starts with a header row.")
-            ->sendToDatabase($user);
+        if ($importedCount === 0 && $failedRows === []) {
+            Notification::make()
+                ->danger()
+                ->title('Import failed')
+                ->body("We couldn't read this file. Upload a CSV or an Excel (.xlsx) file whose first sheet starts with a header row.")
+                ->sendToDatabase($user);
+
+            return;
+        }
+
+        $failedCount = count($failedRows);
+
+        $notification = Notification::make()
+            ->warning()
+            ->title('Import stopped partway')
+            ->body("Imported: {$importedCount} | Failed: {$failedCount}. The file could not be read after row {$lastRowRead}, so the rest of it was not imported. The contacts above were kept; import the remaining rows in a new file.");
+
+        if ($failedRows !== [] && $headers !== null) {
+            $notification->actions([$this->failedRowsAction($this->storeFailedRowsCsv($headers, $failedRows))]);
+        }
+
+        $notification->sendToDatabase($user);
     }
 
     /**

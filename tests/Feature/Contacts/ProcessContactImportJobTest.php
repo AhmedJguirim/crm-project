@@ -1,5 +1,6 @@
 <?php
 
+use App\Exceptions\UnreadableImportFileException;
 use App\Jobs\ProcessContactImportJob;
 use App\Jobs\SyncSegmentMembership;
 use App\Models\Contact;
@@ -7,6 +8,7 @@ use App\Models\CustomField;
 use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\User;
+use App\Services\ContactImportFileReader;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -280,6 +282,94 @@ describe('xlsx imports', function () {
         expect(Contact::where('organization_id', $this->org->id)->count())->toBe(0)
             ->and($notification->data['title'])->toBe('Import failed')
             ->and(Storage::disk('local')->exists($path))->toBeFalse();
+        Queue::assertNotPushed(SyncSegmentMembership::class);
+    });
+});
+
+// A file that becomes unreadable partway
+function bindReaderUnreadableAfter(array $rows): void
+{
+    app()->bind(ContactImportFileReader::class, fn () => new class($rows) extends ContactImportFileReader
+    {
+        /** @param  array<int, array<int, string>>  $rows */
+        public function __construct(private readonly array $rows) {}
+
+        public function rows(string $absolutePath, string $extension): Generator
+        {
+            yield from $this->rows;
+
+            throw UnreadableImportFileException::unreadable(new RuntimeException('Corrupt file'));
+        }
+    });
+}
+
+describe('a file that becomes unreadable', function () {
+    beforeEach(function () {
+        Queue::fake([SyncSegmentMembership::class]);
+        Segment::factory()->for($this->org)->published()->create();
+        $this->path = makeCsv('name,email,phone,tags
+');
+        $this->header = ['name', 'email', 'phone', 'tags'];
+    });
+
+    it('keeps the plain failure when nothing was read', function () {
+        bindReaderUnreadableAfter([$this->header]);
+
+        ProcessContactImportJob::dispatchSync($this->path, $this->org->id, $this->user->id);
+
+        $notification = DatabaseNotification::where('notifiable_id', $this->user->id)->first();
+
+        expect($notification->data['title'])->toBe('Import failed')
+            ->and($notification->data['body'])->toContain("We couldn't read this file")
+            ->and(Storage::disk('local')->exists($this->path))->toBeFalse();
+        Queue::assertNotPushed(SyncSegmentMembership::class);
+    });
+
+    it('tells how many rows were imported before the error', function () {
+        bindReaderUnreadableAfter([$this->header, ['A', 'a@example.com', '', ''], ['B', 'b@example.com', '', ''], ['C', 'c@example.com', '', '']]);
+
+        ProcessContactImportJob::dispatchSync($this->path, $this->org->id, $this->user->id);
+
+        $notification = DatabaseNotification::where('notifiable_id', $this->user->id)->first();
+
+        expect(Contact::where('organization_id', $this->org->id)->count())->toBe(3)
+            ->and($notification->data['title'])->toBe('Import stopped partway')
+            ->and($notification->data['status'])->toBe('warning')
+            ->and($notification->data['body'])->toContain('Imported: 3 | Failed: 0')
+            ->and($notification->data['body'])->toContain('after row 3')
+            ->and($notification->data['actions'])->toBe([])
+            ->and(Storage::disk('local')->exists($this->path))->toBeFalse();
+        Queue::assertPushed(SyncSegmentMembership::class, 1);
+    });
+
+    it('offers the failed rows that were found before the error', function () {
+        bindReaderUnreadableAfter([$this->header, ['A', 'a@example.com', '', ''], ['B', 'b@example.com', '', ''], ['Bad', 'not-an-email', '', '']]);
+
+        ProcessContactImportJob::dispatchSync($this->path, $this->org->id, $this->user->id);
+
+        $notification = DatabaseNotification::where('notifiable_id', $this->user->id)->first();
+        $report = collect(Storage::disk('local')->files('contact-imports'))->first(fn (string $file): bool => str_contains($file, 'failed-'));
+
+        expect($notification->data['title'])->toBe('Import stopped partway')
+            ->and($notification->data['body'])->toContain('Imported: 2 | Failed: 1')
+            ->and($notification->data['body'])->toContain('after row 3')
+            ->and($notification->data['actions'][0]['name'])->toBe('downloadFailedRows')
+            ->and(Storage::disk('local')->get($report))->toContain('Invalid email: not-an-email')
+            ->and(Storage::disk('local')->exists($this->path))->toBeFalse();
+        Queue::assertPushed(SyncSegmentMembership::class, 1);
+    });
+
+    it('still reports the failed rows when none was imported', function () {
+        bindReaderUnreadableAfter([$this->header, ['Bad', 'nope', '', ''], ['Worse', 'also-nope', '', '']]);
+
+        ProcessContactImportJob::dispatchSync($this->path, $this->org->id, $this->user->id);
+
+        $notification = DatabaseNotification::where('notifiable_id', $this->user->id)->first();
+
+        expect($notification->data['title'])->toBe('Import stopped partway')
+            ->and($notification->data['body'])->toContain('Imported: 0 | Failed: 2')
+            ->and($notification->data['actions'][0]['name'])->toBe('downloadFailedRows')
+            ->and(Storage::disk('local')->exists($this->path))->toBeFalse();
         Queue::assertNotPushed(SyncSegmentMembership::class);
     });
 });
