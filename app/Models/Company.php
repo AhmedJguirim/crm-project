@@ -6,7 +6,9 @@ use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\HasCustomFieldValues;
 use App\Models\Concerns\PreventsDeletionWhileUsedInSegments;
 use App\Models\Concerns\PreventsForceDeletion;
+use App\Observers\CompanyObserver;
 use Database\Factories\CompanyFactory;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -14,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Collection;
 
+#[ObservedBy([CompanyObserver::class])]
 class Company extends Model
 {
     use BelongsToOrganization;
