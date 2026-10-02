@@ -20,6 +20,7 @@ use App\Models\CustomField;
 use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\User;
+use App\Services\Segments\SegmentFieldCatalog;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Queue;
@@ -96,6 +97,17 @@ describe('page', function () {
         ruleEngine(ruleEngineSegment([$rule]))
             ->assertSee('Incomplete')
             ->assertSee('Unknown field (deleted)')
+            ->assertActionDisabled('publish');
+    });
+
+    it('does not crash on a stored condition with too many days', function () {
+        $rule = new SegmentRuleData('rule-1', 'Huge', [
+            new SegmentConditionData('condition-1', SegmentConditionType::Attribute, ContactAttribute::CreatedAt->value, SegmentOperator::WithinLastDays, ['days' => 999999999]),
+        ]);
+
+        ruleEngine(ruleEngineSegment([$rule]))
+            ->assertSuccessful()
+            ->assertSee('Incomplete')
             ->assertActionDisabled('publish');
     });
 
@@ -304,6 +316,22 @@ describe('conditions', function () {
             ->assertMountedActionModalSee('Complete the condition to preview how many contacts it matches.')
             ->fillForm(['type' => 'attribute', 'field' => 'status', 'operator' => 'is', 'option_value' => 'lead'])
             ->assertMountedActionModalSee('This condition matches 3 contacts.');
+    });
+
+    it('refuses too many days in the condition modal and does not preview them', function () {
+        $segment = ruleEngineSegment([new SegmentRuleData('rule-1', 'Rule', [])]);
+        $data = ['type' => 'attribute', 'field' => 'created_at', 'operator' => 'within_last_days', 'days' => SegmentFieldCatalog::MAX_DAYS + 1];
+
+        ruleEngine($segment)
+            ->mountAction(TestAction::make('addCondition')->arguments(['rule' => 'rule-1']))
+            ->fillForm(['type' => 'attribute', 'field' => 'created_at', 'operator' => 'within_last_days', 'days' => 999999999])
+            ->assertMountedActionModalSee('Complete the condition to preview how many contacts it matches.');
+
+        ruleEngine($segment)
+            ->callAction(TestAction::make('addCondition')->arguments(['rule' => 'rule-1']), $data)
+            ->assertHasActionErrors(['days' => ['max']]);
+
+        expect($segment->fresh()->workingRules()->sole()->conditions)->toBe([]);
     });
 
     it('edits a condition, pre-filling the modal', function () {

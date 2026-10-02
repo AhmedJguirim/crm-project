@@ -187,6 +187,8 @@ class SegmentConditionForm
                     ->placeholder(fn (Get $get): ?string => self::operator($get)?->requiresDays() ? null : 'Any time')
                     ->integer()
                     ->minValue(1)
+                    ->maxValue(SegmentFieldCatalog::MAX_DAYS)
+                    ->validationMessages(['max' => 'Enter at most '.number_format(SegmentFieldCatalog::MAX_DAYS).' days (about 100 years).'])
                     ->suffix('days')
                     ->required(fn (Get $get): bool => self::operator($get)?->requiresDays() ?? false)
                     ->live(onBlur: true)

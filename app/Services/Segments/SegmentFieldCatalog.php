@@ -18,6 +18,9 @@ use Throwable;
  */
 class SegmentFieldCatalog
 {
+    /** The largest "number of days" of a condition, about 100 years: beyond it PostgreSQL fails on the date. */
+    public const MAX_DAYS = 36500;
+
     /** @var Collection<string, CustomField>|null */
     private ?Collection $customFields = null;
 
@@ -120,13 +123,13 @@ class SegmentFieldCatalog
             SegmentValueInput::Range => $this->isValidScalar($kind, $condition->value('value'))
                 && $this->isValidScalar($kind, $condition->value('value_to')),
             SegmentValueInput::Multiple => count($condition->values()) > 0,
-            SegmentValueInput::Days => $this->isPositiveInteger($condition->value('days')),
+            SegmentValueInput::Days => $this->isIntegerBetween($condition->value('days'), 1, self::MAX_DAYS),
             SegmentValueInput::Month => $this->isIntegerBetween($condition->value('month'), 1, 12),
             SegmentValueInput::DayAndMonth => $this->isIntegerBetween($condition->value('month'), 1, 12)
                 && $this->isIntegerBetween($condition->value('day'), 1, 31),
             SegmentValueInput::ActivityCriteria => $condition->operator->requiresDays()
-                ? $this->isPositiveInteger($condition->value('days'))
-                : blank($condition->value('days')) || $this->isPositiveInteger($condition->value('days')),
+                ? $this->isIntegerBetween($condition->value('days'), 1, self::MAX_DAYS)
+                : blank($condition->value('days')) || $this->isIntegerBetween($condition->value('days'), 1, self::MAX_DAYS),
             SegmentValueInput::DealCriteria => blank($condition->value('min_value')) || is_numeric($condition->value('min_value')),
         };
     }
@@ -142,11 +145,6 @@ class SegmentFieldCatalog
             SegmentFieldKind::Date => self::parseDate($value) !== null,
             default => true,
         };
-    }
-
-    private function isPositiveInteger(mixed $value): bool
-    {
-        return filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) !== false;
     }
 
     private function isIntegerBetween(mixed $value, int $min, int $max): bool

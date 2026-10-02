@@ -429,3 +429,20 @@ describe('overlapping syncs', function () {
         expect(membersOfSegment($segment))->toBe([$lead->id]);
     });
 });
+
+describe('too many days in a stored condition', function () {
+    it('is skipped by the sync, which still applies the complete rules', function () {
+        $lead = Contact::factory()->for($this->org)->create(['status' => ContactStatus::Lead]);
+        Contact::factory()->for($this->org)->create(['status' => ContactStatus::Partner]);
+        $segment = Segment::factory()->for($this->org)->published()->withRules([
+            leadsRule(),
+            new SegmentRuleData('rule-2', 'Huge', [
+                SegmentConditionData::make(SegmentConditionType::Attribute, ContactAttribute::CreatedAt->value, SegmentOperator::MoreThanDaysAgo, ['days' => 999999999]),
+            ]),
+        ])->create();
+
+        expect(fn () => SyncSegmentMembership::dispatchSync($segment->id))->not->toThrow(Throwable::class);
+
+        expect($segment->contacts()->pluck('contacts.id')->all())->toBe([$lead->id]);
+    });
+});
