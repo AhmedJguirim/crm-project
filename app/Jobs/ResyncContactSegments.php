@@ -8,6 +8,8 @@ use App\Services\Segments\SegmentQueryBuilder;
 use Illuminate\Contracts\Queue\ShouldBeUniqueUntilProcessing;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Re-evaluates a single contact against every published segment of its organization after the contact changed.
@@ -68,21 +70,64 @@ class ResyncContactSegments implements ShouldBeUniqueUntilProcessing, ShouldQueu
             ->where('is_published', true)
             ->get();
 
-        $builder = SegmentQueryBuilder::forOrganization($contact->organization_id);
+        if ($segments->isEmpty()) {
+            return;
+        }
 
-        $matchingSegmentIds = $segments
-            ->filter(fn (Segment $segment): bool => ! $contact->trashed() && $builder
-                ->matching($segment->publishedRules())
-                ->whereKey($contact->getKey())
-                ->exists())
-            ->modelKeys();
-
+        $matchingSegmentIds = $contact->trashed() ? [] : $this->matchingSegmentIds($contact, $segments);
         $staleSegmentIds = array_values(array_diff($segments->modelKeys(), $matchingSegmentIds));
 
-        $contact->segments()->syncWithoutDetaching($matchingSegmentIds);
+        DB::transaction(function () use ($contact, $matchingSegmentIds, $staleSegmentIds): void {
+            $now = now();
 
-        if ($staleSegmentIds !== []) {
-            $contact->segments()->detach($staleSegmentIds);
+            if ($matchingSegmentIds !== []) {
+                $contact->segments()->newPivotStatement()->insertOrIgnore(
+                    array_map(fn (int $segmentId): array => [
+                        'segment_id' => $segmentId,
+                        'contact_id' => $contact->id,
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ], $matchingSegmentIds)
+                );
+            }
+
+            if ($staleSegmentIds !== []) {
+                $contact->segments()->newPivotStatement()
+                    ->where('contact_id', $contact->id)
+                    ->whereIn('segment_id', $staleSegmentIds)
+                    ->delete();
+            }
+        });
+    }
+
+    /**
+     * Evaluates every segment against the contact with a single query holding one EXISTS column per segment.
+     *
+     * @param  Collection<int, Segment>  $segments
+     * @return array<int, int>
+     */
+    private function matchingSegmentIds(Contact $contact, Collection $segments): array
+    {
+        $builder = SegmentQueryBuilder::forOrganization($contact->organization_id);
+
+        $query = Contact::query()
+            ->withoutGlobalScope('organization')
+            ->whereKey($contact->id)
+            ->select('contacts.id');
+
+        foreach ($segments as $segment) {
+            $match = $builder
+                ->matching($segment->publishedRules())
+                ->whereKey($contact->id)
+                ->select('contacts.id');
+
+            $query->selectRaw("EXISTS ({$match->toSql()}) AS \"segment_{$segment->id}\"", $match->getBindings());
         }
+
+        $row = $query->toBase()->first();
+
+        return $segments
+            ->filter(fn (Segment $segment): bool => (bool) ($row->{"segment_{$segment->id}"} ?? false))
+            ->modelKeys();
     }
 }

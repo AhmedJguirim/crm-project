@@ -14,6 +14,9 @@ class ContactImportService
     /**
      * Process a single CSV row.
      *
+     * The contact is created without model events on purpose: segment membership comes from the full sync queued
+     * when the import finishes. Any future Contact observer that should apply to imports must be called explicitly.
+     *
      * @param  array<string, string>  $row
      * @param  array<string, CustomField>  $customFieldsByName
      * @return array{success: bool, error: ?string}
@@ -84,14 +87,13 @@ class ContactImportService
 
         $tagIds = $this->resolveTagIds($row['tags'] ?? '');
 
-        $contact = Contact::updateOrCreate(
-            ['organization_id' => $this->organizationId, 'email' => $email],
-            [
-                'name' => $name,
-                'phone' => $phone,
-                'custom_field_values' => $customFieldValues,
-            ]
-        );
+        $contact = Contact::createQuietly([
+            'organization_id' => $this->organizationId,
+            'email' => $email,
+            'name' => $name,
+            'phone' => $phone,
+            'custom_field_values' => $customFieldValues,
+        ]);
 
         $contact->tags()->sync($tagIds);
 

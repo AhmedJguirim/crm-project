@@ -15,7 +15,10 @@ use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Organization;
 use App\Models\Segment;
+use App\Models\Tag;
 use App\Models\User;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 
 function leadsRule(): SegmentRuleData
@@ -23,6 +26,15 @@ function leadsRule(): SegmentRuleData
     return new SegmentRuleData('rule-1', 'Leads', [
         SegmentConditionData::make(SegmentConditionType::Attribute, ContactAttribute::Status->value, SegmentOperator::Is, ['value' => ContactStatus::Lead->value]),
     ]);
+}
+
+function segmentForTag(Organization $organization, Tag $tag, bool $published = true): Segment
+{
+    return Segment::factory()->for($organization)->state(['is_published' => $published])->withRules([
+        new SegmentRuleData('rule-1', 'Tagged', [
+            SegmentConditionData::make(SegmentConditionType::Tags, null, SegmentOperator::HasAnyOf, ['values' => [$tag->id]]),
+        ]),
+    ])->create();
 }
 
 beforeEach(function () {
@@ -132,5 +144,120 @@ describe('ResyncContactSegments', function () {
         Contact::factory()->for($this->org)->create();
 
         Queue::assertNotPushed(ResyncContactSegments::class);
+    });
+});
+
+describe('ResyncContactSegments evaluation', function () {
+    beforeEach(function () {
+        $this->tags = Tag::factory()->for($this->org)->count(5)->create();
+        $this->segments = $this->tags->map(fn (Tag $tag): Segment => segmentForTag($this->org, $tag));
+        Queue::fake([ResyncContactSegments::class]);
+        $this->contact = Contact::factory()->for($this->org)->create();
+    });
+
+    function resyncContact(Contact $contact): void
+    {
+        (new ResyncContactSegments($contact->id))->handle();
+    }
+
+    /** @return Collection<int, array{query: string, bindings: array<int, mixed>, time: float}> */
+    function segmentEvaluationQueries(): Collection
+    {
+        return collect(DB::getQueryLog())->filter(fn (array $log): bool => str_contains(strtolower($log['query']), 'as "segment_'));
+    }
+
+    function memberSegmentIds(Contact $contact): array
+    {
+        return DB::table('contact_segment')->where('contact_id', $contact->id)->orderBy('segment_id')->pluck('segment_id')->all();
+    }
+
+    it('leaves the contact in exactly the segments it matches after a change', function () {
+        $this->contact->tags()->sync([$this->tags[0]->id, $this->tags[1]->id]);
+        resyncContact($this->contact);
+
+        expect(memberSegmentIds($this->contact))->toBe([$this->segments[0]->id, $this->segments[1]->id]);
+
+        $this->contact->segments()->attach($this->segments[3]);
+        $this->contact->tags()->sync([$this->tags[0]->id, $this->tags[2]->id, $this->tags[4]->id]);
+        resyncContact($this->contact);
+
+        expect(memberSegmentIds($this->contact))->toBe([$this->segments[0]->id, $this->segments[2]->id, $this->segments[4]->id]);
+    });
+
+    it('evaluates all segments in a single query', function () {
+        $this->contact->tags()->sync([$this->tags[0]->id]);
+
+        DB::enableQueryLog();
+        resyncContact($this->contact);
+        $evaluations = segmentEvaluationQueries();
+
+        expect($evaluations)->toHaveCount(1)
+            ->and(substr_count(strtolower($evaluations->first()['query']), 'as "segment_'))->toBe(5);
+    });
+
+    it('keeps the joined at date of segments that still match', function () {
+        $this->contact->tags()->sync([$this->tags[0]->id]);
+        $this->contact->segments()->attach($this->segments[0], ['created_at' => now()->subDays(30), 'updated_at' => now()->subDays(30)]);
+
+        resyncContact($this->contact);
+
+        $joinedAt = DB::table('contact_segment')->where('contact_id', $this->contact->id)->where('segment_id', $this->segments[0]->id)->value('created_at');
+
+        expect(now()->parse($joinedAt)->isSameDay(now()->subDays(30)))->toBeTrue();
+    });
+
+    it('does not fail when the pivot row already exists', function () {
+        $this->contact->tags()->sync([$this->tags[1]->id]);
+        DB::table('contact_segment')->insert([
+            'segment_id' => $this->segments[1]->id,
+            'contact_id' => $this->contact->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        resyncContact($this->contact);
+
+        expect(memberSegmentIds($this->contact))->toBe([$this->segments[1]->id]);
+    });
+
+    it('removes a trashed contact from every segment', function () {
+        $this->contact->tags()->sync([$this->tags[0]->id, $this->tags[1]->id]);
+        resyncContact($this->contact);
+        $this->contact->delete();
+
+        DB::enableQueryLog();
+        resyncContact($this->contact);
+        $evaluations = segmentEvaluationQueries();
+
+        expect(memberSegmentIds($this->contact))->toBe([])
+            ->and($evaluations)->toHaveCount(0);
+    });
+
+    it('leaves the memberships of other organizations untouched', function () {
+        $otherOrg = Organization::factory()->create();
+        $otherTag = Tag::factory()->for($otherOrg)->create();
+        $otherSegment = segmentForTag($otherOrg, $otherTag);
+        $otherContact = Contact::factory()->for($otherOrg)->create();
+        $otherContact->tags()->sync([$otherTag->id]);
+        $otherSegment->contacts()->attach($otherContact);
+        $this->contact->tags()->sync([$this->tags[0]->id]);
+
+        resyncContact($this->contact);
+
+        expect(memberSegmentIds($otherContact))->toBe([$otherSegment->id])
+            ->and(memberSegmentIds($this->contact))->toBe([$this->segments[0]->id]);
+    });
+
+    it('runs no evaluation query when the organization has only unpublished segments', function () {
+        $org = Organization::factory()->create();
+        segmentForTag($org, Tag::factory()->for($org)->create(), published: false);
+        $contact = Contact::factory()->for($org)->create();
+
+        DB::enableQueryLog();
+        resyncContact($contact);
+        $evaluations = segmentEvaluationQueries();
+
+        expect($evaluations)->toHaveCount(0)
+            ->and(memberSegmentIds($contact))->toBe([]);
     });
 });
