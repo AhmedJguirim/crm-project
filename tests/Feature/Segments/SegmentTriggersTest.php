@@ -11,6 +11,7 @@ use App\Jobs\ProcessContactImportJob;
 use App\Jobs\ResyncContactSegments;
 use App\Jobs\SyncSegmentMembership;
 use App\Models\Contact;
+use App\Models\CustomField;
 use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\User;
@@ -113,4 +114,22 @@ it('does nothing for a contact that no longer exists', function () {
 it('keeps duplicate sync jobs of the same segment or contact from piling up', function () {
     expect((new SyncSegmentMembership(5))->uniqueId())->toBe('5')
         ->and((new ResyncContactSegments(7))->uniqueId())->toBe('7');
+});
+
+it('matches multi-select segments for imported contacts with empty parts in the cell', function () {
+    Storage::fake('local');
+    $field = CustomField::factory()->multiselect()->create(['organization_id' => $this->org->id, 'name' => 'Tech Stack', 'unique' => false, 'order' => 1, 'options' => [
+        ['label' => 'laravel', 'value' => 'laravel'], ['label' => 'react', 'value' => 'react'],
+    ]]);
+    $segment = Segment::factory()->for($this->org)->published()->withRules([
+        new SegmentRuleData('rule-1', 'React', [
+            SegmentConditionData::make(SegmentConditionType::CustomField, $field->key, SegmentOperator::ContainsAnyOf, ['values' => ['react']]),
+        ]),
+    ])->create();
+    $path = 'contact-imports/test.csv';
+    Storage::disk('local')->put($path, "name,email,phone,tags,Tech Stack\nJohn Doe,john@example.com,,,laravel;;react\n");
+
+    ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
+
+    expect($segment->contacts()->pluck('email')->all())->toBe(['john@example.com']);
 });

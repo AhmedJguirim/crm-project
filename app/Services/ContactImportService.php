@@ -85,7 +85,7 @@ class ContactImportService
             // skip if the column doesn't exist in the CSV
             $rawValue = $row[$fieldName] ?? null;
 
-            if (blank($rawValue)) {
+            if (blank($rawValue) || ($field->type === 'multiselect' && $this->splitMultiValue($rawValue) === [])) {
                 continue;
             }
 
@@ -202,9 +202,16 @@ class ContactImportService
         return false;
     }
 
+    /**
+     * @return array<int, string>|null A list of allowed values, or null when a value is not allowed or there is none.
+     */
     public function parseMultiselectValue(CustomField $field, string $raw): ?array
     {
-        $values = $raw ? array_filter(array_map('trim', explode(self::MULTI_VALUE_SEPARATOR, $raw))) : [];
+        $values = $this->splitMultiValue($raw);
+
+        if ($values === []) {
+            return null;
+        }
 
         $allowedValues = collect($field->options ?? [])->pluck('value')->toArray();
 
@@ -215,6 +222,19 @@ class ContactImportService
         }
 
         return $values;
+    }
+
+    /**
+     * The non-empty, trimmed parts of a multi-value cell, as a list (a stored JSON array, never an object).
+     *
+     * @return array<int, string>
+     */
+    private function splitMultiValue(string $raw): array
+    {
+        return array_values(array_filter(
+            array_map('trim', explode(self::MULTI_VALUE_SEPARATOR, $raw)),
+            fn (string $value): bool => $value !== '',
+        ));
     }
 
     public function parseSelectValue(CustomField $field, string $value): ?string

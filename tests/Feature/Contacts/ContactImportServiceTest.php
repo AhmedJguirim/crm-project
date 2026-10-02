@@ -5,6 +5,7 @@ use App\Models\CustomField;
 use App\Models\Tag;
 use App\Models\User;
 use App\Services\ContactImportService;
+use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
     $this->user = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
@@ -463,4 +464,44 @@ test('a phone field rejects a value without digits and keeps a valid one', funct
         ->and($rejected['error'])->toContain('Invalid value for field')
         ->and($accepted['success'])->toBeTrue()
         ->and(Contact::where('email', 'other@example.com')->first()->custom_field_values[$field->key])->toBe('+33612345678');
+});
+
+// Multi-select cells with empty parts
+test('a multi-select cell is stored as a list whatever its empty parts', function (string $cell, array $expected) {
+    $field = CustomField::factory()->multiselect()->create(['organization_id' => $this->org->id, 'name' => 'Tech Stack', 'unique' => false, 'order' => 1, 'options' => [
+        ['label' => 'laravel', 'value' => 'laravel'], ['label' => 'react', 'value' => 'react'], ['label' => 'vue', 'value' => 'vue'],
+    ]]);
+
+    $result = $this->service->processRow(['name' => 'Test', 'email' => 'test@example.com', 'Tech Stack' => $cell], [$field->name => $field]);
+
+    $stored = DB::table('contacts')->where('email', 'test@example.com')->value('custom_field_values');
+
+    expect($result['success'])->toBeTrue()
+        ->and(json_decode($stored, true)[$field->key])->toBe($expected)
+        ->and($stored)->toContain('"'.$field->key.'": [');
+})->with([
+    'plain' => ['laravel;react', ['laravel', 'react']],
+    'empty part in the middle' => ['laravel;;react', ['laravel', 'react']],
+    'leading separator' => [';laravel', ['laravel']],
+    'trailing separator' => ['laravel;', ['laravel']],
+    'spaces' => [' laravel ; react ', ['laravel', 'react']],
+]);
+
+test('a multi-select cell with only separators stores nothing and does not fail', function () {
+    $field = CustomField::factory()->multiselect()->create(['organization_id' => $this->org->id, 'name' => 'Tech Stack', 'unique' => false, 'order' => 1]);
+
+    $result = $this->service->processRow(['name' => 'Test', 'email' => 'test@example.com', 'Tech Stack' => ';;'], [$field->name => $field]);
+
+    expect($result['success'])->toBeTrue()
+        ->and(Contact::where('email', 'test@example.com')->first()->custom_field_values)->not->toHaveKey($field->key);
+});
+
+test('a multi-select option whose value is zero is kept', function () {
+    $field = CustomField::factory()->multiselect()->create(['organization_id' => $this->org->id, 'name' => 'Tech Stack', 'unique' => false, 'order' => 1, 'options' => [
+        ['label' => 'Zero', 'value' => '0'], ['label' => 'laravel', 'value' => 'laravel'],
+    ]]);
+
+    $this->service->processRow(['name' => 'Test', 'email' => 'test@example.com', 'Tech Stack' => '0;laravel'], [$field->name => $field]);
+
+    expect(Contact::where('email', 'test@example.com')->first()->custom_field_values[$field->key])->toBe(['0', 'laravel']);
 });
