@@ -286,7 +286,7 @@ describe('overlapping syncs', function () {
 
     function runQueueWorkerOnce(): void
     {
-        test()->artisan('queue:work', ['connection' => 'database', '--once' => true, '--tries' => 1])->assertSuccessful();
+        test()->artisan('queue:work', ['connection' => 'database', '--queue' => 'segments', '--once' => true, '--tries' => 1])->assertSuccessful();
     }
 
     it('is guarded by an expiring overlap lock per segment', function () {
@@ -297,17 +297,17 @@ describe('overlapping syncs', function () {
             ->and($middleware[0])->toBeInstanceOf(WithoutOverlapping::class)
             ->and($middleware[0]->key)->toBe('42')
             ->and($middleware[0]->releaseAfter)->toBe(15)
-            ->and($middleware[0]->expiresAfter)->toBe(120)
-            ->and($job->timeout)->toBe(80)
+            ->and($middleware[0]->expiresAfter)->toBe(660)
+            ->and($job->timeout)->toBe(600)
             ->and($job->timeout)->toBeLessThan($middleware[0]->expiresAfter)
-            ->and($middleware[0]->expiresAfter)->toBeLessThan(900);
+            ->and($middleware[0]->expiresAfter)->toBeLessThanOrEqual(660);
     });
 
     it('times out before the queue considers it lost', function () {
         $job = new SyncSegmentMembership(42);
 
         expect($job->connection)->toBeNull()
-            ->and($job->timeout)->toBeLessThan(config('queue.connections.database.retry_after'));
+            ->and($job->timeout)->toBeLessThan(config('queue.connections.redis.retry_after'));
     });
 
     it('is failed right away when the worker times out', function () {
@@ -315,7 +315,7 @@ describe('overlapping syncs', function () {
         $segment = Segment::factory()->for($this->org)->published()->create(['is_syncing' => true]);
 
         SyncSegmentMembership::dispatch($segment->id);
-        $queued = Queue::connection('database')->pop();
+        $queued = Queue::connection('database')->pop('segments');
 
         expect($queued->shouldFailOnTimeout())->toBeTrue()
             ->and((new SyncSegmentMembership($segment->id))->failOnTimeout)->toBeTrue();

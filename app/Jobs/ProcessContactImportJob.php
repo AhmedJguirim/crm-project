@@ -18,16 +18,26 @@ use Illuminate\Support\Facades\Storage;
  * Imports the contacts of an uploaded CSV or Excel (.xlsx) file. Only the first worksheet is read.
  *
  * Excel drops empty trailing cells, so shorter Excel rows are padded to the header length. CSV rows must match it.
+ *
+ * It runs on the `imports` queue, apart from the quick jobs, because a large file takes a long time.
  */
 class ProcessContactImportJob implements ShouldQueue
 {
     use Queueable;
 
+    /**
+     * Just under the timeout of the `imports` Horizon supervisor, so a very long import fails cleanly before the
+     * worker is killed.
+     */
+    public int $timeout = 1740;
+
     public function __construct(
         private readonly string $filePath,
         private readonly int $organizationId,
         private readonly int $userId
-    ) {}
+    ) {
+        $this->onQueue('imports');
+    }
 
     public function handle(ContactImportFileReader $reader): void
     {

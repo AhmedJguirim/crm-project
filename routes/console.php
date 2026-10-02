@@ -15,3 +15,5 @@ Schedule::command('tasks:send-digest')
 
 Schedule::command('segments:sync --frequency=hourly')->hourly()->withoutOverlapping();
 Schedule::command('segments:sync --frequency=daily')->dailyAt('00:05')->withoutOverlapping();
+
+Schedule::command('horizon:snapshot')->everyFiveMinutes();

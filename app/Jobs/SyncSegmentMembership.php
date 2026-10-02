@@ -19,6 +19,8 @@ use Throwable;
  * Recomputes the members of a published segment with set-based statements: contacts that stopped matching are
  * removed, new matches are added, and contacts that still match keep their original "joined at" date.
  *
+ * It runs on the `segments` queue, apart from the quick jobs, because it can take minutes on big segments.
+ *
  * Only one sync per segment runs at a time: a sync that finds another one running is released and retried for up
  * to 30 minutes, and its overlap lock expires shortly after the job timeout so that a killed worker can't block the
  * segment. The rules are read under a row lock, in the same transaction that writes the members, so a sync
@@ -29,10 +31,11 @@ class SyncSegmentMembership implements ShouldBeUniqueUntilProcessing, ShouldQueu
     use Queueable;
 
     /**
-     * Must stay below the `retry_after` of the queue connection (90 seconds by default): a sync running longer would
-     * be handed to a second worker while the first one is still writing.
+     * Must stay below the overlap lock expiry, which stays within the `segments` supervisor timeout of Horizon, which
+     * in turn stays below the `retry_after` of the redis queue connection: a sync running longer than `retry_after`
+     * would be handed to a second worker while the first one is still writing.
      */
-    public int $timeout = 80;
+    public int $timeout = 600;
 
     /**
      * A killed worker never releases the job or the overlap lock, so a timeout must fail the job right away: `failed()`
@@ -44,7 +47,9 @@ class SyncSegmentMembership implements ShouldBeUniqueUntilProcessing, ShouldQueu
     public function __construct(
         public readonly int $segmentId,
         public readonly ?int $notifyUserId = null,
-    ) {}
+    ) {
+        $this->onQueue('segments');
+    }
 
     /** @return array<int, object> */
     public function middleware(): array
@@ -52,7 +57,7 @@ class SyncSegmentMembership implements ShouldBeUniqueUntilProcessing, ShouldQueu
         return [
             (new WithoutOverlapping((string) $this->segmentId))
                 ->releaseAfter(15)
-                ->expireAfter(120),
+                ->expireAfter(660),
         ];
     }
 
