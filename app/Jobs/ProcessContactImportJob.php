@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Exceptions\UnreadableImportFileException;
-use App\Models\CustomField;
 use App\Models\Segment;
 use App\Models\User;
 use App\Services\ContactImportFileReader;
@@ -15,6 +14,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\Storage;
+use Spatie\SimpleExcel\SimpleExcelWriter;
 use Throwable;
 
 /**
@@ -79,13 +79,9 @@ class ProcessContactImportJob implements ShouldQueue
 
     public function handle(ContactImportFileReader $reader): void
     {
-        $customFieldsByName = CustomField::where('organization_id', $this->organizationId)
-            ->orderBy('order')
-            ->get()
-            ->keyBy('name')
-            ->all();
-
         $service = new ContactImportService($this->organizationId);
+
+        $customFieldsByName = $service->customFields()->keyBy('name')->all();
 
         $extension = strtolower(pathinfo($this->filePath, PATHINFO_EXTENSION));
         $tmpPath = $this->copyToTemporaryFile($extension);
@@ -261,28 +257,27 @@ class ProcessContactImportJob implements ShouldQueue
      */
     private function storeFailedRowsCsv(array $headers, array $failedRows): string
     {
-        $allHeaders = array_merge(['_row_number', '_error'], $headers);
+        $tmpPath = tempnam(sys_get_temp_dir(), 'failed-rows-').'.csv';
 
-        $lines = [implode(',', array_map(fn ($h) => '"'.str_replace('"', '""', $h).'"', $allHeaders))];
+        $writer = SimpleExcelWriter::create($tmpPath)
+            ->noHeaderRow()
+            ->addRow(['_row_number', '_error', ...$headers]);
 
         foreach ($failedRows as $failedRow) {
-            $cells = [
-                '"'.$failedRow['row'].'"',
-                '"'.str_replace('"', '""', $failedRow['error']).'"',
-            ];
-
-            foreach ($headers as $header) {
-                $value = $failedRow['data'][$header] ?? '';
-                $cells[] = '"'.str_replace('"', '""', $value).'"';
-            }
-
-            $lines[] = implode(',', $cells);
+            $writer->addRow([
+                $failedRow['row'],
+                $failedRow['error'],
+                ...array_map(fn (string $header): string => $failedRow['data'][$header] ?? '', $headers),
+            ]);
         }
 
-        $content = implode("\n", $lines)."\n";
+        $writer->close();
+
         $path = 'contact-imports/failed-'.uniqid().'.csv';
 
-        Storage::disk('local')->put($path, $content);
+        Storage::disk('local')->put($path, file_get_contents($tmpPath));
+
+        @unlink($tmpPath);
 
         return $path;
     }

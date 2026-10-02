@@ -4,7 +4,8 @@ namespace App\Filament\Resources\Contacts\Pages;
 
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Jobs\ProcessContactImportJob;
-use App\Models\CustomField;
+use App\Services\ContactImportService;
+use App\Services\ContactImportTemplate;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Facades\Filament;
@@ -24,38 +25,13 @@ class ListContacts extends ListRecords
                 ->label('Download CSV Template')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->action(function () {
-                    $orgId = Filament::getTenant()->id;
-
-                    $customFields = CustomField::where('organization_id', $orgId)
-                        ->orderBy('order')
-                        ->get();
-
-                    $headers = ['name', 'email', 'phone', 'tags'];
-
-                    foreach ($customFields as $field) {
-                        $headers[] = $field->name;
-                    }
-
-                    $exampleRow = ['John Doe', 'john@example.com', '+1234567890', 'VIP,Newsletter'];
-
-                    foreach ($customFields as $field) {
-                        $exampleRow[] = match ($field->type) {
-                            'date' => '2024-01-15',
-                            'number' => '42',
-                            'select', 'multiselect' => isset($field->options[0]) ? $field->options[0]['value'] : 'example',
-                            default => 'example value',
-                        };
-                    }
-
-                    $csv = implode(',', $headers)."\n".implode(',', $exampleRow)."\n";
-
-                    return response()->streamDownload(
-                        fn () => print ($csv),
+                ->action(fn () => response()
+                    ->download(
+                        ContactImportTemplate::forOrganization(Filament::getTenant()->id)->writeCsv(),
                         'contacts-import-template.csv',
-                        ['Content-Type' => 'text/csv']
-                    );
-                }),
+                        ['Content-Type' => 'text/csv'],
+                    )
+                    ->deleteFileAfterSend()),
 
             Action::make('importContacts')
                 ->label('Import Excel')
@@ -65,7 +41,7 @@ class ListContacts extends ListRecords
                 ->schema([
                     FileUpload::make('file')
                         ->label('File')
-                        ->helperText('CSV or Excel (.xlsx). The first row must contain the column headers — use the template for the expected columns.')
+                        ->helperText('CSV or Excel (.xlsx). The first row must contain the column headers — use the template for the expected columns. Separate several tags or multi-select values with "'.ContactImportService::MULTI_VALUE_SEPARATOR.'". Write dates as dd-mm-yyyy (or yyyy-mm-dd).')
                         ->acceptedFileTypes([
                             'text/csv',
                             'application/csv',

@@ -403,11 +403,13 @@ test('parseDate accepts d-m-Y format', function () {
     expect($result)->not->toBeFalse();
 });
 
-test('parseDate rejects invalid format', function () {
-    $result = $this->service->parseDate('2024-01-15');
+test('parseDate accepts the ISO format and a time', function (string $input) {
+    expect($this->service->parseDate($input))->not->toBeFalse();
+})->with(['2024-01-15', '15-01-2024 10:30:00']);
 
-    expect($result)->toBeFalse();
-});
+test('parseDate rejects invalid formats and impossible dates', function (string $input) {
+    expect($this->service->parseDate($input))->toBeFalse();
+})->with(['15/01/2024', '2024-02-31', '31-02-2024', 'tomorrow', '2024-1-5']);
 
 test('row matching a soft-deleted contact is reported instead of crashing', function () {
     $trashed = Contact::factory()->create(['organization_id' => $this->org->id, 'email' => 'gone@example.com']);
@@ -423,4 +425,42 @@ test('row matching a soft-deleted contact is reported instead of crashing', func
     expect($result['success'])->toBeFalse()
         ->and($result['error'])->toContain('Restore it from the trash');
     expect(Contact::withTrashed()->where('email', 'gone@example.com')->count())->toBe(1);
+});
+
+// Separators and formats told to users
+test('tags are split on the separator shown in the template', function () {
+    $this->service->processRow(['name' => 'Jane', 'email' => 'jane@example.com', 'tags' => 'VIP;Newsletter'], []);
+
+    expect(Contact::where('email', 'jane@example.com')->first()->tags()->pluck('name')->sort()->values()->all())->toBe(['Newsletter', 'VIP']);
+});
+
+test('a date field stores every accepted format as an ISO date', function (string $input) {
+    $field = CustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'Birthday', 'type' => 'date', 'unique' => false, 'order' => 1]);
+
+    $result = $this->service->processRow(['name' => 'Test', 'email' => 'test@example.com', 'Birthday' => $input], [$field->name => $field]);
+
+    expect($result['success'])->toBeTrue()
+        ->and(Contact::where('email', 'test@example.com')->first()->custom_field_values[$field->key])->toBe('2024-01-15');
+})->with(['15-01-2024', '15-01-2024 10:30:00', '2024-01-15']);
+
+test('a date field rejects other formats and impossible dates', function (string $input) {
+    $field = CustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'Birthday', 'type' => 'date', 'unique' => false, 'order' => 1]);
+
+    $result = $this->service->processRow(['name' => 'Test', 'email' => 'test@example.com', 'Birthday' => $input], [$field->name => $field]);
+
+    expect($result['success'])->toBeFalse()
+        ->and($result['error'])->toContain('Invalid value for field')
+        ->and(Contact::where('email', 'test@example.com')->exists())->toBeFalse();
+})->with(['15/01/2024', '2024-02-31', '31-02-2024', 'tomorrow']);
+
+test('a phone field rejects a value without digits and keeps a valid one', function () {
+    $field = CustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'Mobile', 'type' => 'phone', 'unique' => false, 'order' => 1]);
+
+    $rejected = $this->service->processRow(['name' => 'Test', 'email' => 'test@example.com', 'Mobile' => 'example value'], [$field->name => $field]);
+    $accepted = $this->service->processRow(['name' => 'Test', 'email' => 'other@example.com', 'Mobile' => '+33 6 12 34 56 78'], [$field->name => $field]);
+
+    expect($rejected['success'])->toBeFalse()
+        ->and($rejected['error'])->toContain('Invalid value for field')
+        ->and($accepted['success'])->toBeTrue()
+        ->and(Contact::where('email', 'other@example.com')->first()->custom_field_values[$field->key])->toBe('+33612345678');
 });

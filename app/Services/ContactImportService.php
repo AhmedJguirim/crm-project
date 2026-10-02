@@ -6,10 +6,31 @@ use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\Tag;
 use DateTime;
+use DateTimeInterface;
+use Illuminate\Support\Collection;
 
 class ContactImportService
 {
+    /** Separates several tags, or several values of a multi-select field, in one cell. */
+    public const MULTI_VALUE_SEPARATOR = ';';
+
+    /** The date format shown to users; ISO (`Y-m-d`) and a trailing time are accepted too. */
+    public const DATE_FORMAT = 'd-m-Y';
+
     public function __construct(private readonly int $organizationId) {}
+
+    /**
+     * The custom fields an import of the organization fills, in column order. The import template uses the same
+     * list, so its columns are the ones the import matches.
+     *
+     * @return Collection<int, CustomField>
+     */
+    public function customFields(): Collection
+    {
+        return CustomField::where('organization_id', $this->organizationId)
+            ->orderBy('order')
+            ->get();
+    }
 
     /**
      * Process a single CSV row.
@@ -116,7 +137,7 @@ class ContactImportService
             return [];
         }
 
-        $tagNames = array_filter(array_map('trim', explode(';', $raw)));
+        $tagNames = array_filter(array_map('trim', explode(self::MULTI_VALUE_SEPARATOR, $raw)));
         $ids = [];
 
         foreach ($tagNames as $tagName) {
@@ -139,43 +160,51 @@ class ContactImportService
         return match ($field->type) {
             'email' => filter_var($raw, FILTER_VALIDATE_EMAIL) ? $raw : null,
             'url' => filter_var($raw, FILTER_VALIDATE_URL) ? $raw : null,
-            'phone' => preg_replace('/[^\d+]/', '', $raw),
+            'phone' => $this->parsePhone($raw),
             'number' => is_numeric($raw) ? (float) $raw : null,
-            'date' => $this->parseDate($raw) ? date('Y-m-d', strtotime($raw)) : null,
+            'date' => $this->formatDate($raw),
             'multiselect' => $this->parseMultiselectValue($field, $raw),
             'select' => $this->parseSelectValue($field, trim($raw)),
             default => trim($raw),
         };
     }
 
-    public function parseDate($raw)
+    private function formatDate(string $raw): ?string
     {
-        $raw = trim($raw); // always trim whitespace
+        $date = $this->parseDate($raw);
 
-        // Try formats in order: most specific first
-        $formats = [
-            'd-m-Y H:i:s',  // with time
-            'd-m-Y',        // date only
-        ];
+        return $date === false ? null : $date->format('Y-m-d');
+    }
 
-        foreach ($formats as $format) {
+    private function parsePhone(string $raw): ?string
+    {
+        $phone = preg_replace('/[^\d+]/', '', $raw);
+
+        return preg_match('/\d/', $phone) === 1 ? $phone : null;
+    }
+
+    /**
+     * Accepts "d-m-Y H:i:s", "d-m-Y" and ISO "Y-m-d". Each format must round-trip exactly, which is what rejects
+     * impossible dates such as "31-02-2024".
+     */
+    public function parseDate(string $raw): DateTimeInterface|false
+    {
+        $raw = trim($raw);
+
+        foreach (['d-m-Y H:i:s', self::DATE_FORMAT, 'Y-m-d'] as $format) {
             $date = DateTime::createFromFormat($format, $raw);
 
-            // Check if parsing succeeded AND round-trip matches exactly
             if ($date !== false && $date->format($format) === $raw) {
-                // Success! Return the DateTime object (or formatted string)
                 return $date;
             }
         }
 
-        // If no format matched perfectly
         return false;
     }
 
     public function parseMultiselectValue(CustomField $field, string $raw): ?array
     {
-        // values are seperated by ;
-        $values = $raw ? array_filter(array_map('trim', explode(';', $raw))) : [];
+        $values = $raw ? array_filter(array_map('trim', explode(self::MULTI_VALUE_SEPARATOR, $raw))) : [];
 
         $allowedValues = collect($field->options ?? [])->pluck('value')->toArray();
 
@@ -197,5 +226,28 @@ class ContactImportService
         }
 
         return $value;
+    }
+
+    /**
+     * A value for the import template that the import accepts for the field, as it casts it.
+     */
+    public function exampleValueFor(CustomField $field): string
+    {
+        $optionValues = collect($field->options ?? [])->pluck('value')->map(fn ($value): string => (string) $value);
+
+        return match ($field->type) {
+            'textarea' => 'Some notes',
+            'email' => 'jane@example.com',
+            'url' => 'https://example.com',
+            'phone' => '+33612345678',
+            'number' => '42',
+            'date' => now()->startOfYear()->addDays(14)->format(self::DATE_FORMAT),
+            'select' => $optionValues->first() ?? '',
+            'multiselect' => $optionValues
+                ->reject(fn (string $value): bool => str_contains($value, self::MULTI_VALUE_SEPARATOR))
+                ->take(2)
+                ->implode(self::MULTI_VALUE_SEPARATOR),
+            default => 'Some text',
+        };
     }
 }
