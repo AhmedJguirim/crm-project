@@ -17,7 +17,11 @@ use App\Models\Organization;
 use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\User;
+use Illuminate\Contracts\Cache\Lock;
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 
@@ -259,5 +263,169 @@ describe('ResyncContactSegments evaluation', function () {
 
         expect($evaluations)->toHaveCount(0)
             ->and(memberSegmentIds($contact))->toBe([]);
+    });
+});
+
+describe('overlapping syncs', function () {
+    function partnersRule(): SegmentRuleData
+    {
+        return new SegmentRuleData('rule-2', 'Partners', [
+            SegmentConditionData::make(SegmentConditionType::Attribute, ContactAttribute::Status->value, SegmentOperator::Is, ['value' => ContactStatus::Partner->value]),
+        ]);
+    }
+
+    function membersOfSegment(Segment $segment): array
+    {
+        return $segment->contacts()->pluck('contacts.id')->sort()->values()->all();
+    }
+
+    function overlapLock(SyncSegmentMembership $job): Lock
+    {
+        return Cache::lock((new WithoutOverlapping((string) $job->segmentId))->getLockKey($job), 900);
+    }
+
+    function runQueueWorkerOnce(): void
+    {
+        test()->artisan('queue:work', ['connection' => 'database', '--once' => true, '--tries' => 1])->assertSuccessful();
+    }
+
+    it('is guarded by an expiring overlap lock per segment', function () {
+        $job = new SyncSegmentMembership(42);
+        $middleware = $job->middleware();
+
+        expect($middleware)->toHaveCount(1)
+            ->and($middleware[0])->toBeInstanceOf(WithoutOverlapping::class)
+            ->and($middleware[0]->key)->toBe('42')
+            ->and($middleware[0]->releaseAfter)->toBe(15)
+            ->and($middleware[0]->expiresAfter)->toBe(120)
+            ->and($job->timeout)->toBe(80)
+            ->and($job->timeout)->toBeLessThan($middleware[0]->expiresAfter)
+            ->and($middleware[0]->expiresAfter)->toBeLessThan(900);
+    });
+
+    it('times out before the queue considers it lost', function () {
+        $job = new SyncSegmentMembership(42);
+
+        expect($job->connection)->toBeNull()
+            ->and($job->timeout)->toBeLessThan(config('queue.connections.database.retry_after'));
+    });
+
+    it('is failed right away when the worker times out', function () {
+        config(['queue.default' => 'database']);
+        $segment = Segment::factory()->for($this->org)->published()->create(['is_syncing' => true]);
+
+        SyncSegmentMembership::dispatch($segment->id);
+        $queued = Queue::connection('database')->pop();
+
+        expect($queued->shouldFailOnTimeout())->toBeTrue()
+            ->and((new SyncSegmentMembership($segment->id))->failOnTimeout)->toBeTrue();
+    });
+
+    it('is retried by time and not by attempts', function () {
+        $this->freezeTime();
+
+        expect((new SyncSegmentMembership(42))->retryUntil()->getTimestamp())->toBe(now()->addMinutes(30)->getTimestamp());
+    });
+
+    it('waits, instead of failing, while another sync of the segment is running', function () {
+        config(['queue.default' => 'database']);
+        $lead = Contact::factory()->for($this->org)->create(['status' => ContactStatus::Lead]);
+        $segment = Segment::factory()->for($this->org)->published()->withRules([leadsRule()])->create();
+        $lock = overlapLock(new SyncSegmentMembership($segment->id));
+        $lock->get();
+
+        SyncSegmentMembership::dispatch($segment->id);
+        runQueueWorkerOnce();
+
+        $waiting = DB::table('jobs')->first();
+
+        expect($waiting)->not->toBeNull()
+            ->and($waiting->attempts)->toBe(1)
+            ->and($waiting->available_at)->toBeGreaterThan(now()->getTimestamp())
+            ->and(DB::table('failed_jobs')->count())->toBe(0)
+            ->and(membersOfSegment($segment))->toBe([]);
+
+        $lock->release();
+        $this->travel(20)->seconds();
+        runQueueWorkerOnce();
+
+        expect(DB::table('jobs')->count())->toBe(0)
+            ->and(DB::table('failed_jobs')->count())->toBe(0)
+            ->and(membersOfSegment($segment))->toBe([$lead->id]);
+    });
+
+    it('does not block syncs of other segments', function () {
+        $lead = Contact::factory()->for($this->org)->create(['status' => ContactStatus::Lead]);
+        $running = Segment::factory()->for($this->org)->published()->withRules([leadsRule()])->create();
+        $other = Segment::factory()->for($this->org)->published()->withRules([leadsRule()])->create();
+        overlapLock(new SyncSegmentMembership($running->id))->get();
+
+        SyncSegmentMembership::dispatchSync($other->id);
+
+        expect(membersOfSegment($other))->toBe([$lead->id])
+            ->and(membersOfSegment($running))->toBe([]);
+    });
+
+    it('locks the segment row before writing the membership', function () {
+        $segment = Segment::factory()->for($this->org)->published()->withRules([leadsRule()])->create();
+        Contact::factory()->for($this->org)->create(['status' => ContactStatus::Lead]);
+
+        DB::enableQueryLog();
+        SyncSegmentMembership::dispatchSync($segment->id);
+        $queries = collect(DB::getQueryLog())->pluck('query')->map(fn (string $query): string => strtolower($query))->values();
+
+        $lockedAt = $queries->search(fn (string $query): bool => str_contains($query, 'from "segments"') && str_contains($query, 'for update'));
+        $writtenAt = $queries->search(fn (string $query): bool => str_contains($query, 'contact_segment') && (str_starts_with($query, 'delete') || str_starts_with($query, 'insert')));
+
+        expect($lockedAt)->not->toBeFalse()
+            ->and($writtenAt)->not->toBeFalse()
+            ->and($lockedAt)->toBeLessThan($writtenAt);
+    });
+
+    it('commits the members, the sync flag and the timestamp together', function () {
+        $partner = Contact::factory()->for($this->org)->create(['status' => ContactStatus::Partner]);
+        Contact::factory()->for($this->org)->create(['status' => ContactStatus::Lead]);
+        $segment = Segment::factory()->for($this->org)->published()->withRules([leadsRule()])->create(['is_syncing' => true]);
+        $segment->contacts()->attach($partner);
+        $syncedAt = $segment->fresh()->last_synced_at;
+        DB::listen(function (QueryExecuted $query): void {
+            if (str_starts_with($query->sql, 'update "segments"')) {
+                throw new RuntimeException('Boom');
+            }
+        });
+
+        expect(fn () => (new SyncSegmentMembership($segment->id))->handle())->toThrow(RuntimeException::class);
+
+        expect(membersOfSegment($segment))->toBe([$partner->id])
+            ->and($segment->fresh()->is_syncing)->toBeTrue()
+            ->and($segment->fresh()->last_synced_at->equalTo($syncedAt))->toBeTrue();
+    });
+
+    it('ends with the members of the newest rules after back-to-back syncs', function () {
+        $alice = Contact::factory()->for($this->org)->create(['status' => ContactStatus::Lead]);
+        $bob = Contact::factory()->for($this->org)->create(['status' => ContactStatus::Partner]);
+        $segment = Segment::factory()->for($this->org)->published()->withRules([leadsRule()])->create(['is_syncing' => true]);
+
+        SyncSegmentMembership::dispatchSync($segment->id);
+        expect(membersOfSegment($segment))->toBe([$alice->id]);
+
+        $segment->update(['rules' => [partnersRule()->toArray()], 'is_syncing' => true]);
+        SyncSegmentMembership::dispatchSync($segment->id);
+
+        expect(membersOfSegment($segment))->toBe([$bob->id])
+            ->and($segment->fresh()->is_syncing)->toBeFalse()
+            ->and($segment->fresh()->last_synced_at)->not->toBeNull();
+    });
+
+    it('leaves missing and unpublished segments alone', function () {
+        $lead = Contact::factory()->for($this->org)->create(['status' => ContactStatus::Lead]);
+        $segment = Segment::factory()->for($this->org)->withRules([leadsRule()])->create();
+        $segment->contacts()->attach($lead);
+
+        expect(fn () => SyncSegmentMembership::dispatchSync(999999))->not->toThrow(Throwable::class);
+
+        SyncSegmentMembership::dispatchSync($segment->id);
+
+        expect(membersOfSegment($segment))->toBe([$lead->id]);
     });
 });
