@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\CustomField;
+use App\Support\TemporaryFile;
 use Illuminate\Support\Collection;
 use Spatie\SimpleExcel\SimpleExcelWriter;
 
@@ -54,7 +55,7 @@ class ContactImportTemplate
      */
     public function writeCsv(): string
     {
-        $path = tempnam(sys_get_temp_dir(), 'contacts-template-').'.csv';
+        $path = TemporaryFile::reserve('contacts-template-', 'csv');
 
         SimpleExcelWriter::create($path)
             ->noHeaderRow()

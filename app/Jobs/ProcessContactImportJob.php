@@ -7,6 +7,7 @@ use App\Models\Segment;
 use App\Models\User;
 use App\Services\ContactImportFileReader;
 use App\Services\ContactImportService;
+use App\Support\TemporaryFile;
 use DateTimeInterface;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
@@ -188,10 +189,8 @@ class ProcessContactImportJob implements ShouldQueue
      */
     private function copyToTemporaryFile(string $extension): string
     {
-        $basePath = tempnam(sys_get_temp_dir(), 'contact-import-');
-        $tmpPath = "{$basePath}.{$extension}";
+        $tmpPath = TemporaryFile::reserve('contact-import-', $extension);
 
-        rename($basePath, $tmpPath);
         file_put_contents($tmpPath, Storage::disk('local')->get($this->filePath));
 
         return $tmpPath;
@@ -257,27 +256,29 @@ class ProcessContactImportJob implements ShouldQueue
      */
     private function storeFailedRowsCsv(array $headers, array $failedRows): string
     {
-        $tmpPath = tempnam(sys_get_temp_dir(), 'failed-rows-').'.csv';
+        $tmpPath = TemporaryFile::reserve('failed-rows-', 'csv');
 
-        $writer = SimpleExcelWriter::create($tmpPath)
-            ->noHeaderRow()
-            ->addRow(['_row_number', '_error', ...$headers]);
+        try {
+            $writer = SimpleExcelWriter::create($tmpPath)
+                ->noHeaderRow()
+                ->addRow(['_row_number', '_error', ...$headers]);
 
-        foreach ($failedRows as $failedRow) {
-            $writer->addRow([
-                $failedRow['row'],
-                $failedRow['error'],
-                ...array_map(fn (string $header): string => $failedRow['data'][$header] ?? '', $headers),
-            ]);
+            foreach ($failedRows as $failedRow) {
+                $writer->addRow([
+                    $failedRow['row'],
+                    $failedRow['error'],
+                    ...array_map(fn (string $header): string => $failedRow['data'][$header] ?? '', $headers),
+                ]);
+            }
+
+            $writer->close();
+
+            $path = 'contact-imports/failed-'.uniqid().'.csv';
+
+            Storage::disk('local')->put($path, file_get_contents($tmpPath));
+        } finally {
+            @unlink($tmpPath);
         }
-
-        $writer->close();
-
-        $path = 'contact-imports/failed-'.uniqid().'.csv';
-
-        Storage::disk('local')->put($path, file_get_contents($tmpPath));
-
-        @unlink($tmpPath);
 
         return $path;
     }

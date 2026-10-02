@@ -36,10 +36,20 @@ function templateField(int $organizationId, string $type, string $name, int $ord
     ]);
 }
 
+function templateCsvContents(int $organizationId): string
+{
+    $path = ContactImportTemplate::forOrganization($organizationId)->writeCsv();
+    $contents = file_get_contents($path);
+
+    unlink($path);
+
+    return $contents;
+}
+
 function importTemplateUnchanged(int $organizationId, int $userId): void
 {
     $path = 'contact-imports/template-'.uniqid().'.csv';
-    Storage::disk('local')->put($path, file_get_contents(ContactImportTemplate::forOrganization($organizationId)->writeCsv()));
+    Storage::disk('local')->put($path, templateCsvContents($organizationId));
 
     ProcessContactImportJob::dispatchSync($path, $organizationId, $userId);
 }
@@ -94,7 +104,10 @@ describe('template file', function () {
     it('quotes values containing commas and quotes', function () {
         templateField($this->org->id, 'text', 'Say "hi", please', 1);
 
-        $rows = iterator_to_array((new ContactImportFileReader)->rows(ContactImportTemplate::forOrganization($this->org->id)->writeCsv(), 'csv'), false);
+        $path = ContactImportTemplate::forOrganization($this->org->id)->writeCsv();
+        $rows = iterator_to_array((new ContactImportFileReader)->rows($path, 'csv'), false);
+
+        unlink($path);
 
         expect($rows)->toHaveCount(2)
             ->and(count($rows[1]))->toBe(count($rows[0]))
@@ -102,9 +115,7 @@ describe('template file', function () {
     });
 
     it('starts with a utf-8 byte order mark', function () {
-        $path = ContactImportTemplate::forOrganization($this->org->id)->writeCsv();
-
-        expect(bin2hex(substr(file_get_contents($path), 0, 3)))->toBe('efbbbf');
+        expect(bin2hex(substr(templateCsvContents($this->org->id), 0, 3)))->toBe('efbbbf');
     });
 
     it('follows the import column order and leaves out trashed fields', function () {
