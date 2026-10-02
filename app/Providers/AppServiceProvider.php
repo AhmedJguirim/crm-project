@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Filament\Http\Responses\LogoutResponse;
+use App\Policies\SegmentPolicy;
 use App\Services\Segments\SegmentUsageIndex;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Date;
@@ -24,6 +25,7 @@ class AppServiceProvider extends ServiceProvider
         );
 
         $this->app->scoped(SegmentUsageIndex::class);
+        $this->app->scoped(SegmentPolicy::class);
 
         $this->registerTypeScriptTransformer();
     }

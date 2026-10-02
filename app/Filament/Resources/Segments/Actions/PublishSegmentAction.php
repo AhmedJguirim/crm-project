@@ -20,6 +20,7 @@ class PublishSegmentAction
             ->label('Publish Segment')
             ->icon(Heroicon::OutlinedRocketLaunch)
             ->color('success')
+            ->authorize('update')
             ->requiresConfirmation()
             ->modalDescription('The segment members will be computed in the background. You will be notified when they are ready.')
             ->visible(fn (Segment $record): bool => ! $record->is_published)

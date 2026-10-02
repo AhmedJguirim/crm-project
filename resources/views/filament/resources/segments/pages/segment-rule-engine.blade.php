@@ -82,8 +82,11 @@
                         >
                             <x-slot name="afterHeader">
                                 <div class="flex items-center gap-2">
-                                    {{ ($this->renameRuleAction)(['rule' => $selectedRule->id]) }}
-                                    {{ ($this->deleteRuleAction)(['rule' => $selectedRule->id]) }}
+                                    @foreach ([($this->renameRuleAction)(['rule' => $selectedRule->id]), ($this->deleteRuleAction)(['rule' => $selectedRule->id])] as $ruleAction)
+                                        @if ($ruleAction->isVisible())
+                                            {{ $ruleAction }}
+                                        @endif
+                                    @endforeach
                                 </div>
                             </x-slot>
 
@@ -111,8 +114,11 @@
                                         </div>
 
                                         <div class="flex shrink-0 items-center gap-1">
-                                            {{ ($this->editConditionAction)(['rule' => $selectedRule->id, 'condition' => $condition->id]) }}
-                                            {{ ($this->deleteConditionAction)(['rule' => $selectedRule->id, 'condition' => $condition->id]) }}
+                                            @foreach ([($this->editConditionAction)(['rule' => $selectedRule->id, 'condition' => $condition->id]), ($this->deleteConditionAction)(['rule' => $selectedRule->id, 'condition' => $condition->id])] as $conditionAction)
+                                                @if ($conditionAction->isVisible())
+                                                    {{ $conditionAction }}
+                                                @endif
+                                            @endforeach
                                         </div>
                                     </div>
 
@@ -125,9 +131,11 @@
                                     </p>
                                 @endforelse
 
-                                <div>
-                                    {{ ($this->addConditionAction)(['rule' => $selectedRule->id]) }}
-                                </div>
+                                @if (($addConditionAction = ($this->addConditionAction)(['rule' => $selectedRule->id]))->isVisible())
+                                    <div>
+                                        {{ $addConditionAction }}
+                                    </div>
+                                @endif
                             </div>
                         </x-filament::section>
                     @else

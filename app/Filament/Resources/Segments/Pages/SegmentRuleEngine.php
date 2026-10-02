@@ -54,7 +54,14 @@ class SegmentRuleEngine extends Page
     {
         $this->record = $this->resolveRecord($record);
 
+        $this->authorizeAccess();
+
         $this->selectedRuleId = $this->rules()->first()?->id;
+    }
+
+    protected function authorizeAccess(): void
+    {
+        abort_unless(static::getResource()::canEdit($this->getRecord()), 403);
     }
 
     public function getTitle(): string|Htmlable
@@ -136,6 +143,7 @@ class SegmentRuleEngine extends Page
                 ->label('Rename')
                 ->icon(Heroicon::OutlinedPencil)
                 ->color('gray')
+                ->authorize('update')
                 ->fillForm(fn (Segment $record): array => ['name' => $record->name])
                 ->schema([SegmentForm::nameInput()])
                 ->action(function (Segment $record, array $data): void {
@@ -152,6 +160,7 @@ class SegmentRuleEngine extends Page
     public function createRuleAction(): Action
     {
         return Action::make('createRule')
+            ->authorize('update')
             ->label('Create a Rule')
             ->icon(Heroicon::OutlinedPlus)
             ->modalHeading('Create a Rule')
@@ -169,6 +178,7 @@ class SegmentRuleEngine extends Page
     public function renameRuleAction(): Action
     {
         return Action::make('renameRule')
+            ->authorize('update')
             ->label('Rename')
             ->icon(Heroicon::OutlinedPencil)
             ->color('gray')
@@ -188,6 +198,7 @@ class SegmentRuleEngine extends Page
     public function deleteRuleAction(): Action
     {
         return Action::make('deleteRule')
+            ->authorize('update')
             ->label('Delete')
             ->icon(Heroicon::OutlinedTrash)
             ->color('danger')
@@ -207,6 +218,7 @@ class SegmentRuleEngine extends Page
     public function addConditionAction(): Action
     {
         return Action::make('addCondition')
+            ->authorize('update')
             ->label('Add Condition')
             ->icon(Heroicon::OutlinedPlus)
             ->link()
@@ -230,6 +242,7 @@ class SegmentRuleEngine extends Page
     public function editConditionAction(): Action
     {
         return Action::make('editCondition')
+            ->authorize('update')
             ->label('Edit condition')
             ->icon(Heroicon::OutlinedPencilSquare)
             ->iconButton()
@@ -257,6 +270,7 @@ class SegmentRuleEngine extends Page
     public function deleteConditionAction(): Action
     {
         return Action::make('deleteCondition')
+            ->authorize('update')
             ->label('Delete condition')
             ->icon(Heroicon::OutlinedTrash)
             ->iconButton()
@@ -277,6 +291,7 @@ class SegmentRuleEngine extends Page
     public function saveChangesAction(): Action
     {
         return Action::make('saveChanges')
+            ->authorize('update')
             ->label('Save Changes')
             ->icon(Heroicon::OutlinedCheck)
             ->color('success')
@@ -303,6 +318,7 @@ class SegmentRuleEngine extends Page
     public function cancelChangesAction(): Action
     {
         return Action::make('cancelChanges')
+            ->authorize('update')
             ->label('Cancel Changes')
             ->icon(Heroicon::OutlinedArrowUturnLeft)
             ->color('gray')
