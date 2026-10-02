@@ -39,7 +39,7 @@ class SegmentsTable
                     ->sortable(),
 
                 TextColumn::make('last_synced_at')
-                    ->label('Last synced')
+                    ->label('Last full sync')
                     ->since()
                     ->placeholder('Never')
                     ->sortable(),

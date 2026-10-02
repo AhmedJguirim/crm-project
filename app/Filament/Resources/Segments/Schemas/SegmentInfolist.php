@@ -24,7 +24,7 @@ class SegmentInfolist
                             ->badge(),
 
                         TextEntry::make('last_synced_at')
-                            ->label('Last synced')
+                            ->label('Last full sync')
                             ->since()
                             ->placeholder('Never'),
 

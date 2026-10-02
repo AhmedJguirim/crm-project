@@ -2,8 +2,10 @@
 
 namespace App\Models;
 
+use App\Data\Segments\SegmentConditionData;
 use App\Data\Segments\SegmentRuleData;
 use App\Enums\SegmentConditionType;
+use App\Enums\SegmentRefreshFrequency;
 use App\Enums\SegmentStatus;
 use App\Models\Concerns\BelongsToOrganization;
 use App\Services\Segments\SegmentFieldCatalog;
@@ -77,6 +79,19 @@ class Segment extends Model
     public function publishedRules(): Collection
     {
         return collect(SegmentRuleData::collect($this->rules ?? []));
+    }
+
+    /**
+     * How often the membership must be recomputed on a schedule, from the most demanding condition of the published
+     * rules. Null when the segment only changes when data is written: the schedule never refreshes those.
+     */
+    public function refreshFrequency(): ?SegmentRefreshFrequency
+    {
+        return $this->publishedRules()
+            ->flatMap(fn (SegmentRuleData $rule): array => $rule->conditions)
+            ->map(fn (SegmentConditionData $condition): ?SegmentRefreshFrequency => $condition->refreshFrequency())
+            ->filter()
+            ->reduce(fn (?SegmentRefreshFrequency $mostFrequent, SegmentRefreshFrequency $frequency): SegmentRefreshFrequency => $mostFrequent?->isMoreFrequentThan($frequency) ? $mostFrequent : $frequency);
     }
 
     /**

@@ -4,6 +4,7 @@ namespace App\Data\Segments;
 
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentOperator;
+use App\Enums\SegmentRefreshFrequency;
 use Illuminate\Support\Str;
 use Spatie\LaravelData\Data;
 
@@ -39,5 +40,21 @@ class SegmentConditionData extends Data
             (array) ($this->value[$key] ?? []),
             fn (mixed $item): bool => filled($item),
         ));
+    }
+
+    /**
+     * How often the membership must be recomputed on a schedule because the condition depends on the current time,
+     * or null when it only changes when data is written.
+     */
+    public function refreshFrequency(): ?SegmentRefreshFrequency
+    {
+        return match (true) {
+            in_array($this->operator, [SegmentOperator::WithinLastDays, SegmentOperator::MoreThanDaysAgo], true) => SegmentRefreshFrequency::Daily,
+            $this->type !== SegmentConditionType::Activity => null,
+            $this->operator === SegmentOperator::LastActivityMoreThanDaysAgo => SegmentRefreshFrequency::Hourly,
+            in_array($this->operator, [SegmentOperator::HasHadActivity, SegmentOperator::HasNotHadActivity], true)
+                && filled($this->value('days')) => SegmentRefreshFrequency::Hourly,
+            default => null,
+        };
     }
 }

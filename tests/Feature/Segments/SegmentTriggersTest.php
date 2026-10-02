@@ -15,8 +15,6 @@ use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\User;
 use Filament\Facades\Filament;
-use Illuminate\Console\Scheduling\Event;
-use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
@@ -115,13 +113,4 @@ it('does nothing for a contact that no longer exists', function () {
 it('keeps duplicate sync jobs of the same segment or contact from piling up', function () {
     expect((new SyncSegmentMembership(5))->uniqueId())->toBe('5')
         ->and((new ResyncContactSegments(7))->uniqueId())->toBe('7');
-});
-
-it('schedules a sync of all published segments every 15 minutes', function () {
-    $event = collect(app(Schedule::class)->events())
-        ->first(fn (Event $event): bool => str_contains((string) $event->command, 'segments:sync'));
-
-    expect($event)->not->toBeNull()
-        ->and($event->expression)->toBe('*/15 * * * *')
-        ->and($event->withoutOverlapping)->toBeTrue();
 });

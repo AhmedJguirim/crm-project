@@ -13,4 +13,5 @@ Schedule::command('tasks:send-digest')
     ->dailyAt(config('tasks.notifications.daily_digest_time', '08:00'))
     ->when(fn (): bool => (bool) config('tasks.notifications.daily_digest_enabled', true));
 
-Schedule::command('segments:sync')->everyFifteenMinutes()->withoutOverlapping();
+Schedule::command('segments:sync --frequency=hourly')->hourly()->withoutOverlapping();
+Schedule::command('segments:sync --frequency=daily')->dailyAt('00:05')->withoutOverlapping();
