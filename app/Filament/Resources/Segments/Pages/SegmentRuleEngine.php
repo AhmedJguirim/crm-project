@@ -12,6 +12,7 @@ use App\Filament\Resources\Segments\SegmentResource;
 use App\Jobs\SyncSegmentMembership;
 use App\Models\Segment;
 use App\Services\Segments\SegmentConditionDescriber;
+use App\Services\Segments\SegmentCountCache;
 use App\Services\Segments\SegmentFieldCatalog;
 use App\Services\Segments\SegmentQueryBuilder;
 use Closure;
@@ -46,6 +47,8 @@ class SegmentRuleEngine extends Page
     private ?SegmentFieldCatalog $catalog = null;
 
     private ?SegmentConditionDescriber $describer = null;
+
+    private ?SegmentCountCache $counts = null;
 
     public function mount(int|string $record): void
     {
@@ -109,12 +112,12 @@ class SegmentRuleEngine extends Page
             return null;
         }
 
-        return $this->queryBuilder()->countConditions($rule->conditions);
+        return $this->counts()->countConditions($rule->conditions);
     }
 
     public function segmentMatchCount(): int
     {
-        return $this->queryBuilder()->count($this->rules());
+        return $this->counts()->count($this->rules());
     }
 
     protected function getHeaderActions(): array
@@ -363,8 +366,8 @@ class SegmentRuleEngine extends Page
         return $this->catalog ??= $this->segment()->fieldCatalog();
     }
 
-    private function queryBuilder(): SegmentQueryBuilder
+    private function counts(): SegmentCountCache
     {
-        return new SegmentQueryBuilder($this->catalog());
+        return $this->counts ??= new SegmentCountCache(new SegmentQueryBuilder($this->catalog()));
     }
 }

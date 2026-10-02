@@ -15,12 +15,16 @@
             </p>
         </x-filament::section>
     @else
+        @php
+            $totalMatches = $this->segmentMatchCount();
+        @endphp
+
         <x-filament::section heading="Rules list">
             <x-slot name="description">
                 A contact enters the segment if it matches <span class="font-semibold">ANY</span> of the rules.
                 The current rules match
-                <span class="font-semibold text-primary-600 dark:text-primary-400">{{ number_format($this->segmentMatchCount()) }}</span>
-                {{ str('contact')->plural($this->segmentMatchCount()) }}.
+                <span class="font-semibold text-primary-600 dark:text-primary-400">{{ number_format($totalMatches) }}</span>
+                {{ str('contact')->plural($totalMatches) }}.
             </x-slot>
 
             <x-slot name="afterHeader">

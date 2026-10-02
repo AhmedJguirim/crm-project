@@ -16,6 +16,7 @@ use App\Models\Company;
 use App\Models\CompanyType;
 use App\Models\CustomField;
 use App\Models\Tag;
+use App\Services\Segments\SegmentCountCache;
 use App\Services\Segments\SegmentFieldCatalog;
 use App\Services\Segments\SegmentQueryBuilder;
 use BackedEnum;
@@ -205,7 +206,7 @@ class SegmentConditionForm
                         return 'Complete the condition to preview how many contacts it matches.';
                     }
 
-                    $count = (new SegmentQueryBuilder($catalog))->countConditions([$condition]);
+                    $count = (new SegmentCountCache(new SegmentQueryBuilder($catalog)))->countConditions([$condition]);
 
                     return "This condition matches {$count} ".Str::plural('contact', $count).'.';
                 }),

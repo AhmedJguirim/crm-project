@@ -23,6 +23,7 @@ use App\Models\User;
 use App\Services\Segments\SegmentFieldCatalog;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 
@@ -167,6 +168,88 @@ describe('rules', function () {
             ->assertSet('selectedRuleId', 'rule-2');
 
         expect($segment->fresh()->workingRules()->pluck('id')->all())->toBe(['rule-2']);
+    });
+});
+
+describe('counts', function () {
+    beforeEach(function () {
+        Contact::factory()->for($this->org)->count(5)->create(['status' => ContactStatus::Lead, 'name' => 'Alice Lead']);
+        Contact::factory()->for($this->org)->count(3)->create(['status' => ContactStatus::Partner, 'name' => 'Bob Partner']);
+        Contact::factory()->for($this->org)->count(2)->create(['status' => ContactStatus::Lead, 'name' => 'Carol Lead']);
+
+        $this->countedSegment = ruleEngineSegment([
+            leadRule(),
+            statusRuleFor('rule-2', 'Partners', ContactStatus::Partner),
+            statusRuleFor('rule-3', 'Customers', ContactStatus::ActiveClient),
+        ]);
+    });
+
+    function statusRuleFor(string $id, string $name, ContactStatus $status): SegmentRuleData
+    {
+        return new SegmentRuleData($id, $name, [
+            new SegmentConditionData("{$id}-condition", SegmentConditionType::Attribute, ContactAttribute::Status->value, SegmentOperator::Is, ['value' => $status->value]),
+        ]);
+    }
+
+    function ruleEngineCountQueries(): array
+    {
+        return collect(DB::getQueryLog())
+            ->filter(fn (array $log): bool => str_starts_with($log['query'], 'select count(*) as aggregate from "contacts"'))
+            ->map(fn (array $log): string => $log['query'].json_encode($log['bindings']))
+            ->values()
+            ->all();
+    }
+
+    it('counts each rule and the total once when the page renders', function () {
+        DB::enableQueryLog();
+
+        ruleEngine($this->countedSegment);
+
+        $queries = ruleEngineCountQueries();
+
+        expect(count($queries))->toBeLessThanOrEqual(4)
+            ->and($queries)->toBe(array_values(array_unique($queries)));
+    });
+
+    it('does not recount when another rule is selected', function () {
+        $page = ruleEngine($this->countedSegment);
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $page->call('selectRule', 'rule-2');
+
+        expect(ruleEngineCountQueries())->toBe([]);
+    });
+
+    it('only counts the previewed condition while the condition modal is filled', function () {
+        $page = ruleEngine($this->countedSegment);
+        DB::flushQueryLog();
+        DB::enableQueryLog();
+
+        $page->mountAction(TestAction::make('addCondition')->arguments(['rule' => 'rule-1']))
+            ->fillForm(['type' => 'attribute'])
+            ->fillForm(['type' => 'attribute', 'field' => 'name'])
+            ->fillForm(['type' => 'attribute', 'field' => 'name', 'operator' => 'contains', 'text_value' => 'Alice']);
+
+        expect(count(ruleEngineCountQueries()))->toBeLessThanOrEqual(1);
+    });
+
+    it('shows the new counts at once after a rule is edited', function () {
+        $page = ruleEngine($this->countedSegment);
+        $rule = $this->countedSegment->workingRules()->first();
+
+        expect($page->instance()->ruleMatchCount($rule))->toBe(7)
+            ->and($page->instance()->segmentMatchCount())->toBe(10);
+
+        $page->callAction(
+            TestAction::make('addCondition')->arguments(['rule' => 'rule-1']),
+            ['type' => 'attribute', 'field' => 'name', 'operator' => 'contains', 'text_value' => 'Alice'],
+        );
+
+        $edited = $this->countedSegment->fresh()->workingRules()->first();
+
+        expect($page->instance()->ruleMatchCount($edited))->toBe(5)
+            ->and($page->instance()->segmentMatchCount())->toBe(8);
     });
 });
 
