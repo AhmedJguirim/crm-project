@@ -17,7 +17,8 @@
         "livewire/livewire": "^4.0",
         "relaticle/flowforge": "^4.0",
         "resend/resend-laravel": "^1.2",
-        "spatie/laravel-data": "^4.23"
+        "spatie/laravel-data": "^4.23",
+        "spatie/simple-excel": "^3.10"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",

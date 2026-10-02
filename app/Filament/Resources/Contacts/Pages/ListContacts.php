@@ -11,6 +11,7 @@ use Filament\Facades\Filament;
 use Filament\Forms\Components\FileUpload;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
+use Illuminate\Support\Facades\Storage;
 
 class ListContacts extends ListRecords
 {
@@ -56,21 +57,43 @@ class ListContacts extends ListRecords
                     );
                 }),
 
-            Action::make('importCsv')
-                ->label('Import from CSV')
+            Action::make('importContacts')
+                ->label('Import Excel')
                 ->icon('heroicon-o-arrow-up-tray')
                 ->color('gray')
+                ->modalHeading('Import contacts')
                 ->schema([
-                    FileUpload::make('csv_file')
-                        ->label('CSV File')
-                        ->acceptedFileTypes(['text/csv', 'application/csv', 'text/plain'])
+                    FileUpload::make('file')
+                        ->label('File')
+                        ->helperText('CSV or Excel (.xlsx). The first row must contain the column headers — use the template for the expected columns.')
+                        ->acceptedFileTypes([
+                            'text/csv',
+                            'application/csv',
+                            'text/plain',
+                            'application/vnd.ms-excel',
+                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        ])
+                        ->maxSize(10240)
                         ->disk('local')
                         ->directory('contact-imports')
                         ->visibility('private')
                         ->required(),
                 ])
                 ->action(function (array $data) {
-                    $path = $data['csv_file'];
+                    $path = $data['file'];
+
+                    if (! in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['csv', 'txt', 'xlsx'], true)) {
+                        Storage::disk('local')->delete($path);
+
+                        Notification::make()
+                            ->danger()
+                            ->title('Unsupported file type')
+                            ->body('Upload a CSV or an Excel (.xlsx) file.')
+                            ->send();
+
+                        return;
+                    }
+
                     $orgId = Filament::getTenant()->id;
                     $userId = auth()->id();
 
@@ -79,7 +102,7 @@ class ListContacts extends ListRecords
                     Notification::make()
                         ->success()
                         ->title('Import queued')
-                        ->body('Your CSV is being processed. You will receive a notification when complete.')
+                        ->body('Your file is being processed. You will receive a notification when complete.')
                         ->send();
                 }),
 

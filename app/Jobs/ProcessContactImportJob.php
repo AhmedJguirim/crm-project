@@ -2,9 +2,11 @@
 
 namespace App\Jobs;
 
+use App\Exceptions\UnreadableImportFileException;
 use App\Models\CustomField;
 use App\Models\Segment;
 use App\Models\User;
+use App\Services\ContactImportFileReader;
 use App\Services\ContactImportService;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
@@ -12,6 +14,11 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Storage;
 
+/**
+ * Imports the contacts of an uploaded CSV or Excel (.xlsx) file. Only the first worksheet is read.
+ *
+ * Excel drops empty trailing cells, so shorter Excel rows are padded to the header length. CSV rows must match it.
+ */
 class ProcessContactImportJob implements ShouldQueue
 {
     use Queueable;
@@ -22,7 +29,7 @@ class ProcessContactImportJob implements ShouldQueue
         private readonly int $userId
     ) {}
 
-    public function handle(): void
+    public function handle(ContactImportFileReader $reader): void
     {
         $customFieldsByName = CustomField::where('organization_id', $this->organizationId)
             ->orderBy('order')
@@ -32,14 +39,8 @@ class ProcessContactImportJob implements ShouldQueue
 
         $service = new ContactImportService($this->organizationId);
 
-        $content = Storage::disk('local')->get($this->filePath);
-        $tmp = tmpfile();
-        fwrite($tmp, $content);
-        rewind($tmp);
-        $tmpPath = stream_get_meta_data($tmp)['uri'];
-
-        $file = new \SplFileObject($tmpPath, 'r');
-        $file->setFlags(\SplFileObject::READ_CSV | \SplFileObject::SKIP_EMPTY | \SplFileObject::DROP_NEW_LINE);
+        $extension = strtolower(pathinfo($this->filePath, PATHINFO_EXTENSION));
+        $tmpPath = $this->copyToTemporaryFile($extension);
 
         $headers = null;
         $importedCount = 0;
@@ -49,59 +50,58 @@ class ProcessContactImportJob implements ShouldQueue
         $failedRows = [];
         $rowNumber = 0;
 
-        foreach ($file as $row) {
-            /** @var array<int, string>|false $row */
-            if ($row === false) {
-                continue;
+        try {
+            foreach ($reader->rows($tmpPath, $extension) as $row) {
+                if ($headers === null) {
+                    $headers = $row;
+
+                    continue;
+                }
+
+                $rowNumber++;
+
+                if ($extension === 'xlsx') {
+                    $row = array_pad($row, count($headers), '');
+                }
+
+                if (count($row) !== count($headers)) {
+                    $failedCount++;
+                    $failedRows[] = [
+                        'row' => $rowNumber,
+                        'data' => array_combine($headers, array_slice(array_pad($row, count($headers), ''), 0, count($headers))),
+                        'error' => 'Column count mismatch.',
+                    ];
+
+                    continue;
+                }
+
+                $rowData = array_combine($headers, $row);
+                $result = $service->processRow($rowData, $customFieldsByName);
+
+                if ($result['success']) {
+                    $importedCount++;
+                } else {
+                    $failedCount++;
+                    $failedRows[] = [
+                        'row' => $rowNumber,
+                        'data' => $rowData,
+                        'error' => $result['error'] ?? 'Unknown error.',
+                    ];
+                }
             }
+        } catch (UnreadableImportFileException) {
+            $this->handleUnreadableFile($importedCount);
 
-            if ($headers === null) {
-                $row[0] = ltrim($row[0], "\xEF\xBB\xBF");
-                $headers = array_map('trim', $row);
-
-                continue;
-            }
-
-            $rowNumber++;
-
-            $row = array_map('trim', $row);
-
-            if (count(array_filter($row)) === 0) {
-                continue;
-            }
-
-            if (count($row) !== count($headers)) {
-                $failedCount++;
-                $failedRows[] = [
-                    'row' => $rowNumber,
-                    'data' => array_combine($headers, array_pad($row, count($headers), '')),
-                    'error' => 'Column count mismatch.',
-                ];
-
-                continue;
-            }
-
-            $rowData = array_combine($headers, $row);
-            $result = $service->processRow($rowData, $customFieldsByName);
-
-            if ($result['success']) {
-                $importedCount++;
-            } else {
-                $failedCount++;
-                $failedRows[] = [
-                    'row' => $rowNumber,
-                    'data' => $rowData,
-                    'error' => $result['error'] ?? 'Unknown error.',
-                ];
-            }
+            return;
+        } finally {
+            @unlink($tmpPath);
         }
-
-        unset($file);
-        fclose($tmp);
 
         Storage::disk('local')->delete($this->filePath);
 
-        $this->syncPublishedSegments();
+        if ($importedCount > 0) {
+            $this->syncPublishedSegments();
+        }
 
         $user = User::find($this->userId);
 
@@ -136,6 +136,41 @@ class ProcessContactImportJob implements ShouldQueue
                     ->url(route('contacts.import.failed-rows', ['path' => $failedCsvPath]))
                     ->openUrlInNewTab(),
             ])
+            ->sendToDatabase($user);
+    }
+
+    /**
+     * Copies the uploaded file to a local temporary file that keeps its extension, as the stored disk may not be local.
+     */
+    private function copyToTemporaryFile(string $extension): string
+    {
+        $basePath = tempnam(sys_get_temp_dir(), 'contact-import-');
+        $tmpPath = "{$basePath}.{$extension}";
+
+        rename($basePath, $tmpPath);
+        file_put_contents($tmpPath, Storage::disk('local')->get($this->filePath));
+
+        return $tmpPath;
+    }
+
+    private function handleUnreadableFile(int $importedCount): void
+    {
+        Storage::disk('local')->delete($this->filePath);
+
+        if ($importedCount > 0) {
+            $this->syncPublishedSegments();
+        }
+
+        $user = User::find($this->userId);
+
+        if (! $user) {
+            return;
+        }
+
+        Notification::make()
+            ->danger()
+            ->title('Import failed')
+            ->body("We couldn't read this file. Upload a CSV or an Excel (.xlsx) file whose first sheet starts with a header row.")
             ->sendToDatabase($user);
     }
 

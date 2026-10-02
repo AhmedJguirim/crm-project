@@ -1,11 +1,14 @@
 <?php
 
 use App\Jobs\ProcessContactImportJob;
+use App\Jobs\SyncSegmentMembership;
 use App\Models\Contact;
 use App\Models\CustomField;
+use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
@@ -199,4 +202,84 @@ test('CSV with custom field columns are processed correctly', function () {
 
     $contact = Contact::where('email', 'corp@example.com')->first();
     expect($contact->custom_field_values[$field->key])->toBe('Acme');
+});
+
+// Excel import
+describe('xlsx imports', function () {
+    test('an xlsx import creates contacts like a csv import does', function () {
+        $score = CustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'Score', 'type' => 'number', 'unique' => false, 'order' => 1]);
+        $birthday = CustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'Birthday', 'type' => 'date', 'unique' => false, 'order' => 2]);
+        $interests = CustomField::factory()->multiselect()->create(['organization_id' => $this->org->id, 'name' => 'Interests', 'unique' => false, 'order' => 3]);
+        Tag::factory()->create(['organization_id' => $this->org->id, 'name' => 'VIP']);
+
+        $path = makeXlsx([
+            ['name', 'email', 'phone', 'tags', 'Score', 'Birthday', 'Interests'],
+            ['Jane Doe', 'jane@example.com', 216555012, 'VIP', 7, new DateTimeImmutable('1990-03-14'), 'tag1;tag2'],
+        ]);
+
+        ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
+
+        $contact = Contact::where('organization_id', $this->org->id)->where('email', 'jane@example.com')->first();
+
+        expect($contact)->not->toBeNull()
+            ->and($contact->phone)->toBe('216555012')
+            ->and($contact->customFieldValue($score->key))->toEqual(7)
+            ->and($contact->customFieldValue($birthday->key))->toBe('1990-03-14')
+            ->and($contact->customFieldValue($interests->key))->toEqual(['tag1', 'tag2'])
+            ->and($contact->tags()->pluck('name')->all())->toBe(['VIP'])
+            ->and(DatabaseNotification::where('notifiable_id', $this->user->id)->first()->data['body'])->toContain('Imported: 1 | Failed: 0')
+            ->and(Storage::disk('local')->exists($path))->toBeFalse();
+    });
+
+    test('rows shorter than the header are padded and longer rows fail', function () {
+        $path = makeXlsx([
+            ['name', 'email', 'phone', 'tags'],
+            ['Jane', 'jane@example.com', '123', 'VIP'],
+            ['John', 'john@example.com'],
+            ['Too', 'long@example.com', '', '', 'extra'],
+        ]);
+
+        ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
+
+        expect(Contact::where('organization_id', $this->org->id)->orderBy('email')->pluck('email')->all())->toBe(['jane@example.com', 'john@example.com'])
+            ->and(Contact::where('email', 'john@example.com')->first()->tags()->count())->toBe(0);
+
+        $notification = DatabaseNotification::where('notifiable_id', $this->user->id)->first();
+        expect($notification->data['body'])->toContain('Imported: 2 | Failed: 1')
+            ->and($notification->data['body'])->toContain('Row 3: Column count mismatch.');
+    });
+
+    test('failed xlsx rows are reported in a csv', function () {
+        $path = makeXlsx([
+            ['name', 'email', 'phone', 'tags'],
+            ['Jane', 'jane@example.com', '', ''],
+            ['Bad', 'not-an-email', '', ''],
+        ]);
+
+        ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
+
+        $notification = DatabaseNotification::where('notifiable_id', $this->user->id)->first();
+        $failedCsv = collect(Storage::disk('local')->files('contact-imports'))->first(fn (string $file): bool => str_contains($file, 'failed-'));
+
+        expect($notification->data['title'])->toBe('Import complete with errors')
+            ->and($notification->data['actions'][0]['name'])->toBe('downloadFailedRows')
+            ->and($failedCsv)->not->toBeNull()
+            ->and(Storage::disk('local')->get($failedCsv))->toContain('Invalid email: not-an-email');
+    });
+
+    test('an unreadable file fails gracefully', function () {
+        Queue::fake([SyncSegmentMembership::class]);
+        Segment::factory()->for($this->org)->published()->create();
+        $path = 'contact-imports/contacts.xlsx';
+        Storage::disk('local')->put($path, 'this is not a spreadsheet');
+
+        ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
+
+        $notification = DatabaseNotification::where('notifiable_id', $this->user->id)->first();
+
+        expect(Contact::where('organization_id', $this->org->id)->count())->toBe(0)
+            ->and($notification->data['title'])->toBe('Import failed')
+            ->and(Storage::disk('local')->exists($path))->toBeFalse();
+        Queue::assertNotPushed(SyncSegmentMembership::class);
+    });
 });
