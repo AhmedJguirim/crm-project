@@ -36,6 +36,8 @@ class ProcessContactImportJob implements ShouldQueue
 {
     use Queueable;
 
+    private const MAX_IGNORED_COLUMNS_LISTED = 10;
+
     /**
      * Just under the timeout of the `imports` Horizon supervisor, so a very long import fails cleanly before the
      * worker is killed.
@@ -93,6 +95,9 @@ class ProcessContactImportJob implements ShouldQueue
         $tmpPath = $this->copyToTemporaryFile($extension);
 
         $headers = null;
+
+        /** @var array<int, string> $ignoredColumns */
+        $ignoredColumns = [];
         $importedCount = 0;
         $failedCount = 0;
 
@@ -104,6 +109,7 @@ class ProcessContactImportJob implements ShouldQueue
             foreach ($reader->rows($tmpPath, $extension) as $row) {
                 if ($headers === null) {
                     $headers = $row;
+                    $ignoredColumns = $service->ignoredColumns($headers);
 
                     continue;
                 }
@@ -140,7 +146,7 @@ class ProcessContactImportJob implements ShouldQueue
                 }
             }
         } catch (UnreadableImportFileException) {
-            $this->handleUnreadableFile($importedCount, $failedRows, $headers, $rowNumber);
+            $this->handleUnreadableFile($importedCount, $failedRows, $headers, $rowNumber, $ignoredColumns);
 
             return;
         } finally {
@@ -159,11 +165,15 @@ class ProcessContactImportJob implements ShouldQueue
             return;
         }
 
+        $ignoredLine = $this->ignoredColumnsLine($ignoredColumns);
+
         if ($failedCount === 0) {
-            Notification::make()
-                ->success()
-                ->title('Import complete')
-                ->body("Imported: {$importedCount} | Failed: 0")
+            $notification = $ignoredLine === null
+                ? Notification::make()->success()->title('Import complete')
+                : Notification::make()->warning()->title('Import complete, some columns were ignored');
+
+            $notification
+                ->body(implode("\n\n", array_filter(["Imported: {$importedCount} | Failed: 0", $ignoredLine])))
                 ->sendToDatabase($user);
 
             return;
@@ -179,9 +189,26 @@ class ProcessContactImportJob implements ShouldQueue
         Notification::make()
             ->warning()
             ->title('Import complete with errors')
-            ->body("Imported: {$importedCount} | Failed: {$failedCount}\n\n{$errorSummary}")
+            ->body(implode("\n\n", array_filter(["Imported: {$importedCount} | Failed: {$failedCount}", $ignoredLine, $errorSummary])))
             ->actions([$this->failedRowsAction($failedCsvPath)])
             ->sendToDatabase($user);
+    }
+
+    /**
+     * The line naming the columns that matched no field, at most {@see self::MAX_IGNORED_COLUMNS_LISTED} of them.
+     *
+     * @param  array<int, string>  $ignoredColumns
+     */
+    private function ignoredColumnsLine(array $ignoredColumns): ?string
+    {
+        if ($ignoredColumns === []) {
+            return null;
+        }
+
+        $listed = implode(', ', array_slice($ignoredColumns, 0, self::MAX_IGNORED_COLUMNS_LISTED));
+        $more = count($ignoredColumns) - self::MAX_IGNORED_COLUMNS_LISTED;
+
+        return 'Ignored columns (no matching field): '.$listed.($more > 0 ? ", … and {$more} more" : '');
     }
 
     private function failedRowsAction(string $failedCsvPath): Action
@@ -214,8 +241,9 @@ class ProcessContactImportJob implements ShouldQueue
      *
      * @param  array<int, array{row: int, data: array<string, string>, error: string}>  $failedRows
      * @param  array<int, string>|null  $headers
+     * @param  array<int, string>  $ignoredColumns
      */
-    private function handleUnreadableFile(int $importedCount, array $failedRows, ?array $headers, int $lastRowRead): void
+    private function handleUnreadableFile(int $importedCount, array $failedRows, ?array $headers, int $lastRowRead, array $ignoredColumns): void
     {
         Storage::disk('local')->delete($this->filePath);
 
@@ -244,7 +272,10 @@ class ProcessContactImportJob implements ShouldQueue
         $notification = Notification::make()
             ->warning()
             ->title('Import stopped partway')
-            ->body("Imported: {$importedCount} | Failed: {$failedCount}. The file could not be read after row {$lastRowRead}, so the rest of it was not imported. The contacts above were kept; import the remaining rows in a new file.");
+            ->body(implode("\n\n", array_filter([
+                "Imported: {$importedCount} | Failed: {$failedCount}. The file could not be read after row {$lastRowRead}, so the rest of it was not imported. The contacts above were kept; import the remaining rows in a new file.",
+                $this->ignoredColumnsLine($ignoredColumns),
+            ])));
 
         if ($failedRows !== [] && $headers !== null) {
             $notification->actions([$this->failedRowsAction($this->storeFailedRowsCsv($headers, $failedRows))]);
@@ -297,7 +328,7 @@ class ProcessContactImportJob implements ShouldQueue
         try {
             $writer = SimpleExcelWriter::create($tmpPath)
                 ->noHeaderRow()
-                ->addRow(['_row_number', '_error', ...$headers]);
+                ->addRow([...ContactImportService::FAILED_ROWS_META_COLUMNS, ...$headers]);
 
             foreach ($failedRows as $failedRow) {
                 $writer->addRow([

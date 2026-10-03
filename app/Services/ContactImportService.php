@@ -15,6 +15,12 @@ class ContactImportService
     /** Separates several tags, or several values of a multi-select field, in one cell. */
     public const MULTI_VALUE_SEPARATOR = ';';
 
+    /** The columns of an import file that are not custom fields. */
+    public const BASE_COLUMNS = ['name', 'email', 'phone', 'tags'];
+
+    /** The columns the failed rows file adds in front of the original ones, so a corrected file can be imported again. */
+    public const FAILED_ROWS_META_COLUMNS = ['_row_number', '_error'];
+
     /** The date format shown to users; ISO (`Y-m-d`) and a trailing time are accepted too. */
     public const DATE_FORMAT = 'd-m-Y';
 
@@ -31,6 +37,39 @@ class ContactImportService
         return CustomField::where('organization_id', $this->organizationId)
             ->orderBy('order')
             ->get();
+    }
+
+    /**
+     * The headers of a file that no field uses, as the notification names them. A header matches the base columns, the
+     * name of an active custom field exactly, or a column of the failed rows file; one that matches the name of a
+     * deleted custom field says so.
+     *
+     * @param  array<int, string>  $headers
+     * @return array<int, string>
+     */
+    public function ignoredColumns(array $headers): array
+    {
+        $known = [
+            ...self::BASE_COLUMNS,
+            ...self::FAILED_ROWS_META_COLUMNS,
+            ...$this->customFields()->pluck('name')->all(),
+        ];
+
+        $ignored = array_values(array_unique(array_filter(
+            $headers,
+            fn (string $header): bool => $header !== '' && ! in_array($header, $known, true),
+        )));
+
+        if ($ignored === []) {
+            return [];
+        }
+
+        $deleted = CustomField::forOrganization($this->organizationId)->onlyTrashed()->pluck('name')->all();
+
+        return array_map(
+            fn (string $header): string => in_array($header, $deleted, true) ? "\"{$header}\" (deleted field)" : "\"{$header}\"",
+            $ignored,
+        );
     }
 
     /**

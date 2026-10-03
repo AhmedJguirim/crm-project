@@ -45,10 +45,7 @@ class ContactImportTemplate
     public function headers(): array
     {
         return [
-            'name',
-            'email',
-            'phone',
-            'tags',
+            ...ContactImportService::BASE_COLUMNS,
             ...$this->customFields()->map(fn (CustomField $field): string => $field->name)->all(),
         ];
     }
