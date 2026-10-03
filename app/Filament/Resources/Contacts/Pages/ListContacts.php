@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Contacts\Pages;
 
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Jobs\ProcessContactImportJob;
+use App\Services\ContactImportFileReader;
 use App\Services\ContactImportService;
 use App\Services\ContactImportTemplate;
 use Filament\Actions\Action;
@@ -13,6 +14,7 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Number;
 
 class ListContacts extends ListRecords
 {
@@ -20,6 +22,8 @@ class ListContacts extends ListRecords
 
     protected function getHeaderActions(): array
     {
+        $maximumSize = Number::fileSize(ContactImportFileReader::MAX_UPLOAD_KILOBYTES * 1024);
+
         return [
             Action::make('downloadTemplate')
                 ->label('Download CSV Template')
@@ -41,7 +45,7 @@ class ListContacts extends ListRecords
                 ->schema([
                     FileUpload::make('file')
                         ->label('File')
-                        ->helperText('CSV or Excel (.xlsx). The first row must contain the column headers — use the template for the expected columns. Separate several tags or multi-select values with "'.ContactImportService::MULTI_VALUE_SEPARATOR.'". Write dates as dd-mm-yyyy (or yyyy-mm-dd).')
+                        ->helperText('CSV or Excel (.xlsx). The first row must contain the column headers — use the template for the expected columns. Separate several tags or multi-select values with "'.ContactImportService::MULTI_VALUE_SEPARATOR.'". Write dates as dd-mm-yyyy (or yyyy-mm-dd). Up to '.$maximumSize.'.')
                         ->acceptedFileTypes([
                             'text/csv',
                             'application/csv',
@@ -49,7 +53,8 @@ class ListContacts extends ListRecords
                             'application/vnd.ms-excel',
                             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                         ])
-                        ->maxSize(10240)
+                        ->maxSize(ContactImportFileReader::MAX_UPLOAD_KILOBYTES)
+                        ->validationMessages(['max' => "This file is too large: the maximum is {$maximumSize}. Tip: save it as .xlsx, which is much smaller than CSV."])
                         ->disk('local')
                         ->directory('contact-imports')
                         ->visibility('private')

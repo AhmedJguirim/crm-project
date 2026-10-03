@@ -57,7 +57,7 @@
         ],
         "dev": [
             "Composer\\Config::disableProcessTimeout",
-            "npx concurrently -c \"#93c5fd,#c4b5fd,#fdba74\" \"php artisan serve\" \"php artisan horizon\" \"npm run dev\" --names='server,horizon,vite'"
+            "npx concurrently -c \"#93c5fd,#c4b5fd,#fdba74\" \"PHP_INI_SCAN_DIR=:$(pwd)/.dev/php php artisan serve\" \"php artisan horizon\" \"npm run dev\" --names='server,horizon,vite'"
         ],
         "lint": [
             "pint --parallel"

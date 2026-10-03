@@ -7,9 +7,11 @@ use App\Jobs\ProcessContactImportJob;
 use App\Models\Contact;
 use App\Models\Tag;
 use App\Models\User;
+use App\Services\ContactImportFileReader;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\FileUpload;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -79,6 +81,48 @@ test('accepted uploads queue the import', function (string $name, string $mimeTy
     'csv' => ['contacts.csv', 'text/csv'],
     'xlsx' => ['contacts.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
 ]);
+
+test('a file over the limit is refused with a human message', function () {
+    Storage::fake('local');
+    Queue::fake();
+
+    $page = Livewire::test(ListContacts::class)
+        ->callAction('importContacts', ['file' => UploadedFile::fake()->create('big.csv', ContactImportFileReader::MAX_UPLOAD_KILOBYTES + 1000, 'text/csv')])
+        ->assertHasActionErrors(['file']);
+
+    $messages = collect($page->errors()->all());
+
+    expect($messages->first())->toBe('This file is too large: the maximum is 10 MB. Tip: save it as .xlsx, which is much smaller than CSV.')
+        ->and($messages->implode(' '))->not->toContain('mountedActions');
+    Queue::assertNotPushed(ProcessContactImportJob::class);
+});
+
+test('a file just under the limit is accepted', function () {
+    Storage::fake('local');
+    Queue::fake();
+
+    Livewire::test(ListContacts::class)
+        ->callAction('importContacts', ['file' => UploadedFile::fake()->create('ok.csv', ContactImportFileReader::MAX_UPLOAD_KILOBYTES - 100, 'text/csv')])
+        ->assertHasNoActionErrors();
+
+    Queue::assertPushed(ProcessContactImportJob::class, 1);
+});
+
+test('the import limits are consistent and shown to the user', function () {
+    $livewireMaximum = collect(config('livewire.temporary_file_upload.rules'))
+        ->first(fn (string $rule): bool => str_starts_with($rule, 'max:'));
+
+    Livewire::test(ListContacts::class)
+        ->mountAction('importContacts')
+        ->assertSchemaComponentExists('file', 'mountedActionSchema0', function (FileUpload $field): bool {
+            $helperText = collect($field->getChildComponents($field::BELOW_CONTENT_SCHEMA_KEY))->map(fn ($component): string => (string) $component->getContent())->implode(' ');
+
+            return $field->getMaxSize() === ContactImportFileReader::MAX_UPLOAD_KILOBYTES && str_contains($helperText, '10 MB');
+        });
+
+    expect((int) substr($livewireMaximum, 4))->toBeGreaterThan(ContactImportFileReader::MAX_UPLOAD_KILOBYTES)
+        ->and(trans('validation.uploaded'))->not->toContain(':attribute');
+});
 
 test('an .xls upload is refused', function () {
     Storage::fake('local');

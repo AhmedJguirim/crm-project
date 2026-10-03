@@ -17,6 +17,12 @@ use Throwable;
  */
 class ContactImportFileReader
 {
+    /**
+     * The largest contacts import file, in kilobytes. Livewire's temporary upload limit (`config/livewire.php`) and
+     * PHP's `upload_max_filesize` / `post_max_size` (see the ops checklist) must stay above it.
+     */
+    public const MAX_UPLOAD_KILOBYTES = 10240;
+
     private const SUPPORTED_EXTENSIONS = ['csv', 'txt', 'xlsx'];
 
     /**
