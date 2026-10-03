@@ -26,14 +26,14 @@ class ListContacts extends ListRecords
 
         return [
             Action::make('downloadTemplate')
-                ->label('Download CSV Template')
+                ->label('Download Excel Template')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
                 ->action(fn () => response()
                     ->download(
-                        ContactImportTemplate::forOrganization(Filament::getTenant()->id)->writeCsv(),
-                        'contacts-import-template.csv',
-                        ['Content-Type' => 'text/csv'],
+                        ContactImportTemplate::forOrganization(Filament::getTenant()->id)->writeXlsx(),
+                        'contacts-import-template.xlsx',
+                        ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
                     )
                     ->deleteFileAfterSend()),
 
@@ -45,7 +45,7 @@ class ListContacts extends ListRecords
                 ->schema([
                     FileUpload::make('file')
                         ->label('File')
-                        ->helperText('CSV or Excel (.xlsx). The first row must contain the column headers — use the template for the expected columns. Separate several tags or multi-select values with "'.ContactImportService::MULTI_VALUE_SEPARATOR.'". Write dates as dd-mm-yyyy (or yyyy-mm-dd). Up to '.$maximumSize.'.')
+                        ->helperText('CSV or Excel (.xlsx). The first row must contain the column headers — use the Excel template for the expected columns. Separate several tags or multi-select values with "'.ContactImportService::MULTI_VALUE_SEPARATOR.'". Write dates as dd-mm-yyyy (or yyyy-mm-dd). Up to '.$maximumSize.'.')
                         ->acceptedFileTypes([
                             'text/csv',
                             'application/csv',

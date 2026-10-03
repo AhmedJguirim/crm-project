@@ -41,7 +41,7 @@ it('leaves no temporary file behind when the import template is downloaded', fun
 
     Livewire::test(ListContacts::class)
         ->callAction('downloadTemplate')
-        ->assertFileDownloaded('contacts-import-template.csv');
+        ->assertFileDownloaded('contacts-import-template.xlsx');
 
     expect(array_values(array_diff(temporaryFilesStartingWith('contacts-template-'), $before)))->toBe([]);
 });
