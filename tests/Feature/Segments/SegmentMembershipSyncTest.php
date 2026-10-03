@@ -12,6 +12,7 @@ use App\Jobs\ResyncContactSegments;
 use App\Jobs\SyncSegmentMembership;
 use App\Models\Activity;
 use App\Models\Contact;
+use App\Models\CustomField;
 use App\Models\Deal;
 use App\Models\Organization;
 use App\Models\Segment;
@@ -57,6 +58,26 @@ describe('SyncSegmentMembership', function () {
         expect($segment->contacts()->pluck('contacts.id')->all())->toBe([$lead->id])
             ->and($segment->fresh()->is_syncing)->toBeFalse()
             ->and($segment->fresh()->last_synced_at)->not->toBeNull();
+    });
+
+    it('adds contacts with a blank value to a not-equal-to segment on the next sync', function () {
+        $score = CustomField::factory()->for($this->org)->create(['name' => 'Score', 'type' => 'number']);
+        $a = Contact::factory()->for($this->org)->withCustomFields([$score->key => 10])->create();
+        $b = Contact::factory()->for($this->org)->withCustomFields([$score->key => '25.5'])->create();
+        $c = Contact::factory()->for($this->org)->withCustomFields([$score->key => 'abc'])->create();
+        $d = Contact::factory()->for($this->org)->create();
+
+        $segment = Segment::factory()->for($this->org)->published()->withRules([
+            new SegmentRuleData('rule-1', 'Score', [
+                SegmentConditionData::make(SegmentConditionType::CustomField, $score->key, SegmentOperator::NotEqualTo, ['value' => '10']),
+            ]),
+        ])->create();
+        $segment->contacts()->attach($b, ['created_at' => now()->subYear(), 'updated_at' => now()->subYear()]);
+
+        SyncSegmentMembership::dispatchSync($segment->id);
+
+        expect($segment->contacts()->pluck('contacts.id')->all())->toEqualCanonicalizing([$b->id, $c->id, $d->id])
+            ->and($segment->contacts()->whereKey($b->id)->first()->pivot->created_at->year)->toBe(now()->subYear()->year);
     });
 
     it('keeps the joined at date of contacts that still match', function () {

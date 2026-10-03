@@ -10,6 +10,8 @@ use InvalidArgumentException;
 
 /**
  * Operator → SQL mapping for conditions comparing a single SQL expression (a column or a JSON value).
+ *
+ * Negative operators include contacts with a blank value, so "is X" plus "is not X" covers every contact.
  */
 trait ComparesExpressions
 {
@@ -45,6 +47,12 @@ trait ComparesExpressions
 
         if ($comparison === null) {
             $this->applyBlankOperator($query, $condition, $blankSql);
+
+            return;
+        }
+
+        if ($condition->operator === SegmentOperator::NotEqualTo) {
+            $query->whereRaw("({$expression} IS NULL OR {$expression} <> CAST(? AS numeric))", [(string) $condition->value('value')]);
 
             return;
         }

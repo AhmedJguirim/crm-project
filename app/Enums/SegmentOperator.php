@@ -157,4 +157,21 @@ enum SegmentOperator: string implements HasLabel
     {
         return in_array($this, [self::WithinLastDays, self::MoreThanDaysAgo, self::LastActivityMoreThanDaysAgo], true);
     }
+
+    /**
+     * Whether contacts with no value for the field also match: the negative operators on a field value. The
+     * relationship operators (has none of, has no deal, …) are left out, their wording already says it.
+     */
+    public function includesBlankValues(): bool
+    {
+        return in_array($this, [
+            self::IsNot,
+            self::DoesNotContain,
+            self::IsNotFromDomain,
+            self::NotEqualTo,
+            self::IsNoneOf,
+            self::ContainsNoneOf,
+            self::DoesNotContainAllOf,
+        ], true);
+    }
 }

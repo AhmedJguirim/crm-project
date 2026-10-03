@@ -383,6 +383,20 @@ describe('conditions', function () {
             ->assertFormFieldExists('operator', fn ($field): bool => array_keys($field->getOptions()) === ['is', 'is_not', 'is_any_of', 'is_none_of', 'is_blank', 'is_not_blank']);
     });
 
+    it('tells that negative operators also match contacts with no value', function () {
+        $score = CustomField::factory()->for($this->org)->create(['name' => 'Score', 'type' => 'number']);
+        $hint = 'Contacts with no value for this field also match.';
+
+        ruleEngine(ruleEngineSegment([new SegmentRuleData('rule-1', 'Rule', [])]))
+            ->mountAction(TestAction::make('addCondition')->arguments(['rule' => 'rule-1']))
+            ->fillForm(['type' => 'custom_field', 'field' => $score->key])
+            ->assertMountedActionModalDontSee($hint)
+            ->fillForm(['operator' => 'not_equal_to'])
+            ->assertMountedActionModalSee($hint)
+            ->fillForm(['operator' => 'greater_than'])
+            ->assertMountedActionModalDontSee($hint);
+    });
+
     it('resets the dependent fields when the type changes', function () {
         ruleEngine(ruleEngineSegment([new SegmentRuleData('rule-1', 'Rule', [])]))
             ->mountAction(TestAction::make('addCondition')->arguments(['rule' => 'rule-1']))

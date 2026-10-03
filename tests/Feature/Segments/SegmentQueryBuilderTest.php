@@ -167,8 +167,41 @@ describe('custom fields', function () {
         'greater than' => [SegmentOperator::GreaterThan, ['value' => '15'], ['B']],
         'less than or equal' => [SegmentOperator::LessThanOrEqualTo, ['value' => 10], ['A']],
         'equal to' => [SegmentOperator::EqualTo, ['value' => '25.5'], ['B']],
-        'not equal to' => [SegmentOperator::NotEqualTo, ['value' => '10'], ['B']],
+        'not equal to includes blank and malformed values' => [SegmentOperator::NotEqualTo, ['value' => '10'], ['B', 'C', 'D']],
+        'greater than 0' => [SegmentOperator::GreaterThan, ['value' => '0'], ['A', 'B']],
+        'less than 100' => [SegmentOperator::LessThan, ['value' => '100'], ['A', 'B']],
+        'greater than or equal to' => [SegmentOperator::GreaterThanOrEqualTo, ['value' => '10'], ['A', 'B']],
+        'less than or equal to 25.5' => [SegmentOperator::LessThanOrEqualTo, ['value' => '25.5'], ['A', 'B']],
         'is blank' => [SegmentOperator::IsBlank, [], ['D']],
+    ]);
+
+    it('covers every contact with a condition and its negative', function (string $field, SegmentOperator $positive, SegmentOperator $negative, array $value) {
+        Contact::where('name', 'A')->sole()->update(['email' => 'a@example.com']);
+
+        $key = match ($field) {
+            'industry' => $this->industry->key,
+            'plan' => $this->plan->key,
+            'interests' => $this->interests->key,
+            'score' => $this->score->key,
+            default => ContactAttribute::Email->value,
+        };
+        $type = $field === 'email' ? SegmentConditionType::Attribute : SegmentConditionType::CustomField;
+
+        $matching = segmentMatches($this->org, segmentCondition($type, $key, $positive, $value));
+        $notMatching = segmentMatches($this->org, segmentCondition($type, $key, $negative, $value));
+
+        expect($matching)->not->toBeEmpty()
+            ->and(array_intersect($matching, $notMatching))->toBe([])
+            ->and([...$matching, ...$notMatching])->toEqualCanonicalizing(['A', 'B', 'C', 'D']);
+    })->with([
+        'text is' => ['industry', SegmentOperator::Is, SegmentOperator::IsNot, ['value' => 'Technology']],
+        'text contains' => ['industry', SegmentOperator::Contains, SegmentOperator::DoesNotContain, ['value' => 'tech']],
+        'email domain' => ['email', SegmentOperator::IsFromDomain, SegmentOperator::IsNotFromDomain, ['value' => 'example.com']],
+        'select is' => ['plan', SegmentOperator::Is, SegmentOperator::IsNot, ['value' => 'opt1']],
+        'select any of' => ['plan', SegmentOperator::IsAnyOf, SegmentOperator::IsNoneOf, ['values' => ['opt1']]],
+        'multi-select any of' => ['interests', SegmentOperator::ContainsAnyOf, SegmentOperator::ContainsNoneOf, ['values' => ['tag1']]],
+        'multi-select all of' => ['interests', SegmentOperator::ContainsAllOf, SegmentOperator::DoesNotContainAllOf, ['values' => ['tag1', 'tag2']]],
+        'number equal to' => ['score', SegmentOperator::EqualTo, SegmentOperator::NotEqualTo, ['value' => '10']],
     ]);
 
     it('matches date custom fields and ignores malformed values', function (SegmentOperator $operator, array $value, array $expected) {

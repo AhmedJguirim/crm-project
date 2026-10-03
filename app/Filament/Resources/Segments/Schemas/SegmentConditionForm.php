@@ -75,6 +75,9 @@ class SegmentConditionForm
                     ->options(fn (Get $get): array => collect(self::kind($catalog, $get)?->operators() ?? [])
                         ->mapWithKeys(fn (SegmentOperator $operator): array => [$operator->value => $operator->getLabel()])
                         ->all())
+                    ->helperText(fn (Get $get): ?string => self::operator($get)?->includesBlankValues()
+                        ? 'Contacts with no value for this field also match.'
+                        : null)
                     ->required()
                     ->live()
                     ->visible(fn (Get $get): bool => self::kind($catalog, $get) !== null)
