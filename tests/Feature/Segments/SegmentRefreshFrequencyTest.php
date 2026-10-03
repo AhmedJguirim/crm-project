@@ -21,6 +21,7 @@ use Filament\Facades\Filament;
 use Filament\Tables\Columns\TextColumn;
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
@@ -147,6 +148,10 @@ describe('segments:sync', function () {
             ->assertFailed();
 
         Queue::assertNotPushed(SyncSegmentMembership::class);
+    });
+
+    it('no longer has the temporary multi-select repair command', function () {
+        expect(array_keys(Artisan::all()))->not->toContain('contacts:fix-multiselect-values');
     });
 
     it('streams the segments instead of loading them all', function () {

@@ -21,9 +21,6 @@ function eventBypassingWritesAllowList(): array
         'Services/ContactImportService.php' => [
             'withoutEvents' => 'On purpose: the import skips per-contact resyncs, and ProcessContactImportJob queues a full sync of every published segment when it finishes (H1).',
         ],
-        'Console/Commands/FixMultiselectCustomFieldValuesCommand.php' => [
-            'quietly' => 'Temporary BUG-01 repair, run by hand; it prints the segments:sync commands to run afterwards. Delete this entry together with the command.',
-        ],
     ];
 }
 
