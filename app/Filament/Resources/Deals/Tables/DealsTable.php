@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Deals\Tables;
 
+use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Models\Deal;
@@ -58,7 +59,7 @@ class DealsTable
             ])
             ->filters([
                 SelectFilter::make('stage')
-                    ->options(\App\Enums\DealStage::class)
+                    ->options(DealStage::class)
                     ->multiple(),
 
                 SelectFilter::make('status')

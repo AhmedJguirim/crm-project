@@ -4,12 +4,13 @@ namespace Database\Factories;
 
 use App\Enums\DealStage;
 use App\Enums\DealStatus;
+use App\Models\Deal;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Deal>
+ * @extends Factory<Deal>
  */
 class DealFactory extends Factory
 {

@@ -2,12 +2,14 @@
 
 namespace Illuminate\Contracts\Auth;
 
+use App\Models\User;
+
 interface Guard
 {
     /**
      * Get the currently authenticated user.
      *
-     * @return \App\Models\User|null
+     * @return User|null
      */
     public function user();
 
@@ -24,7 +26,7 @@ interface StatefulGuard
     /**
      * Get the currently authenticated user.
      *
-     * @return \App\Models\User|null
+     * @return User|null
      */
     public function user();
 
@@ -41,7 +43,7 @@ interface Factory
     /**
      * Get the currently authenticated user.
      *
-     * @return \App\Models\User|null
+     * @return User|null
      */
     public function user();
 
@@ -52,4 +54,3 @@ interface Factory
      */
     public function id();
 }
-

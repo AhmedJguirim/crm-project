@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
 use App\Models\Task;
@@ -67,7 +68,7 @@ test('reminders command does not send notifications for other organizations', fu
         'organization_id' => $otherOrg->id,
         'title' => 'Other org due task',
         'type' => TaskType::FollowUp,
-        'priority' => \App\Enums\TaskPriority::Medium,
+        'priority' => TaskPriority::Medium,
         'status' => TaskStatus::Pending,
         'created_by' => $otherUser->id,
         'due_at' => now()->addDay(),

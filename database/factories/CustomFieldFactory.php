@@ -2,10 +2,12 @@
 
 namespace Database\Factories;
 
+use App\Models\CustomField;
+use App\Models\Organization;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\CustomField>
+ * @extends Factory<CustomField>
  */
 class CustomFieldFactory extends Factory
 {
@@ -17,7 +19,7 @@ class CustomFieldFactory extends Factory
     public function definition(): array
     {
         return [
-            'organization_id' => \App\Models\Organization::factory(),
+            'organization_id' => Organization::factory(),
             'name' => fake()->unique()->words(2, true),
             'type' => fake()->randomElement(['text', 'email', 'url', 'phone', 'number', 'date', 'textarea']),
             'unique' => fake()->boolean(30),

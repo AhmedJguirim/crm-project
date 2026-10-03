@@ -44,5 +44,4 @@ class ActivityFactory extends Factory
     {
         return $this->state(fn (): array => ['outcome' => $outcome]);
     }
-
 }

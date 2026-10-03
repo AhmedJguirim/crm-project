@@ -6,6 +6,7 @@ use App\Enums\InvoiceStatus;
 use App\Filament\Resources\Invoices\Pages\CreateInvoice;
 use App\Models\Contact;
 use App\Models\Deal;
+use App\Models\Invoice;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
@@ -54,7 +55,7 @@ test('creating invoice always sets draft status', function () {
         ->call('create')
         ->assertHasNoFormErrors();
 
-    $invoice = \App\Models\Invoice::latest()->first();
+    $invoice = Invoice::latest()->first();
 
     expect($invoice)->not->toBeNull()
         ->and($invoice->status)->toBe(InvoiceStatus::Draft)
@@ -74,7 +75,7 @@ test('creating invoice defaults to Net 30 payment terms', function () {
         ->call('create')
         ->assertHasNoFormErrors();
 
-    $invoice = \App\Models\Invoice::latest()->first();
+    $invoice = Invoice::latest()->first();
 
     expect($invoice->payment_terms)->toBe(30)
         ->and((float) $invoice->amount_paid)->toBe(0.00);

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\InviteStatus;
 use App\Enums\OrganizationRole;
+use Database\Factories\OrganizationInviteFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -11,7 +12,7 @@ use Illuminate\Support\Str;
 
 class OrganizationInvite extends Model
 {
-    /** @use HasFactory<\Database\Factories\OrganizationInviteFactory> */
+    /** @use HasFactory<OrganizationInviteFactory> */
     use HasFactory;
 
     protected $fillable = [

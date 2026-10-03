@@ -22,7 +22,7 @@ class CompanyCustomFieldsTable
                     ->sortable()
                     ->limit(50)
                     ->tooltip(fn ($record) => strlen($record->name) > 50 ? $record->name : null),
-                    
+
                 TextColumn::make('companyType.name')
                     ->label('Company Type')
                     ->searchable()
