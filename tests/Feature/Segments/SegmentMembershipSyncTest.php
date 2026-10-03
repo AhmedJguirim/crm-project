@@ -569,3 +569,88 @@ describe('lock window', function () {
         expect(membersOfSegment($segment))->toBe([$alice->id]);
     });
 });
+
+describe('per-contact resync and rule changes', function () {
+    beforeEach(function () {
+        Queue::fake([ResyncContactSegments::class]);
+        $this->leads = Segment::factory()->for($this->org)->published()->withRules([leadsRule()])->create(['name' => 'Leads']);
+        $this->partners = Segment::factory()->for($this->org)->published()->withRules([partnersRule()])->create(['name' => 'Partners']);
+        $this->jane = Contact::factory()->for($this->org)->create(['status' => ContactStatus::Lead]);
+        $this->leads->contacts()->attach($this->jane);
+        $this->jane->update(['status' => ContactStatus::Partner]);
+    });
+
+    /**
+     * Runs the callback right after the resync evaluated the contact, the way a publish landing between the
+     * evaluation and the write would, on the same connection.
+     */
+    function afterTheEvaluation(Closure $callback): void
+    {
+        $done = false;
+
+        DB::listen(function (QueryExecuted $query) use ($callback, &$done): void {
+            if (! $done && str_contains($query->sql, 'AS "segment_')) {
+                $done = true;
+                $callback();
+            }
+        });
+    }
+
+    it('applies the evaluation when nothing changed', function () {
+        resyncContact($this->jane);
+
+        expect(membersOfSegment($this->partners))->toBe([$this->jane->id])
+            ->and(membersOfSegment($this->leads))->toBe([]);
+    });
+
+    it('leaves a segment alone when its rules were republished during the resync', function () {
+        afterTheEvaluation(fn () => DB::table('segments')->where('id', $this->partners->id)->increment('rules_version'));
+
+        resyncContact($this->jane);
+
+        expect(membersOfSegment($this->partners))->toBe([])
+            ->and(membersOfSegment($this->leads))->toBe([]);
+    });
+
+    it('leaves a segment alone when it was unpublished during the resync', function () {
+        afterTheEvaluation(fn () => DB::table('segments')->where('id', $this->leads->id)->update(['is_published' => false]));
+
+        resyncContact($this->jane);
+
+        expect(membersOfSegment($this->leads))->toBe([$this->jane->id])
+            ->and(membersOfSegment($this->partners))->toBe([$this->jane->id]);
+    });
+
+    it('writes nothing when every segment changed', function () {
+        afterTheEvaluation(function (): void {
+            DB::table('segments')->whereIn('id', [$this->leads->id, $this->partners->id])->increment('rules_version');
+        });
+
+        resyncContact($this->jane);
+
+        expect(membersOfSegment($this->leads))->toBe([$this->jane->id])
+            ->and(membersOfSegment($this->partners))->toBe([]);
+    });
+
+    it('does not count a draft edit as a change', function () {
+        afterTheEvaluation(fn () => DB::table('segments')->where('id', $this->partners->id)->update(['draft_rules' => json_encode([leadsRule()->toArray()])]));
+
+        resyncContact($this->jane);
+
+        expect(membersOfSegment($this->partners))->toBe([$this->jane->id]);
+    });
+
+    it('checks the versions under a share lock before writing the memberships', function () {
+        DB::enableQueryLog();
+
+        resyncContact($this->jane);
+
+        $queries = collect(DB::getQueryLog())->pluck('query')->map(fn (string $query): string => strtolower($query))->values();
+        $lockedAt = $queries->search(fn (string $query): bool => str_contains($query, 'from "segments"') && str_contains($query, 'for share'));
+        $writtenAt = $queries->search(fn (string $query): bool => str_contains($query, 'contact_segment') && (str_starts_with($query, 'insert') || str_starts_with($query, 'delete')));
+
+        expect($lockedAt)->not->toBeFalse()
+            ->and($writtenAt)->not->toBeFalse()
+            ->and($lockedAt)->toBeLessThan($writtenAt);
+    });
+});
