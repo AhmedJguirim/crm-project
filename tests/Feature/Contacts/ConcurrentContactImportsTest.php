@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\Middleware\WithTenantContext;
 use App\Jobs\ProcessContactImportJob;
 use App\Jobs\SyncSegmentMembership;
 use App\Models\Contact;
@@ -9,6 +10,7 @@ use App\Models\Tag;
 use App\Models\User;
 use App\Services\ContactImportFileReader;
 use App\Services\ContactImportService;
+use Filament\Facades\Filament;
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Notifications\DatabaseNotification;
@@ -45,8 +47,9 @@ describe('one import per organization at a time', function () {
     it('is guarded by a per-organization overlap lock', function () {
         $middleware = (new ProcessContactImportJob('contact-imports/file.csv', 12, 1))->middleware();
 
-        expect($middleware)->toHaveCount(1)
+        expect($middleware)->toHaveCount(2)
             ->and($middleware[0])->toBeInstanceOf(WithoutOverlapping::class)
+            ->and($middleware[1])->toBeInstanceOf(WithTenantContext::class)
             ->and($middleware[0]->key)->toBe('organization-12')
             ->and($middleware[0]->releaseAfter)->toBe(30)
             ->and($middleware[0]->expiresAfter)->toBe(1800);
@@ -91,7 +94,7 @@ describe('one import per organization at a time', function () {
             ->and($waiting->attempts)->toBe(1)
             ->and($waiting->available_at)->toBeGreaterThan(now()->getTimestamp())
             ->and(DB::table('failed_jobs')->count())->toBe(0)
-            ->and(Contact::where('organization_id', $this->org->id)->count())->toBe(0);
+            ->and(Contact::forOrganization($this->org->id)->count())->toBe(0);
 
         $lock->release();
         $this->travel(40)->seconds();
@@ -99,7 +102,7 @@ describe('one import per organization at a time', function () {
 
         expect(DB::table('jobs')->where('queue', 'imports')->count())->toBe(0)
             ->and(DB::table('failed_jobs')->count())->toBe(0)
-            ->and(Contact::where('organization_id', $this->org->id)->pluck('email')->all())->toBe(['jane@example.com']);
+            ->and(Contact::forOrganization($this->org->id)->pluck('email')->all())->toBe(['jane@example.com']);
     });
 
     it('does not block the imports of other organizations', function () {
@@ -110,7 +113,7 @@ describe('one import per organization at a time', function () {
 
         ProcessContactImportJob::dispatchSync($path, $otherOrg->id, $otherUser->id);
 
-        expect(Contact::where('organization_id', $otherOrg->id)->pluck('email')->all())->toBe(['john@example.com']);
+        expect(Contact::forOrganization($otherOrg->id)->pluck('email')->all())->toBe(['john@example.com']);
     });
 });
 
@@ -156,8 +159,8 @@ describe('a failed import', function () {
         expect(fn () => (new ProcessContactImportJob($path, $this->org->id, $this->user->id))->handle(app(ContactImportFileReader::class)))
             ->toThrow(RuntimeException::class, 'Boom');
 
-        expect(Contact::where('organization_id', $this->org->id)->where('email', 'one@example.com')->exists())->toBeTrue()
-            ->and(Contact::where('organization_id', $this->org->id)->where('email', 'three@example.com')->exists())->toBeFalse();
+        expect(Contact::forOrganization($this->org->id)->where('email', 'one@example.com')->exists())->toBeTrue()
+            ->and(Contact::forOrganization($this->org->id)->where('email', 'three@example.com')->exists())->toBeFalse();
     });
 });
 
@@ -179,21 +182,27 @@ describe('duplicates that slip through', function () {
         expect($raced)->toBeTrue()
             ->and($notification->data['body'])->toContain('Imported: 2 | Failed: 1')
             ->and($notification->data['body'])->toContain("Row 2: A contact with email 'jane@example.com' already exists.")
-            ->and(Contact::where('organization_id', $this->org->id)->pluck('email')->sort()->values()->all())->toBe(['jane@example.com', 'one@example.com', 'three@example.com'])
-            ->and(Contact::where('email', 'jane@example.com')->value('name'))->toBe('Created elsewhere');
+            ->and(Contact::forOrganization($this->org->id)->pluck('email')->sort()->values()->all())->toBe(['jane@example.com', 'one@example.com', 'three@example.com'])
+            ->and(Contact::forOrganization($this->org->id)->where('email', 'jane@example.com')->value('name'))->toBe('Created elsewhere');
     });
 
     it('shares a tag that another import created in the meantime', function () {
+        $this->actingAs($this->user);
+        Filament::setTenant($this->org);
+
         $existing = Tag::factory()->for($this->org)->create(['name' => 'Q4-leads']);
 
         $result = (new ContactImportService($this->org->id))->processRow(['name' => 'Jane', 'email' => 'jane@example.com', 'tags' => 'Q4-leads'], []);
 
         expect($result['success'])->toBeTrue()
-            ->and(Tag::where('organization_id', $this->org->id)->where('name', 'Q4-leads')->count())->toBe(1)
-            ->and(Contact::where('email', 'jane@example.com')->first()->tags()->pluck('tags.id')->all())->toBe([$existing->id]);
+            ->and(Tag::forOrganization($this->org->id)->where('name', 'Q4-leads')->count())->toBe(1)
+            ->and(Contact::forOrganization($this->org->id)->where('email', 'jane@example.com')->first()->tags()->withoutGlobalScope('organization')->pluck('tags.id')->all())->toBe([$existing->id]);
     });
 
     it('does not crash when another import creates the tag right after the lookup', function () {
+        $this->actingAs($this->user);
+        Filament::setTenant($this->org);
+
         $raced = false;
         DB::listen(function (QueryExecuted $query) use (&$raced): void {
             if (! $raced && str_contains($query->sql, 'from "tags"')) {
@@ -205,11 +214,14 @@ describe('duplicates that slip through', function () {
         $result = (new ContactImportService($this->org->id))->processRow(['name' => 'Jane', 'email' => 'jane@example.com', 'tags' => 'Q4-leads'], []);
 
         expect($result['success'])->toBeTrue()
-            ->and(Tag::where('organization_id', $this->org->id)->where('name', 'Q4-leads')->count())->toBe(1)
-            ->and(Contact::where('email', 'jane@example.com')->first()->tags()->pluck('name')->all())->toBe(['Q4-leads']);
+            ->and(Tag::forOrganization($this->org->id)->where('name', 'Q4-leads')->count())->toBe(1)
+            ->and(Contact::forOrganization($this->org->id)->where('email', 'jane@example.com')->first()->tags()->withoutGlobalScope('organization')->pluck('name')->all())->toBe(['Q4-leads']);
     });
 
     it('still restores a trashed tag that is imported again', function () {
+        $this->actingAs($this->user);
+        Filament::setTenant($this->org);
+
         $tag = Tag::factory()->for($this->org)->create(['name' => 'Old']);
         $tag->delete();
 
@@ -217,6 +229,6 @@ describe('duplicates that slip through', function () {
 
         expect($result['success'])->toBeTrue()
             ->and($tag->fresh()->trashed())->toBeFalse()
-            ->and(Contact::where('email', 'jane@example.com')->first()->tags()->pluck('tags.id')->all())->toBe([$tag->id]);
+            ->and(Contact::forOrganization($this->org->id)->where('email', 'jane@example.com')->first()->tags()->withoutGlobalScope('organization')->pluck('tags.id')->all())->toBe([$tag->id]);
     });
 });

@@ -8,8 +8,10 @@ use App\Models\Task;
 use App\Models\User;
 use App\Notifications\TaskDueSoonNotification;
 use App\Notifications\TaskOverdueNotification;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Console\Command;
 use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Collection;
 
 class SendTaskRemindersCommand extends Command
 {
@@ -32,37 +34,40 @@ class SendTaskRemindersCommand extends Command
      */
     public function handle(): int
     {
-        $dueTomorrowTasks = Task::query()
-            ->with('organization')
-            ->where('status', TaskStatus::Pending)
-            ->whereNotNull('due_at')
-            ->whereDate('due_at', now()->addDay()->toDateString())
-            ->get();
-
-        $overdueTasks = Task::query()
-            ->with('organization')
-            ->where('status', TaskStatus::Pending)
-            ->whereNotNull('due_at')
-            ->where('due_at', '<', now())
-            ->get();
-
-        $this->sendDueSoonNotifications($dueTomorrowTasks);
-        $this->sendOverdueNotifications($overdueTasks);
+        /** @var Organization $organization */
+        foreach (Organization::query()->with('members')->get() as $organization) {
+            app(TenantContext::class)->run($organization->getKey(), fn () => $this->sendReminders($organization));
+        }
 
         $this->info('Task reminders sent successfully.');
 
         return self::SUCCESS;
     }
 
-    private function sendDueSoonNotifications($tasks): void
+    private function sendReminders(Organization $organization): void
+    {
+        $dueTomorrowTasks = Task::query()
+            ->where('status', TaskStatus::Pending)
+            ->whereNotNull('due_at')
+            ->whereDate('due_at', now()->addDay()->toDateString())
+            ->get();
+
+        $overdueTasks = Task::query()
+            ->where('status', TaskStatus::Pending)
+            ->whereNotNull('due_at')
+            ->where('due_at', '<', now())
+            ->get();
+
+        $this->sendDueSoonNotifications($organization, $dueTomorrowTasks);
+        $this->sendOverdueNotifications($organization, $overdueTasks);
+    }
+
+    /**
+     * @param  Collection<int, Task>  $tasks
+     */
+    private function sendDueSoonNotifications(Organization $organization, Collection $tasks): void
     {
         foreach ($tasks as $task) {
-            $organization = $task->organization;
-
-            if (! $organization instanceof Organization) {
-                continue;
-            }
-
             $notificationKey = 'due-soon:'.$task->getKey().':'.$task->due_at?->toDateString();
 
             foreach ($organization->members as $member) {
@@ -75,15 +80,12 @@ class SendTaskRemindersCommand extends Command
         }
     }
 
-    private function sendOverdueNotifications($tasks): void
+    /**
+     * @param  Collection<int, Task>  $tasks
+     */
+    private function sendOverdueNotifications(Organization $organization, Collection $tasks): void
     {
         foreach ($tasks as $task) {
-            $organization = $task->organization;
-
-            if (! $organization instanceof Organization) {
-                continue;
-            }
-
             $notificationKey = 'overdue:'.$task->getKey().':'.now()->toDateString();
 
             foreach ($organization->members as $member) {

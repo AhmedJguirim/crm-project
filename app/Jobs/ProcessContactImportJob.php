@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Exceptions\UnreadableImportFileException;
+use App\Jobs\Middleware\WithTenantContext;
 use App\Models\Segment;
 use App\Models\User;
 use App\Services\ContactImportFileReader;
@@ -67,6 +68,7 @@ class ProcessContactImportJob implements ShouldQueue
             (new WithoutOverlapping("organization-{$this->organizationId}"))
                 ->releaseAfter(30)
                 ->expireAfter(1800),
+            new WithTenantContext($this->organizationId),
         ];
     }
 

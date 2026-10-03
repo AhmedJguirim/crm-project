@@ -23,6 +23,7 @@ use App\Models\Organization;
 use App\Models\Tag;
 use App\Models\Task;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -48,6 +49,14 @@ class ItConsultingSeeder extends Seeder
 
         $org = $user->personalOrganization() ?? $user->createPersonalOrganization();
 
+        app(TenantContext::class)->run($org->getKey(), fn () => $this->seedOrganization($user, $org));
+    }
+
+    /**
+     * Seeds the organization's data inside its tenant context, so every tenant model query is scoped to it.
+     */
+    private function seedOrganization(User $user, Organization $org): void
+    {
         // ── Tags ──────────────────────────────────────────────────────────────
         $tagsData = [
             ['name' => 'Client',     'color' => '#22c55e'],

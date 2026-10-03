@@ -4,15 +4,15 @@ namespace App\Observers;
 
 use App\Enums\TaskStatus;
 use App\Models\Task;
-use Filament\Facades\Filament;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Support\Facades\Auth;
 
 class TaskObserver
 {
     public function creating(Task $task): void
     {
-        if (! $task->organization_id && Filament::getTenant()) {
-            $task->organization_id = Filament::getTenant()->id;
+        if (! $task->organization_id && $organizationId = app(TenantContext::class)->id()) {
+            $task->organization_id = $organizationId;
         }
 
         $authUserId = Auth::id();

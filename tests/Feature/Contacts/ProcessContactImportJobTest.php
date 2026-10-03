@@ -35,7 +35,7 @@ test('valid CSV creates contacts and sends success notification', function () {
 
     ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
 
-    expect(Contact::where('organization_id', $this->org->id)->count())->toBe(2);
+    expect(Contact::forOrganization($this->org->id)->count())->toBe(2);
 
     $notification = DatabaseNotification::where('notifiable_id', $this->user->id)->first();
     expect($notification)->not->toBeNull()
@@ -59,8 +59,8 @@ test('duplicate email in CSV records the second row as failed', function () {
 
     ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
 
-    expect(Contact::where('email', 'dup@example.com')->count())->toBe(1);
-    expect(Contact::where('email', 'dup@example.com')->first()->name)->toBe('First');
+    expect(Contact::forOrganization($this->org->id)->where('email', 'dup@example.com')->count())->toBe(1);
+    expect(Contact::forOrganization($this->org->id)->where('email', 'dup@example.com')->first()->name)->toBe('First');
 
     $notification = DatabaseNotification::where('notifiable_id', $this->user->id)->first();
     expect($notification->data['title'])->toBe('Import complete with errors')
@@ -124,7 +124,7 @@ test('partial failure sends warning with correct counts', function () {
 
     ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
 
-    expect(Contact::where('organization_id', $this->org->id)->count())->toBe(2);
+    expect(Contact::forOrganization($this->org->id)->count())->toBe(2);
 
     $notification = DatabaseNotification::where('notifiable_id', $this->user->id)->first();
     expect($notification->data['body'])->toContain('Imported: 2 | Failed: 1');
@@ -138,7 +138,7 @@ test('UTF-8 BOM in CSV header is stripped and processed correctly', function () 
 
     ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
 
-    expect(Contact::where('email', 'bom@example.com')->exists())->toBeTrue();
+    expect(Contact::forOrganization($this->org->id)->where('email', 'bom@example.com')->exists())->toBeTrue();
 });
 
 // Blank row skip
@@ -148,7 +148,7 @@ test('blank rows in CSV are skipped silently', function () {
 
     ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
 
-    expect(Contact::where('organization_id', $this->org->id)->count())->toBe(2);
+    expect(Contact::forOrganization($this->org->id)->count())->toBe(2);
 });
 
 // Column count mismatch
@@ -158,7 +158,7 @@ test('row with wrong column count is recorded as failed', function () {
 
     ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
 
-    expect(Contact::where('organization_id', $this->org->id)->count())->toBe(0);
+    expect(Contact::forOrganization($this->org->id)->count())->toBe(0);
 
     $notification = DatabaseNotification::where('notifiable_id', $this->user->id)->first();
     expect($notification->data['body'])->toContain('Failed: 1');
@@ -171,10 +171,10 @@ test('single tag in CSV is auto-created in the correct organization', function (
 
     ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
 
-    expect(Tag::where('organization_id', $this->org->id)->where('name', 'NewTag')->exists())->toBeTrue();
+    expect(Tag::forOrganization($this->org->id)->where('name', 'NewTag')->exists())->toBeTrue();
 
-    $contact = Contact::where('email', 'tagged@example.com')->first();
-    expect($contact->tags()->count())->toBe(1);
+    $contact = Contact::forOrganization($this->org->id)->where('email', 'tagged@example.com')->first();
+    expect($contact->tags()->withoutGlobalScope('organization')->count())->toBe(1);
 });
 
 test('multiple semicolon-separated tags in CSV are auto-created', function () {
@@ -183,8 +183,8 @@ test('multiple semicolon-separated tags in CSV are auto-created', function () {
 
     ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
 
-    $contact = Contact::where('email', 'tagged@example.com')->first();
-    expect($contact->tags()->count())->toBe(2);
+    $contact = Contact::forOrganization($this->org->id)->where('email', 'tagged@example.com')->first();
+    expect($contact->tags()->withoutGlobalScope('organization')->count())->toBe(2);
 });
 
 // Custom fields in CSV
@@ -202,7 +202,7 @@ test('CSV with custom field columns are processed correctly', function () {
 
     ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
 
-    $contact = Contact::where('email', 'corp@example.com')->first();
+    $contact = Contact::forOrganization($this->org->id)->where('email', 'corp@example.com')->first();
     expect($contact->custom_field_values[$field->key])->toBe('Acme');
 });
 
@@ -221,14 +221,14 @@ describe('xlsx imports', function () {
 
         ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
 
-        $contact = Contact::where('organization_id', $this->org->id)->where('email', 'jane@example.com')->first();
+        $contact = Contact::forOrganization($this->org->id)->where('email', 'jane@example.com')->first();
 
         expect($contact)->not->toBeNull()
             ->and($contact->phone)->toBe('216555012')
             ->and($contact->customFieldValue($score->key))->toEqual(7)
             ->and($contact->customFieldValue($birthday->key))->toBe('1990-03-14')
             ->and($contact->customFieldValue($interests->key))->toEqual(['tag1', 'tag2'])
-            ->and($contact->tags()->pluck('name')->all())->toBe(['VIP'])
+            ->and($contact->tags()->withoutGlobalScope('organization')->pluck('name')->all())->toBe(['VIP'])
             ->and(DatabaseNotification::where('notifiable_id', $this->user->id)->first()->data['body'])->toContain('Imported: 1 | Failed: 0')
             ->and(Storage::disk('local')->exists($path))->toBeFalse();
     });
@@ -243,8 +243,8 @@ describe('xlsx imports', function () {
 
         ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
 
-        expect(Contact::where('organization_id', $this->org->id)->orderBy('email')->pluck('email')->all())->toBe(['jane@example.com', 'john@example.com'])
-            ->and(Contact::where('email', 'john@example.com')->first()->tags()->count())->toBe(0);
+        expect(Contact::forOrganization($this->org->id)->orderBy('email')->pluck('email')->all())->toBe(['jane@example.com', 'john@example.com'])
+            ->and(Contact::forOrganization($this->org->id)->where('email', 'john@example.com')->first()->tags()->withoutGlobalScope('organization')->count())->toBe(0);
 
         $notification = DatabaseNotification::where('notifiable_id', $this->user->id)->first();
         expect($notification->data['body'])->toContain('Imported: 2 | Failed: 1')
@@ -279,7 +279,7 @@ describe('xlsx imports', function () {
 
         $notification = DatabaseNotification::where('notifiable_id', $this->user->id)->first();
 
-        expect(Contact::where('organization_id', $this->org->id)->count())->toBe(0)
+        expect(Contact::forOrganization($this->org->id)->count())->toBe(0)
             ->and($notification->data['title'])->toBe('Import failed')
             ->and(Storage::disk('local')->exists($path))->toBeFalse();
         Queue::assertNotPushed(SyncSegmentMembership::class);
@@ -332,7 +332,7 @@ describe('a file that becomes unreadable', function () {
 
         $notification = DatabaseNotification::where('notifiable_id', $this->user->id)->first();
 
-        expect(Contact::where('organization_id', $this->org->id)->count())->toBe(3)
+        expect(Contact::forOrganization($this->org->id)->count())->toBe(3)
             ->and($notification->data['title'])->toBe('Import stopped partway')
             ->and($notification->data['status'])->toBe('warning')
             ->and($notification->data['body'])->toContain('Imported: 3 | Failed: 0')

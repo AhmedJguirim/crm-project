@@ -5,11 +5,14 @@ use App\Models\CustomField;
 use App\Models\Tag;
 use App\Models\User;
 use App\Services\ContactImportService;
+use Filament\Facades\Filament;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
     $this->user = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
     $this->org = $this->user->personalOrganization();
+    $this->actingAs($this->user);
+    Filament::setTenant($this->org);
     $this->service = new ContactImportService($this->org->id);
 });
 

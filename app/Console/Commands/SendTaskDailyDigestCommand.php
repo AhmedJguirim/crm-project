@@ -6,6 +6,7 @@ use App\Enums\TaskStatus;
 use App\Models\Organization;
 use App\Models\Task;
 use App\Notifications\TaskDailyDigestNotification;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Console\Command;
 
 class SendTaskDailyDigestCommand extends Command
@@ -39,32 +40,35 @@ class SendTaskDailyDigestCommand extends Command
 
         /** @var Organization $organization */
         foreach ($organizations as $organization) {
-            $overdueTasks = Task::query()
-                ->where('organization_id', $organization->getKey())
-                ->where('status', TaskStatus::Pending)
-                ->whereNotNull('due_at')
-                ->where('due_at', '<', now())
-                ->orderBy('due_at')
-                ->get();
-
-            $dueTodayTasks = Task::query()
-                ->where('organization_id', $organization->getKey())
-                ->where('status', TaskStatus::Pending)
-                ->whereDate('due_at', now()->toDateString())
-                ->orderBy('due_at')
-                ->get();
-
-            if ($overdueTasks->isEmpty() && $dueTodayTasks->isEmpty()) {
-                continue;
-            }
-
-            foreach ($organization->members as $member) {
-                $member->notify(new TaskDailyDigestNotification($organization, $overdueTasks, $dueTodayTasks));
-            }
+            app(TenantContext::class)->run($organization->getKey(), fn () => $this->sendDigest($organization));
         }
 
         $this->info('Task daily digest sent successfully.');
 
         return self::SUCCESS;
+    }
+
+    private function sendDigest(Organization $organization): void
+    {
+        $overdueTasks = Task::query()
+            ->where('status', TaskStatus::Pending)
+            ->whereNotNull('due_at')
+            ->where('due_at', '<', now())
+            ->orderBy('due_at')
+            ->get();
+
+        $dueTodayTasks = Task::query()
+            ->where('status', TaskStatus::Pending)
+            ->whereDate('due_at', now()->toDateString())
+            ->orderBy('due_at')
+            ->get();
+
+        if ($overdueTasks->isEmpty() && $dueTodayTasks->isEmpty()) {
+            return;
+        }
+
+        foreach ($organization->members as $member) {
+            $member->notify(new TaskDailyDigestNotification($organization, $overdueTasks, $dueTodayTasks));
+        }
     }
 }

@@ -10,6 +10,7 @@ class CompanyCustomFieldObserver
     {
         if (is_null($companyCustomField->order)) {
             $maxOrder = CompanyCustomField::query()
+                ->withoutGlobalScope('organization')
                 ->where('company_type_id', $companyCustomField->company_type_id)
                 ->max('order') ?? 0;
 

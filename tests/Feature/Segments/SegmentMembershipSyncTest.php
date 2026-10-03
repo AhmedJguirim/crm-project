@@ -8,6 +8,7 @@ use App\Enums\ContactStatus;
 use App\Enums\DealStatus;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentOperator;
+use App\Jobs\Middleware\WithTenantContext;
 use App\Jobs\ResyncContactSegments;
 use App\Jobs\SyncSegmentMembership;
 use App\Models\Activity;
@@ -20,6 +21,7 @@ use App\Models\Tag;
 use App\Models\User;
 use Illuminate\Contracts\Cache\Lock;
 use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Pipeline\Pipeline;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
@@ -31,6 +33,14 @@ function leadsRule(): SegmentRuleData
     return new SegmentRuleData('rule-1', 'Leads', [
         SegmentConditionData::make(SegmentConditionType::Attribute, ContactAttribute::Status->value, SegmentOperator::Is, ['value' => ContactStatus::Lead->value]),
     ]);
+}
+
+/**
+ * Runs the job the way a worker does: through its middleware, which sets the tenant context.
+ */
+function runThroughJobMiddleware(ResyncContactSegments|SyncSegmentMembership $job): void
+{
+    (new Pipeline(app()))->send($job)->through($job->middleware())->then(fn () => $job->handle());
 }
 
 function segmentForTag(Organization $organization, Tag $tag, bool $published = true): Segment
@@ -55,7 +65,7 @@ describe('SyncSegmentMembership', function () {
 
         SyncSegmentMembership::dispatchSync($segment->id);
 
-        expect($segment->contacts()->pluck('contacts.id')->all())->toBe([$lead->id])
+        expect($segment->contacts()->withoutGlobalScope('organization')->pluck('contacts.id')->all())->toBe([$lead->id])
             ->and($segment->fresh()->is_syncing)->toBeFalse()
             ->and($segment->fresh()->last_synced_at)->not->toBeNull();
     });
@@ -76,8 +86,8 @@ describe('SyncSegmentMembership', function () {
 
         SyncSegmentMembership::dispatchSync($segment->id);
 
-        expect($segment->contacts()->pluck('contacts.id')->all())->toEqualCanonicalizing([$b->id, $c->id, $d->id])
-            ->and($segment->contacts()->whereKey($b->id)->first()->pivot->created_at->year)->toBe(now()->subYear()->year);
+        expect($segment->contacts()->withoutGlobalScope('organization')->pluck('contacts.id')->all())->toEqualCanonicalizing([$b->id, $c->id, $d->id])
+            ->and($segment->contacts()->withoutGlobalScope('organization')->whereKey($b->id)->first()->pivot->created_at->year)->toBe(now()->subYear()->year);
     });
 
     it('keeps the joined at date of contacts that still match', function () {
@@ -88,9 +98,9 @@ describe('SyncSegmentMembership', function () {
         SyncSegmentMembership::dispatchSync($segment->id);
         SyncSegmentMembership::dispatchSync($segment->id);
 
-        $pivot = $segment->contacts()->first()->pivot;
+        $pivot = $segment->contacts()->withoutGlobalScope('organization')->first()->pivot;
 
-        expect($segment->contacts()->count())->toBe(1)
+        expect($segment->contacts()->withoutGlobalScope('organization')->count())->toBe(1)
             ->and($pivot->created_at->year)->toBe(now()->subYear()->year);
     });
 
@@ -100,7 +110,7 @@ describe('SyncSegmentMembership', function () {
 
         SyncSegmentMembership::dispatchSync($segment->id);
 
-        expect($segment->contacts()->count())->toBe(0);
+        expect($segment->contacts()->withoutGlobalScope('organization')->count())->toBe(0);
     });
 
     it('notifies the user who published the segment', function () {
@@ -131,11 +141,11 @@ describe('ResyncContactSegments', function () {
         $segment = Segment::factory()->for($this->org)->published()->withRules([leadsRule()])->create();
         $contact = Contact::factory()->for($this->org)->create(['status' => ContactStatus::Lead]);
 
-        expect($contact->segments()->pluck('segments.id')->all())->toBe([$segment->id]);
+        expect($contact->segments()->withoutGlobalScope('organization')->pluck('segments.id')->all())->toBe([$segment->id]);
 
         $contact->update(['status' => ContactStatus::Partner]);
 
-        expect($contact->segments()->count())->toBe(0);
+        expect($contact->segments()->withoutGlobalScope('organization')->count())->toBe(0);
     });
 
     it('removes soft-deleted contacts from segments', function () {
@@ -144,11 +154,11 @@ describe('ResyncContactSegments', function () {
 
         $contact->delete();
 
-        expect($segment->contacts()->withTrashed()->count())->toBe(0);
+        expect($segment->contacts()->withoutGlobalScope('organization')->withTrashed()->count())->toBe(0);
 
         $contact->restore();
 
-        expect($segment->contacts()->count())->toBe(1);
+        expect($segment->contacts()->withoutGlobalScope('organization')->count())->toBe(1);
     });
 
     it('is dispatched when activities and deals change', function () {
@@ -182,7 +192,7 @@ describe('ResyncContactSegments evaluation', function () {
 
     function resyncContact(Contact $contact): void
     {
-        (new ResyncContactSegments($contact->id))->handle();
+        runThroughJobMiddleware(new ResyncContactSegments($contact->id));
     }
 
     /** @return Collection<int, array{query: string, bindings: array<int, mixed>, time: float}> */
@@ -297,7 +307,7 @@ describe('overlapping syncs', function () {
 
     function membersOfSegment(Segment $segment): array
     {
-        return $segment->contacts()->pluck('contacts.id')->sort()->values()->all();
+        return $segment->contacts()->withoutGlobalScope('organization')->pluck('contacts.id')->sort()->values()->all();
     }
 
     function overlapLock(SyncSegmentMembership $job): Lock
@@ -314,8 +324,9 @@ describe('overlapping syncs', function () {
         $job = new SyncSegmentMembership(42);
         $middleware = $job->middleware();
 
-        expect($middleware)->toHaveCount(1)
+        expect($middleware)->toHaveCount(2)
             ->and($middleware[0])->toBeInstanceOf(WithoutOverlapping::class)
+            ->and($middleware[1])->toBeInstanceOf(WithTenantContext::class)
             ->and($middleware[0]->key)->toBe('42')
             ->and($middleware[0]->releaseAfter)->toBe(15)
             ->and($middleware[0]->expiresAfter)->toBe(660)
@@ -464,7 +475,7 @@ describe('too many days in a stored condition', function () {
 
         expect(fn () => SyncSegmentMembership::dispatchSync($segment->id))->not->toThrow(Throwable::class);
 
-        expect($segment->contacts()->pluck('contacts.id')->all())->toBe([$lead->id]);
+        expect($segment->contacts()->withoutGlobalScope('organization')->pluck('contacts.id')->all())->toBe([$lead->id]);
     });
 });
 

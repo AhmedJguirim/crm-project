@@ -36,7 +36,7 @@ Route::middleware(HandleInertiaRequests::class)
     ->group(function () {
         Route::inertia('/', 'Welcome', ['appName' => config('app.name')])->name('welcome');
 
-        Route::middleware(['auth', 'can:view,organization'])
+        Route::middleware(['auth', 'can:view,organization', 'tenant.context'])
             ->prefix('{organization:slug}')
             ->group(function () {
                 Route::get('/tags', [TagsController::class, 'index'])->name('tags.index');

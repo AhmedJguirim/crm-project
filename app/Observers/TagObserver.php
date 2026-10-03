@@ -6,14 +6,14 @@ use App\Enums\SegmentConditionType;
 use App\Jobs\SyncSegmentMembership;
 use App\Models\Segment;
 use App\Models\Tag;
-use Filament\Facades\Filament;
+use App\Support\Tenancy\TenantContext;
 
 class TagObserver
 {
     public function creating(Tag $tag): void
     {
-        if (! $tag->organization_id && Filament::getTenant()) {
-            $tag->organization_id = Filament::getTenant()->id;
+        if (! $tag->organization_id && $organizationId = app(TenantContext::class)->id()) {
+            $tag->organization_id = $organizationId;
         }
     }
 

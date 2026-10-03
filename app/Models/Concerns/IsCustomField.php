@@ -2,7 +2,7 @@
 
 namespace App\Models\Concerns;
 
-use Filament\Facades\Filament;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
@@ -18,7 +18,7 @@ trait IsCustomField
     public static function bootIsCustomField(): void
     {
         static::creating(function (Model $field): void {
-            $field->organization_id ??= Filament::getTenant()?->getKey();
+            $field->organization_id ??= app(TenantContext::class)->id();
 
             if (blank($field->key)) {
                 $field->key = $field->generateUniqueKey();

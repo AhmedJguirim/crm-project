@@ -186,12 +186,12 @@ describe('end to end', function () {
         $contact = Contact::factory()->for($this->org)->create();
         Activity::factory()->for($this->org)->for($contact)->create(['type' => ActivityType::Call, 'occurred_at' => now()->subDays(29)]);
 
-        expect($segment->contacts()->pluck('contacts.id')->all())->toBe([$contact->id]);
+        expect($segment->contacts()->withoutGlobalScope('organization')->pluck('contacts.id')->all())->toBe([$contact->id]);
 
         $this->travel(2)->days();
         $this->artisan('segments:sync', ['--frequency' => 'hourly'])->assertSuccessful();
 
-        expect($segment->contacts()->count())->toBe(0);
+        expect($segment->contacts()->withoutGlobalScope('organization')->count())->toBe(0);
     });
 
     it('leaves static segments alone on scheduled runs', function () {
@@ -205,7 +205,7 @@ describe('end to end', function () {
         $this->artisan('segments:sync', ['--frequency' => 'hourly'])->assertSuccessful();
         $this->artisan('segments:sync', ['--frequency' => 'daily'])->assertSuccessful();
 
-        expect($segment->contacts()->count())->toBe(0);
+        expect($segment->contacts()->withoutGlobalScope('organization')->count())->toBe(0);
     });
 });
 

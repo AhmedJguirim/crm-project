@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Exceptions\RulesChangedDuringSync;
 use App\Filament\Resources\Segments\SegmentResource;
+use App\Jobs\Middleware\WithTenantContext;
 use App\Models\Segment;
 use App\Models\User;
 use Carbon\CarbonInterface;
@@ -64,6 +65,10 @@ class SyncSegmentMembership implements ShouldBeUniqueUntilProcessing, ShouldQueu
             (new WithoutOverlapping((string) $this->segmentId))
                 ->releaseAfter(15)
                 ->expireAfter(660),
+            new WithTenantContext(fn (): ?int => Segment::query()
+                ->withoutGlobalScope('organization')
+                ->whereKey($this->segmentId)
+                ->value('organization_id')),
         ];
     }
 

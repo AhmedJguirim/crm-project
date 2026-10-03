@@ -13,6 +13,7 @@ use App\Models\Deal;
 use App\Models\Tag;
 use App\Models\Task;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 use Database\Seeders\ItConsultingSeeder;
 use Filament\Facades\Filament;
 use Illuminate\Database\Eloquent\Model;
@@ -120,7 +121,9 @@ test('it consulting seeder names the company type and the field when a value has
         ItConsultingSeeder::class,
     );
 
-    expect(fn () => $keyCompanyValues($type, ['industry' => 'IT', 'headcount' => 10]))
+    $inTenant = fn (array $values): array => app(TenantContext::class)->run($type->organization_id, fn (): array => $keyCompanyValues($type, $values));
+
+    expect(fn () => $inTenant(['industry' => 'IT', 'headcount' => 10]))
         ->toThrow(RuntimeException::class, 'The seeder has a value for [headcount], but company type [Client] has no custom field with that name.')
-        ->and(array_values($keyCompanyValues($type, ['industry' => 'IT'])))->toBe(['IT']);
+        ->and(array_values($inTenant(['industry' => 'IT'])))->toBe(['IT']);
 });

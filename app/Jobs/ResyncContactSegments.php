@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Jobs\Middleware\WithTenantContext;
 use App\Models\Contact;
 use App\Models\Segment;
 use App\Services\Segments\SegmentQueryBuilder;
@@ -27,6 +28,17 @@ class ResyncContactSegments implements ShouldBeUniqueUntilProcessing, ShouldQueu
     public function __construct(public readonly int $contactId)
     {
         $this->afterCommit();
+    }
+
+    /** @return array<int, object> */
+    public function middleware(): array
+    {
+        return [
+            new WithTenantContext(fn (): ?int => Contact::query()
+                ->withoutGlobalScopes()
+                ->whereKey($this->contactId)
+                ->value('organization_id')),
+        ];
     }
 
     public function uniqueId(): string

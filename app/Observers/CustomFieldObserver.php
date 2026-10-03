@@ -5,7 +5,7 @@ namespace App\Observers;
 use App\Exceptions\UsedInSegmentsException;
 use App\Models\CustomField;
 use App\Services\Segments\SegmentUsage;
-use Filament\Facades\Filament;
+use App\Support\Tenancy\TenantContext;
 
 class CustomFieldObserver
 {
@@ -14,12 +14,12 @@ class CustomFieldObserver
      */
     public function creating(CustomField $customField): void
     {
-        if (! $customField->organization_id && Filament::getTenant()) {
-            $customField->organization_id = Filament::getTenant()->id;
+        if (! $customField->organization_id && $organizationId = app(TenantContext::class)->id()) {
+            $customField->organization_id = $organizationId;
         }
 
         if (is_null($customField->order)) {
-            $maxOrder = CustomField::where('organization_id', $customField->organization_id)->max('order') ?? 0;
+            $maxOrder = CustomField::forOrganization($customField->organization_id)->max('order') ?? 0;
             $customField->order = $maxOrder + 1;
         }
     }

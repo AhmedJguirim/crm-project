@@ -21,6 +21,7 @@ use App\Models\Organization;
 use App\Models\Tag;
 use App\Models\User;
 use App\Services\Segments\SegmentQueryBuilder;
+use App\Support\Tenancy\TenantContext;
 use Filament\Facades\Filament;
 
 function segmentCondition(SegmentConditionType $type, ?string $field, SegmentOperator $operator, array $value = []): SegmentConditionData
@@ -52,6 +53,7 @@ beforeEach(function () {
     $this->travelTo(now()->setDate(2026, 6, 15)->setTime(12, 0));
 
     $this->org = Organization::factory()->create();
+    app(TenantContext::class)->set($this->org->id);
 });
 
 describe('contact attributes', function () {
