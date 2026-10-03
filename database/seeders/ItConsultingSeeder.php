@@ -10,6 +10,7 @@ use App\Enums\ContactAttribute;
 use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\InvoiceStatus;
+use App\Enums\OrganizationRole;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentOperator;
 use App\Enums\TaskPriority;
@@ -57,6 +58,65 @@ class ItConsultingSeeder extends Seeder
         $org = $user->personalOrganization() ?? $user->createPersonalOrganization();
 
         app(TenantContext::class)->run($org->getKey(), fn () => $this->seedOrganization($user, $org));
+
+        $this->seedSecondOrganization($user);
+    }
+
+    /**
+     * A second organization for manual cross-organization checks. It's owned by another user (`other@example.com`), and
+     * the test user is a plain member, so the tenant switcher can be tried without logging out. Its data looks like the
+     * first organization's (a "VIP" tag and segment), so anything leaking across organizations is easy to spot.
+     */
+    private function seedSecondOrganization(User $testUser): void
+    {
+        $owner = User::firstOrCreate(
+            ['email' => 'other@example.com'],
+            [
+                'name' => 'Other User',
+                'password' => Hash::make('password'),
+                'email_verified_at' => now(),
+                'onboarding_completed' => true,
+            ]
+        );
+
+        $organization = Organization::firstOrCreate(
+            ['slug' => 'globex-demo'],
+            ['name' => 'Globex Demo', 'personal_team' => false, 'created_by' => $owner->id],
+        );
+
+        $organization->members()->syncWithoutDetaching([
+            $owner->id => ['role' => OrganizationRole::Owner->value],
+            $testUser->id => ['role' => OrganizationRole::Member->value],
+        ]);
+
+        app(TenantContext::class)->run($organization->getKey(), function () use ($organization): void {
+            $vip = Tag::firstOrCreate(['organization_id' => $organization->id, 'name' => 'VIP'], ['color' => '#8b5cf6']);
+
+            $contacts = [
+                ['name' => 'Globex Alice', 'email' => 'alice@globex.test', 'tags' => [$vip->id]],
+                ['name' => 'Globex Bob', 'email' => 'bob@globex.test', 'tags' => [$vip->id]],
+                ['name' => 'Globex Carol', 'email' => 'carol@globex.test', 'tags' => []],
+            ];
+
+            foreach ($contacts as $data) {
+                Contact::firstOrCreate(
+                    ['organization_id' => $organization->id, 'email' => $data['email']],
+                    ['name' => $data['name']],
+                )->tags()->sync($data['tags']);
+            }
+
+            $segment = Segment::firstOrCreate(
+                ['organization_id' => $organization->id, 'name' => 'VIP'],
+                [
+                    'rules' => [(new SegmentRuleData((string) Str::ulid(), 'VIP tag', [
+                        SegmentConditionData::make(SegmentConditionType::Tags, null, SegmentOperator::HasAnyOf, ['values' => [$vip->id]]),
+                    ]))->toArray()],
+                    'is_published' => true,
+                ],
+            );
+
+            SyncSegmentMembership::dispatchSync($segment->id);
+        });
     }
 
     /**

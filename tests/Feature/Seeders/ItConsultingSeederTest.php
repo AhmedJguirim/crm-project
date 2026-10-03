@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\DealStatus;
+use App\Enums\OrganizationRole;
 use App\Enums\SegmentRefreshFrequency;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
@@ -11,6 +12,7 @@ use App\Models\CompanyType;
 use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\Deal;
+use App\Models\Organization;
 use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\Task;
@@ -164,4 +166,35 @@ test('it consulting seeder seeds synced segments for every kind of condition and
         ->and(Segment::query()->where('name', 'High rate (draft)')->sole())
         ->is_published->toBeFalse()
         ->hasPendingChanges()->toBeTrue();
+});
+
+test('it consulting seeder seeds a second organization with lookalike data for cross-organization checks', function () {
+    $this->seed(ItConsultingSeeder::class);
+    $this->seed(ItConsultingSeeder::class);
+
+    $testUser = User::query()->where('email', 'test@example.com')->firstOrFail();
+    $owner = User::query()->where('email', 'other@example.com')->firstOrFail();
+    $globex = Organization::query()->where('slug', 'globex-demo')->sole();
+
+    expect($globex->members()->pluck('role', 'email')->all())->toEqualCanonicalizing([
+        'other@example.com' => OrganizationRole::Owner->value,
+        'test@example.com' => OrganizationRole::Member->value,
+    ])
+        ->and($owner->organizations()->pluck('slug')->all())->toBe(['globex-demo'])
+        ->and($testUser->organizations()->count())->toBe(2);
+
+    $this->actingAs($testUser);
+    Filament::setTenant($globex);
+
+    $vip = Segment::query()->where('name', 'VIP')->sole();
+
+    expect(Contact::query()->orderBy('name')->pluck('name')->all())->toBe(['Globex Alice', 'Globex Bob', 'Globex Carol'])
+        ->and(Tag::query()->pluck('name')->all())->toBe(['VIP'])
+        ->and(Segment::query()->count())->toBe(1)
+        ->and($vip->contacts()->orderBy('name')->pluck('name')->all())->toBe(['Globex Alice', 'Globex Bob']);
+
+    Filament::setTenant($testUser->personalOrganization());
+
+    expect(Contact::query()->count())->toBe(15)
+        ->and(Segment::query()->where('name', 'VIP')->sole()->contacts()->pluck('name')->all())->not->toContain('Globex Alice');
 });
