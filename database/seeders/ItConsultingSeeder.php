@@ -26,6 +26,7 @@ use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class ItConsultingSeeder extends Seeder
 {
@@ -633,6 +634,8 @@ class ItConsultingSeeder extends Seeder
     /**
      * @param  array<string, mixed>  $values  values keyed by the slugified field name
      * @return array<string, mixed> values keyed by the fields' generated keys
+     *
+     * @throws RuntimeException when a value has no custom field of that name on the company type
      */
     private function keyCompanyValues(CompanyType $type, array $values): array
     {
@@ -642,7 +645,13 @@ class ItConsultingSeeder extends Seeder
             ->mapWithKeys(fn (CompanyCustomField $field): array => [Str::slug($field->name, '_') => $field->key]);
 
         return collect($values)
-            ->mapWithKeys(fn (mixed $value, string $slug): array => [$keysBySlug[$slug] => $value])
+            ->mapWithKeys(function (mixed $value, string $slug) use ($keysBySlug, $type): array {
+                if (! $keysBySlug->has($slug)) {
+                    throw new RuntimeException("The seeder has a value for [{$slug}], but company type [{$type->name}] has no custom field with that name.");
+                }
+
+                return [$keysBySlug[$slug] => $value];
+            })
             ->all();
     }
 

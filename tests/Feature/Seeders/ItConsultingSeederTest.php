@@ -108,3 +108,19 @@ test('it consulting seeder is idempotent for companies', function () {
         ->and(CompanyCustomField::query()->count())->toBe(13)
         ->and(Contact::query()->withCount('companies')->get()->sum('companies_count'))->toBe(16);
 });
+
+test('it consulting seeder names the company type and the field when a value has no custom field', function () {
+    $type = CompanyType::factory()->create(['name' => 'Client']);
+    CompanyCustomField::factory()->create(['organization_id' => $type->organization_id, 'company_type_id' => $type->id, 'name' => 'Industry', 'type' => 'text']);
+    CompanyCustomField::factory()->create(['organization_id' => $type->organization_id, 'company_type_id' => $type->id, 'name' => 'Size', 'type' => 'text']);
+
+    $keyCompanyValues = Closure::bind(
+        fn (CompanyType $type, array $values): array => $this->keyCompanyValues($type, $values),
+        new ItConsultingSeeder,
+        ItConsultingSeeder::class,
+    );
+
+    expect(fn () => $keyCompanyValues($type, ['industry' => 'IT', 'headcount' => 10]))
+        ->toThrow(RuntimeException::class, 'The seeder has a value for [headcount], but company type [Client] has no custom field with that name.')
+        ->and(array_values($keyCompanyValues($type, ['industry' => 'IT'])))->toBe(['IT']);
+});
