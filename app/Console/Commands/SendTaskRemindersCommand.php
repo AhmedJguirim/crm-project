@@ -20,7 +20,7 @@ class SendTaskRemindersCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'tasks:send-reminders';
+    protected $signature = 'tasks:send-reminders {--all : Handle every organization, whatever the hour is in its timezone}';
 
     /**
      * The console command description.
@@ -34,8 +34,14 @@ class SendTaskRemindersCommand extends Command
      */
     public function handle(): int
     {
+        $hour = (int) config('tasks.notifications.reminder_time', '07:00');
+
         /** @var Organization $organization */
         foreach (Organization::query()->with('members')->get() as $organization) {
+            if (! $this->option('all') && $organization->localNow()->hour !== $hour) {
+                continue;
+            }
+
             app(TenantContext::class)->run($organization->getKey(), fn () => $this->sendReminders($organization));
         }
 
@@ -46,10 +52,12 @@ class SendTaskRemindersCommand extends Command
 
     private function sendReminders(Organization $organization): void
     {
+        $tomorrow = $organization->localNow()->addDay();
+
         $dueTomorrowTasks = Task::query()
             ->where('status', TaskStatus::Pending)
             ->whereNotNull('due_at')
-            ->whereDate('due_at', now()->addDay()->toDateString())
+            ->whereBetween('due_at', [$tomorrow->startOfDay()->utc(), $tomorrow->endOfDay()->utc()])
             ->get();
 
         $overdueTasks = Task::query()
@@ -68,7 +76,7 @@ class SendTaskRemindersCommand extends Command
     private function sendDueSoonNotifications(Organization $organization, Collection $tasks): void
     {
         foreach ($tasks as $task) {
-            $notificationKey = 'due-soon:'.$task->getKey().':'.$task->due_at?->toDateString();
+            $notificationKey = 'due-soon:'.$task->getKey().':'.$task->due_at?->setTimezone($organization->timezone)->toDateString();
 
             foreach ($organization->members as $member) {
                 if (! $member instanceof User || $this->alreadyNotified($member, TaskDueSoonNotification::class, $notificationKey)) {
@@ -86,7 +94,7 @@ class SendTaskRemindersCommand extends Command
     private function sendOverdueNotifications(Organization $organization, Collection $tasks): void
     {
         foreach ($tasks as $task) {
-            $notificationKey = 'overdue:'.$task->getKey().':'.now()->toDateString();
+            $notificationKey = 'overdue:'.$task->getKey().':'.$organization->localNow()->toDateString();
 
             foreach ($organization->members as $member) {
                 if (! $member instanceof User || $this->alreadyNotified($member, TaskOverdueNotification::class, $notificationKey)) {

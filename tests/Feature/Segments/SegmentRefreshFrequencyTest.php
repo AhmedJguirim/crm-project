@@ -162,7 +162,7 @@ describe('segments:sync', function () {
 });
 
 describe('the schedule', function () {
-    it('runs the hourly and daily syncs and no longer the 15 minute full sync', function () {
+    it('runs the hourly sync, and the daily one every hour for the organizations at local midnight', function () {
         $events = collect(app(Schedule::class)->events())
             ->filter(fn (Event $event): bool => str_contains((string) $event->command, 'segments:sync'));
         $hourly = $events->first(fn ($event): bool => str_contains((string) $event->command, '--frequency=hourly'));
@@ -171,7 +171,8 @@ describe('the schedule', function () {
         expect($events)->toHaveCount(3)
             ->and($hourly->expression)->toBe('0 * * * *')
             ->and($hourly->withoutOverlapping)->toBeTrue()
-            ->and($daily->expression)->toBe('5 0 * * *')
+            ->and($daily->command)->toContain('--local-hour=0')
+            ->and($daily->expression)->toBe('5 * * * *')
             ->and($daily->withoutOverlapping)->toBeTrue();
     });
 

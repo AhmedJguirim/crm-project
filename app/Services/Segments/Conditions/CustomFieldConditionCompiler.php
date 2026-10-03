@@ -17,6 +17,8 @@ class CustomFieldConditionCompiler implements SegmentConditionCompiler
 {
     use ComparesExpressions;
 
+    public function __construct(private readonly string $timezone) {}
+
     public function apply(Builder $query, SegmentConditionData $condition, SegmentFieldKind $kind): void
     {
         $key = (string) $condition->field;

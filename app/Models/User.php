@@ -96,7 +96,7 @@ class User extends Authenticatable implements FilamentUser, HasTenants
             ->first();
     }
 
-    public function createPersonalOrganization(): Organization
+    public function createPersonalOrganization(?string $timezone = null): Organization
     {
         $name = filled($this->name)
             ? $this->name."'s Workspace"
@@ -109,6 +109,7 @@ class User extends Authenticatable implements FilamentUser, HasTenants
             'slug' => $slug,
             'personal_team' => true,
             'created_by' => $this->id,
+            'timezone' => Organization::validTimezoneOrUtc($timezone),
         ]);
 
         $this->organizations()->attach($organization, [

@@ -9,8 +9,10 @@ use App\Enums\SegmentConditionType;
 use App\Enums\SegmentFieldKind;
 use App\Enums\SegmentValueInput;
 use App\Models\CustomField;
+use App\Models\Organization;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
+use InvalidArgumentException;
 use Throwable;
 
 /**
@@ -24,11 +26,34 @@ class SegmentFieldCatalog
     /** @var Collection<string, CustomField>|null */
     private ?Collection $customFields = null;
 
+    private ?string $timezone = null;
+
     public function __construct(public readonly int $organizationId) {}
 
     public static function forOrganization(int $organizationId): self
     {
         return new self($organizationId);
+    }
+
+    /**
+     * The organization's timezone, for the date conditions. It ends up inlined in SQL, so a value that is not an IANA
+     * identifier is refused here.
+     *
+     * @throws InvalidArgumentException
+     */
+    public function timezone(): string
+    {
+        if ($this->timezone !== null) {
+            return $this->timezone;
+        }
+
+        $timezone = Organization::query()->whereKey($this->organizationId)->value('timezone') ?? 'UTC';
+
+        if (! in_array($timezone, Organization::timezoneIdentifiers(), true)) {
+            throw new InvalidArgumentException('Invalid organization timezone.');
+        }
+
+        return $this->timezone = $timezone;
     }
 
     /**

@@ -27,6 +27,13 @@ class OrganizationFactory extends Factory
         ];
     }
 
+    public function timezone(string $timezone): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'timezone' => $timezone,
+        ]);
+    }
+
     public function personal(): static
     {
         return $this->state(fn (array $attributes) => [

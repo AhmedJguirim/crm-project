@@ -12,6 +12,8 @@ use InvalidArgumentException;
  * Operator → SQL mapping for conditions comparing a single SQL expression (a column or a JSON value).
  *
  * Negative operators include contacts with a blank value, so "is X" plus "is not X" covers every contact.
+ *
+ * The compilers that use `applyDateOperator()` declare a `$timezone` property: "today" starts at midnight there.
  */
 trait ComparesExpressions
 {
@@ -63,7 +65,7 @@ trait ComparesExpressions
     protected function applyDateOperator(Builder $query, SegmentConditionData $condition, string $expression, string $blankSql): void
     {
         $date = fn (string $key): ?string => SegmentFieldCatalog::parseDate($condition->value($key))?->toDateString();
-        $today = now()->startOfDay();
+        $today = now($this->timezone)->startOfDay();
 
         match ($condition->operator) {
             SegmentOperator::Before => $query->whereRaw("{$expression} < CAST(? AS date)", [$date('value')]),

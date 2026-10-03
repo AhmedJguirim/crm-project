@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Enums\SegmentRefreshFrequency;
 use App\Jobs\SyncSegmentMembership;
+use App\Models\Organization;
 use App\Models\Segment;
 use Illuminate\Console\Command;
 
@@ -16,7 +17,8 @@ class SyncSegmentsCommand extends Command
      */
     protected $signature = 'segments:sync
         {--organization= : Only sync the segments of this organization ID}
-        {--frequency= : Only sync segments that must be refreshed daily or hourly because they depend on the current date}';
+        {--frequency= : Only sync segments that must be refreshed daily or hourly because they depend on the current date}
+        {--local-hour= : Only sync the segments of organizations where it is this hour (0-23) in their timezone}';
 
     /**
      * The console command description.
@@ -38,6 +40,14 @@ class SyncSegmentsCommand extends Command
             return self::FAILURE;
         }
 
+        $localHour = $this->option('local-hour');
+
+        if ($localHour !== null && (! ctype_digit((string) $localHour) || (int) $localHour > 23)) {
+            $this->error("Invalid local hour `{$localHour}`. Use a number from 0 to 23.");
+
+            return self::FAILURE;
+        }
+
         $frequency = $frequency === null ? null : SegmentRefreshFrequency::from($frequency);
         $queued = 0;
 
@@ -45,6 +55,7 @@ class SyncSegmentsCommand extends Command
             ->withoutGlobalScope('organization')
             ->where('is_published', true)
             ->when($this->option('organization'), fn ($query, $organizationId) => $query->where('organization_id', $organizationId))
+            ->when($localHour !== null, fn ($query) => $query->whereIn('organization_id', $this->organizationIdsAtLocalHour((int) $localHour)))
             ->select(['id', 'organization_id', 'name', 'rules'])
             ->lazyById()
             ->filter(fn (Segment $segment): bool => $frequency === null || $segment->refreshFrequency() === $frequency)
@@ -59,5 +70,19 @@ class SyncSegmentsCommand extends Command
         $this->comment("Queued {$queued} segment syncs.");
 
         return self::SUCCESS;
+    }
+
+    /**
+     * @return array<int, int>
+     */
+    private function organizationIdsAtLocalHour(int $hour): array
+    {
+        return Organization::query()
+            ->select(['id', 'timezone'])
+            ->lazyById()
+            ->filter(fn (Organization $organization): bool => $organization->localNow()->hour === $hour)
+            ->map(fn (Organization $organization): int => $organization->getKey())
+            ->values()
+            ->all();
     }
 }

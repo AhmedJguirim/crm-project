@@ -45,7 +45,7 @@ test('reminders command sends due-soon and overdue notifications', function () {
         'type' => TaskType::Call,
     ]);
 
-    Artisan::call('tasks:send-reminders');
+    Artisan::call('tasks:send-reminders', ['--all' => true]);
 
     Notification::assertSentTo($this->user, TaskDueSoonNotification::class, function (TaskDueSoonNotification $notification) use ($dueTomorrowTask) {
         return $notification->task->is($dueTomorrowTask)
@@ -74,7 +74,7 @@ test('reminders command does not send notifications for other organizations', fu
         'due_at' => now()->addDay(),
     ]);
 
-    Artisan::call('tasks:send-reminders');
+    Artisan::call('tasks:send-reminders', ['--all' => true]);
 
     Notification::assertNothingSentTo($this->user);
 });

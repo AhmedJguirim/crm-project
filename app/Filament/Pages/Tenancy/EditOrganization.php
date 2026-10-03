@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages\Tenancy;
 
+use App\Filament\Support\OrganizationTimezoneSelect;
 use App\Models\Organization;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Textarea;
@@ -28,6 +29,8 @@ class EditOrganization extends EditTenantProfile
                 Textarea::make('description')
                     ->maxLength(1000)
                     ->rows(3),
+
+                OrganizationTimezoneSelect::make(),
 
                 FileUpload::make('logo_path')
                     ->label('Logo')

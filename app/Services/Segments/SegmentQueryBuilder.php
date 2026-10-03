@@ -110,8 +110,8 @@ class SegmentQueryBuilder
     private function compilerFor(SegmentConditionType $type): SegmentConditionCompiler
     {
         return match ($type) {
-            SegmentConditionType::Attribute => new AttributeConditionCompiler,
-            SegmentConditionType::CustomField => new CustomFieldConditionCompiler,
+            SegmentConditionType::Attribute => new AttributeConditionCompiler($this->catalog->timezone()),
+            SegmentConditionType::CustomField => new CustomFieldConditionCompiler($this->catalog->timezone()),
             SegmentConditionType::Tags => new TagsConditionCompiler,
             SegmentConditionType::Company => new CompanyConditionCompiler,
             SegmentConditionType::Activity => new ActivityConditionCompiler,

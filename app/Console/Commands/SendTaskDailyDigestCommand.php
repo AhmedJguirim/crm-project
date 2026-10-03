@@ -16,7 +16,7 @@ class SendTaskDailyDigestCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'tasks:send-digest';
+    protected $signature = 'tasks:send-digest {--all : Handle every organization, whatever the hour is in its timezone}';
 
     /**
      * The console command description.
@@ -36,10 +36,14 @@ class SendTaskDailyDigestCommand extends Command
             return self::SUCCESS;
         }
 
-        $organizations = Organization::query()->with('members')->get();
+        $hour = (int) config('tasks.notifications.daily_digest_time', '08:00');
 
         /** @var Organization $organization */
-        foreach ($organizations as $organization) {
+        foreach (Organization::query()->with('members')->get() as $organization) {
+            if (! $this->option('all') && $organization->localNow()->hour !== $hour) {
+                continue;
+            }
+
             app(TenantContext::class)->run($organization->getKey(), fn () => $this->sendDigest($organization));
         }
 
@@ -57,9 +61,11 @@ class SendTaskDailyDigestCommand extends Command
             ->orderBy('due_at')
             ->get();
 
+        $today = $organization->localNow();
+
         $dueTodayTasks = Task::query()
             ->where('status', TaskStatus::Pending)
-            ->whereDate('due_at', now()->toDateString())
+            ->whereBetween('due_at', [$today->startOfDay()->utc(), $today->endOfDay()->utc()])
             ->orderBy('due_at')
             ->get();
 

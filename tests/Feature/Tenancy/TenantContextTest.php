@@ -214,7 +214,7 @@ describe('commands and notifications', function () {
     });
 
     it('sends each organization the digest of its own tasks', function () {
-        Artisan::call('tasks:send-digest');
+        Artisan::call('tasks:send-digest', ['--all' => true]);
 
         Notification::assertSentTo($this->acmeUser, TaskDailyDigestNotification::class, fn (TaskDailyDigestNotification $notification): bool => $notification->overdueTasks->modelKeys() === [$this->acmeTask->id]
             && $notification->dueTodayTasks->isEmpty());
@@ -222,7 +222,7 @@ describe('commands and notifications', function () {
     });
 
     it('sends each organization the reminders of its own tasks', function () {
-        Artisan::call('tasks:send-reminders');
+        Artisan::call('tasks:send-reminders', ['--all' => true]);
 
         Notification::assertSentTo($this->globexUser, TaskDueSoonNotification::class, fn (TaskDueSoonNotification $notification): bool => $notification->task->is($this->globexTask));
         Notification::assertNotSentTo($this->acmeUser, TaskDueSoonNotification::class);

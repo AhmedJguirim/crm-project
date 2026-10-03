@@ -3,13 +3,18 @@
 namespace App\Models;
 
 use App\Enums\OrganizationRole;
+use App\Observers\OrganizationObserver;
+use Carbon\CarbonImmutable;
 use Database\Factories\OrganizationFactory;
+use DateTimeZone;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+#[ObservedBy([OrganizationObserver::class])]
 class Organization extends Model
 {
     /** @use HasFactory<OrganizationFactory> */
@@ -22,6 +27,7 @@ class Organization extends Model
         'logo_path',
         'personal_team',
         'created_by',
+        'timezone',
     ];
 
     protected function casts(): array
@@ -29,6 +35,30 @@ class Organization extends Model
         return [
             'personal_team' => 'boolean',
         ];
+    }
+
+    /**
+     * The IANA identifiers an organization timezone can take.
+     *
+     * @return array<int, string>
+     */
+    public static function timezoneIdentifiers(): array
+    {
+        return DateTimeZone::listIdentifiers();
+    }
+
+    /**
+     * The timezone when it is a valid identifier, UTC otherwise (a missing or invalid value is never an error).
+     */
+    public static function validTimezoneOrUtc(?string $timezone): string
+    {
+        return in_array($timezone, self::timezoneIdentifiers(), true) ? $timezone : 'UTC';
+    }
+
+    /** The current time in the organization's timezone. */
+    public function localNow(): CarbonImmutable
+    {
+        return CarbonImmutable::now($this->timezone);
     }
 
     public function owner(): BelongsTo
