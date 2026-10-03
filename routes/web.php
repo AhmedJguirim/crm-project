@@ -19,9 +19,9 @@ Route::view('dashboard', 'dashboard')
 Route::get('/invite/accept/{token}', InviteAcceptController::class)
     ->name('invite.accept');
 
-// Download failed CSV import rows (authenticated users only)
+// Download failed CSV import rows: a signed link, for the user who ran the import only
 Route::get('/contacts/import/failed-rows', DownloadFailedImportRowsController::class)
-    ->middleware(['auth'])
+    ->middleware(['auth', 'signed'])
     ->name('contacts.import.failed-rows');
 
 // Invoice PDF download (authenticated users only, tenant check in controller)

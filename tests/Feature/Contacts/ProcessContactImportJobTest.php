@@ -91,12 +91,14 @@ test('failed rows CSV is created and notification includes download action', fun
 
     expect(count($actions))->toBeGreaterThan(0);
     expect($actions[0]['label'])->toBe('Download failed rows');
-    expect($actions[0]['url'])->toContain('contacts/import/failed-rows');
+    expect($actions[0]['url'])->toContain('contacts/import/failed-rows')
+        ->and($actions[0]['url'])->toContain('signature=')
+        ->and($actions[0]['url'])->toContain('user='.$this->user->id);
 
     // The failed rows CSV file should exist
     $urlParts = parse_url($actions[0]['url']);
     parse_str($urlParts['query'] ?? '', $queryParams);
-    $failedPath = $queryParams['path'] ?? '';
+    $failedPath = 'contact-imports/'.($queryParams['file'] ?? '');
 
     expect(Storage::disk('local')->exists($failedPath))->toBeTrue();
 });
@@ -111,7 +113,7 @@ test('failed rows CSV contains correct headers and error column', function () {
     $urlParts = parse_url($notification->data['actions'][0]['url']);
     parse_str($urlParts['query'] ?? '', $queryParams);
 
-    $csvContent = Storage::disk('local')->get($queryParams['path']);
+    $csvContent = Storage::disk('local')->get('contact-imports/'.$queryParams['file']);
     expect($csvContent)->toContain('_row_number')
         ->toContain('_error')
         ->toContain('name')

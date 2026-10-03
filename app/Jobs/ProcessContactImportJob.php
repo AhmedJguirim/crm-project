@@ -16,6 +16,8 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 use Spatie\SimpleExcel\SimpleExcelWriter;
 use Throwable;
 
@@ -186,7 +188,11 @@ class ProcessContactImportJob implements ShouldQueue
     {
         return Action::make('downloadFailedRows')
             ->label('Download failed rows')
-            ->url(route('contacts.import.failed-rows', ['path' => $failedCsvPath]))
+            ->url(URL::temporarySignedRoute(
+                'contacts.import.failed-rows',
+                now()->addDays(7),
+                ['file' => basename($failedCsvPath), 'user' => $this->userId],
+            ))
             ->openUrlInNewTab();
     }
 
@@ -303,7 +309,7 @@ class ProcessContactImportJob implements ShouldQueue
 
             $writer->close();
 
-            $path = 'contact-imports/failed-'.uniqid().'.csv';
+            $path = 'contact-imports/failed-'.Str::random(40).'.csv';
 
             Storage::disk('local')->put($path, file_get_contents($tmpPath));
         } finally {
