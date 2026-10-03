@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\DealStatus;
+use App\Enums\SegmentRefreshFrequency;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
 use App\Models\Activity;
@@ -10,6 +11,7 @@ use App\Models\CompanyType;
 use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\Deal;
+use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\Task;
 use App\Models\User;
@@ -126,4 +128,40 @@ test('it consulting seeder names the company type and the field when a value has
     expect(fn () => $inTenant(['industry' => 'IT', 'headcount' => 10]))
         ->toThrow(RuntimeException::class, 'The seeder has a value for [headcount], but company type [Client] has no custom field with that name.')
         ->and(array_values($inTenant(['industry' => 'IT'])))->toBe(['IT']);
+});
+
+test('it consulting seeder seeds synced segments for every kind of condition and a draft', function () {
+    $this->travelTo(now()->setDate(2026, 10, 3));
+
+    $this->seed(ItConsultingSeeder::class);
+    $this->seed(ItConsultingSeeder::class);
+
+    $user = User::query()->where('email', 'test@example.com')->firstOrFail();
+
+    $this->actingAs($user);
+    Filament::setTenant($user->personalOrganization());
+
+    $members = Segment::query()->orderBy('id')->get()->mapWithKeys(fn (Segment $segment): array => [
+        $segment->name => $segment->contacts()->orderBy('name')->pluck('name')->all(),
+    ]);
+
+    expect($members->map(fn (array $names): int => count($names))->all())->toBe([
+        'VIP' => 3,
+        'Laravel developers' => 3,
+        'Open deals' => 4,
+        'Won customers' => 1,
+        'Agency contacts' => 4,
+        'Never contacted' => 2,
+        'Gone quiet (hourly)' => 13,
+        'Added recently (daily)' => 15,
+        'High rate (draft)' => 0,
+    ])
+        ->and($members['VIP'])->toBe(['Marcus Chen', 'Priya Nair', 'Yasmin Al-Rashid'])
+        ->and($members['Won customers'])->toBe(['Priya Nair'])
+        ->and($members['Never contacted'])->toBe(['Florian Dupont', 'Hugo Fernandes'])
+        ->and(Segment::query()->where('name', 'Gone quiet (hourly)')->sole()->refreshFrequency())->toBe(SegmentRefreshFrequency::Hourly)
+        ->and(Segment::query()->where('name', 'Added recently (daily)')->sole()->refreshFrequency())->toBe(SegmentRefreshFrequency::Daily)
+        ->and(Segment::query()->where('name', 'High rate (draft)')->sole())
+        ->is_published->toBeFalse()
+        ->hasPendingChanges()->toBeTrue();
 });

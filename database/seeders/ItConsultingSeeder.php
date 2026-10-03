@@ -2,14 +2,20 @@
 
 namespace Database\Seeders;
 
+use App\Data\Segments\SegmentConditionData;
+use App\Data\Segments\SegmentRuleData;
 use App\Enums\ActivityOutcome;
 use App\Enums\ActivityType;
+use App\Enums\ContactAttribute;
 use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\InvoiceStatus;
+use App\Enums\SegmentConditionType;
+use App\Enums\SegmentOperator;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
+use App\Jobs\SyncSegmentMembership;
 use App\Models\Activity;
 use App\Models\Address;
 use App\Models\Company;
@@ -20,6 +26,7 @@ use App\Models\CustomField;
 use App\Models\Deal;
 use App\Models\Invoice;
 use App\Models\Organization;
+use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\Task;
 use App\Models\User;
@@ -547,6 +554,72 @@ class ItConsultingSeeder extends Seeder
                 ]
             );
         }
+
+        // ── Segments ─────────────────────────────────────────────────────────
+        $this->seedSegments($org, $tags, $linkedin, $techStack, $hourlyRate);
+    }
+
+    /**
+     * One segment per kind of condition, plus the scheduled (hourly and daily) ones and a draft, so manual tests can
+     * rely on them after `migrate:fresh --seed`. Published segments are synced right away.
+     *
+     * @param  array<string, Tag>  $tags
+     */
+    private function seedSegments(Organization $org, array $tags, CustomField $linkedin, CustomField $techStack, CustomField $hourlyRate): void
+    {
+        $agency = CompanyType::query()->where('name', 'Agency')->firstOrFail();
+        $condition = fn (SegmentConditionType $type, ?string $field, SegmentOperator $operator, array $value = []): SegmentConditionData => SegmentConditionData::make($type, $field, $operator, $value);
+        $rule = fn (string $name, SegmentConditionData ...$conditions): array => (new SegmentRuleData((string) Str::ulid(), $name, $conditions))->toArray();
+
+        $segments = [
+            'VIP' => [
+                $rule('VIP tag', $condition(SegmentConditionType::Tags, null, SegmentOperator::HasAnyOf, ['values' => [$tags['VIP']->id]])),
+                $rule(
+                    'Security managers on LinkedIn',
+                    $condition(SegmentConditionType::Tags, null, SegmentOperator::HasAllOf, ['values' => [$tags['Management']->id, $tags['Security']->id]]),
+                    $condition(SegmentConditionType::CustomField, $linkedin->key, SegmentOperator::IsNotBlank),
+                ),
+            ],
+            'Laravel developers' => [
+                $rule('Tech Stack has Laravel', $condition(SegmentConditionType::CustomField, $techStack->key, SegmentOperator::ContainsAnyOf, ['values' => ['laravel']])),
+            ],
+            'Open deals' => [
+                $rule('Has an open deal', $condition(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_statuses' => [DealStatus::Open->value]])),
+            ],
+            'Won customers' => [
+                $rule('Has a won deal', $condition(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_stages' => [DealStage::Won->value]])),
+            ],
+            'Agency contacts' => [
+                $rule('Works at an agency', $condition(SegmentConditionType::Company, null, SegmentOperator::CompanyTypeIsAnyOf, ['values' => [$agency->id]])),
+            ],
+            'Never contacted' => [
+                $rule('No activity logged', $condition(SegmentConditionType::Activity, null, SegmentOperator::HasNotHadActivity)),
+            ],
+            'Gone quiet (hourly)' => [
+                $rule('Last activity over 30 days ago', $condition(SegmentConditionType::Activity, null, SegmentOperator::LastActivityMoreThanDaysAgo, ['days' => 30])),
+            ],
+            'Added recently (daily)' => [
+                $rule('Created in the last 30 days', $condition(SegmentConditionType::Attribute, ContactAttribute::CreatedAt->value, SegmentOperator::WithinLastDays, ['days' => 30])),
+            ],
+        ];
+
+        foreach ($segments as $name => $rules) {
+            $segment = Segment::query()->firstOrCreate(
+                ['organization_id' => $org->id, 'name' => $name],
+                ['rules' => $rules, 'is_published' => true],
+            );
+
+            SyncSegmentMembership::dispatchSync($segment->id);
+        }
+
+        Segment::query()->firstOrCreate(
+            ['organization_id' => $org->id, 'name' => 'High rate (draft)'],
+            [
+                'rules' => [],
+                'draft_rules' => [$rule('Hourly rate above 120', $condition(SegmentConditionType::CustomField, $hourlyRate->key, SegmentOperator::GreaterThan, ['value' => 120]))],
+                'is_published' => false,
+            ],
+        );
     }
 
     /** @return array<string, Company> */
