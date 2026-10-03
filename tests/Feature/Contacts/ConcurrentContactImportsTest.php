@@ -60,14 +60,14 @@ describe('one import per organization at a time', function () {
 
         expect($job->timeout)->toBeLessThan($lockExpiry)
             ->and($lockExpiry)->toBeLessThanOrEqual($supervisorTimeout)
-            ->and($supervisorTimeout)->toBeLessThan(config('queue.connections.redis.retry_after'))
+            ->and($supervisorTimeout)->toBeLessThan(config('queue.connections.redis-long.retry_after'))
             ->and($job->failOnTimeout)->toBeTrue()
             ->and($job->maxExceptions)->toBe(1)
             ->and($job->retryUntil()->getTimestamp())->toBe(now()->addHours(3)->getTimestamp());
     });
 
     it('is failed right away on a timeout or an exception, as the worker sees it', function () {
-        config(['queue.default' => 'database']);
+        config(['queue.default' => 'database', 'queue.long_running_connection' => 'database']);
 
         ProcessContactImportJob::dispatch('contact-imports/file.csv', $this->org->id, $this->user->id);
         $queued = Queue::connection('database')->pop('imports');
@@ -77,7 +77,7 @@ describe('one import per organization at a time', function () {
     });
 
     it('makes a second import of the same organization wait instead of failing', function () {
-        config(['queue.default' => 'database']);
+        config(['queue.default' => 'database', 'queue.long_running_connection' => 'database']);
         $path = concurrentImportCsv("name,email,phone,tags\nJane,jane@example.com,,\n");
         $lock = holdImportLock(new ProcessContactImportJob($path, $this->org->id, $this->user->id), $this->org->id);
 

@@ -232,7 +232,7 @@ return [
             'nice' => 0,
         ],
         'supervisor-segments' => [
-            'connection' => 'redis',
+            'connection' => 'redis-long',
             'queue' => ['segments'],
             'balance' => 'simple',
             'minProcesses' => 1,
@@ -245,7 +245,7 @@ return [
             'nice' => 0,
         ],
         'supervisor-imports' => [
-            'connection' => 'redis',
+            'connection' => 'redis-long',
             'queue' => ['imports'],
             'balance' => 'simple',
             'minProcesses' => 1,

@@ -57,6 +57,7 @@ class ProcessContactImportJob implements ShouldQueue
         private readonly int $userId
     ) {
         $this->onQueue('imports');
+        $this->onConnection(config('queue.long_running_connection'));
     }
 
     /** @return array<int, object> */

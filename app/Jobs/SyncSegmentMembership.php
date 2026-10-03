@@ -54,6 +54,7 @@ class SyncSegmentMembership implements ShouldBeUniqueUntilProcessing, ShouldQueu
         public readonly ?int $notifyUserId = null,
     ) {
         $this->onQueue('segments');
+        $this->onConnection(config('queue.long_running_connection'));
     }
 
     /** @return array<int, object> */

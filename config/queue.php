@@ -17,6 +17,18 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Long Running Connection
+    |--------------------------------------------------------------------------
+    |
+    | The connection of the jobs that can run for minutes (segment syncs and contact imports), so that their long
+    | retry_after doesn't also delay the recovery of the quick jobs. The tests set it to "sync".
+    |
+    */
+
+    'long_running_connection' => env('QUEUE_LONG_RUNNING_CONNECTION', 'redis-long'),
+
+    /*
+    |--------------------------------------------------------------------------
     | Queue Connections
     |--------------------------------------------------------------------------
     |
@@ -68,9 +80,21 @@ return [
             'driver' => 'redis',
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
             'queue' => env('REDIS_QUEUE', 'default'),
-            // Must stay greater than the longest `timeout` of the Horizon supervisors (config/horizon.php), or Redis
-            // hands a running job to a second worker.
-            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 1900),
+            // Must stay greater than the timeout of the Horizon supervisors on this connection (supervisor-default,
+            // config/horizon.php). It is also how long a quick job stays invisible after its worker died hard.
+            'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
+            'block_for' => null,
+            'after_commit' => false,
+        ],
+
+        // The same Redis, for the long jobs. Must stay greater than the longest timeout of the supervisors on this
+        // connection (supervisor-segments and supervisor-imports, config/horizon.php), or Redis hands a running job
+        // to a second worker.
+        'redis-long' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue' => env('REDIS_QUEUE', 'default'),
+            'retry_after' => (int) env('REDIS_LONG_QUEUE_RETRY_AFTER', 1900),
             'block_for' => null,
             'after_commit' => false,
         ],

@@ -306,12 +306,12 @@ describe('overlapping syncs', function () {
     it('times out before the queue considers it lost', function () {
         $job = new SyncSegmentMembership(42);
 
-        expect($job->connection)->toBeNull()
-            ->and($job->timeout)->toBeLessThan(config('queue.connections.redis.retry_after'));
+        expect($job->connection)->toBe(config('queue.long_running_connection'))
+            ->and($job->timeout)->toBeLessThan(config('queue.connections.redis-long.retry_after'));
     });
 
     it('is failed right away when the worker times out', function () {
-        config(['queue.default' => 'database']);
+        config(['queue.default' => 'database', 'queue.long_running_connection' => 'database']);
         $segment = Segment::factory()->for($this->org)->published()->create(['is_syncing' => true]);
 
         SyncSegmentMembership::dispatch($segment->id);
@@ -328,7 +328,7 @@ describe('overlapping syncs', function () {
     });
 
     it('waits, instead of failing, while another sync of the segment is running', function () {
-        config(['queue.default' => 'database']);
+        config(['queue.default' => 'database', 'queue.long_running_connection' => 'database']);
         $lead = Contact::factory()->for($this->org)->create(['status' => ContactStatus::Lead]);
         $segment = Segment::factory()->for($this->org)->published()->withRules([leadsRule()])->create();
         $lock = overlapLock(new SyncSegmentMembership($segment->id));

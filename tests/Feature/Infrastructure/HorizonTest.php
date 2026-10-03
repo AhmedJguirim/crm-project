@@ -46,10 +46,20 @@ describe('queue routing', function () {
         'contact import' => [fn () => ProcessContactImportJob::dispatch('contact-imports/file.csv', 1, 1), 'imports'],
     ]);
 
+    it('sends the long jobs to the long running connection', function (Closure $dispatch, string $job) {
+        $dispatch();
+
+        Queue::assertPushed($job, fn ($pushed): bool => $pushed->connection === config('queue.long_running_connection'));
+    })->with([
+        'segment sync' => [fn () => SyncSegmentMembership::dispatch(1), SyncSegmentMembership::class],
+        'contact import' => [fn () => ProcessContactImportJob::dispatch('contact-imports/file.csv', 1, 1), ProcessContactImportJob::class],
+    ]);
+
     it('leaves the quick jobs on the default queue', function () {
         ResyncContactSegments::dispatch(1);
 
         expect(Queue::pushed(ResyncContactSegments::class)->first()->queue)->toBeNull()
+            ->and(Queue::pushed(ResyncContactSegments::class)->first()->connection)->toBeNull()
             ->and(config('queue.connections.redis.queue'))->toBe('default');
     });
 
@@ -75,10 +85,25 @@ describe('queue routing', function () {
 });
 
 describe('horizon configuration', function () {
-    it('keeps redis from handing a running job to a second worker', function () {
-        $longestTimeout = collect(horizonSupervisors())->max('timeout');
+    it('keeps redis from handing a running job to a second worker', function (string $connection) {
+        $longestTimeout = collect(horizonSupervisors())->where('connection', $connection)->max('timeout');
 
-        expect(config('queue.connections.redis.retry_after'))->toBeGreaterThan($longestTimeout);
+        expect($longestTimeout)->not->toBeNull()
+            ->and(config("queue.connections.{$connection}.retry_after"))->toBeGreaterThan($longestTimeout);
+    })->with(['redis', 'redis-long']);
+
+    it('recovers the quick jobs quickly after a worker died', function () {
+        expect(config('queue.connections.redis.retry_after'))->toBeLessThanOrEqual(120);
+    });
+
+    it('listens to the long queues on the long connection', function () {
+        expect(horizonSupervisors()['supervisor-segments']['connection'])->toBe('redis-long')
+            ->and(horizonSupervisors()['supervisor-imports']['connection'])->toBe('redis-long')
+            ->and(horizonSupervisors()['supervisor-default']['connection'])->toBe('redis');
+    });
+
+    it('never uses redis for the long jobs in the tests', function () {
+        expect(config('queue.long_running_connection'))->toBe('sync');
     });
 
     it('lets the segments supervisor outlive a segment sync', function () {
