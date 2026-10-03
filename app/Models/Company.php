@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\EnforcesUniqueCustomFieldValues;
 use App\Models\Concerns\HasCustomFieldValues;
 use App\Models\Concerns\PreventsDeletionWhileUsedInSegments;
 use App\Models\Concerns\PreventsForceDeletion;
@@ -20,6 +21,7 @@ use Illuminate\Support\Collection;
 class Company extends Model
 {
     use BelongsToOrganization;
+    use EnforcesUniqueCustomFieldValues;
     use HasCustomFieldValues;
 
     /** @use HasFactory<CompanyFactory> */

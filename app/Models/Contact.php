@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\ContactStatus;
 use App\Enums\LeadSource;
 use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\EnforcesUniqueCustomFieldValues;
 use App\Models\Concerns\HasCustomFieldValues;
 use App\Models\Concerns\PreventsForceDeletion;
 use App\Observers\ContactObserver;
@@ -22,6 +23,7 @@ use Illuminate\Support\Collection;
 class Contact extends Model
 {
     use BelongsToOrganization;
+    use EnforcesUniqueCustomFieldValues;
     use HasCustomFieldValues;
 
     /** @use HasFactory<ContactFactory> */

@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\DuplicateCustomFieldValueException;
 use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\Tag;
@@ -39,7 +40,8 @@ class ContactImportService
      * when the import finishes. Any future Contact observer that should apply to imports must be called explicitly.
      *
      * The insert falls back to the existing row on a unique violation, so a contact created by someone else after
-     * the existence check above is reported as a failed row instead of crashing the import.
+     * the existence check above is reported as a failed row instead of crashing the import. The value of a unique
+     * custom field taken after the check above is reported the same way (see `EnforcesUniqueCustomFieldValues`).
      *
      * @param  array<string, string>  $row
      * @param  array<string, CustomField>  $customFieldsByName
@@ -111,10 +113,14 @@ class ContactImportService
 
         $tagIds = $this->resolveTagIds($row['tags'] ?? '');
 
-        $contact = Contact::withoutEvents(fn (): Contact => Contact::withTrashed()->createOrFirst(
-            ['organization_id' => $this->organizationId, 'email' => $email],
-            ['name' => $name, 'phone' => $phone, 'custom_field_values' => $customFieldValues],
-        ));
+        try {
+            $contact = Contact::withoutEvents(fn (): Contact => Contact::withTrashed()->createOrFirst(
+                ['organization_id' => $this->organizationId, 'email' => $email],
+                ['name' => $name, 'phone' => $phone, 'custom_field_values' => $customFieldValues],
+            ));
+        } catch (DuplicateCustomFieldValueException $exception) {
+            return ['success' => false, 'error' => "Duplicate value for unique field '{$exception->fieldName}'."];
+        }
 
         if (! $contact->wasRecentlyCreated) {
             return ['success' => false, 'error' => "A contact with email '{$email}' already exists."];

@@ -17,6 +17,8 @@ use Filament\Forms\Components\Field;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\DB;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 
@@ -33,7 +35,15 @@ function customFieldValuesOwner(string $owner, Organization $organization): obje
 
             public string $editPage = EditContact::class;
 
+            public string $table = 'contacts';
+
             public function __construct(public Organization $organization) {}
+
+            /** @param  array<string, mixed>  $values */
+            public function storedRow(array $values): array
+            {
+                return storedRowOf(Contact::factory()->make(['organization_id' => $this->organization->id, 'custom_field_values' => $values]));
+            }
 
             public function field(array $attributes = []): CustomField
             {
@@ -69,6 +79,8 @@ function customFieldValuesOwner(string $owner, Organization $organization): obje
 
             public string $editPage = EditCompany::class;
 
+            public string $table = 'companies';
+
             public CompanyType $companyType;
 
             public function __construct(public Organization $organization)
@@ -103,6 +115,16 @@ function customFieldValuesOwner(string $owner, Organization $organization): obje
             public function formData(): array
             {
                 return ['name' => 'Acme Corp', 'company_type_id' => $this->companyType->id];
+            }
+
+            /** @param  array<string, mixed>  $values */
+            public function storedRow(array $values): array
+            {
+                return storedRowOf(Company::factory()->make([
+                    'organization_id' => $this->organization->id,
+                    'company_type_id' => $this->companyType->id,
+                    'custom_field_values' => $values,
+                ]));
             }
 
             public function latestRecord(): Company
@@ -429,3 +451,27 @@ test('non unique fields accept duplicated values', function (string $owner) {
         ->call('create')
         ->assertHasNoFormErrors();
 })->with('owners');
+
+test('a unique value taken between the form check and the save is refused with a notification', function (string $owner, string $page) {
+    $owner = customFieldValuesOwner($owner, $this->org);
+    $field = $owner->field(['name' => 'Customer number', 'unique' => true]);
+    $record = $owner->record([$field->key => 'C-1']);
+    $notification = Notification::make()->danger()->title('Not saved')->body('The Customer number must be unique.');
+
+    if ($page === 'create') {
+        $livewire = addCustomFieldsToForm(Livewire::test($owner->createPage)->fillForm($owner->formData()), [$field->key])
+            ->fillForm([...$owner->formData(), ...customFieldValuesFormState([$field->key => 'C-2'])]);
+        insertCompetingRowAfterUniquenessCheck($owner->table, $owner->storedRow([$field->key => 'C-2']), 'C-2');
+        $livewire->call('create');
+    } else {
+        $livewire = Livewire::test($owner->editPage, ['record' => $record->getKey()])
+            ->fillForm(customFieldValuesFormState([$field->key => 'C-2']));
+        insertCompetingRowAfterUniquenessCheck($owner->table, $owner->storedRow([$field->key => 'C-2']), 'C-2');
+        $livewire->call('save');
+    }
+
+    $livewire->assertNotified($notification);
+
+    expect(DB::table($owner->table)->whereRaw('custom_field_values->>? = ?', [$field->key, 'C-2'])->count())->toBe(1)
+        ->and($record->fresh()->customFieldValue($field->key))->toBe('C-1');
+})->with('owners')->with(['create', 'edit']);

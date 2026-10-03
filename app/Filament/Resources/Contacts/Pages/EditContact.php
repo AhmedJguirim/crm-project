@@ -3,14 +3,23 @@
 namespace App\Filament\Resources\Contacts\Pages;
 
 use App\Filament\Resources\Contacts\ContactResource;
+use App\Filament\Support\CustomFields\HandlesDuplicateCustomFieldValues;
 use App\Jobs\ResyncContactSegments;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\RestoreAction;
 use Filament\Resources\Pages\EditRecord;
+use Illuminate\Database\Eloquent\Model;
 
 class EditContact extends EditRecord
 {
+    use HandlesDuplicateCustomFieldValues;
+
     protected static string $resource = ContactResource::class;
+
+    protected function handleRecordUpdate(Model $record, array $data): Model
+    {
+        return $this->haltOnDuplicateCustomFieldValue(fn (): Model => parent::handleRecordUpdate($record, $data));
+    }
 
     protected function getHeaderActions(): array
     {

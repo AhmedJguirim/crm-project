@@ -1,6 +1,9 @@
 <?php
 
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use OpenSpout\Common\Entity\Cell;
 use OpenSpout\Common\Entity\Row;
@@ -52,6 +55,37 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/**
+ * The attributes of a model, ready for a direct `DB::table()` insert: what the database stores, with timestamps.
+ *
+ * @return array<string, mixed>
+ */
+function storedRowOf(Model $model): array
+{
+    return [...$model->getAttributes(), 'created_at' => now(), 'updated_at' => now()];
+}
+
+/**
+ * Simulates a race on a unique custom field: right after the first query that compares the custom field value with
+ * `$value` (the form rule, or the import's pre-check) the competing row is inserted, so the check passed and the
+ * value is taken before the save.
+ *
+ * @param  array<string, mixed>  $row
+ */
+function insertCompetingRowAfterUniquenessCheck(string $table, array $row, string $value): void
+{
+    $inserted = false;
+
+    DB::listen(function (QueryExecuted $query) use (&$inserted, $table, $row, $value): void {
+        if ($inserted || ! str_contains($query->sql, '->>') || ! in_array($value, $query->bindings, true)) {
+            return;
+        }
+
+        $inserted = true;
+        DB::table($table)->insert($row);
+    });
 }
 
 /**
