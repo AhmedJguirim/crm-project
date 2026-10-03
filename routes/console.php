@@ -16,4 +16,7 @@ Schedule::command('tasks:send-digest')
 Schedule::command('segments:sync --frequency=hourly')->hourly()->withoutOverlapping();
 Schedule::command('segments:sync --frequency=daily')->dailyAt('00:05')->withoutOverlapping();
 
+// Safety net: re-syncs every published segment weekly, so a write that skipped model events can't leave segments wrong forever.
+Schedule::command('segments:sync')->weeklyOn(0, '03:30')->withoutOverlapping();
+
 Schedule::command('horizon:snapshot')->everyFiveMinutes();

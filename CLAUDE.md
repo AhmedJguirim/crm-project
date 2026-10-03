@@ -29,6 +29,13 @@
 - For one-off data fixes, create a temporary Artisan command (`php artisan make:command`), run it, then delete it. If the data is only seed/test data, tell the user they can run `php artisan migrate:fresh --seed` instead.
 - Always get the user's explicit permission before altering existing data (running a fix command, `migrate:fresh`, reseeding, or any write to the database), and say exactly what will change first.
 
+=== .ai/segments rules ===
+
+## Segment membership rules
+
+- Segment membership is kept up to date by model events. Any write to contacts, deals, activities, tags, companies, company types, or the contact_tag / company_contact links must fire model events, or explicitly queue a resync (`ResyncContactSegments::dispatchForContacts(...)` for a few contacts, `SyncSegmentMembership` per affected segment for bulk changes).
+- Don't use query-builder `update()`/`delete()`/`insert()`, `*Quietly()` or `withoutEvents()` on those models unless the same code queues the resync. `tests/Arch/EventBypassingWritesTest.php` enforces this; add a reasoned allow-list entry when it's justified.
+
 === foundation rules ===
 
 # Laravel Boost Guidelines

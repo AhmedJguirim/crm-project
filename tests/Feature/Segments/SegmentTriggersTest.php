@@ -4,14 +4,18 @@ use App\Data\Segments\SegmentConditionData;
 use App\Data\Segments\SegmentRuleData;
 use App\Enums\ContactAttribute;
 use App\Enums\ContactStatus;
+use App\Enums\DealStage;
+use App\Enums\DealStatus;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentOperator;
 use App\Filament\Resources\Contacts\Pages\CreateContact;
+use App\Filament\Resources\Deals\Pages\DealPipeline;
 use App\Jobs\ProcessContactImportJob;
 use App\Jobs\ResyncContactSegments;
 use App\Jobs\SyncSegmentMembership;
 use App\Models\Contact;
 use App\Models\CustomField;
+use App\Models\Deal;
 use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\User;
@@ -132,4 +136,27 @@ it('matches multi-select segments for imported contacts with empty parts in the 
     ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
 
     expect($segment->contacts()->pluck('email')->all())->toBe(['john@example.com']);
+});
+
+it('puts a contact into a deal stage segment when its deal card is moved on the pipeline board', function () {
+    $contact = Contact::factory()->for($this->org)->create();
+    $deal = Deal::factory()->for($this->org)->for($contact)->create([
+        'created_by' => $this->user->id,
+        'stage' => DealStage::Negotiating,
+        'status' => DealStatus::Open,
+        'position' => '1000.0000000000',
+    ]);
+    $segment = Segment::factory()->for($this->org)->published()->withRules([
+        new SegmentRuleData('rule-1', 'Won deals', [
+            SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_stages' => [DealStage::Won->value]]),
+        ]),
+    ])->create();
+
+    expect($segment->contacts()->count())->toBe(0);
+
+    Livewire::test(DealPipeline::class)->call('moveCard', (string) $deal->id, DealStage::Won->value);
+
+    expect($deal->fresh()->stage)->toBe(DealStage::Won)
+        ->and($deal->fresh()->status)->toBe(DealStatus::Won)
+        ->and($segment->contacts()->pluck('contacts.id')->all())->toBe([$contact->id]);
 });

@@ -163,11 +163,20 @@ describe('the schedule', function () {
         $hourly = $events->first(fn ($event): bool => str_contains((string) $event->command, '--frequency=hourly'));
         $daily = $events->first(fn ($event): bool => str_contains((string) $event->command, '--frequency=daily'));
 
-        expect($events)->toHaveCount(2)
+        expect($events)->toHaveCount(3)
             ->and($hourly->expression)->toBe('0 * * * *')
             ->and($hourly->withoutOverlapping)->toBeTrue()
             ->and($daily->expression)->toBe('5 0 * * *')
             ->and($daily->withoutOverlapping)->toBeTrue();
+    });
+
+    it('re-syncs every published segment weekly as a safety net', function () {
+        $weekly = collect(app(Schedule::class)->events())
+            ->first(fn (Event $event): bool => str_contains((string) $event->command, 'segments:sync') && ! str_contains((string) $event->command, '--frequency'));
+
+        expect($weekly)->not->toBeNull()
+            ->and($weekly->expression)->toBe('30 3 * * 0')
+            ->and($weekly->withoutOverlapping)->toBeTrue();
     });
 });
 
