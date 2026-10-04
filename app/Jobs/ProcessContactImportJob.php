@@ -8,6 +8,7 @@ use App\Models\Segment;
 use App\Models\User;
 use App\Services\ContactImportFileReader;
 use App\Services\ContactImportService;
+use App\Support\CsvDialect;
 use App\Support\TemporaryFile;
 use DateTimeInterface;
 use Filament\Actions\Action;
@@ -147,7 +148,7 @@ class ProcessContactImportJob implements ShouldQueue
                 }
             }
         } catch (UnreadableImportFileException) {
-            $this->handleUnreadableFile($importedCount, $failedRows, $headers, $rowNumber, $ignoredColumns);
+            $this->handleUnreadableFile($importedCount, $failedRows, $headers, $rowNumber, $ignoredColumns, $dialect);
 
             return;
         } finally {
@@ -180,7 +181,7 @@ class ProcessContactImportJob implements ShouldQueue
             return;
         }
 
-        $failedCsvPath = $this->storeFailedRowsCsv($headers, $failedRows);
+        $failedCsvPath = $this->storeFailedRowsCsv($headers, $failedRows, $dialect);
 
         $errorSummary = collect($failedRows)
             ->take(5)
@@ -244,7 +245,7 @@ class ProcessContactImportJob implements ShouldQueue
      * @param  array<int, string>|null  $headers
      * @param  array<int, string>  $ignoredColumns
      */
-    private function handleUnreadableFile(int $importedCount, array $failedRows, ?array $headers, int $lastRowRead, array $ignoredColumns): void
+    private function handleUnreadableFile(int $importedCount, array $failedRows, ?array $headers, int $lastRowRead, array $ignoredColumns, CsvDialect $dialect): void
     {
         Storage::disk('local')->delete($this->filePath);
 
@@ -279,7 +280,7 @@ class ProcessContactImportJob implements ShouldQueue
             ])));
 
         if ($failedRows !== [] && $headers !== null) {
-            $notification->actions([$this->failedRowsAction($this->storeFailedRowsCsv($headers, $failedRows))]);
+            $notification->actions([$this->failedRowsAction($this->storeFailedRowsCsv($headers, $failedRows, $dialect))]);
         }
 
         $notification->sendToDatabase($user);
@@ -319,15 +320,18 @@ class ProcessContactImportJob implements ShouldQueue
     }
 
     /**
+     * Written with the delimiter of the imported file, in UTF-8 with a BOM, so the user can fix it in the same Excel
+     * and import it again as is.
+     *
      * @param  array<int, string>  $headers
      * @param  array<int, array{row: int, data: array<string, string>, error: string}>  $failedRows
      */
-    private function storeFailedRowsCsv(array $headers, array $failedRows): string
+    private function storeFailedRowsCsv(array $headers, array $failedRows, CsvDialect $dialect): string
     {
         $tmpPath = TemporaryFile::reserve('failed-rows-', 'csv');
 
         try {
-            $writer = SimpleExcelWriter::create($tmpPath)
+            $writer = SimpleExcelWriter::create($tmpPath, delimiter: $dialect->delimiter)
                 ->noHeaderRow()
                 ->addRow([...ContactImportService::FAILED_ROWS_META_COLUMNS, ...$headers]);
 

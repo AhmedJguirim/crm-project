@@ -1,10 +1,12 @@
 <?php
 
+use App\Exceptions\UnreadableImportFileException;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
 use App\Jobs\ProcessContactImportJob;
 use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\User;
+use App\Services\ContactImportFileReader;
 use App\Services\ContactImportService;
 use App\Support\CsvDialect;
 use Filament\Facades\Filament;
@@ -91,27 +93,66 @@ it('does not accept thousands separators', function (string $value) {
     expect($notification->data['body'])->toContain("Invalid value for field 'Taux (€)': {$value}");
 })->with(['1 234,5', '1.234,5', '1,234.5']);
 
-it('writes the failed rows of a European import as a standard csv', function () {
+$failedRowsFile = fn (): string => Storage::disk('local')->get(
+    collect(Storage::disk('local')->files('contact-imports'))->first(fn (string $file): bool => str_contains($file, 'failed-'))
+);
+
+it('writes the failed rows of a ; import with ; in utf-8 with a BOM', function () use ($failedRowsFile) {
     ($this->import)("name;email\nHélène;not-an-email\n", windows1252: true);
 
-    $report = collect(Storage::disk('local')->files('contact-imports'))->first(fn (string $file): bool => str_contains($file, 'failed-'));
-    $contents = Storage::disk('local')->get($report);
+    $contents = $failedRowsFile();
 
     expect($contents)->toStartWith("\xEF\xBB\xBF")
-        ->and($contents)->toContain("_row_number,_error,name,email\n")
+        ->and($contents)->toContain("_row_number;_error;name;email\n")
         ->and($contents)->toContain('Hélène')
         ->and(mb_check_encoding($contents, 'UTF-8'))->toBeTrue();
 });
 
-it('imports the failed rows file again as it is', function () {
-    ($this->import)("name;email\nHélène;not-an-email\n", windows1252: true);
-    $report = collect(Storage::disk('local')->files('contact-imports'))->first(fn (string $file): bool => str_contains($file, 'failed-'));
-    $corrected = str_replace('not-an-email', 'helene@example.test', Storage::disk('local')->get($report));
+it('imports the failed rows of a ; file again with their local values', function () use ($failedRowsFile) {
+    $notification = ($this->import)("name;email;Taux (€);Début;Intérêts\nAnn;not-an-email;25,5;16/03/2026;\"laravel;php\"\n", windows1252: true);
 
-    $notification = ($this->import)($corrected);
+    expect($notification->data['body'])->toContain('Imported: 0 | Failed: 1')
+        ->and($failedRowsFile())->toContain('"laravel;php"');
+
+    $notification = ($this->import)(str_replace('not-an-email', 'ann@example.test', $failedRowsFile()));
+    $contact = ($this->contact)('ann@example.test');
 
     expect($notification->data['body'])->toBe('Imported: 1 | Failed: 0')
-        ->and(($this->contact)('helene@example.test')->name)->toBe('Hélène');
+        ->and($contact->customFieldValue($this->rate->key))->toBe(25.5)
+        ->and($contact->customFieldValue($this->start->key))->toBe('2026-03-16')
+        ->and($contact->customFieldValue($this->interests->key))->toBe(['laravel', 'php']);
+});
+
+it('still writes a comma failed rows file for a comma file', function () use ($failedRowsFile) {
+    ($this->import)("name,email\nBob,not-an-email\n");
+
+    expect($failedRowsFile())->toStartWith("\xEF\xBB\xBF")
+        ->and($failedRowsFile())->toContain("_row_number,_error,name,email\n");
+});
+
+it('uses the delimiter of the file when it becomes unreadable partway', function () use ($failedRowsFile) {
+    app()->bind(ContactImportFileReader::class, fn () => new class extends ContactImportFileReader
+    {
+        public function dialect(string $absolutePath, string $extension): CsvDialect
+        {
+            return new CsvDialect(';');
+        }
+
+        public function rows(string $absolutePath, string $extension, ?CsvDialect $dialect = null): Generator
+        {
+            yield ['name', 'email'];
+            yield ['Ann', 'not-an-email'];
+
+            throw UnreadableImportFileException::unreadable(new RuntimeException('Corrupt file'));
+        }
+    });
+    Storage::disk('local')->put('contact-imports/partial.csv', "name;email\n");
+    DatabaseNotification::query()->delete();
+
+    ProcessContactImportJob::dispatchSync('contact-imports/partial.csv', $this->org->id, $this->user->id);
+
+    expect(DatabaseNotification::where('notifiable_id', $this->user->id)->sole()->data['title'])->toBe('Import stopped partway')
+        ->and($failedRowsFile())->toContain("_row_number;_error;name;email\n");
 });
 
 describe('the service', function () {

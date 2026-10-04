@@ -269,7 +269,8 @@ describe('xlsx imports', function () {
         expect($notification->data['title'])->toBe('Import complete with errors')
             ->and($notification->data['actions'][0]['name'])->toBe('downloadFailedRows')
             ->and($failedCsv)->not->toBeNull()
-            ->and(Storage::disk('local')->get($failedCsv))->toContain('Invalid email: not-an-email');
+            ->and(Storage::disk('local')->get($failedCsv))->toContain('Invalid email: not-an-email')
+            ->and(Storage::disk('local')->get($failedCsv))->toContain("_row_number,_error,name,email,phone,tags\n");
     });
 
     test('an unreadable file fails gracefully', function () {
