@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
@@ -22,6 +23,9 @@ class User extends Authenticatable implements FilamentUser, HasTenants
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, TwoFactorAuthenticatable;
+
+    /** @var array<int, string>|null The role of the user by organization ID, once read by `roleIn()`. */
+    private ?array $organizationRoles = null;
 
     /**
      * The attributes that are mass assignable.
@@ -71,6 +75,28 @@ class User extends Authenticatable implements FilamentUser, HasTenants
         return $this->belongsToMany(Organization::class)
             ->withPivot('role')
             ->withTimestamps();
+    }
+
+    /**
+     * The role of the user in an organization, or null when the user is not a member. All the roles of the user are read
+     * with the first call and kept on the instance, as the policies ask once per table row.
+     */
+    public function roleIn(int $organizationId): ?OrganizationRole
+    {
+        $this->organizationRoles ??= DB::table('organization_user')
+            ->where('user_id', $this->getKey())
+            ->pluck('role', 'organization_id')
+            ->all();
+
+        $role = $this->organizationRoles[$organizationId] ?? null;
+
+        return $role === null ? null : OrganizationRole::tryFrom($role);
+    }
+
+    /** Forgets the roles kept by `roleIn()`, after they were changed. */
+    public function forgetRoles(): void
+    {
+        $this->organizationRoles = null;
     }
 
     public function createdDeals(): HasMany
