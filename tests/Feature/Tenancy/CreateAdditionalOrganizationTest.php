@@ -58,18 +58,53 @@ test('organization creation requires name', function () {
     expect(Organization::where('personal_team', false)->count())->toBe(0);
 });
 
-test('organization creation rejects duplicate name', function () {
-    Organization::factory()->create([
-        'name' => 'Existing Org',
-        'created_by' => $this->user->id,
+describe('organization names are unique per user', function () {
+    beforeEach(function () {
+        $this->acme = Organization::factory()->create(['name' => 'Acme', 'created_by' => $this->user->id]);
+        $this->acme->members()->attach($this->user, ['role' => OrganizationRole::Owner->value]);
+        $this->globex = Organization::factory()->create(['name' => 'Globex']);
+        $this->globex->members()->attach($this->user, ['role' => OrganizationRole::Member->value]);
+    });
+
+    it('allows the name of another customer', function () {
+        $bob = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
+        $initech = Organization::factory()->create(['name' => 'Initech']);
+        $initech->members()->attach($bob, ['role' => OrganizationRole::Owner->value]);
+        $this->actingAs($bob);
+        Filament::setTenant($bob->personalOrganization());
+
+        Livewire::test(RegisterOrganization::class)
+            ->fillForm(['name' => 'Acme'])
+            ->call('register')
+            ->assertHasNoFormErrors();
+
+        $created = Organization::where('name', 'Acme')->where('id', '!=', $this->acme->id)->sole();
+
+        expect($created->getMemberRole($bob))->toBe(OrganizationRole::Owner);
+    });
+
+    it('refuses a name the user already has', function (string $name) {
+        Livewire::test(RegisterOrganization::class)
+            ->fillForm(['name' => $name])
+            ->call('register')
+            ->assertHasFormErrors(['name' => 'You already belong to an organization with this name.']);
+
+        expect(Organization::where('personal_team', false)->count())->toBe(2);
+    })->with([
+        'owned' => 'Acme',
+        'only a member of it' => 'Globex',
+        'case-insensitive' => 'acme',
+        'spaces ignored' => ' Acme ',
     ]);
 
-    Livewire::test(RegisterOrganization::class)
-        ->fillForm([
-            'name' => 'Existing Org',
-        ])
-        ->call('register')
-        ->assertHasFormErrors(['name']);
+    it('does not count an organization the user only created but left', function () {
+        $this->acme->members()->detach($this->user);
+
+        Livewire::test(RegisterOrganization::class)
+            ->fillForm(['name' => 'Acme'])
+            ->call('register')
+            ->assertHasNoFormErrors();
+    });
 });
 
 // TSK-2026-0013 AC-003: Optional fields handling

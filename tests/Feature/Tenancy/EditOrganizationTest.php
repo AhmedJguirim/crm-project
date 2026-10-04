@@ -1,6 +1,8 @@
 <?php
 
+use App\Enums\OrganizationRole;
 use App\Filament\Pages\Tenancy\EditOrganization;
+use App\Models\Organization;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
@@ -56,14 +58,39 @@ test('organization description can be updated', function () {
     expect($this->org->fresh()->description)->toBe('A new description for the org.');
 });
 
-test('organization name must be unique', function () {
-    $otherUser = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
-    $otherOrg = $otherUser->personalOrganization();
+describe('organization names are unique per user', function () {
+    beforeEach(function () {
+        $this->globex = Organization::factory()->create(['name' => 'Globex']);
+        $this->globex->members()->attach($this->user, ['role' => OrganizationRole::Member->value]);
+    });
 
-    Livewire::test(EditOrganization::class)
-        ->fillForm([
-            'name' => $otherOrg->name,
-        ])
-        ->call('save')
-        ->assertHasFormErrors(['name' => 'unique']);
+    it('saves the settings with an unchanged name', function () {
+        Livewire::test(EditOrganization::class)
+            ->fillForm(['name' => $this->org->name, 'description' => 'Same name'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        expect($this->org->fresh()->description)->toBe('Same name');
+    });
+
+    it('refuses a rename to another organization of the user', function (string $name) {
+        Livewire::test(EditOrganization::class)
+            ->fillForm(['name' => $name])
+            ->call('save')
+            ->assertHasFormErrors(['name' => 'You already belong to an organization with this name.']);
+    })->with(['exact' => 'Globex', 'case and spaces' => ' globex ']);
+
+    it('allows a rename to the name of another customer', function () {
+        $bob = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
+        $initech = $bob->personalOrganization();
+        $initech->update(['name' => 'Initech']);
+
+        Livewire::test(EditOrganization::class)
+            ->fillForm(['name' => 'Initech'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        expect($this->org->fresh()->name)->toBe('Initech')
+            ->and($initech->fresh()->name)->toBe('Initech');
+    });
 });

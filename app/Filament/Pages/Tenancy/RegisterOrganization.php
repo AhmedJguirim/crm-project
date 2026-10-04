@@ -3,12 +3,12 @@
 namespace App\Filament\Pages\Tenancy;
 
 use App\Enums\OrganizationRole;
+use App\Filament\Support\OrganizationNameInput;
 use App\Filament\Support\OrganizationTimezoneSelect;
 use App\Models\Organization;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
 use Filament\Pages\Tenancy\RegisterTenant;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Str;
@@ -24,10 +24,7 @@ class RegisterOrganization extends RegisterTenant
     {
         return $schema
             ->schema([
-                TextInput::make('name')
-                    ->required()
-                    ->maxLength(255)
-                    ->unique(Organization::class, 'name'),
+                OrganizationNameInput::make(),
                 Textarea::make('description')
                     ->maxLength(1000)
                     ->rows(3),

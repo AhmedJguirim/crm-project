@@ -2,11 +2,11 @@
 
 namespace App\Filament\Pages\Tenancy;
 
+use App\Filament\Support\OrganizationNameInput;
 use App\Filament\Support\OrganizationTimezoneSelect;
-use App\Models\Organization;
+use Filament\Facades\Filament;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
 use Filament\Pages\Tenancy\EditTenantProfile;
 use Filament\Schemas\Schema;
 
@@ -21,10 +21,7 @@ class EditOrganization extends EditTenantProfile
     {
         return $schema
             ->schema([
-                TextInput::make('name')
-                    ->required()
-                    ->maxLength(255)
-                    ->unique(Organization::class, 'name', ignoreRecord: true),
+                OrganizationNameInput::make(Filament::getTenant()),
 
                 Textarea::make('description')
                     ->maxLength(1000)
