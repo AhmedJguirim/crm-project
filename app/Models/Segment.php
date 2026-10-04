@@ -114,6 +114,16 @@ class Segment extends Model
     }
 
     /**
+     * Whether a condition of the published rules can match other contacts when the organization's timezone changes.
+     */
+    public function dependsOnTimezone(): bool
+    {
+        return $this->publishedRules()
+            ->flatMap(fn (SegmentRuleData $rule): array => $rule->conditions)
+            ->contains(fn (SegmentConditionData $condition): bool => $condition->dependsOnTimezone());
+    }
+
+    /**
      * The definition being edited: the draft when there is one, the published definition otherwise.
      *
      * @return Collection<int, SegmentRuleData>

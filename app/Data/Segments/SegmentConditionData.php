@@ -2,7 +2,9 @@
 
 namespace App\Data\Segments;
 
+use App\Enums\ContactAttribute;
 use App\Enums\SegmentConditionType;
+use App\Enums\SegmentFieldKind;
 use App\Enums\SegmentOperator;
 use App\Enums\SegmentRefreshFrequency;
 use Illuminate\Support\Str;
@@ -40,6 +42,24 @@ class SegmentConditionData extends Data
             (array) ($this->value[$key] ?? []),
             fn (mixed $item): bool => filled($item),
         ));
+    }
+
+    /**
+     * Whether the matches can change with the organization's timezone: the conditions relative to today, and every
+     * condition on a timestamp attribute (the Created Date), which is compared as a date in that timezone. Dates of
+     * custom fields are plain dates, so only their relative conditions count.
+     */
+    public function dependsOnTimezone(): bool
+    {
+        if ($this->refreshFrequency() !== null) {
+            return true;
+        }
+
+        if ($this->type !== SegmentConditionType::Attribute) {
+            return false;
+        }
+
+        return ContactAttribute::tryFrom((string) $this->field)?->fieldKind() === SegmentFieldKind::Date;
     }
 
     /**

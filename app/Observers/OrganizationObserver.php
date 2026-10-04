@@ -10,7 +10,7 @@ class OrganizationObserver
 {
     /**
      * Segments with date conditions change membership when the organization's day starts at another time, so the
-     * published ones that depend on the current date are synced again.
+     * published ones with conditions on timestamps (the Created Date) or relative to today are synced again.
      */
     public function updated(Organization $organization): void
     {
@@ -22,7 +22,7 @@ class OrganizationObserver
             ->where('is_published', true)
             ->select(['id', 'rules'])
             ->get()
-            ->filter(fn (Segment $segment): bool => $segment->refreshFrequency() !== null)
+            ->filter(fn (Segment $segment): bool => $segment->dependsOnTimezone())
             ->each(fn (Segment $segment) => SyncSegmentMembership::dispatch($segment->id));
     }
 }
