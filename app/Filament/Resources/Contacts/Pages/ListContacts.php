@@ -26,6 +26,7 @@ class ListContacts extends ListRecords
 
         return [
             Action::make('downloadTemplate')
+                ->authorize('viewAny')
                 ->label('Download Excel Template')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
@@ -38,6 +39,7 @@ class ListContacts extends ListRecords
                     ->deleteFileAfterSend()),
 
             Action::make('importContacts')
+                ->authorize('import')
                 ->label('Import Excel')
                 ->icon('heroicon-o-arrow-up-tray')
                 ->color('gray')

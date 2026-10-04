@@ -112,6 +112,7 @@ class InvoicesTable
             ])
             ->recordActions([
                 Action::make('markAsPaid')
+                    ->authorize('update')
                     ->label('Mark as Paid')
                     ->icon(Heroicon::OutlinedCheckCircle)
                     ->color('success')
@@ -124,6 +125,7 @@ class InvoicesTable
                     }),
 
                 Action::make('downloadPdf')
+                    ->authorize('view')
                     ->label('PDF')
                     ->icon(Heroicon::OutlinedArrowDownTray)
                     ->color('gray')
@@ -135,7 +137,7 @@ class InvoicesTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()->authorizeIndividualRecords(),
                 ]),
             ])
             ->defaultSort('due_at')

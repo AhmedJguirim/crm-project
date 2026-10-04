@@ -13,8 +13,10 @@ use App\Filament\Resources\Deals\Widgets\DealActivityFeed;
 use App\Filament\Resources\Deals\Widgets\DealDetailsWidget;
 use App\Filament\Resources\Deals\Widgets\DealInvoicesWidget;
 use App\Filament\Resources\Invoices\InvoiceResource;
+use App\Filament\Support\AbilityCheck;
 use App\Models\Activity;
 use App\Models\Deal;
+use App\Models\Invoice;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\DateTimePicker;
@@ -89,6 +91,7 @@ class ViewDeal extends Page
                 : []),
 
             Action::make('logActivity')
+                ->authorize(AbilityCheck::for('create', Activity::class))
                 ->label('Log Activity')
                 ->icon(Heroicon::OutlinedPencilSquare)
                 ->color('primary')
@@ -221,6 +224,7 @@ class ViewDeal extends Page
                 }),
 
             Action::make('createInvoice')
+                ->authorize(AbilityCheck::for('create', Invoice::class))
                 ->label('Create Invoice')
                 ->icon(Heroicon::OutlinedDocumentCurrencyDollar)
                 ->color('gray')
@@ -229,6 +233,7 @@ class ViewDeal extends Page
                 ])),
 
             Action::make('moveToWon')
+                ->authorize('update')
                 ->label('Move to Won')
                 ->icon(Heroicon::OutlinedCheckBadge)
                 ->color('success')
@@ -254,6 +259,7 @@ class ViewDeal extends Page
                 }),
 
             Action::make('moveToLost')
+                ->authorize('update')
                 ->label('Move to Lost')
                 ->icon(Heroicon::OutlinedXCircle)
                 ->color('danger')

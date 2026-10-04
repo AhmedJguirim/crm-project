@@ -17,6 +17,7 @@ class ViewInvoice extends ViewRecord
     {
         return [
             Action::make('downloadPdf')
+                ->authorize('view')
                 ->label('Download PDF')
                 ->icon(Heroicon::OutlinedArrowDownTray)
                 ->color('gray')
@@ -24,6 +25,7 @@ class ViewInvoice extends ViewRecord
                 ->openUrlInNewTab(),
 
             Action::make('markAsSent')
+                ->authorize('update')
                 ->label('Mark as Sent')
                 ->icon(Heroicon::OutlinedPaperAirplane)
                 ->color('info')
@@ -35,6 +37,7 @@ class ViewInvoice extends ViewRecord
                 }),
 
             Action::make('markAsPaid')
+                ->authorize('update')
                 ->label('Mark as Paid')
                 ->icon(Heroicon::OutlinedCheckCircle)
                 ->color('success')
@@ -47,6 +50,7 @@ class ViewInvoice extends ViewRecord
                 }),
 
             Action::make('cancelInvoice')
+                ->authorize('cancel')
                 ->label('Cancel Invoice')
                 ->icon(Heroicon::OutlinedXCircle)
                 ->color('danger')

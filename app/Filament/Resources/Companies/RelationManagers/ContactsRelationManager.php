@@ -16,6 +16,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Auth;
 
 class ContactsRelationManager extends RelationManager
 {
@@ -43,6 +44,7 @@ class ContactsRelationManager extends RelationManager
             ->recordUrl(fn (Contact $record): string => ContactResource::getUrl('view', ['record' => $record]))
             ->headerActions([
                 AttachAction::make()
+                    ->authorize(fn (): bool => Auth::user()?->can('update', $this->getOwnerRecord()) ?? false)
                     ->preloadRecordSelect()
                     ->multiple()
                     ->recordSelectSearchColumns(['name', 'email'])
@@ -52,11 +54,13 @@ class ContactsRelationManager extends RelationManager
             ])
             ->recordActions([
                 DetachAction::make()
+                    ->authorize(fn (): bool => Auth::user()?->can('update', $this->getOwnerRecord()) ?? false)
                     ->after(fn (Contact $record) => $this->resyncContacts([$record->getKey()])),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
                     DetachBulkAction::make()
+                        ->authorize(fn (): bool => Auth::user()?->can('update', $this->getOwnerRecord()) ?? false)
                         ->after(fn (Collection $records) => $this->resyncContacts($records->modelKeys())),
                 ]),
             ]);

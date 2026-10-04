@@ -62,6 +62,7 @@ class SegmentsTable
                 ViewAction::make(),
 
                 Action::make('editRules')
+                    ->authorize('update')
                     ->label('Edit')
                     ->icon(Heroicon::OutlinedPencilSquare)
                     ->color('warning')

@@ -291,7 +291,7 @@ class SegmentRuleEngine extends Page
     public function saveChangesAction(): Action
     {
         return Action::make('saveChanges')
-            ->authorize('update')
+            ->authorize('publish')
             ->label('Save Changes')
             ->icon(Heroicon::OutlinedCheck)
             ->color('success')

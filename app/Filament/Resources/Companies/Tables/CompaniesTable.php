@@ -73,8 +73,8 @@ class CompaniesTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    SegmentUsageGuard::protectBulkDelete(DeleteBulkAction::make()),
-                    RestoreBulkAction::make(),
+                    SegmentUsageGuard::protectBulkDelete(DeleteBulkAction::make()->authorizeIndividualRecords()),
+                    RestoreBulkAction::make()->authorizeIndividualRecords(),
                 ]),
             ])
             ->emptyStateHeading('No companies yet')

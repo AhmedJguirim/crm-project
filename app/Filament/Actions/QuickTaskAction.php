@@ -7,6 +7,7 @@ use App\Enums\DealStatus;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
+use App\Filament\Support\AbilityCheck;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Task;
@@ -35,6 +36,7 @@ class QuickTaskAction
             ->color('primary')
             ->modalHeading('Quick Task')
             ->modalSubmitActionLabel('Create Task')
+            ->authorize(AbilityCheck::for('create', Task::class))
             ->schema(self::getBaseSchema())
             ->action(fn (array $data): Task => self::createTask($data));
     }
@@ -47,6 +49,7 @@ class QuickTaskAction
             ->color('primary')
             ->modalHeading('Quick Task')
             ->modalSubmitActionLabel('Create Task')
+            ->authorize(AbilityCheck::for('create', Task::class))
             ->fillForm([
                 'contact_id' => $contact->getKey(),
                 'contact_name' => filled($contact->name) ? $contact->name : $contact->email,
@@ -63,6 +66,7 @@ class QuickTaskAction
             ->color('gray')
             ->modalHeading('Quick Task')
             ->modalSubmitActionLabel('Create Task')
+            ->authorize(AbilityCheck::for('create', Task::class))
             ->fillForm(fn (Contact $record): array => [
                 'contact_id' => $record->getKey(),
                 'contact_name' => filled($record->name) ? $record->name : $record->email,

@@ -15,6 +15,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Gate;
 use Relaticle\Flowforge\Board;
 use Relaticle\Flowforge\BoardResourcePage;
 use Relaticle\Flowforge\Column;
@@ -79,6 +80,7 @@ class DealPipeline extends BoardResourcePage
                     ->openUrlInNewTab(false),
 
                 Action::make('edit')
+                    ->authorize('update')
                     ->icon(Heroicon::OutlinedPencilSquare)
                     ->url(fn (Deal $record): string => DealResource::getUrl('edit', ['record' => $record]))
                     ->openUrlInNewTab(false),
@@ -94,14 +96,16 @@ class DealPipeline extends BoardResourcePage
         ?string $afterCardId = null,
         ?string $beforeCardId = null
     ): void {
-        parent::moveCard($cardId, $targetColumnId, $afterCardId, $beforeCardId);
-
         $deal = Deal::query()
             ->find($cardId);
 
         if (! $deal) {
             return;
         }
+
+        Gate::authorize('update', $deal);
+
+        parent::moveCard($cardId, $targetColumnId, $afterCardId, $beforeCardId);
 
         $stage = DealStage::from($targetColumnId);
 
@@ -142,6 +146,7 @@ class DealPipeline extends BoardResourcePage
     {
         return [
             CreateAction::make()
+                ->authorize('create')
                 ->label('New Deal')
                 ->url(DealResource::getUrl('create')),
 

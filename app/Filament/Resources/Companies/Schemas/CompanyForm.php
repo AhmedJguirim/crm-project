@@ -2,10 +2,12 @@
 
 namespace App\Filament\Resources\Companies\Schemas;
 
+use App\Filament\Support\AbilityCheck;
 use App\Filament\Support\CustomFields\CustomFieldValuesSection;
 use App\Models\Company;
 use App\Models\CompanyCustomField;
 use App\Models\CompanyType;
+use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -35,6 +37,7 @@ class CompanyForm
                             ->searchable()
                             ->preload()
                             ->live()
+                            ->createOptionAction(fn (Action $action): Action => $action->authorize(AbilityCheck::for('create', CompanyType::class)))
                             ->createOptionForm([
                                 TextInput::make('name')
                                     ->required()

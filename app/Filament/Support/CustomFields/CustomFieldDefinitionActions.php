@@ -31,7 +31,7 @@ class CustomFieldDefinitionActions
 
     public static function deleteBulk(string $recordsLabel): DeleteBulkAction
     {
-        return SegmentUsageGuard::protectBulkDelete(DeleteBulkAction::make())
+        return SegmentUsageGuard::protectBulkDelete(DeleteBulkAction::make()->authorizeIndividualRecords())
             ->requiresConfirmation()
             ->modalHeading('Delete the selected fields?')
             ->modalDescription(static::deleteDescription($recordsLabel, 'These fields'))
@@ -48,6 +48,7 @@ class CustomFieldDefinitionActions
     public static function restoreBulk(string $recordsLabel): RestoreBulkAction
     {
         return RestoreBulkAction::make()
+            ->authorizeIndividualRecords()
             ->modalDescription("The fields will show up again on your {$recordsLabel}, with all the values that were filled in before they were deleted.");
     }
 

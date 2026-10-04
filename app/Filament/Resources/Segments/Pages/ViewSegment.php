@@ -44,6 +44,7 @@ class ViewSegment extends ViewRecord
             PublishSegmentAction::make(),
 
             Action::make('editRules')
+                ->authorize('update')
                 ->label('Edit rules')
                 ->icon(Heroicon::OutlinedPencilSquare)
                 ->color('warning')

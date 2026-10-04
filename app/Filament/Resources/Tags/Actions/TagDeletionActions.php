@@ -28,7 +28,7 @@ class TagDeletionActions
 
     public static function deleteBulk(): DeleteBulkAction
     {
-        return SegmentUsageGuard::protectBulkDelete(DeleteBulkAction::make())
+        return SegmentUsageGuard::protectBulkDelete(DeleteBulkAction::make()->authorizeIndividualRecords())
             ->requiresConfirmation()
             ->modalHeading('Delete the selected tags?')
             ->modalDescription('These tags will be hidden from your contacts, filters and segments. '
@@ -46,6 +46,7 @@ class TagDeletionActions
     public static function restoreBulk(): RestoreBulkAction
     {
         return RestoreBulkAction::make()
+            ->authorizeIndividualRecords()
             ->modalDescription('The tags will show up again on every contact they were attached to.');
     }
 }

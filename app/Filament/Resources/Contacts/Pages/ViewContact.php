@@ -10,6 +10,7 @@ use App\Filament\Actions\QuickTaskAction;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Contacts\Widgets\ContactActivityFeed;
 use App\Filament\Resources\Contacts\Widgets\ContactDetailsWidget;
+use App\Filament\Support\AbilityCheck;
 use App\Models\Activity;
 use App\Models\CustomField;
 use App\Models\Deal;
@@ -60,6 +61,7 @@ class ViewContact extends Page
             QuickTaskAction::makeForContact($this->getRecord()),
 
             Action::make('logActivity')
+                ->authorize(AbilityCheck::for('create', Activity::class))
                 ->label('Log Activity')
                 ->icon(Heroicon::OutlinedPencilSquare)
                 ->color('primary')

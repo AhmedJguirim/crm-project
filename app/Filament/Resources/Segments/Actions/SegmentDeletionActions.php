@@ -22,6 +22,7 @@ class SegmentDeletionActions
     public static function deleteBulk(): DeleteBulkAction
     {
         return DeleteBulkAction::make()
+            ->authorizeIndividualRecords()
             ->requiresConfirmation()
             ->modalHeading('Permanently delete the selected segments?')
             ->modalDescription('The segments, their rules and their member lists will be removed for good. Contacts are not affected. This cannot be undone.')

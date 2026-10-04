@@ -8,6 +8,7 @@ use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\LeadSource;
 use App\Filament\Actions\QuickTaskAction;
+use App\Filament\Support\AbilityCheck;
 use App\Jobs\ResyncContactSegments;
 use App\Models\Activity;
 use App\Models\Contact;
@@ -111,6 +112,7 @@ class ContactsTable
                 QuickTaskAction::makeForContactsTable(),
 
                 Action::make('logActivity')
+                    ->authorize(AbilityCheck::for('create', Activity::class))
                     ->label('Log')
                     ->icon(Heroicon::OutlinedPencilSquare)
                     ->color('gray')
@@ -194,6 +196,8 @@ class ContactsTable
             ->toolbarActions([
                 BulkActionGroup::make([
                     BulkAction::make('changeStatus')
+                        ->authorize('updateAny')
+                        ->authorizeIndividualRecords('update')
                         ->label('Change Status')
                         ->icon(Heroicon::OutlinedArrowPath)
                         ->schema([
@@ -214,6 +218,8 @@ class ContactsTable
                         ->deselectRecordsAfterCompletion(),
 
                     BulkAction::make('addTags')
+                        ->authorize('updateAny')
+                        ->authorizeIndividualRecords('update')
                         ->label('Add Tags')
                         ->icon(Heroicon::OutlinedTag)
                         ->schema([
@@ -237,8 +243,8 @@ class ContactsTable
                         })
                         ->deselectRecordsAfterCompletion(),
 
-                    DeleteBulkAction::make(),
-                    RestoreBulkAction::make(),
+                    DeleteBulkAction::make()->authorizeIndividualRecords(),
+                    RestoreBulkAction::make()->authorizeIndividualRecords(),
                 ]),
             ])
             ->emptyStateHeading('No contacts yet')
