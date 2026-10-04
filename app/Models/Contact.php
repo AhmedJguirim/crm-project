@@ -12,6 +12,7 @@ use App\Observers\ContactObserver;
 use Database\Factories\ContactFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -48,6 +49,16 @@ class Contact extends Model
             'status' => ContactStatus::class,
             'lead_source' => LeadSource::class,
         ];
+    }
+
+    /**
+     * Emails are stored trimmed and in lowercase, so letter case can't create duplicate contacts.
+     */
+    protected function email(): Attribute
+    {
+        return Attribute::make(
+            set: fn (?string $value): ?string => $value === null ? null : mb_strtolower(trim($value)),
+        );
     }
 
     public function scopeActiveClients(Builder $query): Builder

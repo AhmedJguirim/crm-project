@@ -98,7 +98,7 @@ class ContactImportService
     {
         // handles base attributes
         $name = trim($row['name'] ?? '');
-        $email = trim($row['email'] ?? '');
+        $email = mb_strtolower(trim($row['email'] ?? ''));
 
         if (blank($name)) {
             return ['success' => false, 'error' => 'Name is required.'];

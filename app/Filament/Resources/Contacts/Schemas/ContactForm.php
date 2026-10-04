@@ -27,6 +27,7 @@ class ContactForm
                     ->required()
                     ->email()
                     ->maxLength(255)
+                    ->mutateStateForValidationUsing(fn (?string $state): ?string => $state === null ? null : mb_strtolower(trim($state)))
                     ->unique(Contact::class, 'email', ignoreRecord: true, modifyRuleUsing: function ($rule) {
                         return $rule->where('organization_id', Filament::getTenant()->id);
                     }),
