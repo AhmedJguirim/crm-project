@@ -87,12 +87,13 @@ class ProcessContactImportJob implements ShouldQueue
 
     public function handle(ContactImportFileReader $reader): void
     {
-        $service = new ContactImportService($this->organizationId);
-
-        $customFieldsByName = $service->customFields()->keyBy('name')->all();
-
         $extension = strtolower(pathinfo($this->filePath, PATHINFO_EXTENSION));
         $tmpPath = $this->copyToTemporaryFile($extension);
+
+        $dialect = $reader->dialect($tmpPath, $extension);
+        $service = new ContactImportService($this->organizationId, $dialect);
+
+        $customFieldsByName = $service->customFields()->keyBy('name')->all();
 
         $headers = null;
 
@@ -106,7 +107,7 @@ class ProcessContactImportJob implements ShouldQueue
         $rowNumber = 0;
 
         try {
-            foreach ($reader->rows($tmpPath, $extension) as $row) {
+            foreach ($reader->rows($tmpPath, $extension, $dialect) as $row) {
                 if ($headers === null) {
                     $headers = $row;
                     $ignoredColumns = $service->ignoredColumns($headers);

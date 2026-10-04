@@ -7,6 +7,7 @@ use App\Models\CustomField;
 use App\Models\User;
 use App\Services\ContactImportFileReader;
 use App\Services\ContactImportService;
+use App\Support\CsvDialect;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\Storage;
 
@@ -99,7 +100,7 @@ it('counts a header that appears twice once', function () {
 it('is also in the notification of a file that becomes unreadable partway', function () {
     app()->bind(ContactImportFileReader::class, fn () => new class extends ContactImportFileReader
     {
-        public function rows(string $absolutePath, string $extension): Generator
+        public function rows(string $absolutePath, string $extension, ?CsvDialect $dialect = null): Generator
         {
             yield ['name', 'email', 'Hourly Rate'];
             yield ['Ann', 'ann@example.com', '50'];

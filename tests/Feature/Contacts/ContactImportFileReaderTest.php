@@ -2,6 +2,7 @@
 
 use App\Exceptions\UnreadableImportFileException;
 use App\Services\ContactImportFileReader;
+use App\Support\CsvDialect;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
@@ -73,3 +74,76 @@ it('rejects unsupported or unreadable files', function (string $name, string $co
     'xls extension' => ['contacts.xls', 'whatever'],
     'text inside an xlsx' => ['contacts.xlsx', 'this is not a spreadsheet'],
 ]);
+
+function dialectOfImportFile(string $content, string $name = 'dialect.csv'): CsvDialect
+{
+    $path = storeImportFile($name, $content);
+
+    return (new ContactImportFileReader)->dialect(Storage::disk('local')->path($path), 'csv');
+}
+
+describe('the dialect of a csv file', function () {
+    it('is read from the bytes', function (string $content, string $delimiter, string $encoding) {
+        $dialect = dialectOfImportFile($content);
+
+        expect($dialect->delimiter)->toBe($delimiter)
+            ->and($dialect->encoding)->toBe($encoding);
+    })->with([
+        'comma, utf-8' => ["name,email\nAnn,a@x.test\n", ',', 'UTF-8'],
+        'semicolon, utf-8' => ["name;email\nAnn;a@x.test\n", ';', 'UTF-8'],
+        'semicolon, windows-1252' => [iconv('UTF-8', 'Windows-1252', "name;email;Taux (€)\nHélène;a@x.test;25,5\n"), ';', 'Windows-1252'],
+        'semicolon after a byte order mark' => ["\xEF\xBB\xBFname;email\nAnn;a@x.test\n", ';', 'UTF-8'],
+        'a byte order mark makes it utf-8 whatever follows' => ["\xEF\xBB\xBFname;email\nH\xE9l\xE8ne;a@x.test\n", ';', 'UTF-8'],
+        'quoted semicolon in a comma file' => ["\"a;b\",email,phone\nx,y,z\n", ',', 'UTF-8'],
+        'quoted comma in a semicolon file' => ["\"a,b,c\";email;phone\nx;y;z\n", ';', 'UTF-8'],
+        'quoted header with a line break' => ["\"Notes\nmore\";email;phone\nx;y;z\n", ';', 'UTF-8'],
+        'a doubled quote inside a quoted header' => ["\"say \"\"a;b;c\"\"\",email,phone\nx,y,z\n", ',', 'UTF-8'],
+        'a tie stays a comma file' => ["name;email,phone\nx;y,z\n", ',', 'UTF-8'],
+        'only the header line counts' => ["name,email\nAnn;a;b;c;d\n", ',', 'UTF-8'],
+        'windows line breaks' => ["name;email\r\nAnn;a@x.test\r\n", ';', 'UTF-8'],
+        'a single column' => ["name\nAnn\n", ',', 'UTF-8'],
+        'an empty file' => ['', ',', 'UTF-8'],
+        'binary bytes' => ["\x00\xFF\xFE\x80\x81", ',', 'Windows-1252'],
+    ]);
+
+    it('selects windows-1252 when invalid utf-8 only comes late in the file', function () {
+        $lines = collect(range(1, 1000))->map(fn (int $number): string => "Person {$number};person{$number}@x.test")->implode("\n");
+        $dialect = dialectOfImportFile("name;email\n{$lines}\n".iconv('UTF-8', 'Windows-1252', 'Société').";late@x.test\n");
+
+        expect($dialect->delimiter)->toBe(';')
+            ->and($dialect->encoding)->toBe('Windows-1252');
+    });
+
+    it('is the default one for an excel file', function () {
+        $path = makeXlsx([['name', 'email']]);
+
+        $dialect = (new ContactImportFileReader)->dialect(Storage::disk('local')->path($path), 'xlsx');
+
+        expect($dialect->delimiter)->toBe(',')
+            ->and($dialect->encoding)->toBe('UTF-8');
+    });
+
+    it('is the default one for a file that does not exist', function () {
+        $dialect = (new ContactImportFileReader)->dialect(Storage::disk('local')->path('contact-imports/missing.csv'), 'csv');
+
+        expect($dialect->delimiter)->toBe(',');
+    });
+
+    it('reads the rows of a windows-1252 file with semicolons', function () {
+        $path = storeImportFile('french.csv', iconv('UTF-8', 'Windows-1252', "name;email;Taux (€)\n\"Hélène Dupré\";helene@x.test;\"25,5\"\n"));
+
+        expect(readImportFile($path))->toBe([
+            ['name', 'email', 'Taux (€)'],
+            ['Hélène Dupré', 'helene@x.test', '25,5'],
+        ]);
+    });
+
+    it('reads the rows of a utf-8 file with semicolons and keeps a quoted semicolon in its cell', function () {
+        $path = storeImportFile('german.csv', "name;email;tags\nAnn;ann@x.test;\"VIP;Newsletter\"\n");
+
+        expect(readImportFile($path))->toBe([
+            ['name', 'email', 'tags'],
+            ['Ann', 'ann@x.test', 'VIP;Newsletter'],
+        ]);
+    });
+});

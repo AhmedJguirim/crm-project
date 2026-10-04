@@ -6,6 +6,7 @@ use App\Exceptions\DuplicateCustomFieldValueException;
 use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\Tag;
+use App\Support\CsvDialect;
 use DateTime;
 use DateTimeInterface;
 use Illuminate\Support\Collection;
@@ -24,7 +25,14 @@ class ContactImportService
     /** The date format shown to users; ISO (`Y-m-d`) and a trailing time are accepted too. */
     public const DATE_FORMAT = 'd-m-Y';
 
-    public function __construct(private readonly int $organizationId) {}
+    /**
+     * @param  CsvDialect|null  $dialect  How the file is written. A file with `;` between columns is a European Excel
+     *                                    file, so its numbers may have a decimal comma and its dates may be d/m/Y or d.m.Y.
+     */
+    public function __construct(
+        private readonly int $organizationId,
+        private readonly ?CsvDialect $dialect = null,
+    ) {}
 
     /**
      * The custom fields an import of the organization fills, in column order. The import template uses the same
@@ -206,12 +214,21 @@ class ContactImportService
             'email' => filter_var($raw, FILTER_VALIDATE_EMAIL) ? $raw : null,
             'url' => filter_var($raw, FILTER_VALIDATE_URL) ? $raw : null,
             'phone' => $this->parsePhone($raw),
-            'number' => is_numeric($raw) ? (float) $raw : null,
+            'number' => $this->parseNumber($raw),
             'date' => $this->formatDate($raw),
             'multiselect' => $this->parseMultiselectValue($field, $raw),
             'select' => $this->parseSelectValue($field, trim($raw)),
             default => trim($raw),
         };
+    }
+
+    private function parseNumber(string $raw): ?float
+    {
+        if ($this->dialect?->isEuropean() && preg_match('/^-?\d+,\d+$/', $raw) === 1) {
+            $raw = str_replace(',', '.', $raw);
+        }
+
+        return is_numeric($raw) ? (float) $raw : null;
     }
 
     private function formatDate(string $raw): ?string
@@ -229,14 +246,17 @@ class ContactImportService
     }
 
     /**
-     * Accepts "d-m-Y H:i:s", "d-m-Y" and ISO "Y-m-d". Each format must round-trip exactly, which is what rejects
+     * Accepts "d-m-Y H:i:s", "d-m-Y" and ISO "Y-m-d", and "d/m/Y" and "d.m.Y" in a European Excel file ("03/04/2026" is
+     * ambiguous in other files, so it stays refused there). Each format must round-trip exactly, which is what rejects
      * impossible dates such as "31-02-2024".
      */
     public function parseDate(string $raw): DateTimeInterface|false
     {
         $raw = trim($raw);
 
-        foreach (['d-m-Y H:i:s', self::DATE_FORMAT, 'Y-m-d'] as $format) {
+        $formats = ['d-m-Y H:i:s', self::DATE_FORMAT, 'Y-m-d', ...($this->dialect?->isEuropean() ? ['d/m/Y', 'd.m.Y'] : [])];
+
+        foreach ($formats as $format) {
             $date = DateTime::createFromFormat($format, $raw);
 
             if ($date !== false && $date->format($format) === $raw) {

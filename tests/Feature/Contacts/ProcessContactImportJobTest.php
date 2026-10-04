@@ -9,6 +9,7 @@ use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\User;
 use App\Services\ContactImportFileReader;
+use App\Support\CsvDialect;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -296,7 +297,7 @@ function bindReaderUnreadableAfter(array $rows): void
         /** @param  array<int, array<int, string>>  $rows */
         public function __construct(private readonly array $rows) {}
 
-        public function rows(string $absolutePath, string $extension): Generator
+        public function rows(string $absolutePath, string $extension, ?CsvDialect $dialect = null): Generator
         {
             yield from $this->rows;
 
