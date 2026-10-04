@@ -59,7 +59,33 @@ class ItConsultingSeeder extends Seeder
 
         app(TenantContext::class)->run($org->getKey(), fn () => $this->seedOrganization($user, $org));
 
+        $this->seedRoleUsers($org);
         $this->seedSecondOrganization($user);
+    }
+
+    /**
+     * One user per role in the demo organization, to try what each role can do (all with the password of the test
+     * user).
+     */
+    private function seedRoleUsers(Organization $organization): void
+    {
+        foreach ([
+            'admin@example.com' => ['Demo Admin', OrganizationRole::Admin],
+            'member@example.com' => ['Demo Member', OrganizationRole::Member],
+            'viewer@example.com' => ['Demo Viewer', OrganizationRole::Viewer],
+        ] as $email => [$name, $role]) {
+            $user = User::firstOrCreate(
+                ['email' => $email],
+                [
+                    'name' => $name,
+                    'password' => Hash::make('password'),
+                    'email_verified_at' => now(),
+                    'onboarding_completed' => true,
+                ]
+            );
+
+            $organization->members()->syncWithoutDetaching([$user->id => ['role' => $role->value]]);
+        }
     }
 
     /**

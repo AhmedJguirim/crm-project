@@ -198,3 +198,20 @@ test('it consulting seeder seeds a second organization with lookalike data for c
     expect(Contact::query()->count())->toBe(15)
         ->and(Segment::query()->where('name', 'VIP')->sole()->contacts()->pluck('name')->all())->not->toContain('Globex Alice');
 });
+
+test('it consulting seeder has one user per role in the demo organization', function () {
+    $this->seed(ItConsultingSeeder::class);
+
+    $organization = User::where('email', 'test@example.com')->firstOrFail()->personalOrganization();
+
+    expect($organization->members()->pluck('organization_user.role', 'email')->all())->toBe([
+        'test@example.com' => 'owner',
+        'admin@example.com' => 'admin',
+        'member@example.com' => 'member',
+        'viewer@example.com' => 'viewer',
+    ]);
+
+    $this->seed(ItConsultingSeeder::class);
+
+    expect($organization->members()->count())->toBe(4);
+});
