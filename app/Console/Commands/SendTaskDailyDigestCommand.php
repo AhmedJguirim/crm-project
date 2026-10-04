@@ -40,7 +40,7 @@ class SendTaskDailyDigestCommand extends Command
 
         /** @var Organization $organization */
         foreach (Organization::query()->with('members')->get() as $organization) {
-            if (! $this->option('all') && $organization->localNow()->hour !== $hour) {
+            if (! $this->option('all') && ! $organization->isLocalHour($hour)) {
                 continue;
             }
 

@@ -9,6 +9,7 @@ use App\Jobs\SyncSegmentMembership;
 use App\Models\Organization;
 use App\Models\Segment;
 use App\Models\Tag;
+use Carbon\CarbonImmutable;
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Queue;
@@ -82,6 +83,31 @@ describe('the daily sync at local midnight', function () {
 
         Queue::assertNothingPushed();
     })->with(['24', 'noon', '-1']);
+});
+
+describe('a midnight skipped by a DST change', function () {
+    it('is handled by the first run after the gap, once', function () {
+        $santiago = ($this->segmentFor)(Organization::factory()->timezone('America/Santiago')->create());
+        $runs = 0;
+
+        foreach (range(0, 23) as $hour) {
+            Queue::fake();
+            $this->travelTo(CarbonImmutable::parse('2026-09-06 00:00', 'UTC')->setTime($hour, 5));
+            $this->artisan('segments:sync', ['--frequency' => 'daily', '--local-hour' => 0])->assertSuccessful();
+            $runs += in_array($santiago->id, ($this->queuedSegmentIds)(), true) ? 1 : 0;
+        }
+
+        expect($runs)->toBe(1);
+    });
+
+    it('syncs the daily segments at 04:05 UTC that day', function () {
+        $this->travelTo(CarbonImmutable::parse('2026-09-06 04:05', 'UTC'));
+        $santiago = ($this->segmentFor)(Organization::factory()->timezone('America/Santiago')->create());
+
+        $this->artisan('segments:sync', ['--frequency' => 'daily', '--local-hour' => 0])->assertSuccessful();
+
+        expect(($this->queuedSegmentIds)())->toBe([$santiago->id]);
+    });
 });
 
 describe('the schedule', function () {

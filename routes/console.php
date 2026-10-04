@@ -15,7 +15,7 @@ Schedule::command('tasks:send-digest')
     ->when(fn (): bool => (bool) config('tasks.notifications.daily_digest_enabled', true));
 
 Schedule::command('segments:sync --frequency=hourly')->hourly()->withoutOverlapping();
-// Every hour, for the organizations whose day just started in their timezone.
+// Every hour, for the organizations whose day just started in their timezone (or whose midnight was skipped by a DST change).
 Schedule::command('segments:sync --frequency=daily --local-hour=0')->hourlyAt(5)->withoutOverlapping();
 
 // Safety net: re-syncs every published segment weekly, so a write that skipped model events can't leave segments wrong forever.

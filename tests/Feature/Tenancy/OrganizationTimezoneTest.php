@@ -5,6 +5,7 @@ use App\Filament\Pages\Tenancy\EditOrganization;
 use App\Filament\Pages\Tenancy\RegisterOrganization;
 use App\Models\Organization;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
 
@@ -28,6 +29,21 @@ describe('the model', function () {
         expect($organization->localNow()->toDateTimeString())->toBe('2026-03-16 00:30:00')
             ->and($organization->localNow()->timezoneName)->toBe('Europe/Paris');
     });
+
+    it('knows its local hour, even when a DST change skips it', function (string $timezone, string $utc, int $hour, bool $expected) {
+        $this->travelTo(CarbonImmutable::parse($utc, 'UTC'));
+
+        expect(Organization::factory()->timezone($timezone)->create()->isLocalHour($hour))->toBe($expected);
+    })->with([
+        'normal midnight' => ['America/Santiago', '2026-09-05 04:05', 0, true],
+        'still the day before' => ['America/Santiago', '2026-09-06 03:05', 0, false],
+        'midnight skipped, first hour after the gap' => ['America/Santiago', '2026-09-06 04:05', 0, true],
+        'no second run after the gap' => ['America/Santiago', '2026-09-06 05:05', 0, false],
+        'skipped hour 2 in Paris' => ['Europe/Paris', '2026-03-29 01:05', 2, true],
+        'the real hour 3 in Paris' => ['Europe/Paris', '2026-03-29 01:05', 3, true],
+        'half-hour offset' => ['Asia/Kolkata', '2026-10-04 07:05', 12, true],
+        'half-hour offset, other hour' => ['Asia/Kolkata', '2026-10-04 07:05', 13, false],
+    ]);
 
     it('keeps a valid timezone and falls back to UTC for anything else', function (?string $given, string $expected) {
         expect(Organization::validTimezoneOrUtc($given))->toBe($expected);

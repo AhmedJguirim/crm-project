@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Notifications\TaskDailyDigestNotification;
 use App\Notifications\TaskDueSoonNotification;
 use App\Notifications\TaskOverdueNotification;
+use Carbon\CarbonImmutable;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Notification;
@@ -111,6 +112,41 @@ describe('reminders', function () {
         Artisan::call('tasks:send-reminders');
 
         Notification::assertSentTo($this->parisOwner, TaskOverdueNotification::class, fn (TaskOverdueNotification $notification): bool => $notification->task->is($overdue));
+    });
+});
+
+describe('an hour skipped by a DST change', function () {
+    it('still gets the reminders in the first hour after the gap', function () {
+        config(['tasks.notifications.reminder_time' => '02:00']);
+        $this->travelTo(CarbonImmutable::parse('2026-03-29 01:05', 'UTC'));
+        ($this->taskOf)($this->paris, '2026-03-30 10:00:00');
+        Notification::fake();
+
+        Artisan::call('tasks:send-reminders');
+
+        Notification::assertSentTo($this->parisOwner, TaskDueSoonNotification::class);
+    });
+
+    it('still gets the digest in the first hour after the gap', function () {
+        config(['tasks.notifications.daily_digest_time' => '02:00']);
+        $this->travelTo(CarbonImmutable::parse('2026-03-29 01:05', 'UTC'));
+        ($this->taskOf)($this->paris, '2026-03-29 12:00:00');
+        Notification::fake();
+
+        Artisan::call('tasks:send-digest');
+
+        Notification::assertSentTo($this->parisOwner, TaskDailyDigestNotification::class);
+    });
+
+    it('does not send a second time an hour later', function () {
+        config(['tasks.notifications.daily_digest_time' => '02:00']);
+        $this->travelTo(CarbonImmutable::parse('2026-03-29 02:05', 'UTC'));
+        ($this->taskOf)($this->paris, '2026-03-29 12:00:00');
+        Notification::fake();
+
+        Artisan::call('tasks:send-digest');
+
+        Notification::assertNotSentTo($this->parisOwner, TaskDailyDigestNotification::class);
     });
 });
 

@@ -61,6 +61,16 @@ class Organization extends Model
         return CarbonImmutable::now($this->timezone);
     }
 
+    /**
+     * True during the configured local hour, or, on a day a DST change skips it, during the first hour after the gap.
+     */
+    public function isLocalHour(int $hour): bool
+    {
+        $now = $this->localNow();
+
+        return $now->hour === $now->setTime($hour, 0)->hour;
+    }
+
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');

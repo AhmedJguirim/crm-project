@@ -80,7 +80,7 @@ class SyncSegmentsCommand extends Command
         return Organization::query()
             ->select(['id', 'timezone'])
             ->lazyById()
-            ->filter(fn (Organization $organization): bool => $organization->localNow()->hour === $hour)
+            ->filter(fn (Organization $organization): bool => $organization->isLocalHour($hour))
             ->map(fn (Organization $organization): int => $organization->getKey())
             ->values()
             ->all();
