@@ -6,6 +6,7 @@ use App\Enums\TaskType;
 use App\Models\Contact;
 use App\Models\Task;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -114,6 +115,8 @@ test('invalid enum value is rejected by enum casting', function () {
 })->throws(ValueError::class);
 
 test('scope helpers return expected records', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-10-07 12:00'));
+
     $overdue = Task::factory()->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
@@ -139,4 +142,26 @@ test('scope helpers return expected records', function () {
         ->not->toContain($done->id)
         ->and(Task::dueThisWeek()->pluck('id')->all())
         ->toContain($thisWeek->id);
+});
+
+test('the week of dueThisWeek ends on Sunday', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-10-11 12:00'));
+
+    $sunday = Task::factory()->create([
+        'organization_id' => $this->org->id,
+        'created_by' => $this->user->id,
+        'status' => TaskStatus::Pending,
+        'due_at' => CarbonImmutable::parse('2026-10-11 18:00'),
+    ]);
+
+    $monday = Task::factory()->create([
+        'organization_id' => $this->org->id,
+        'created_by' => $this->user->id,
+        'status' => TaskStatus::Pending,
+        'due_at' => CarbonImmutable::parse('2026-10-12 09:00'),
+    ]);
+
+    expect(Task::dueThisWeek()->pluck('id')->all())
+        ->toContain($sunday->id)
+        ->not->toContain($monday->id);
 });
