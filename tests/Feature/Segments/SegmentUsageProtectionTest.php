@@ -4,6 +4,7 @@ use App\Data\Segments\SegmentConditionData;
 use App\Data\Segments\SegmentRuleData;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentOperator;
+use App\Exceptions\CustomFieldTypeLockedException;
 use App\Exceptions\UsedInSegmentsException;
 use App\Filament\Resources\Companies\Pages\EditCompany;
 use App\Filament\Resources\Companies\Pages\ListCompanies;
@@ -250,20 +251,20 @@ describe('custom field edits', function () {
         ));
     });
 
-    it('locks the type while a segment uses the field', function () {
+    it('locks the type of a field used by a segment', function () {
         Livewire::test(EditCustomField::class, ['record' => $this->plan->getRouteKey()])
             ->assertFormFieldDisabled('type')
-            ->assertSee('The type cannot change while this field is used in the conditions of the segment');
+            ->assertSee("The type can't change after the field is created.");
 
-        expect(fn () => $this->plan->update(['type' => 'text']))->toThrow(UsedInSegmentsException::class, 'cannot change type');
+        expect(fn () => $this->plan->update(['type' => 'text']))->toThrow(CustomFieldTypeLockedException::class, "can't change after it is created");
         expect($this->plan->fresh()->type)->toBe('select');
     });
 
-    it('keeps the type editable for unused fields', function () {
+    it('locks the type of an unused field too', function () {
         $unused = CustomField::factory()->for($this->org)->text()->create();
 
         Livewire::test(EditCustomField::class, ['record' => $unused->getRouteKey()])
-            ->assertFormFieldEnabled('type');
+            ->assertFormFieldDisabled('type');
     });
 
     it('refuses to remove options used in conditions', function () {
@@ -310,8 +311,8 @@ describe('custom field edits', function () {
     it('frees the field once the segment is deleted', function () {
         $this->segment->delete();
 
-        $this->plan->update(['type' => 'text', 'options' => null]);
+        $this->plan->update(['options' => [['label' => 'Option 9', 'value' => 'opt9']]]);
 
-        expect($this->plan->fresh()->type)->toBe('text');
+        expect($this->plan->fresh()->options)->toBe([['label' => 'Option 9', 'value' => 'opt9']]);
     });
 });

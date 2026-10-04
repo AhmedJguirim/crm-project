@@ -6,7 +6,6 @@ use App\Exceptions\UsedInSegmentsException;
 use App\Filament\Support\CustomFields\CustomFieldDefinitionFields;
 use App\Models\CustomField;
 use App\Services\Segments\SegmentUsage;
-use App\Services\Segments\SegmentUsageIndex;
 use Closure;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Select;
@@ -31,11 +30,7 @@ class CustomFieldForm
 
                 CustomFieldDefinitionFields::key(),
 
-                CustomFieldDefinitionFields::type()
-                    ->disabled(fn (?CustomField $record): bool => $record !== null && app(SegmentUsageIndex::class)->isUsed($record))
-                    ->helperText(fn (?CustomField $record): string => $record !== null && app(SegmentUsageIndex::class)->isUsed($record)
-                        ? 'The type cannot change while this field is used in the conditions of '.SegmentUsageIndex::describe(app(SegmentUsageIndex::class)->segmentNamesUsing($record)).'.'
-                        : 'The type of data this field will store'),
+                CustomFieldDefinitionFields::type(),
 
                 CustomFieldDefinitionFields::options()
                     ->rule(fn (?CustomField $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($record): void {

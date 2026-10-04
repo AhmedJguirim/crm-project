@@ -199,33 +199,33 @@ test('field position can be changed to after another field', function () {
     expect($allFields)->toBe(['Field 1', 'Field 3', 'Field 2']);
 });
 
-// TSK-2026-0008 AC-005: Type change handling
-test('changing field type from text to select requires options', function () {
+// TSK-2026-0008 AC-005: The type is locked once the field exists (BUG-14)
+test('the type is disabled and a forged type is ignored when the field is saved', function () {
     $field = CustomField::factory()->text()->create([
         'organization_id' => $this->org->id,
     ]);
 
     Livewire::test(EditCustomField::class, ['record' => $field->id])
-        ->fillForm([
-            'type' => 'select',
-            'options' => [],
-        ])
+        ->assertFormFieldDisabled('type')
+        ->set('data.type', 'number')
         ->call('save')
-        ->assertHasFormErrors(['options']);
+        ->assertHasNoFormErrors();
+
+    expect($field->fresh()->type)->toBe('text');
 });
 
-test('changing field type from select to text removes options', function () {
+test('a select field keeps its type and its options when saved', function () {
     $field = CustomField::factory()->select()->create([
         'organization_id' => $this->org->id,
     ]);
 
     Livewire::test(EditCustomField::class, ['record' => $field->id])
-        ->fillForm(['type' => 'text'])
+        ->assertFormFieldDisabled('type')
         ->call('save')
         ->assertHasNoFormErrors();
 
-    $field->refresh();
-    expect($field->type)->toBe('text');
+    expect($field->fresh()->type)->toBe('select')
+        ->and($field->fresh()->options)->toBe($field->options);
 });
 
 // Edge cases

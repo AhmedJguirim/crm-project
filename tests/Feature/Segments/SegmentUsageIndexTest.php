@@ -179,7 +179,7 @@ describe('display checks', function () {
         expect(usageIndexQueries())->toHaveCount(1);
 
         $page->assertFormFieldIsDisabled('type')
-            ->assertSee('The type cannot change while this field is used in the conditions of the segment "Newsletter"');
+            ->assertSee("The type can't change after the field is created.");
     });
 });
 

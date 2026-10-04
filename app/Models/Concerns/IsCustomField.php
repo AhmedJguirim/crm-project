@@ -2,6 +2,7 @@
 
 namespace App\Models\Concerns;
 
+use App\Exceptions\CustomFieldTypeLockedException;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
@@ -11,7 +12,8 @@ use Illuminate\Support\Str;
  *
  * Every definition gets an immutable `key`, generated randomly on creation (unrelated to its name) and unique
  * within the scope returned by keyUniquenessScope(). Values are stored under that key in `custom_field_values`,
- * so renaming a field never orphans the values already saved for it.
+ * so renaming a field never orphans the values already saved for it. The `type` is locked once the field exists:
+ * stored values are not converted, so changing it would lose them.
  */
 trait IsCustomField
 {
@@ -28,6 +30,10 @@ trait IsCustomField
         static::updating(function (Model $field): void {
             if ($field->isDirty('key')) {
                 $field->key = $field->getOriginal('key');
+            }
+
+            if ($field->isDirty('type')) {
+                throw CustomFieldTypeLockedException::for($field);
             }
         });
     }

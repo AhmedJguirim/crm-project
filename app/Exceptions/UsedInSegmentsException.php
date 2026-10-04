@@ -24,13 +24,6 @@ class UsedInSegmentsException extends LogicException
             .SegmentUsage::describeSegments($segments).'. Remove it from those conditions first.');
     }
 
-    /** @param  Collection<int, Segment>  $segments */
-    public static function cannotChangeType(CustomField $field, Collection $segments): self
-    {
-        return new self(ucfirst(self::describe($field)).' cannot change type: it is used in the conditions of '
-            .SegmentUsage::describeSegments($segments).'.');
-    }
-
     /** @param  array<string, array<int, string>>  $usedOptions  option value => segment names */
     public static function cannotRemoveOptions(CustomField $field, array $usedOptions): self
     {

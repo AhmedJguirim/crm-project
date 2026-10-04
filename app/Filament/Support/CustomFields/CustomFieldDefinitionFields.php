@@ -6,6 +6,7 @@ use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Utilities\Get;
+use Illuminate\Database\Eloquent\Model;
 
 /**
  * Form components shared by the contact and company custom field definition forms.
@@ -50,7 +51,10 @@ class CustomFieldDefinitionFields
             ->required()
             ->options(self::TYPES)
             ->live()
-            ->helperText('The type of data this field will store');
+            ->disabled(fn (?Model $record): bool => $record !== null)
+            ->helperText(fn (?Model $record): string => $record !== null
+                ? "The type can't change after the field is created. To store another kind of data, create a new field."
+                : 'The type of data this field will store');
     }
 
     public static function options(): Repeater

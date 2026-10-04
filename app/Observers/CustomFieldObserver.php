@@ -25,11 +25,11 @@ class CustomFieldObserver
     }
 
     /**
-     * Keep the type and the options used by segment conditions from changing, as that would break those conditions.
+     * Keep the options used by segment conditions from being removed, as that would break those conditions.
      */
     public function updating(CustomField $customField): void
     {
-        if (! $customField->isDirty(['type', 'options'])) {
+        if (! $customField->isDirty('options')) {
             return;
         }
 
@@ -37,10 +37,6 @@ class CustomFieldObserver
 
         if ($segments->isEmpty()) {
             return;
-        }
-
-        if ($customField->isDirty('type')) {
-            throw UsedInSegmentsException::cannotChangeType($customField, $segments);
         }
 
         $keptValues = collect($customField->options ?? [])->pluck('value')->map(fn (mixed $value): string => (string) $value)->all();
