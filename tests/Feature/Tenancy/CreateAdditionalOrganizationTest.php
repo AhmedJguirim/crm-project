@@ -107,6 +107,73 @@ describe('organization names are unique per user', function () {
     });
 });
 
+describe('leaving the page without creating an organization', function () {
+    beforeEach(function () {
+        $this->acme = Organization::factory()->create(['name' => 'Acme', 'created_by' => $this->user->id]);
+        $this->acme->members()->attach($this->user, ['role' => OrganizationRole::Owner->value]);
+        $this->defaultUrl = fn (): string => Filament::getUrl(Filament::getUserDefaultTenant($this->user));
+        $this->openFrom = function (?string $previousUrl) {
+            session()->setPreviousUrl($previousUrl ?? '');
+
+            return Livewire::test(RegisterOrganization::class);
+        };
+        $this->cancelUrl = fn ($page): ?string => $page->instance()->getCancelFormAction()->getUrl();
+    });
+
+    it('goes back to the organization the user came from', function () {
+        $previous = Filament::getUrl($this->acme).'/contacts';
+
+        $page = ($this->openFrom)($previous)->assertSeeHtml('href="'.Filament::getUrl($this->acme).'"');
+
+        expect(($this->cancelUrl)($page))->toBe(Filament::getUrl($this->acme));
+    });
+
+    it('falls back to the default organization', function (Closure $previous) {
+        $page = ($this->openFrom)($previous($this))->assertSeeHtml('href="'.($this->defaultUrl)().'"');
+
+        expect(($this->cancelUrl)($page))->toBe(($this->defaultUrl)());
+    })->with([
+        'no previous page' => [fn () => null],
+        'another site' => [fn () => 'https://example.com/somewhere'],
+        'an organization the user is not in' => [fn () => Filament::getUrl(Organization::factory()->create())],
+        'the new organization page itself' => [fn () => Filament::getTenantRegistrationUrl()],
+    ]);
+
+    it('keeps the return url during the requests of the form', function () {
+        $page = ($this->openFrom)(Filament::getUrl($this->acme).'/contacts')
+            ->fillForm(['name' => str_repeat('a', 300)])
+            ->call('register')
+            ->assertHasFormErrors(['name']);
+
+        expect(($this->cancelUrl)($page))->toBe(Filament::getUrl($this->acme));
+    });
+
+    it('creates nothing', function () {
+        ($this->openFrom)(Filament::getUrl($this->acme).'/contacts');
+
+        expect($this->user->organizations()->count())->toBe(2);
+    });
+
+    it('is hidden for a user without any organization', function () {
+        $loner = User::factory()->onboardingCompleted()->create();
+        $this->actingAs($loner);
+
+        $page = ($this->openFrom)(null);
+
+        expect(($this->cancelUrl)($page))->toBeNull()
+            ->and($page->instance()->getCancelFormAction()->isVisible())->toBeFalse();
+    });
+
+    it('still creates an organization', function () {
+        ($this->openFrom)(Filament::getUrl($this->acme).'/contacts')
+            ->fillForm(['name' => 'Client XYZ'])
+            ->call('register')
+            ->assertHasNoFormErrors();
+
+        expect(Organization::where('name', 'Client XYZ')->sole()->getMemberRole($this->user))->toBe(OrganizationRole::Owner);
+    });
+});
+
 // TSK-2026-0013 AC-003: Optional fields handling
 test('organization can be created with only name', function () {
     Livewire::test(RegisterOrganization::class)
