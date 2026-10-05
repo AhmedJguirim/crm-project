@@ -26,10 +26,6 @@ beforeEach(function () {
 test('key is a random string unrelated to the name', function (string $model) {
     $attributes = ['organization_id' => $this->org->id, 'name' => 'LinkedIn'];
 
-    if ($model === CompanyCustomField::class) {
-        $attributes['company_type_id'] = $this->companyType->id;
-    }
-
     $first = $model::factory()->create($attributes);
     $second = $model::factory()->create([...$attributes, 'name' => 'Twitter']);
 
@@ -55,10 +51,6 @@ test('key generation retries when a generated key is already taken', function ()
 test('key never changes when the field is renamed or the key is overwritten', function (string $model) {
     $attributes = ['organization_id' => $this->org->id, 'name' => 'Industry'];
 
-    if ($model === CompanyCustomField::class) {
-        $attributes['company_type_id'] = $this->companyType->id;
-    }
-
     $field = $model::factory()->create($attributes);
     $originalKey = $field->key;
 
@@ -83,7 +75,7 @@ test('key is generated when creating a contact custom field from the panel', fun
 
 test('key is generated when creating a company custom field from the panel', function () {
     Livewire::test(CreateCompanyCustomField::class)
-        ->fillForm(['company_type_id' => $this->companyType->id, 'name' => 'VAT Number', 'type' => 'text'])
+        ->fillForm(['name' => 'VAT Number', 'type' => 'text'])
         ->call('create')
         ->assertHasNoFormErrors();
 
@@ -92,10 +84,6 @@ test('key is generated when creating a company custom field from the panel', fun
 
 test('edit forms show the key read-only and never save it', function (string $page, string $model) {
     $attributes = ['organization_id' => $this->org->id, 'name' => 'Industry', 'type' => 'text'];
-
-    if ($model === CompanyCustomField::class) {
-        $attributes['company_type_id'] = $this->companyType->id;
-    }
 
     $field = $model::factory()->create($attributes);
     $originalKey = $field->key;
@@ -153,16 +141,18 @@ test('whereCustomFieldValue matches scalar, numeric and array values', function 
 test('custom field definitions resolve per owner', function () {
     $contactField = CustomField::factory()->create(['organization_id' => $this->org->id, 'order' => 1]);
     CustomField::factory()->create(['organization_id' => Organization::factory()->create()->id]);
-    $companyField = CompanyCustomField::factory()->create(['organization_id' => $this->org->id, 'company_type_id' => $this->companyType->id]);
-    CompanyCustomField::factory()->create(['organization_id' => $this->org->id]);
+    $companyField = CompanyCustomField::factory()->create(['organization_id' => $this->org->id, 'order' => 1]);
+    $secondCompanyField = CompanyCustomField::factory()->create(['organization_id' => $this->org->id, 'order' => 2]);
+    CompanyCustomField::factory()->create(['organization_id' => Organization::factory()->create()->id]);
+    CompanyCustomField::factory()->create(['organization_id' => $this->org->id])->delete();
 
     $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
     $company = Company::factory()->create(['organization_id' => $this->org->id, 'company_type_id' => $this->companyType->id]);
     $untypedCompany = Company::factory()->create(['organization_id' => $this->org->id]);
 
     expect($contact->customFieldDefinitions()->pluck('id')->all())->toBe([$contactField->id])
-        ->and($company->customFieldDefinitions()->pluck('id')->all())->toBe([$companyField->id])
-        ->and($untypedCompany->customFieldDefinitions())->toBeEmpty();
+        ->and($company->customFieldDefinitions()->pluck('id')->all())->toBe([$companyField->id, $secondCompanyField->id])
+        ->and($untypedCompany->customFieldDefinitions()->pluck('id')->all())->toBe([$companyField->id, $secondCompanyField->id]);
 });
 
 test('new contacts and companies default to empty custom field values', function () {

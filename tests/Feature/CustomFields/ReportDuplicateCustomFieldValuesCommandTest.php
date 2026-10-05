@@ -32,13 +32,13 @@ it('tells the owner about duplicates in contact and company fields', function ()
     ($this->insertContact)($this->acme, [$this->customerNumber->key => 'C-9']);
     ($this->insertContact)($this->acme, [$this->customerNumber->key => 'C-1']);
 
-    $type = CompanyType::factory()->create(['organization_id' => $this->acme->id]);
-    $siret = CompanyCustomField::factory()->create(['organization_id' => $this->acme->id, 'company_type_id' => $type->id, 'name' => 'SIRET', 'type' => 'text', 'unique' => true]);
+    $types = [CompanyType::factory()->create(['organization_id' => $this->acme->id])->id, null];
+    $siret = CompanyCustomField::factory()->create(['organization_id' => $this->acme->id, 'name' => 'SIRET', 'type' => 'text', 'unique' => true]);
 
-    foreach (range(1, 3) as $position) {
+    foreach ($types as $typeId) {
         DB::table('companies')->insert(storedRowOf(Company::factory()->make([
             'organization_id' => $this->acme->id,
-            'company_type_id' => $type->id,
+            'company_type_id' => $typeId,
             'custom_field_values' => [$siret->key => '555'],
         ])));
     }

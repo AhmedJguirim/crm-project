@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Companies\Tables;
 
 use App\Filament\Support\SegmentUsageGuard;
+use App\Models\Company;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -33,6 +34,32 @@ class CompaniesTable
                     ->badge()
                     ->placeholder('—')
                     ->sortable(),
+
+                TextColumn::make('domain')
+                    ->label('Website')
+                    ->url(fn (Company $record): ?string => $record->websiteUrl(), shouldOpenInNewTab: true)
+                    ->searchable()
+                    ->toggleable()
+                    ->placeholder('—'),
+
+                TextColumn::make('phone')
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->placeholder('—'),
+
+                TextColumn::make('employees')
+                    ->numeric()
+                    ->sortable()
+                    ->alignEnd()
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->placeholder('—'),
+
+                TextColumn::make('annual_revenue')
+                    ->label('Annual revenue')
+                    ->numeric(decimalPlaces: 0)
+                    ->sortable()
+                    ->alignEnd()
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->placeholder('—'),
 
                 TextColumn::make('contacts_count')
                     ->label('Contacts')

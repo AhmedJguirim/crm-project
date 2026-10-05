@@ -10,7 +10,6 @@ use Database\Factories\CompanyCustomFieldFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[ObservedBy([CompanyCustomFieldObserver::class])]
@@ -27,7 +26,6 @@ class CompanyCustomField extends Model
 
     protected $fillable = [
         'organization_id',
-        'company_type_id',
         'name',
         'type',
         'options',
@@ -35,10 +33,10 @@ class CompanyCustomField extends Model
         'order',
     ];
 
-    /** @return array{company_type_id: int|null} */
+    /** @return array{organization_id: int|null} */
     public function keyUniquenessScope(): array
     {
-        return ['company_type_id' => $this->company_type_id];
+        return ['organization_id' => $this->organization_id];
     }
 
     protected function casts(): array
@@ -48,10 +46,5 @@ class CompanyCustomField extends Model
             'unique' => 'boolean',
             'order' => 'integer',
         ];
-    }
-
-    public function companyType(): BelongsTo
-    {
-        return $this->belongsTo(CompanyType::class);
     }
 }

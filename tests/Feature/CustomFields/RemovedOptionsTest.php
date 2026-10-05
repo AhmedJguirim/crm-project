@@ -103,8 +103,7 @@ describe('removing an option that records still store', function () {
 
     it('is checked against companies for a company field', function () {
         $type = CompanyType::factory()->for($this->org)->create();
-        $industry = CompanyCustomField::factory()->for($this->org)->create([
-            'company_type_id' => $type->id, 'name' => 'Industry', 'type' => 'select', 'unique' => false,
+        $industry = CompanyCustomField::factory()->for($this->org)->create(['name' => 'Industry', 'type' => 'select', 'unique' => false,
             'options' => [['label' => 'Tech', 'value' => 'tech'], ['label' => 'Retail', 'value' => 'retail']],
         ]);
         Company::factory()->for($this->org)->create(['name' => 'Acme', 'company_type_id' => $type->id, 'custom_field_values' => [$industry->key => 'tech']]);
@@ -158,8 +157,7 @@ describe('the scope of the usage', function () {
 
     it('counts trashed companies for a company field', function () {
         $type = CompanyType::factory()->for($this->org)->create();
-        $industry = CompanyCustomField::factory()->for($this->org)->create([
-            'company_type_id' => $type->id, 'type' => 'select', 'unique' => false,
+        $industry = CompanyCustomField::factory()->for($this->org)->create(['type' => 'select', 'unique' => false,
             'options' => [['label' => 'Tech', 'value' => 'tech']],
         ]);
         Company::factory()->for($this->org)->create(['company_type_id' => $type->id, 'custom_field_values' => [$industry->key => 'tech']])->delete();
@@ -209,8 +207,7 @@ describe('records that hold a removed value', function () {
 
     it('does the same for a company', function () {
         $type = CompanyType::factory()->for($this->org)->create();
-        $industry = CompanyCustomField::factory()->for($this->org)->create([
-            'company_type_id' => $type->id, 'type' => 'select', 'unique' => false,
+        $industry = CompanyCustomField::factory()->for($this->org)->create(['type' => 'select', 'unique' => false,
             'options' => [['label' => 'Retail', 'value' => 'retail']],
         ]);
         $company = Company::factory()->for($this->org)->create(['company_type_id' => $type->id, 'custom_field_values' => [$industry->key => 'tech']]);

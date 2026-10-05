@@ -38,7 +38,6 @@ it('refuses to permanently delete records', function (Closure $makeRecord) {
     'company type' => fn () => CompanyType::factory()->for($this->org)->create(),
     'custom field' => fn () => CustomField::factory()->for($this->org)->create(),
     'company custom field' => fn () => CompanyCustomField::factory()->for($this->org)->create([
-        'company_type_id' => CompanyType::factory()->for($this->org)->create()->id,
     ]),
     'tag' => fn () => Tag::factory()->for($this->org)->create(),
     'address' => fn () => Address::factory()->create(['organization_id' => $this->org->id]),

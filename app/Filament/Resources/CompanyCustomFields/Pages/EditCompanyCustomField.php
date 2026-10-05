@@ -28,7 +28,7 @@ class EditCompanyCustomField extends EditRecord
             return $data;
         }
 
-        $siblings = CompanyCustomField::query()->where('company_type_id', $this->record->company_type_id);
+        $siblings = CompanyCustomField::query()->where('organization_id', $this->record->organization_id);
         $currentOrder = $this->record->order;
 
         $newOrder = $currentOrder;
@@ -64,7 +64,7 @@ class EditCompanyCustomField extends EditRecord
     protected function afterSave(): void
     {
         CompanyCustomField::query()
-            ->where('company_type_id', $this->record->company_type_id)
+            ->where('organization_id', $this->record->organization_id)
             ->orderBy('order')
             ->get()
             ->each(fn (CompanyCustomField $field, int $index) => $field->update(['order' => $index + 1]));

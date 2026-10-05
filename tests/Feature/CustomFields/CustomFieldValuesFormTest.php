@@ -92,7 +92,6 @@ function customFieldValuesOwner(string $owner, Organization $organization): obje
             {
                 return CompanyCustomField::factory()->create([
                     'organization_id' => $this->organization->id,
-                    'company_type_id' => $this->companyType->id,
                     'type' => 'text',
                     'unique' => false,
                     ...$attributes,

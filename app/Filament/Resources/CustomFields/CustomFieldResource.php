@@ -28,11 +28,11 @@ class CustomFieldResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'name';
 
-    protected static ?string $navigationLabel = 'Custom Fields';
+    protected static ?string $navigationLabel = 'Contact fields';
 
-    protected static ?string $modelLabel = 'Custom Field';
+    protected static ?string $modelLabel = 'Contact field';
 
-    protected static ?string $pluralModelLabel = 'Custom Fields';
+    protected static ?string $pluralModelLabel = 'Contact fields';
 
     protected static string|UnitEnum|null $navigationGroup = 'Audience';
 

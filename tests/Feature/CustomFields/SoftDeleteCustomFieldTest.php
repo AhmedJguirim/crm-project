@@ -91,7 +91,6 @@ function softDeleteOwner(string $owner, object $test): object
             {
                 return CompanyCustomField::factory()->create([
                     'organization_id' => $this->organization->id,
-                    'company_type_id' => $this->companyType->id,
                     'type' => 'text',
                     ...$attributes,
                 ]);

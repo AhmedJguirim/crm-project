@@ -4,6 +4,7 @@ namespace App\Filament\Resources\CompanyCustomFields\Pages;
 
 use App\Filament\Resources\CompanyCustomFields\CompanyCustomFieldResource;
 use App\Models\CompanyCustomField;
+use Filament\Facades\Filament;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateCompanyCustomField extends CreateRecord
@@ -15,7 +16,7 @@ class CreateCompanyCustomField extends CreateRecord
         $position = $data['position'] ?? 'end';
         unset($data['position']);
 
-        $siblings = CompanyCustomField::query()->where('company_type_id', $data['company_type_id']);
+        $siblings = CompanyCustomField::query()->where('organization_id', Filament::getTenant()->getKey());
 
         if ($position === 'beginning') {
             $siblings->increment('order');

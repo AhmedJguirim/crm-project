@@ -24,7 +24,7 @@ beforeEach(function () {
 
     $this->textField = fn (string $model, array $attributes = []): CustomField|CompanyCustomField => $model === 'contact'
         ? CustomField::factory()->for($this->org)->text()->create(['name' => 'Ref', ...$attributes])
-        : CompanyCustomField::factory()->for($this->org)->create(['company_type_id' => $this->companyType->id, 'type' => 'text', 'name' => 'Ref', ...$attributes]);
+        : CompanyCustomField::factory()->for($this->org)->create(['type' => 'text', 'name' => 'Ref', ...$attributes]);
 
     $this->editPage = fn (string $model, CustomField|CompanyCustomField $field) => Livewire::test(
         $model === 'contact' ? EditCustomField::class : EditCompanyCustomField::class,

@@ -4,10 +4,10 @@ namespace App\Filament\Resources\CompanyCustomFields\Schemas;
 
 use App\Filament\Support\CustomFields\CustomFieldDefinitionFields;
 use App\Models\CompanyCustomField;
+use Filament\Facades\Filament;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
-use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 
 class CompanyCustomFieldForm
@@ -16,21 +16,11 @@ class CompanyCustomFieldForm
     {
         return $schema
             ->components([
-                Select::make('company_type_id')
-                    ->label('Company Type')
-                    ->relationship('companyType', 'name')
-                    ->required()
-                    ->searchable()
-                    ->preload()
-                    ->live()
-                    ->disabledOn('edit')
-                    ->helperText('The company type this field applies to'),
-
                 TextInput::make('name')
                     ->required()
                     ->maxLength(255)
-                    ->unique(CompanyCustomField::class, 'name', modifyRuleUsing: function ($rule, Get $get) {
-                        return $rule->where('company_type_id', $get('company_type_id'));
+                    ->unique(CompanyCustomField::class, 'name', ignoreRecord: true, modifyRuleUsing: function ($rule) {
+                        return $rule->where('organization_id', Filament::getTenant()->id);
                     })
                     ->validationMessages(['unique' => CustomFieldDefinitionFields::nameTakenMessage()])
                     ->helperText('A descriptive name for this custom field'),
@@ -49,9 +39,9 @@ class CompanyCustomFieldForm
 
                 Select::make('position')
                     ->label('Position')
-                    ->options(function ($record, Get $get) {
+                    ->options(function ($record) {
                         $fields = CompanyCustomField::query()
-                            ->where('company_type_id', $record?->company_type_id ?? $get('company_type_id'))
+                            ->where('organization_id', Filament::getTenant()->id)
                             ->when($record, fn ($query) => $query->where('id', '!=', $record->id))
                             ->orderBy('order')
                             ->get();
@@ -68,7 +58,7 @@ class CompanyCustomFieldForm
                         return $options;
                     })
                     ->default('end')
-                    ->helperText('Where to place this field among the fields of this company type'),
+                    ->helperText('Where to place this field among the company fields'),
             ]);
     }
 }

@@ -30,7 +30,7 @@ class CompanyResource extends Resource
 
     public static function getGloballySearchableAttributes(): array
     {
-        return ['name'];
+        return ['name', 'domain'];
     }
 
     /** @return array<string, string> */
@@ -38,6 +38,7 @@ class CompanyResource extends Resource
     {
         return array_filter([
             'Type' => $record->companyType?->name,
+            'Website' => $record->domain,
             'City' => $record->address?->city,
         ]);
     }

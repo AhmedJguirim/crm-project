@@ -17,6 +17,7 @@ use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use UnitEnum;
 
 class CompanyCustomFieldResource extends Resource
 {
@@ -26,11 +27,13 @@ class CompanyCustomFieldResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'name';
 
-    protected static ?string $navigationLabel = 'Company Custom Fields';
+    protected static ?string $navigationLabel = 'Company fields';
 
-    protected static ?string $modelLabel = 'Company Custom Field';
+    protected static ?string $modelLabel = 'Company field';
 
-    protected static ?string $pluralModelLabel = 'Company Custom Fields';
+    protected static ?string $pluralModelLabel = 'Company fields';
+
+    protected static string|UnitEnum|null $navigationGroup = 'Audience';
 
     protected static ?int $navigationSort = 11;
 

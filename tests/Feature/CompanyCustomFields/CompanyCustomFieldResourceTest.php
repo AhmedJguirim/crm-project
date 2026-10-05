@@ -4,6 +4,7 @@ use App\Filament\Resources\CompanyCustomFields\CompanyCustomFieldResource;
 use App\Filament\Resources\CompanyCustomFields\Pages\CreateCompanyCustomField;
 use App\Filament\Resources\CompanyCustomFields\Pages\EditCompanyCustomField;
 use App\Filament\Resources\CompanyCustomFields\Pages\ListCompanyCustomFields;
+use App\Filament\Resources\CustomFields\CustomFieldResource;
 use App\Models\CompanyCustomField;
 use App\Models\CompanyType;
 use App\Models\CustomField;
@@ -11,6 +12,7 @@ use App\Models\Organization;
 use App\Models\User;
 use Filament\Actions\DeleteAction;
 use Filament\Facades\Filament;
+use Illuminate\Database\QueryException;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -24,7 +26,6 @@ beforeEach(function () {
 test('index, create and edit pages render', function () {
     $field = CompanyCustomField::factory()->create([
         'organization_id' => $this->org->id,
-        'company_type_id' => $this->companyType->id,
     ]);
 
     $this->get(CompanyCustomFieldResource::getUrl('index'))->assertOk();
@@ -35,12 +36,10 @@ test('index, create and edit pages render', function () {
 test('list shows fields of the current organization only, in order', function () {
     $second = CompanyCustomField::factory()->create([
         'organization_id' => $this->org->id,
-        'company_type_id' => $this->companyType->id,
         'order' => 2,
     ]);
     $first = CompanyCustomField::factory()->create([
         'organization_id' => $this->org->id,
-        'company_type_id' => $this->companyType->id,
         'order' => 1,
     ]);
     $foreign = CompanyCustomField::factory()->create([
@@ -52,36 +51,27 @@ test('list shows fields of the current organization only, in order', function ()
         ->assertCanNotSeeTableRecords([$foreign]);
 });
 
-test('list can be filtered by company type', function () {
-    $otherType = CompanyType::factory()->create(['organization_id' => $this->org->id]);
-    $inType = CompanyCustomField::factory()->create([
-        'organization_id' => $this->org->id,
-        'company_type_id' => $this->companyType->id,
-    ]);
-    $inOtherType = CompanyCustomField::factory()->create([
-        'organization_id' => $this->org->id,
-        'company_type_id' => $otherType->id,
-    ]);
+test('the table has no company type column or filter', function () {
+    $table = Livewire::test(ListCompanyCustomFields::class)
+        ->assertTableColumnDoesNotExist('companyType.name')
+        ->instance()->getTable();
 
-    Livewire::test(ListCompanyCustomFields::class)
-        ->filterTable('company_type_id', $this->companyType->id)
-        ->assertCanSeeTableRecords([$inType])
-        ->assertCanNotSeeTableRecords([$inOtherType]);
+    expect(array_keys($table->getFilters()))->not->toContain('company_type_id');
 });
 
-test('can create a field tied to a company type', function () {
+test('the definition form has no company type', function () {
     Livewire::test(CreateCompanyCustomField::class)
-        ->fillForm([
-            'company_type_id' => $this->companyType->id,
-            'name' => 'VAT Number',
-            'type' => 'text',
-        ])
+        ->assertFormFieldDoesNotExist('company_type_id');
+});
+
+test('can create a company field', function () {
+    Livewire::test(CreateCompanyCustomField::class)
+        ->fillForm(['name' => 'VAT Number', 'type' => 'text'])
         ->call('create')
         ->assertHasNoFormErrors();
 
     $this->assertDatabaseHas(CompanyCustomField::class, [
         'organization_id' => $this->org->id,
-        'company_type_id' => $this->companyType->id,
         'name' => 'VAT Number',
         'order' => 1,
     ]);
@@ -90,7 +80,6 @@ test('can create a field tied to a company type', function () {
 test('is stored separately from contact custom fields', function () {
     CompanyCustomField::factory()->create([
         'organization_id' => $this->org->id,
-        'company_type_id' => $this->companyType->id,
     ]);
 
     expect(CompanyCustomField::count())->toBe(1)
@@ -99,17 +88,15 @@ test('is stored separately from contact custom fields', function () {
 
 test('create validates required fields and select options', function () {
     Livewire::test(CreateCompanyCustomField::class)
-        ->fillForm(['company_type_id' => null, 'name' => null, 'type' => null])
+        ->fillForm(['name' => null, 'type' => null])
         ->call('create')
         ->assertHasFormErrors([
-            'company_type_id' => 'required',
             'name' => 'required',
             'type' => 'required',
         ]);
 
     Livewire::test(CreateCompanyCustomField::class)
         ->fillForm([
-            'company_type_id' => $this->companyType->id,
             'name' => 'Size',
             'type' => 'select',
             'options' => [],
@@ -118,54 +105,70 @@ test('create validates required fields and select options', function () {
         ->assertHasFormErrors(['options']);
 });
 
-test('name is unique per company type only', function () {
-    $otherType = CompanyType::factory()->create(['organization_id' => $this->org->id]);
+test('names are unique per organization', function () {
     CompanyCustomField::factory()->create([
         'organization_id' => $this->org->id,
-        'company_type_id' => $this->companyType->id,
-        'name' => 'Industry',
+        'name' => 'Website',
     ]);
 
     Livewire::test(CreateCompanyCustomField::class)
-        ->fillForm(['company_type_id' => $this->companyType->id, 'name' => 'Industry', 'type' => 'text'])
+        ->fillForm(['name' => 'Website', 'type' => 'url'])
         ->call('create')
         ->assertHasFormErrors(['name' => 'unique']);
+});
+
+test('the same field name is allowed in another organization', function () {
+    CompanyCustomField::factory()->create([
+        'organization_id' => Organization::factory()->create()->id,
+        'name' => 'VAT Number',
+    ]);
 
     Livewire::test(CreateCompanyCustomField::class)
-        ->fillForm(['company_type_id' => $otherType->id, 'name' => 'Industry', 'type' => 'text'])
+        ->fillForm(['name' => 'VAT Number', 'type' => 'text'])
         ->call('create')
         ->assertHasNoFormErrors();
 });
 
-test('new fields are ordered within their company type', function () {
-    $otherType = CompanyType::factory()->create(['organization_id' => $this->org->id]);
+test('a field keeps its own name valid when it is edited', function () {
+    $field = CompanyCustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'Website', 'type' => 'url']);
+
+    Livewire::test(EditCompanyCustomField::class, ['record' => $field->id])
+        ->fillForm(['name' => 'Website'])
+        ->call('save')
+        ->assertHasNoFormErrors();
+});
+
+test('new fields go to the end of the organization list', function () {
     CompanyCustomField::factory()->count(2)->sequence(['order' => 1], ['order' => 2])->create([
         'organization_id' => $this->org->id,
-        'company_type_id' => $otherType->id,
     ]);
 
     Livewire::test(CreateCompanyCustomField::class)
-        ->fillForm(['company_type_id' => $this->companyType->id, 'name' => 'First', 'type' => 'text'])
+        ->fillForm(['name' => 'Third', 'type' => 'text', 'position' => 'end'])
         ->call('create');
 
-    Livewire::test(CreateCompanyCustomField::class)
-        ->fillForm(['company_type_id' => $this->companyType->id, 'name' => 'Second', 'type' => 'text'])
-        ->call('create');
+    expect(CompanyCustomField::where('name', 'Third')->value('order'))->toBe(3);
+});
 
-    expect(CompanyCustomField::where('name', 'First')->value('order'))->toBe(1)
-        ->and(CompanyCustomField::where('name', 'Second')->value('order'))->toBe(2);
+test('the next order is computed per organization when none is given', function () {
+    $make = fn (int $organizationId, string $name) => CompanyCustomField::create(['organization_id' => $organizationId, 'name' => $name, 'type' => 'text']);
+    $other = Organization::factory()->create();
+
+    $first = $make($this->org->id, 'First');
+    $foreign = $make($other->id, 'Foreign');
+    $second = $make($this->org->id, 'Second');
+
+    expect([$first->order, $foreign->order, $second->order])->toBe([1, 1, 2]);
 });
 
 test('can place a new field at the beginning', function () {
     $existing = CompanyCustomField::factory()->create([
         'organization_id' => $this->org->id,
-        'company_type_id' => $this->companyType->id,
         'order' => 1,
     ]);
 
     Livewire::test(CreateCompanyCustomField::class)
         ->fillForm([
-            'company_type_id' => $this->companyType->id,
             'name' => 'Top',
             'type' => 'text',
             'position' => 'beginning',
@@ -176,28 +179,45 @@ test('can place a new field at the beginning', function () {
         ->and($existing->fresh()->order)->toBe(2);
 });
 
-test('can edit a field but not change its company type', function () {
-    $otherType = CompanyType::factory()->create(['organization_id' => $this->org->id]);
+test('can place a new field after another one, across the whole organization', function () {
+    $industry = CompanyCustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'Industry', 'order' => 1]);
+    CompanyCustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'Website', 'order' => 2]);
+    CompanyCustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'VAT', 'order' => 3]);
+
+    Livewire::test(CreateCompanyCustomField::class)
+        ->fillForm(['name' => 'Founded', 'type' => 'date', 'position' => "after_{$industry->id}"])
+        ->call('create');
+
+    expect(CompanyCustomField::orderBy('order')->pluck('name')->all())->toBe(['Industry', 'Founded', 'Website', 'VAT']);
+});
+
+test('the position options list the company fields of the organization', function () {
+    $industry = CompanyCustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'Industry']);
+    CompanyCustomField::factory()->create(['organization_id' => Organization::factory()->create()->id, 'name' => 'Foreign']);
+
+    Livewire::test(CreateCompanyCustomField::class)
+        ->assertFormFieldExists('position', fn ($field): bool => array_keys($field->getOptions()) === ['beginning', 'end', "after_{$industry->id}"])
+        ->assertSee('Where to place this field among the company fields');
+});
+
+test('can edit a field', function () {
     $field = CompanyCustomField::factory()->create([
         'organization_id' => $this->org->id,
-        'company_type_id' => $this->companyType->id,
         'name' => 'Old',
         'type' => 'text',
     ]);
 
     Livewire::test(EditCompanyCustomField::class, ['record' => $field->id])
-        ->fillForm(['name' => 'New', 'company_type_id' => $otherType->id])
+        ->fillForm(['name' => 'New'])
         ->call('save')
         ->assertHasNoFormErrors();
 
-    expect($field->fresh()->name)->toBe('New')
-        ->and($field->fresh()->company_type_id)->toBe($this->companyType->id);
+    expect($field->fresh()->name)->toBe('New');
 });
 
 test('can delete a field', function () {
     $field = CompanyCustomField::factory()->create([
         'organization_id' => $this->org->id,
-        'company_type_id' => $this->companyType->id,
     ]);
 
     Livewire::test(EditCompanyCustomField::class, ['record' => $field->id])
@@ -215,55 +235,35 @@ test('cannot open a field from another organization', function () {
         ->assertNotFound();
 });
 
-test('company types cannot be force deleted, so their custom fields are kept', function () {
-    CompanyCustomField::factory()->create([
-        'organization_id' => $this->org->id,
-        'company_type_id' => $this->companyType->id,
-    ]);
-
+test('company types cannot be force deleted', function () {
     expect(fn () => $this->companyType->forceDelete())->toThrow(LogicException::class);
 
     $this->assertNotSoftDeleted($this->companyType);
-    expect(CompanyCustomField::withoutGlobalScopes()->count())->toBe(1);
 });
 
-test('company type exposes its custom fields in order', function () {
-    $second = CompanyCustomField::factory()->create([
-        'organization_id' => $this->org->id,
-        'company_type_id' => $this->companyType->id,
-        'order' => 2,
-    ]);
-    $first = CompanyCustomField::factory()->create([
-        'organization_id' => $this->org->id,
-        'company_type_id' => $this->companyType->id,
-        'order' => 1,
-    ]);
+test('keys are unique per organization', function () {
+    $field = CompanyCustomField::factory()->create(['organization_id' => $this->org->id]);
+    $other = Organization::factory()->create();
+    $row = fn (int $organizationId, string $name) => [
+        'organization_id' => $organizationId, 'key' => $field->key, 'name' => $name, 'type' => 'text', 'unique' => false, 'order' => 1,
+        'created_at' => now(), 'updated_at' => now(),
+    ];
 
-    expect($this->companyType->customFields->pluck('id')->all())->toBe([$first->id, $second->id]);
+    expect(fn () => DB::transaction(fn () => DB::table('company_custom_fields')->insert($row($this->org->id, 'Another name'))))->toThrow(QueryException::class)
+        ->and(DB::table('company_custom_fields')->insert($row($other->id, 'Another name')))->toBeTrue();
 });
 
-test('the same field name is allowed in another organization', function () {
-    $otherOrg = Organization::factory()->create();
-    $otherType = CompanyType::factory()->create(['organization_id' => $otherOrg->id]);
-    CompanyCustomField::factory()->create([
-        'organization_id' => $otherOrg->id,
-        'company_type_id' => $otherType->id,
-        'name' => 'VAT Number',
-    ]);
-
-    Livewire::test(CreateCompanyCustomField::class)
-        ->fillForm(['company_type_id' => $this->companyType->id, 'name' => 'VAT Number', 'type' => 'text'])
-        ->call('create')
-        ->assertHasNoFormErrors();
+test('the company_type_id column is gone', function () {
+    expect(Schema::hasColumn('company_custom_fields', 'company_type_id'))->toBeFalse();
 });
 
-test('cannot create a field for a company type of another organization', function () {
-    $otherType = CompanyType::factory()->create(['organization_id' => Organization::factory()->create()->id]);
-
-    Livewire::test(CreateCompanyCustomField::class)
-        ->fillForm(['company_type_id' => $otherType->id, 'name' => 'VAT Number', 'type' => 'text'])
-        ->call('create')
-        ->assertHasFormErrors(['company_type_id']);
-
-    expect(CompanyCustomField::query()->withoutGlobalScopes()->where('company_type_id', $otherType->id)->exists())->toBeFalse();
+test('the menu lists contact fields then company fields in the Audience group', function () {
+    expect(CustomFieldResource::getNavigationLabel())->toBe('Contact fields')
+        ->and(CompanyCustomFieldResource::getNavigationLabel())->toBe('Company fields')
+        ->and(CustomFieldResource::getNavigationGroup())->toBe('Audience')
+        ->and(CompanyCustomFieldResource::getNavigationGroup())->toBe('Audience')
+        ->and(CustomFieldResource::getNavigationSort())->toBe(10)
+        ->and(CompanyCustomFieldResource::getNavigationSort())->toBe(11)
+        ->and(CustomFieldResource::getModelLabel())->toBe('Contact field')
+        ->and(CompanyCustomFieldResource::getPluralModelLabel())->toBe('Company fields');
 });

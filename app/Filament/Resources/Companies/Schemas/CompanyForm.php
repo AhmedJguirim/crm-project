@@ -7,6 +7,7 @@ use App\Filament\Support\CustomFields\CustomFieldValuesSection;
 use App\Models\Company;
 use App\Models\CompanyCustomField;
 use App\Models\CompanyType;
+use Closure;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Select;
@@ -15,6 +16,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Collection;
 
 class CompanyForm
@@ -36,7 +38,6 @@ class CompanyForm
                             ->relationship('companyType', 'name')
                             ->searchable()
                             ->preload()
-                            ->live()
                             ->createOptionAction(fn (Action $action): Action => $action->authorize(AbilityCheck::for('create', CompanyType::class)))
                             ->createOptionForm([
                                 TextInput::make('name')
@@ -45,8 +46,35 @@ class CompanyForm
                                     ->unique(CompanyType::class, 'name', modifyRuleUsing: fn ($rule) => $rule
                                         ->where('organization_id', Filament::getTenant()?->getKey())
                                         ->whereNull('deleted_at')),
-                            ])
-                            ->helperText('The type decides which custom fields are available.'),
+                            ]),
+
+                        TextInput::make('website')
+                            ->placeholder('acme.com')
+                            ->maxLength(255)
+                            ->live(onBlur: true)
+                            ->rule(fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
+                                if (filled($value) && Company::domainFrom((string) $value) === null) {
+                                    $fail('Enter a website like acme.com or https://acme.com.');
+                                }
+                            })
+                            ->hint(fn (Get $get, ?Company $record): ?string => static::sharedDomainHint($get('website'), $record))
+                            ->hintColor('warning')
+                            ->hintIcon(Heroicon::ExclamationTriangle),
+
+                        TextInput::make('phone')
+                            ->tel()
+                            ->maxLength(50),
+
+                        TextInput::make('employees')
+                            ->label('Employees')
+                            ->integer()
+                            ->minValue(0),
+
+                        TextInput::make('annual_revenue')
+                            ->label('Annual revenue')
+                            ->numeric()
+                            ->minValue(0)
+                            ->maxValue('9999999999999.99'),
 
                         Textarea::make('notes')
                             ->rows(3)
@@ -79,22 +107,42 @@ class CompanyForm
                     ]),
 
                 CustomFieldValuesSection::make(
-                    fn (Get $get): Collection => static::customFieldsForType($get('company_type_id')),
+                    fn (): Collection => static::customFields(),
                     Company::class,
                 ),
             ]);
     }
 
-    /** @return Collection<int, CompanyCustomField> */
-    public static function customFieldsForType(mixed $companyTypeId): Collection
+    /**
+     * A warning, never an error: other non-trashed companies of the organization that already use the same domain.
+     */
+    protected static function sharedDomainHint(mixed $website, ?Company $record): ?string
     {
-        if (blank($companyTypeId)) {
-            return new Collection;
+        $domain = Company::domainFrom(is_string($website) ? $website : null);
+
+        if ($domain === null) {
+            return null;
         }
 
-        return CompanyCustomField::query()
-            ->where('company_type_id', $companyTypeId)
-            ->orderBy('order')
-            ->get();
+        $others = Company::query()
+            ->where('domain', $domain)
+            ->when($record?->exists, fn ($query) => $query->whereKeyNot($record->getKey()))
+            ->orderBy('name');
+
+        $count = (clone $others)->count();
+
+        if ($count === 0) {
+            return null;
+        }
+
+        $names = (clone $others)->limit(3)->pluck('name')->implode(', ');
+
+        return 'Also used by: '.$names.($count > 3 ? ' and '.($count - 3).' more' : '');
+    }
+
+    /** @return Collection<int, CompanyCustomField> */
+    public static function customFields(): Collection
+    {
+        return CompanyCustomField::query()->orderBy('order')->get();
     }
 }

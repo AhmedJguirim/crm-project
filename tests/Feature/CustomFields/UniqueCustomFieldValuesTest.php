@@ -162,7 +162,7 @@ describe('contacts', function () {
 describe('companies', function () {
     it('are enforced too', function () {
         $type = CompanyType::factory()->create(['organization_id' => $this->org->id]);
-        $siret = CompanyCustomField::factory()->create(['organization_id' => $this->org->id, 'company_type_id' => $type->id, 'name' => 'SIRET', 'type' => 'text', 'unique' => true]);
+        $siret = CompanyCustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'SIRET', 'type' => 'text', 'unique' => true]);
         $create = fn (): Company => Company::create(['organization_id' => $this->org->id, 'company_type_id' => $type->id, 'name' => 'Acme', 'custom_field_values' => [$siret->key => '123']]);
         $create();
 

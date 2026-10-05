@@ -77,7 +77,7 @@ class ReportDuplicateCustomFieldValuesCommand extends Command
         }
 
         foreach (CompanyCustomField::query()->where('unique', true)->orderBy('order')->get() as $field) {
-            $lines[] = $this->duplicateLine($field->name, Company::query()->where('company_type_id', $field->company_type_id), $field->key);
+            $lines[] = $this->duplicateLine($field->name, Company::query(), $field->key);
         }
 
         return array_values(array_filter($lines));

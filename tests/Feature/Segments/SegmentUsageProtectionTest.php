@@ -164,7 +164,7 @@ describe('model guard', function () {
     });
 
     it('does not protect company custom fields, which segments cannot reference', function () {
-        $field = CompanyCustomField::factory()->for($this->org)->create(['company_type_id' => CompanyType::factory()->for($this->org)->create()->id]);
+        $field = CompanyCustomField::factory()->for($this->org)->create([]);
         segmentWithCondition(SegmentConditionData::make(SegmentConditionType::CustomField, $field->key, SegmentOperator::IsNotBlank));
 
         $field->delete();
@@ -233,7 +233,7 @@ describe('delete actions', function () {
 
     it('still bulk deletes company custom fields', function () {
         $companyType = CompanyType::factory()->for($this->org)->create();
-        $fields = CompanyCustomField::factory()->for($this->org)->count(2)->create(['company_type_id' => $companyType->id]);
+        $fields = CompanyCustomField::factory()->for($this->org)->count(2)->create([]);
 
         Livewire::test(ListCompanyCustomFields::class)
             ->selectTableRecords($fields)
