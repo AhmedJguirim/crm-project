@@ -6,6 +6,7 @@ use App\Models\CompanyCustomField;
 use App\Models\CustomField;
 use App\Support\CustomFields\OptionUsage;
 use Closure;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -68,13 +69,10 @@ class CustomFieldDefinitionFields
                 TextInput::make('label')
                     ->required()
                     ->maxLength(255)
-                    ->helperText('Display text for this option'),
+                    ->notRegex('/;/')
+                    ->validationMessages(['not_regex' => 'Option names can\'t contain ";": it separates several values in imports.']),
 
-                TextInput::make('value')
-                    ->required()
-                    ->maxLength(255)
-                    ->distinct()
-                    ->helperText('Stored value for this option'),
+                Hidden::make('value'),
             ])
             ->visible(fn (Get $get): bool => in_array($get('type'), self::TYPES_WITH_OPTIONS))
             ->required(fn (Get $get): bool => in_array($get('type'), self::TYPES_WITH_OPTIONS))
@@ -82,7 +80,14 @@ class CustomFieldDefinitionFields
             ->defaultItems(0)
             ->addActionLabel('Add Option')
             ->reorderable()
-            ->helperText('Define the available options for this field');
+            ->rule(fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
+                $labels = collect($value)->map(fn (mixed $option): string => mb_strtolower(trim((string) ($option['label'] ?? ''))))->filter();
+
+                if ($labels->count() !== $labels->unique()->count()) {
+                    $fail('Each option needs a different name.');
+                }
+            })
+            ->helperText('The options users can pick. Renaming an option is safe: contacts keep it.');
     }
 
     /**

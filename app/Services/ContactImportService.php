@@ -272,21 +272,25 @@ class ContactImportService
      */
     public function parseMultiselectValue(CustomField $field, string $raw): ?array
     {
-        $values = $this->splitMultiValue($raw);
+        $parts = $this->splitMultiValue($raw);
 
-        if ($values === []) {
+        if ($parts === []) {
             return null;
         }
 
-        $allowedValues = collect($field->options ?? [])->pluck('value')->toArray();
+        $values = [];
 
-        foreach ($values as $v) {
-            if (! in_array($v, $allowedValues)) {
+        foreach ($parts as $part) {
+            $value = $this->optionValueFor($field, $part);
+
+            if ($value === null) {
                 return null;
             }
+
+            $values[] = $value;
         }
 
-        return $values;
+        return array_values(array_unique($values));
     }
 
     /**
@@ -304,13 +308,27 @@ class ContactImportService
 
     public function parseSelectValue(CustomField $field, string $value): ?string
     {
-        $allowedValues = collect($field->options ?? [])->pluck('value')->toArray();
+        return $this->optionValueFor($field, $value);
+    }
 
-        if (! in_array($value, $allowedValues)) {
-            return null;
+    /**
+     * The stored value of the option a cell part designates: first an exact stored value (old files and failed-rows
+     * files keep working), otherwise the option with that label, ignoring case and surrounding spaces.
+     */
+    private function optionValueFor(CustomField $field, string $part): ?string
+    {
+        $options = collect($field->options ?? []);
+        $part = trim($part);
+
+        $byValue = $options->first(fn (array $option): bool => (string) ($option['value'] ?? '') === $part);
+
+        if ($byValue !== null) {
+            return (string) $byValue['value'];
         }
 
-        return $value;
+        $byLabel = $options->first(fn (array $option): bool => mb_strtolower(trim((string) ($option['label'] ?? ''))) === mb_strtolower($part));
+
+        return $byLabel === null ? null : (string) $byLabel['value'];
     }
 
     /**
@@ -318,7 +336,7 @@ class ContactImportService
      */
     public function exampleValueFor(CustomField $field): string
     {
-        $optionValues = collect($field->options ?? [])->pluck('value')->map(fn ($value): string => (string) $value);
+        $optionLabels = collect($field->options ?? [])->pluck('label')->map(fn ($label): string => (string) $label);
 
         return match ($field->type) {
             'textarea' => 'Some notes',
@@ -327,9 +345,9 @@ class ContactImportService
             'phone' => '+33612345678',
             'number' => '42',
             'date' => now()->startOfYear()->addDays(14)->format(self::DATE_FORMAT),
-            'select' => $optionValues->first() ?? '',
-            'multiselect' => $optionValues
-                ->reject(fn (string $value): bool => str_contains($value, self::MULTI_VALUE_SEPARATOR))
+            'select' => $optionLabels->first() ?? '',
+            'multiselect' => $optionLabels
+                ->reject(fn (string $label): bool => str_contains($label, self::MULTI_VALUE_SEPARATOR))
                 ->take(2)
                 ->implode(self::MULTI_VALUE_SEPARATOR),
             default => 'Some text',

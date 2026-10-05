@@ -313,6 +313,7 @@ describe('custom field edits', function () {
 
         $this->plan->update(['options' => [['label' => 'Option 9', 'value' => 'opt9']]]);
 
-        expect($this->plan->fresh()->options)->toBe([['label' => 'Option 9', 'value' => 'opt9']]);
+        expect($this->plan->fresh()->options)->toHaveCount(1)
+            ->and($this->plan->fresh()->options[0]['label'])->toBe('Option 9');
     });
 });

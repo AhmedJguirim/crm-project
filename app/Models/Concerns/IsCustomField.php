@@ -19,6 +19,10 @@ trait IsCustomField
 {
     public static function bootIsCustomField(): void
     {
+        static::saving(function (Model $field): void {
+            $field->generateOptionValues();
+        });
+
         static::creating(function (Model $field): void {
             $field->organization_id ??= app(TenantContext::class)->id();
 
@@ -52,6 +56,52 @@ trait IsCustomField
         } while ($this->keyIsTaken($key));
 
         return $key;
+    }
+
+    /**
+     * Options are defined by their label: the stored value of an option is generated once, when the option is created,
+     * and never changes, so renaming a label is always safe. On creation, given values are kept (code and factories may
+     * pass explicit ones). On update, an option whose value is blank, repeated or not among the original values gets a
+     * new one, so a value typed or forged in a request can't point at the records of another option.
+     */
+    public function generateOptionValues(): void
+    {
+        if (! in_array($this->type, ['select', 'multiselect'], true) || ! is_array($this->options)) {
+            return;
+        }
+
+        $original = $this->exists ? collect($this->getOriginal('options') ?? [])->pluck('value')->filter()->map(fn (mixed $value): string => (string) $value)->all() : null;
+        $taken = [];
+
+        $options = array_map(function (mixed $option) use ($original, &$taken): mixed {
+            if (! is_array($option)) {
+                return $option;
+            }
+
+            $value = filled($option['value'] ?? null) ? (string) $option['value'] : null;
+            $isNew = $value === null || in_array($value, $taken, true) || ($original !== null && ! in_array($value, $original, true));
+
+            $option['value'] = $isNew ? static::newOptionValue($taken) : $value;
+            $taken[] = $option['value'];
+
+            return $option;
+        }, $this->options);
+
+        $this->options = array_values($options);
+    }
+
+    /**
+     * An opaque identifier for a new option, different from the given ones.
+     *
+     * @param  array<int, string>  $taken
+     */
+    public static function newOptionValue(array $taken = []): string
+    {
+        do {
+            $value = 'opt_'.Str::lower(Str::random(10));
+        } while (in_array($value, $taken, true));
+
+        return $value;
     }
 
     public static function newRandomKey(): string

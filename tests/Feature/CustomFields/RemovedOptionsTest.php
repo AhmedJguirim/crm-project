@@ -128,10 +128,6 @@ describe('removing an option that records still store', function () {
             ->and($this->stack->fresh()->options)->toHaveCount(3);
     });
 
-    it('refuses two options with the same value', function () {
-        ($this->saveOptions)($this->stack, [['label' => 'PHP', 'value' => 'php'], ['label' => 'PHP again', 'value' => 'php']])
-            ->assertHasFormErrors(['options.0.value', 'options.1.value']);
-    });
 });
 
 describe('the usage of an option', function () {

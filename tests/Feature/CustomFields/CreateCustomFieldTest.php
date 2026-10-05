@@ -4,6 +4,8 @@ use App\Filament\Resources\CustomFields\Pages\CreateCustomField;
 use App\Models\CustomField;
 use App\Models\User;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\TextInput;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -345,7 +347,7 @@ test('option label is required for select type', function () {
         ->assertHasFormErrors(['options.0.label']);
 });
 
-test('option value is required for select type', function () {
+test('an option value is generated, not asked for', function () {
     Livewire::test(CreateCustomField::class)
         ->fillForm([
             'name' => 'Status',
@@ -355,7 +357,9 @@ test('option value is required for select type', function () {
             ],
         ])
         ->call('create')
-        ->assertHasFormErrors(['options.0.value']);
+        ->assertHasNoFormErrors();
+
+    expect(CustomField::where('name', 'Status')->sole()->options[0]['value'])->toMatch('/^opt_[a-z0-9]{10}$/');
 });
 
 test('option label cannot exceed 255 characters', function () {
@@ -371,15 +375,11 @@ test('option label cannot exceed 255 characters', function () {
         ->assertHasFormErrors(['options.0.label']);
 });
 
-test('option value cannot exceed 255 characters', function () {
-    Livewire::test(CreateCustomField::class)
-        ->fillForm([
-            'name' => 'Status',
-            'type' => 'select',
-            'options' => [
-                ['label' => 'Label', 'value' => str_repeat('a', 256)],
-            ],
-        ])
-        ->call('create')
-        ->assertHasFormErrors(['options.0.value']);
+test('the options have no value input', function () {
+    $fields = Livewire::test(CreateCustomField::class)
+        ->fillForm(['type' => 'select', 'options' => [['label' => 'Label']]])
+        ->instance()->getSchema('form')->getFlatFields();
+
+    expect($fields['options.0.label'])->toBeInstanceOf(TextInput::class)
+        ->and($fields['options.0.value'])->toBeInstanceOf(Hidden::class);
 });
