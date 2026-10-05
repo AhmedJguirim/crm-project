@@ -39,7 +39,8 @@ class CompanyCustomFieldForm
 
                 CustomFieldDefinitionFields::type(),
 
-                CustomFieldDefinitionFields::options(),
+                CustomFieldDefinitionFields::options()
+                    ->rule(CustomFieldDefinitionFields::optionsInUseRule()),
 
                 Toggle::make('unique')
                     ->label('Unique Value')

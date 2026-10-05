@@ -2,6 +2,10 @@
 
 namespace App\Filament\Support\CustomFields;
 
+use App\Models\CompanyCustomField;
+use App\Models\CustomField;
+use App\Support\CustomFields\OptionUsage;
+use Closure;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -69,6 +73,7 @@ class CustomFieldDefinitionFields
                 TextInput::make('value')
                     ->required()
                     ->maxLength(255)
+                    ->distinct()
                     ->helperText('Stored value for this option'),
             ])
             ->visible(fn (Get $get): bool => in_array($get('type'), self::TYPES_WITH_OPTIONS))
@@ -78,5 +83,27 @@ class CustomFieldDefinitionFields
             ->addActionLabel('Add Option')
             ->reorderable()
             ->helperText('Define the available options for this field');
+    }
+
+    /**
+     * Refuses to remove, or to change the stored value of, an option that records still store. Editing only a label
+     * is fine: stored values don't change.
+     */
+    public static function optionsInUseRule(): Closure
+    {
+        return fn (?Model $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($record): void {
+            if ($record === null || ! $record instanceof CustomField && ! $record instanceof CompanyCustomField) {
+                return;
+            }
+
+            $keptValues = collect($value)->pluck('value')->map(fn (mixed $optionValue): string => (string) $optionValue)->all();
+            $removedValues = array_values(array_diff(array_keys($record->optionLabels()), $keptValues));
+
+            $message = OptionUsage::describeRemovedOptions($record, array_map('strval', $removedValues));
+
+            if ($message !== null) {
+                $fail($message);
+            }
+        };
     }
 }

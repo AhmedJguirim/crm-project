@@ -19,6 +19,7 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 
 /**
@@ -146,10 +147,10 @@ class CustomFieldValuesSection
             'textarea' => Textarea::make($field->key)->rows(3),
             'date' => DatePicker::make($field->key),
             'select' => Select::make($field->key)
-                ->options($field->optionLabels()),
+                ->options(fn (?Model $record): array => static::optionsWithRemovedValues($field, $record)),
             'multiselect' => Select::make($field->key)
                 ->multiple()
-                ->options($field->optionLabels()),
+                ->options(fn (?Model $record): array => static::optionsWithRemovedValues($field, $record)),
             default => TextInput::make($field->key)->maxLength(255),
         };
 
@@ -162,6 +163,26 @@ class CustomFieldValuesSection
         }
 
         return $component;
+    }
+
+    /**
+     * The options of the field, plus the values the record stores that are not options any more, so the user sees
+     * them, can deselect them, and the record can still be saved.
+     *
+     * @return array<string, string>
+     */
+    protected static function optionsWithRemovedValues(CustomField|CompanyCustomField $field, ?Model $record): array
+    {
+        $options = $field->optionLabels();
+
+        $removedValues = collect(Arr::wrap($record?->custom_field_values[$field->key] ?? null))
+            ->filter(fn (mixed $value): bool => filled($value) && is_scalar($value) && ! array_key_exists((string) $value, $options));
+
+        foreach ($removedValues as $value) {
+            $options[(string) $value] = "{$value} (removed option)";
+        }
+
+        return $options;
     }
 
     protected static function removeAction(CustomField|CompanyCustomField $field): Action

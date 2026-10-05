@@ -44,7 +44,8 @@ class CustomFieldForm
                         if ($removedUsedOptions !== []) {
                             $fail(UsedInSegmentsException::cannotRemoveOptions($record, $removedUsedOptions)->getMessage());
                         }
-                    }),
+                    })
+                    ->rule(CustomFieldDefinitionFields::optionsInUseRule()),
 
                 Toggle::make('unique')
                     ->label('Unique Value')
