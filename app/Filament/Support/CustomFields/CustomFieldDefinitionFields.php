@@ -6,18 +6,26 @@ use App\Models\CompanyCustomField;
 use App\Models\CustomField;
 use App\Support\CustomFields\OptionUsage;
 use Closure;
+use Filament\Actions\Action;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Repeater\TableColumn;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
 
 /**
  * Form components shared by the contact and company custom field definition forms.
  */
 class CustomFieldDefinitionFields
 {
+    private const SEMICOLON_MESSAGE = 'Option names can\'t contain ";": it separates several values in imports.';
+
     /** @var array<string, string> */
     public const TYPES = [
         'text' => 'Text',
@@ -65,12 +73,15 @@ class CustomFieldDefinitionFields
     public static function options(): Repeater
     {
         return Repeater::make('options')
+            ->table([TableColumn::make('Option')->hiddenHeaderLabel()])
             ->schema([
                 TextInput::make('label')
+                    ->hiddenLabel()
+                    ->placeholder('Option name')
                     ->required()
                     ->maxLength(255)
                     ->notRegex('/;/')
-                    ->validationMessages(['not_regex' => 'Option names can\'t contain ";": it separates several values in imports.']),
+                    ->validationMessages(['not_regex' => self::SEMICOLON_MESSAGE]),
 
                 Hidden::make('value'),
             ])
@@ -78,16 +89,84 @@ class CustomFieldDefinitionFields
             ->required(fn (Get $get): bool => in_array($get('type'), self::TYPES_WITH_OPTIONS))
             ->minItems(1)
             ->defaultItems(0)
-            ->addActionLabel('Add Option')
+            ->addActionLabel('Add option')
             ->reorderable()
+            ->reorderableWithDragAndDrop()
+            ->reorderableWithButtons(false)
+            ->hintAction(self::pasteSeveralOptionsAction())
             ->rule(fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
-                $labels = collect($value)->map(fn (mixed $option): string => mb_strtolower(trim((string) ($option['label'] ?? ''))))->filter();
+                $labels = collect($value)->map(fn (mixed $option): string => self::normalizedName($option['label'] ?? ''))->filter();
 
                 if ($labels->count() !== $labels->unique()->count()) {
                     $fail('Each option needs a different name.');
                 }
             })
             ->helperText('The options users can pick. Renaming an option is safe: contacts keep it.');
+    }
+
+    /**
+     * Adds one option per line of a pasted text, skipping the names the field already has. Nothing is saved until the
+     * form is.
+     */
+    protected static function pasteSeveralOptionsAction(): Action
+    {
+        return Action::make('pasteSeveralOptions')
+            ->label('Paste several')
+            ->modalHeading('Paste several options')
+            ->modalSubmitActionLabel('Add options')
+            ->schema([
+                Textarea::make('lines')
+                    ->label('Options')
+                    ->helperText('One option per line.')
+                    ->rows(8)
+                    ->required()
+                    ->rule(fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
+                        $line = collect(self::pastedLines((string) $value))->first(fn (string $line): bool => str_contains($line, ';'));
+
+                        if ($line !== null) {
+                            $fail("\"{$line}\": ".self::SEMICOLON_MESSAGE);
+                        }
+                    }),
+            ])
+            ->action(function (array $data, Get $get, Set $set): void {
+                $options = $get('options') ?? [];
+                $names = collect($options)->map(fn (array $option): string => self::normalizedName($option['label'] ?? ''))->filter()->all();
+                $added = 0;
+                $skipped = 0;
+
+                foreach (self::pastedLines((string) $data['lines']) as $line) {
+                    if (in_array(self::normalizedName($line), $names, true)) {
+                        $skipped++;
+
+                        continue;
+                    }
+
+                    $names[] = self::normalizedName($line);
+                    $options[(string) Str::uuid()] = ['label' => $line, 'value' => null];
+                    $added++;
+                }
+
+                $set('options', $options);
+
+                Notification::make()
+                    ->success()
+                    ->title('Added '.$added.' '.Str::plural('option', $added).($skipped > 0 ? " ({$skipped} already existed)." : '.'))
+                    ->send();
+            });
+    }
+
+    /** @return array<int, string> */
+    protected static function pastedLines(string $text): array
+    {
+        return array_values(array_filter(
+            array_map('trim', preg_split('/\R/', $text) ?: []),
+            fn (string $line): bool => $line !== '',
+        ));
+    }
+
+    protected static function normalizedName(mixed $label): string
+    {
+        return mb_strtolower(trim((string) $label));
     }
 
     /**
