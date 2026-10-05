@@ -27,6 +27,19 @@ function customFieldKey(Model $record, string $name): string
     return $record->customFieldDefinitions()->firstWhere('name', $name)->key;
 }
 
+/**
+ * Whether the contact stores exactly the options with the given labels, in that order.
+ *
+ * @param  array<int, string>  $labels
+ */
+function seededOptionLabels(Contact $contact, string $fieldName, array $labels): bool
+{
+    $field = $contact->customFieldDefinitions()->firstWhere('name', $fieldName);
+    $stored = $contact->customFieldValue($field->key);
+
+    return array_map(fn (string $value): string => $field->optionLabels()[$value], $stored) === $labels;
+}
+
 test('it consulting seeder seeds core crm modules data', function () {
     $this->seed(ItConsultingSeeder::class);
 
@@ -92,7 +105,7 @@ test('it consulting seeder seeds companies with types, custom fields, addresses 
     $marcus = Contact::query()->where('email', 'marcus.chen@techcorp.io')->firstOrFail();
 
     expect($marcus->customFieldValue(customFieldKey($marcus, 'Job Title')))->toBe('CTO')
-        ->and($marcus->customFieldValue(customFieldKey($marcus, 'Tech Stack')))->toBe(['laravel', 'aws', 'docker']);
+        ->and(seededOptionLabels($marcus, 'Tech Stack', ['PHP / Laravel', 'AWS', 'Docker / Kubernetes']))->toBe(true);
 
     $florian = Contact::query()->where('email', 'florian.dupont@freelance.io')->firstOrFail();
 
@@ -214,4 +227,39 @@ test('it consulting seeder has one user per role in the demo organization', func
     $this->seed(ItConsultingSeeder::class);
 
     expect($organization->members()->count())->toBe(4);
+});
+
+test('it consulting seeder gives every option a generated value, declared by label only', function () {
+    $this->seed(ItConsultingSeeder::class);
+
+    $fields = [...CustomField::withoutGlobalScopes()->whereIn('type', ['select', 'multiselect'])->get(), ...CompanyCustomField::withoutGlobalScopes()->whereIn('type', ['select', 'multiselect'])->get()];
+    $values = collect($fields)->flatMap(fn ($field): array => collect($field->options)->pluck('value')->all());
+
+    expect($fields)->not->toBeEmpty()
+        ->and($values->every(fn (string $value): bool => preg_match('/^opt_[a-z0-9]{10}$/', $value) === 1))->toBeTrue()
+        ->and($values->unique()->count())->toBe($values->count());
+});
+
+test('it consulting seeder keeps the meaning of its options', function () {
+    $this->seed(ItConsultingSeeder::class);
+
+    $user = User::query()->where('email', 'test@example.com')->firstOrFail();
+    $this->actingAs($user);
+    Filament::setTenant($user->personalOrganization());
+
+    $stack = CustomField::query()->where('name', 'Tech Stack')->sole();
+    $laravel = collect($stack->options)->firstWhere('label', 'PHP / Laravel')['value'];
+
+    expect(Contact::query()->whereJsonContains("custom_field_values->{$stack->key}", $laravel)->orderBy('name')->pluck('name')->all())
+        ->toBe(['Lars Müller', 'Marcus Chen', 'Nadia Petrova'])
+        ->and(Company::query()->where('name', 'StackOps')->sole()->customFieldValue(CompanyCustomField::query()->where('name', 'Funding Stage')->sole()->key))
+        ->toBe(collect(CompanyCustomField::query()->where('name', 'Funding Stage')->sole()->options)->firstWhere('label', 'Series A')['value']);
+});
+
+test('it consulting seeder fails loudly on an unknown option label', function () {
+    $field = CustomField::factory()->create(['type' => 'select', 'options' => [['label' => 'Signed']]]);
+    $optionValues = Closure::bind(fn (CustomField $field, array $labels): array => $this->optionValues($field, $labels), new ItConsultingSeeder, ItConsultingSeeder::class);
+
+    expect($optionValues($field, ['Signed']))->toHaveCount(1)
+        ->and(fn () => $optionValues($field, ['Signd']))->toThrow(RuntimeException::class, 'has no option with that label');
 });
