@@ -2,13 +2,17 @@
 
 namespace App\Services;
 
+use App\Enums\ContactStatus;
+use App\Enums\LeadSource;
 use App\Exceptions\DuplicateCustomFieldValueException;
 use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\Tag;
 use App\Support\CsvDialect;
+use BackedEnum;
 use DateTime;
 use DateTimeInterface;
+use Filament\Support\Contracts\HasLabel;
 use Illuminate\Support\Collection;
 
 class ContactImportService
@@ -16,8 +20,14 @@ class ContactImportService
     /** Separates several tags, or several values of a multi-select field, in one cell. */
     public const MULTI_VALUE_SEPARATOR = ';';
 
-    /** The columns of an import file that are not custom fields. */
-    public const BASE_COLUMNS = ['name', 'email', 'phone', 'tags'];
+    /**
+     * The columns of an import file that are not custom fields: what the import reads, in template order. Add a column
+     * here before the import reads it.
+     */
+    public const BASE_COLUMNS = ['name', 'email', 'phone', 'tags', 'status', 'lead source'];
+
+    /** The names a custom field can't have: the columns the import reads, and the ones the later steps will read. */
+    public const RESERVED_COLUMNS = [...self::BASE_COLUMNS, 'company', 'company website', 'company type'];
 
     /** The columns the failed rows file adds in front of the original ones, so a corrected file can be imported again. */
     public const FAILED_ROWS_META_COLUMNS = ['_row_number', '_error'];
@@ -48,36 +58,95 @@ class ContactImportService
     }
 
     /**
+     * The canonical column of each header, in the same order: a base column (lowercase) or the exact name of an active
+     * custom field, found ignoring case and surrounding spaces. Other headers stay as they are.
+     *
+     * @param  array<int, string>  $headers
+     * @return array<int, string>
+     */
+    public function canonicalHeaders(array $headers): array
+    {
+        $canonical = $this->canonicalColumnsByKey();
+
+        return array_map(
+            fn (string $header): string => $canonical[$this->headerKey($header)] ?? $header,
+            $headers,
+        );
+    }
+
+    /**
+     * The first column that two headers of the file map to ("email" and "Email "), or null. The columns of the failed
+     * rows file are never a duplicate: files downloaded before they were written once still carry them twice.
+     *
+     * @param  array<int, string>  $headers
+     */
+    public function duplicatedColumn(array $headers): ?string
+    {
+        $known = array_values(array_diff($this->canonicalColumnsByKey(), self::FAILED_ROWS_META_COLUMNS));
+
+        $counts = array_count_values(array_filter(
+            $this->canonicalHeaders($headers),
+            fn (string $column): bool => in_array($column, $known, true),
+        ));
+
+        return array_search(true, array_map(fn (int $count): bool => $count > 1, $counts), true) ?: null;
+    }
+
+    /**
      * The headers of a file that no field uses, as the notification names them. A header matches the base columns, the
-     * name of an active custom field exactly, or a column of the failed rows file; one that matches the name of a
-     * deleted custom field says so.
+     * name of an active custom field, or a column of the failed rows file, ignoring case and surrounding spaces; one
+     * that matches the name of a deleted custom field says so.
      *
      * @param  array<int, string>  $headers
      * @return array<int, string>
      */
     public function ignoredColumns(array $headers): array
     {
-        $known = [
-            ...self::BASE_COLUMNS,
-            ...self::FAILED_ROWS_META_COLUMNS,
-            ...$this->customFields()->pluck('name')->all(),
-        ];
+        $known = $this->canonicalColumnsByKey();
 
         $ignored = array_values(array_unique(array_filter(
             $headers,
-            fn (string $header): bool => $header !== '' && ! in_array($header, $known, true),
+            fn (string $header): bool => $header !== '' && ! isset($known[$this->headerKey($header)]),
         )));
 
         if ($ignored === []) {
             return [];
         }
 
-        $deleted = CustomField::forOrganization($this->organizationId)->onlyTrashed()->pluck('name')->all();
+        $deleted = array_map(
+            $this->headerKey(...),
+            CustomField::forOrganization($this->organizationId)->onlyTrashed()->pluck('name')->all(),
+        );
 
         return array_map(
-            fn (string $header): string => in_array($header, $deleted, true) ? "\"{$header}\" (deleted field)" : "\"{$header}\"",
+            fn (string $header): string => in_array($this->headerKey($header), $deleted, true) ? "\"{$header}\" (deleted field)" : "\"{$header}\"",
             $ignored,
         );
+    }
+
+    /**
+     * The canonical column of every header the import knows, by the lowercase trimmed header.
+     *
+     * @return array<string, string>
+     */
+    private function canonicalColumnsByKey(): array
+    {
+        $columns = [];
+
+        foreach ($this->customFields()->pluck('name')->all() as $name) {
+            $columns[$this->headerKey($name)] ??= $name;
+        }
+
+        foreach ([...self::BASE_COLUMNS, ...self::FAILED_ROWS_META_COLUMNS] as $column) {
+            $columns[$column] = $column;
+        }
+
+        return $columns;
+    }
+
+    private function headerKey(string $header): string
+    {
+        return mb_strtolower(trim($header));
     }
 
     /**
@@ -128,6 +197,29 @@ class ContactImportService
 
         $phone = trim($row['phone'] ?? '') ?: null;
 
+        $status = ContactStatus::Lead;
+        $leadSource = null;
+
+        foreach (['status' => ContactStatus::class, 'lead source' => LeadSource::class] as $column => $enumClass) {
+            $raw = trim($row[$column] ?? '');
+
+            if ($raw === '') {
+                continue;
+            }
+
+            $value = $this->enumFromCell($enumClass, $raw);
+
+            if ($value === null) {
+                return ['success' => false, 'error' => "Invalid value for field '{$column}': {$raw}"];
+            }
+
+            if ($column === 'status') {
+                $status = $value;
+            } else {
+                $leadSource = $value;
+            }
+        }
+
         // handle custom fields
         $customFieldValues = [];
         foreach ($customFieldsByName as $fieldName => $field) {
@@ -163,7 +255,7 @@ class ContactImportService
         try {
             $contact = Contact::withoutEvents(fn (): Contact => Contact::withTrashed()->createOrFirst(
                 ['organization_id' => $this->organizationId, 'email' => $email],
-                ['name' => $name, 'phone' => $phone, 'custom_field_values' => $customFieldValues],
+                ['name' => $name, 'phone' => $phone, 'status' => $status, 'lead_source' => $leadSource, 'custom_field_values' => $customFieldValues],
             ));
         } catch (DuplicateCustomFieldValueException $exception) {
             return ['success' => false, 'error' => "Duplicate value for unique field '{$exception->fieldName}'."];
@@ -176,6 +268,31 @@ class ContactImportService
         $contact->tags()->sync($tagIds);
 
         return ['success' => true, 'error' => null];
+    }
+
+    /**
+     * The case of an enum a cell designates: first its stored value (`active_client`), then its label ignoring case and
+     * surrounding spaces (`Active Client`).
+     *
+     * @param  class-string<BackedEnum&HasLabel>  $enumClass
+     */
+    private function enumFromCell(string $enumClass, string $raw): ?BackedEnum
+    {
+        $raw = trim($raw);
+
+        $byValue = $enumClass::tryFrom($raw);
+
+        if ($byValue !== null) {
+            return $byValue;
+        }
+
+        foreach ($enumClass::cases() as $case) {
+            if (mb_strtolower(trim((string) $case->getLabel())) === mb_strtolower($raw)) {
+                return $case;
+            }
+        }
+
+        return null;
     }
 
     /**

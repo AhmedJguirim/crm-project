@@ -97,6 +97,7 @@ class ProcessContactImportJob implements ShouldQueue
         $customFieldsByName = $service->customFields()->keyBy('name')->all();
 
         $headers = null;
+        $canonicalHeaders = null;
 
         /** @var array<int, string> $ignoredColumns */
         $ignoredColumns = [];
@@ -111,7 +112,14 @@ class ProcessContactImportJob implements ShouldQueue
             foreach ($reader->rows($tmpPath, $extension, $dialect) as $row) {
                 if ($headers === null) {
                     $headers = $row;
+                    $canonicalHeaders = $service->canonicalHeaders($headers);
                     $ignoredColumns = $service->ignoredColumns($headers);
+
+                    $duplicated = $service->duplicatedColumn($headers);
+
+                    if ($duplicated !== null) {
+                        throw UnreadableImportFileException::duplicateColumn($duplicated);
+                    }
 
                     continue;
                 }
@@ -134,7 +142,7 @@ class ProcessContactImportJob implements ShouldQueue
                 }
 
                 $rowData = array_combine($headers, $row);
-                $result = $service->processRow($rowData, $customFieldsByName);
+                $result = $service->processRow(array_combine($canonicalHeaders, $row), $customFieldsByName);
 
                 if ($result['success']) {
                     $importedCount++;
@@ -147,8 +155,8 @@ class ProcessContactImportJob implements ShouldQueue
                     ];
                 }
             }
-        } catch (UnreadableImportFileException) {
-            $this->handleUnreadableFile($importedCount, $failedRows, $headers, $rowNumber, $ignoredColumns, $dialect);
+        } catch (UnreadableImportFileException $exception) {
+            $this->handleUnreadableFile($exception, $importedCount, $failedRows, $headers, $rowNumber, $ignoredColumns, $dialect);
 
             return;
         } finally {
@@ -245,7 +253,7 @@ class ProcessContactImportJob implements ShouldQueue
      * @param  array<int, string>|null  $headers
      * @param  array<int, string>  $ignoredColumns
      */
-    private function handleUnreadableFile(int $importedCount, array $failedRows, ?array $headers, int $lastRowRead, array $ignoredColumns, CsvDialect $dialect): void
+    private function handleUnreadableFile(UnreadableImportFileException $exception, int $importedCount, array $failedRows, ?array $headers, int $lastRowRead, array $ignoredColumns, CsvDialect $dialect): void
     {
         Storage::disk('local')->delete($this->filePath);
 
@@ -263,7 +271,7 @@ class ProcessContactImportJob implements ShouldQueue
             Notification::make()
                 ->danger()
                 ->title('Import failed')
-                ->body("We couldn't read this file. Upload a CSV or an Excel (.xlsx) file whose first sheet starts with a header row.")
+                ->body($exception->userMessage ?? "We couldn't read this file. Upload a CSV or an Excel (.xlsx) file whose first sheet starts with a header row.")
                 ->sendToDatabase($user);
 
             return;
@@ -329,6 +337,11 @@ class ProcessContactImportJob implements ShouldQueue
     private function storeFailedRowsCsv(array $headers, array $failedRows, CsvDialect $dialect): string
     {
         $tmpPath = TemporaryFile::reserve('failed-rows-', 'csv');
+
+        $headers = array_values(array_filter(
+            $headers,
+            fn (string $header): bool => ! in_array(mb_strtolower(trim($header)), ContactImportService::FAILED_ROWS_META_COLUMNS, true),
+        ));
 
         try {
             $writer = SimpleExcelWriter::create($tmpPath, delimiter: $dialect->delimiter)

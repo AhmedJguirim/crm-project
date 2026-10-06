@@ -141,7 +141,7 @@ describe('template file', function () {
 
         expect($rows)->toHaveCount(2)
             ->and(count($rows[1]))->toBe(count($rows[0]))
-            ->and($rows[0][4])->toBe('Say "hi", please');
+            ->and($rows[0][6])->toBe('Say "hi", please');
     });
 
     it('follows the import column order and leaves out trashed fields', function () {
@@ -149,7 +149,7 @@ describe('template file', function () {
         templateField($this->org->id, 'text', 'First', 1);
         templateField($this->org->id, 'text', 'Gone', 3)->delete();
 
-        expect(ContactImportTemplate::forOrganization($this->org->id)->headers())->toBe(['name', 'email', 'phone', 'tags', 'First', 'Second'])
+        expect(ContactImportTemplate::forOrganization($this->org->id)->headers())->toBe(['name', 'email', 'phone', 'tags', 'status', 'lead source', 'First', 'Second'])
             ->and(ContactImportTemplate::forOrganization($this->org->id)->exampleRow()[3])->toBe('VIP;Newsletter');
     });
 
@@ -165,11 +165,13 @@ describe('template file', function () {
 
         expect($rows[1][2])->toBe('+1234567890')
             ->and($rows[1][3])->toBe('VIP;Newsletter')
-            ->and($rows[1][4])->toBeInstanceOf(DateTimeInterface::class)
-            ->and($rows[1][4]->format('d-m'))->toBe('15-01')
-            ->and($rows[1][4]->format('Y H:i:s'))->toBe(now()->year.' 00:00:00')
-            ->and($rows[1][5])->toBe(42)
-            ->and($rows[1][6])->toBe('+33612345678');
+            ->and($rows[1][4])->toBe('Lead')
+            ->and($rows[1][5])->toBe('Referral')
+            ->and($rows[1][6])->toBeInstanceOf(DateTimeInterface::class)
+            ->and($rows[1][6]->format('d-m'))->toBe('15-01')
+            ->and($rows[1][6]->format('Y H:i:s'))->toBe(now()->year.' 00:00:00')
+            ->and($rows[1][7])->toBe(42)
+            ->and($rows[1][8])->toBe('+33612345678');
     });
 
     it('formats the text and date columns, including the empty rows below the example', function () {
@@ -180,7 +182,8 @@ describe('template file', function () {
         $formats = [
             'phone, example row' => templateCellNumberFormat($path, 'C2'),
             'phone, last empty row' => templateCellNumberFormat($path, 'C1002'),
-            'start, last empty row' => templateCellNumberFormat($path, 'E1002'),
+            'status, last empty row' => templateCellNumberFormat($path, 'E1002'),
+            'start, last empty row' => templateCellNumberFormat($path, 'G1002'),
         ];
 
         unlink($path);
@@ -188,6 +191,7 @@ describe('template file', function () {
         expect($formats)->toBe([
             'phone, example row' => 49,
             'phone, last empty row' => 49,
+            'status, last empty row' => 49,
             'start, last empty row' => 'dd-mm-yyyy',
         ]);
     });

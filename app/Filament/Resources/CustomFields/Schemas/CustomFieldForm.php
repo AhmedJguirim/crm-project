@@ -5,6 +5,7 @@ namespace App\Filament\Resources\CustomFields\Schemas;
 use App\Exceptions\UsedInSegmentsException;
 use App\Filament\Support\CustomFields\CustomFieldDefinitionFields;
 use App\Models\CustomField;
+use App\Services\ContactImportService;
 use App\Services\Segments\SegmentUsage;
 use Closure;
 use Filament\Facades\Filament;
@@ -24,6 +25,13 @@ class CustomFieldForm
                     ->maxLength(255)
                     ->unique(CustomField::class, 'name', ignoreRecord: true, modifyRuleUsing: function ($rule) {
                         return $rule->where('organization_id', Filament::getTenant()->id);
+                    })
+                    ->rule(fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
+                        $reserved = [...ContactImportService::RESERVED_COLUMNS, ...ContactImportService::FAILED_ROWS_META_COLUMNS];
+
+                        if (in_array(mb_strtolower(trim((string) $value)), $reserved, true)) {
+                            $fail('This name is used by the import. Choose another name.');
+                        }
                     })
                     ->validationMessages(['unique' => CustomFieldDefinitionFields::nameTakenMessage()])
                     ->helperText('A descriptive name for this custom field'),

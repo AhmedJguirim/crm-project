@@ -10,6 +10,17 @@ use Throwable;
  */
 class UnreadableImportFileException extends RuntimeException
 {
+    /** What the user is told when this is the whole reason the import failed, instead of the generic "couldn't read" line. */
+    public ?string $userMessage = null;
+
+    public static function duplicateColumn(string $column): self
+    {
+        $exception = new self("Two columns are named \"{$column}\".");
+        $exception->userMessage = "Two columns are named \"{$column}\". Keep only one and import the file again.";
+
+        return $exception;
+    }
+
     public static function unsupportedType(string $extension): self
     {
         return new self("Unsupported file type: .{$extension}");

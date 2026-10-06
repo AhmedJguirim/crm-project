@@ -68,12 +68,12 @@ it('does not report blank headers', function () {
         ->and($notification->data['title'])->toBe('Import complete');
 });
 
-it('keeps matching headers exactly and explains a miss', function () {
-    $notification = ($this->importCsv)("Name,email\nAnn,ann@example.com\n");
+it('matches headers ignoring case and spaces, and explains a miss', function () {
+    $notification = ($this->importCsv)(" Name ,EMAIL,Nom\nAnn,ann@example.com,Ann\n");
 
-    expect($notification->data['title'])->toBe('Import complete with errors')
-        ->and($notification->data['body'])->toContain('Ignored columns (no matching field): "Name"')
-        ->and($notification->data['body'])->toContain('Row 1: Name is required.');
+    expect($notification->data['title'])->toBe('Import complete, some columns were ignored')
+        ->and($notification->data['body'])->toContain('Ignored columns (no matching field): "Nom"')
+        ->and($notification->data['body'])->not->toContain('"Name"');
 });
 
 it('puts the ignored columns between the counts and the failed rows', function () {
@@ -128,5 +128,5 @@ it('keeps the meta columns of the failed rows file in sync with what the import 
 });
 
 it('knows the base columns of the template', function () {
-    expect(ContactImportService::BASE_COLUMNS)->toBe(['name', 'email', 'phone', 'tags']);
+    expect(ContactImportService::BASE_COLUMNS)->toBe(['name', 'email', 'phone', 'tags', 'status', 'lead source']);
 });

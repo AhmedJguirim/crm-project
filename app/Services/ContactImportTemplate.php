@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Enums\ContactStatus;
+use App\Enums\LeadSource;
 use App\Models\CustomField;
 use App\Support\TemporaryFile;
 use DateTimeImmutable;
@@ -26,8 +28,6 @@ class ContactImportTemplate
 
     /** The empty rows written below the example, only so that their cells carry the column format. */
     private const FORMATTED_EMPTY_ROWS = 1000;
-
-    private const BASE_COLUMN_COUNT = 4;
 
     /** @var Collection<int, CustomField>|null */
     private ?Collection $customFields = null;
@@ -58,6 +58,8 @@ class ContactImportTemplate
             'john@example.com',
             '+1234567890',
             implode(ContactImportService::MULTI_VALUE_SEPARATOR, ['VIP', 'Newsletter']),
+            ContactStatus::Lead->getLabel(),
+            LeadSource::Referral->getLabel(),
             ...$this->customFields()->map(fn (CustomField $field): string|int|float|DateTimeInterface => $this->exampleCellValue($field))->all(),
         ];
     }
@@ -159,7 +161,7 @@ class ContactImportTemplate
         $date = (new Style)->setFormat('dd-mm-yyyy');
 
         return [
-            ...array_fill(0, self::BASE_COLUMN_COUNT, $text),
+            ...array_fill(0, count(ContactImportService::BASE_COLUMNS), $text),
             ...$this->customFields()->map(fn (CustomField $field): ?Style => match ($field->type) {
                 'number' => null,
                 'date' => $date,
