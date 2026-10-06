@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\Companies\Schemas;
 
+use App\Enums\CompanyIndustry;
+use App\Filament\Resources\CompanyTypes\Schemas\CompanyTypeForm;
 use App\Filament\Support\AbilityCheck;
 use App\Filament\Support\CustomFields\CustomFieldValuesSection;
 use App\Models\Company;
@@ -9,7 +11,6 @@ use App\Models\CompanyCustomField;
 use App\Models\CompanyType;
 use Closure;
 use Filament\Actions\Action;
-use Filament\Facades\Filament;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -17,6 +18,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 
 class CompanyForm
@@ -38,15 +40,18 @@ class CompanyForm
                             ->relationship('companyType', 'name')
                             ->searchable()
                             ->preload()
+                            ->getOptionLabelUsing(fn (mixed $value, ?Company $record): ?string => CompanyType::query()
+                                ->when($record !== null && (int) $value === $record->company_type_id, fn (Builder $query): Builder => $query->withTrashed())
+                                ->find($value)
+                                ?->companyTypeLabel())
                             ->createOptionAction(fn (Action $action): Action => $action->authorize(AbilityCheck::for('create', CompanyType::class)))
                             ->createOptionForm([
-                                TextInput::make('name')
-                                    ->required()
-                                    ->maxLength(255)
-                                    ->unique(CompanyType::class, 'name', modifyRuleUsing: fn ($rule) => $rule
-                                        ->where('organization_id', Filament::getTenant()?->getKey())
-                                        ->whereNull('deleted_at')),
+                                CompanyTypeForm::nameInput(),
                             ]),
+
+                        Select::make('industry')
+                            ->options(CompanyIndustry::class)
+                            ->searchable(),
 
                         TextInput::make('website')
                             ->placeholder('acme.com')

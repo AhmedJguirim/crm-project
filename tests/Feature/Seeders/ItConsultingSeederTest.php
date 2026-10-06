@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\CompanyIndustry;
 use App\Enums\DealStatus;
 use App\Enums\OrganizationRole;
 use App\Enums\SegmentRefreshFrequency;
@@ -90,7 +91,7 @@ test('it consulting seeder seeds companies with types, custom fields, addresses 
 
     expect(CompanyType::query()->pluck('name')->sort()->values()->all())->toBe(['Agency', 'Enterprise', 'SME', 'Startup'])
         ->and(Company::query()->count())->toBe(14)
-        ->and(CompanyCustomField::query()->count())->toBe(5)
+        ->and(CompanyCustomField::query()->count())->toBe(4)
         ->and(Company::query()->whereNull('address_id')->count())->toBe(0);
 
     $techCorp = Company::query()->where('name', 'TechCorp Solutions')->firstOrFail();
@@ -98,7 +99,7 @@ test('it consulting seeder seeds companies with types, custom fields, addresses 
     expect($techCorp->companyType->name)->toBe('Enterprise')
         ->and($techCorp->address->city)->toBe('Paris')
         ->and($techCorp->customFieldDefinitions()->pluck('name')->all())
-        ->toBe(['Industry', 'VAT Number', 'Funding Stage', 'Founded', 'Specialties'])
+        ->toBe(['VAT Number', 'Funding Stage', 'Founded', 'Specialties'])
         ->and($techCorp->customFieldValue(customFieldKey($techCorp, 'VAT Number')))->toBe('FR40303265045')
         ->and($techCorp->contacts->pluck('email')->all())->toBe(['marcus.chen@techcorp.io']);
 
@@ -123,7 +124,7 @@ test('it consulting seeder is idempotent for companies', function () {
 
     expect(Company::query()->count())->toBe(14)
         ->and(CompanyType::query()->count())->toBe(4)
-        ->and(CompanyCustomField::query()->count())->toBe(5)
+        ->and(CompanyCustomField::query()->count())->toBe(4)
         ->and(Contact::query()->withCount('companies')->get()->sum('companies_count'))->toBe(16);
 });
 
@@ -162,6 +163,23 @@ test('it consulting seeder gives the companies a website, its domain and a phone
         ->and(Company::query()->whereNotNull('domain')->orderBy('domain')->pluck('domain')->all())
         ->toBe(['cloudbase.dev', 'devstudio.de', 'pixelcraft.studio', 'securepeak.com', 'stackops.io', 'techcorp.io'])
         ->and($hexaSys->only(['website', 'domain']))->toBe(['website' => null, 'domain' => null]);
+});
+
+test('it consulting seeder keeps the industries in their column', function () {
+    $this->seed(ItConsultingSeeder::class);
+
+    $user = User::query()->where('email', 'test@example.com')->firstOrFail();
+    $this->actingAs($user);
+    Filament::setTenant($user->personalOrganization());
+
+    $industry = fn (string $name): ?CompanyIndustry => Company::query()->where('name', $name)->firstOrFail()->industry;
+
+    expect($industry('TechCorp Solutions'))->toBe(CompanyIndustry::Software)
+        ->and($industry('InnoTech SA'))->toBe(CompanyIndustry::FinanceBanking)
+        ->and($industry('Cloudbase Nordic'))->toBe(CompanyIndustry::CloudHosting)
+        ->and($industry('StackOps'))->toBeNull()
+        ->and(Company::query()->whereNotNull('industry')->count())->toBe(8)
+        ->and(CompanyCustomField::query()->where('name', 'Industry')->exists())->toBeFalse();
 });
 
 test('it consulting seeder keeps the sizes of the companies in their columns', function () {
@@ -203,13 +221,12 @@ test('it consulting seeder keeps the company values it had, now on organization-
         };
     };
 
-    expect($valueOf('TechCorp Solutions', 'Industry'))->toBe('Software')
-        ->and($valueOf('TechCorp Solutions', 'VAT Number'))->toBe('FR40303265045')
+    expect($valueOf('TechCorp Solutions', 'VAT Number'))->toBe('FR40303265045')
         ->and($valueOf('StackOps', 'Funding Stage'))->toBe('Series A')
         ->and($valueOf('StackOps', 'Founded'))->toBe('2021-03-01')
         ->and($valueOf('DevStudio Berlin', 'Specialties'))->toBe(['Web', 'Design'])
         ->and(CompanyCustomField::query()->orderBy('order')->pluck('name')->all())
-        ->toBe(['Industry', 'VAT Number', 'Funding Stage', 'Founded', 'Specialties']);
+        ->toBe(['VAT Number', 'Funding Stage', 'Founded', 'Specialties']);
 });
 
 test('it consulting seeder seeds synced segments for every kind of condition and a draft', function () {

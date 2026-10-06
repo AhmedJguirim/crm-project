@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Companies\Tables;
 
+use App\Enums\CompanyIndustry;
 use App\Filament\Support\SegmentUsageGuard;
 use App\Models\Company;
 use Filament\Actions\BulkActionGroup;
@@ -22,16 +23,22 @@ class CompaniesTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['companyType', 'address']))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['companyTypeWithTrashed', 'address']))
             ->columns([
                 TextColumn::make('name')
                     ->searchable()
                     ->sortable()
                     ->weight('medium'),
 
-                TextColumn::make('companyType.name')
+                TextColumn::make('companyTypeWithTrashed.name')
                     ->label('Type')
+                    ->formatStateUsing(fn (Company $record): ?string => $record->companyTypeLabel())
                     ->badge()
+                    ->placeholder('—')
+                    ->sortable(),
+
+                TextColumn::make('industry')
+                    ->toggleable()
                     ->placeholder('—')
                     ->sortable(),
 
@@ -90,6 +97,10 @@ class CompaniesTable
                     ->label('Type')
                     ->relationship('companyType', 'name')
                     ->preload(),
+
+                SelectFilter::make('industry')
+                    ->options(CompanyIndustry::class)
+                    ->multiple(),
 
                 TrashedFilter::make(),
             ])

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\CompanyIndustry;
 use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\EnforcesUniqueCustomFieldValues;
 use App\Models\Concerns\HasCustomFieldValues;
@@ -37,6 +38,7 @@ class Company extends Model
         'organization_id',
         'company_type_id',
         'address_id',
+        'industry',
         'name',
         'website',
         'phone',
@@ -49,6 +51,7 @@ class Company extends Model
     protected function casts(): array
     {
         return [
+            'industry' => CompanyIndustry::class,
             'employees' => 'integer',
             'annual_revenue' => 'decimal:2',
         ];
@@ -131,6 +134,25 @@ class Company extends Model
     private static function schemeOf(string $website): ?string
     {
         return preg_match('/^([a-z][a-z0-9+.\-]*):\/\//i', $website, $matches) === 1 ? strtolower($matches[1]) : null;
+    }
+
+    /**
+     * The type of the company, including a deleted one: only for display, so the type options of the forms keep hiding
+     * the types that are deleted.
+     *
+     * @return BelongsTo<CompanyType, $this>
+     */
+    public function companyTypeWithTrashed(): BelongsTo
+    {
+        return $this->belongsTo(CompanyType::class, 'company_type_id')->withTrashed();
+    }
+
+    /**
+     * The name of the type of the company, followed by " (deleted)" when the type is deleted.
+     */
+    public function companyTypeLabel(): ?string
+    {
+        return $this->companyTypeWithTrashed?->companyTypeLabel();
     }
 
     /** @return Collection<int, CompanyCustomField> */

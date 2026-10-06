@@ -28,4 +28,12 @@ class CompanyType extends Model
     {
         return $this->hasMany(Company::class);
     }
+
+    /**
+     * The name, followed by " (deleted)" when the type is deleted.
+     */
+    public function companyTypeLabel(): string
+    {
+        return $this->name.($this->trashed() ? ' (deleted)' : '');
+    }
 }

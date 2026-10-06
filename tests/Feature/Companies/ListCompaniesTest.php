@@ -45,7 +45,7 @@ test('shows type, contacts count and location columns', function () {
     $company->contacts()->attach(Contact::factory()->count(2)->create(['organization_id' => $this->org->id]));
 
     $page = Livewire::test(ListCompanies::class)
-        ->assertTableColumnStateSet('companyType.name', 'Enterprise', $company)
+        ->assertTableColumnStateSet('companyTypeWithTrashed.name', 'Enterprise', $company)
         ->assertTableColumnStateSet('address.city', 'Paris', $company)
         ->assertTableColumnStateSet('address.country', 'France', $company);
 

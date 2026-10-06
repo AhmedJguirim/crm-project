@@ -6,6 +6,7 @@ use App\Data\Segments\SegmentConditionData;
 use App\Data\Segments\SegmentRuleData;
 use App\Enums\ActivityOutcome;
 use App\Enums\ActivityType;
+use App\Enums\CompanyIndustry;
 use App\Enums\ContactAttribute;
 use App\Enums\DealStage;
 use App\Enums\DealStatus;
@@ -716,44 +717,35 @@ class ItConsultingSeeder extends Seeder
         $startup = CompanyType::firstOrCreate(['organization_id' => $org->id, 'name' => 'Startup']);
         $agency = CompanyType::firstOrCreate(['organization_id' => $org->id, 'name' => 'Agency']);
 
-        $industryOptions = [
-            ['label' => 'Software'],
-            ['label' => 'Finance'],
-            ['label' => 'Cybersecurity'],
-            ['label' => 'Cloud & Hosting'],
-            ['label' => 'Consulting'],
-        ];
-
-        $this->companyField($org, 'Industry', 'select', $industryOptions, 1);
-        $this->companyField($org, 'VAT Number', 'text', null, 2, unique: true);
+        $this->companyField($org, 'VAT Number', 'text', null, 1, unique: true);
         $this->companyField($org, 'Funding Stage', 'select', [
             ['label' => 'Pre-seed'],
             ['label' => 'Seed'],
             ['label' => 'Series A'],
             ['label' => 'Series B'],
-        ], 3);
-        $this->companyField($org, 'Founded', 'date', null, 4);
+        ], 2);
+        $this->companyField($org, 'Founded', 'date', null, 3);
         $this->companyField($org, 'Specialties', 'multiselect', [
             ['label' => 'Web'],
             ['label' => 'Mobile'],
             ['label' => 'Design'],
             ['label' => 'DevOps'],
-        ], 5);
+        ], 4);
 
         $companiesData = [
-            ['name' => 'TechCorp Solutions', 'employees' => 1200, 'annual_revenue' => 180000000, 'phone' => '+33 1 23 45 67 89', 'website' => 'https://techcorp.io', 'type' => $enterprise, 'address' => ['France', 'Paris', '12 Rue de Rivoli', '75001'], 'cf' => ['industry' => 'Software', 'vat_number' => 'FR40303265045'], 'notes' => 'Key account since 2023.'],
-            ['name' => 'Cloudbase Nordic', 'employees' => 85, 'phone' => '+46 8 123 456 78', 'website' => 'https://cloudbase.dev', 'type' => $sme, 'address' => ['Sweden', 'Stockholm', 'Drottninggatan 45', '111 21'], 'cf' => ['industry' => 'Cloud & Hosting']],
-            ['name' => 'HexaSys', 'employees' => 140, 'type' => $sme, 'address' => ['France', 'Lyon', '8 Quai Saint-Antoine', '69002'], 'cf' => ['industry' => 'Software']],
-            ['name' => 'SecurePeak Ltd', 'employees' => 950, 'website' => 'https://securepeak.com', 'type' => $enterprise, 'address' => ['United Kingdom', 'London', '30 St Mary Axe', 'EC3A 8BF'], 'cf' => ['industry' => 'Cybersecurity', 'vat_number' => 'GB123456789']],
+            ['name' => 'TechCorp Solutions', 'industry' => CompanyIndustry::Software, 'employees' => 1200, 'annual_revenue' => 180000000, 'phone' => '+33 1 23 45 67 89', 'website' => 'https://techcorp.io', 'type' => $enterprise, 'address' => ['France', 'Paris', '12 Rue de Rivoli', '75001'], 'cf' => ['vat_number' => 'FR40303265045'], 'notes' => 'Key account since 2023.'],
+            ['name' => 'Cloudbase Nordic', 'industry' => CompanyIndustry::CloudHosting, 'employees' => 85, 'phone' => '+46 8 123 456 78', 'website' => 'https://cloudbase.dev', 'type' => $sme, 'address' => ['Sweden', 'Stockholm', 'Drottninggatan 45', '111 21'], 'cf' => []],
+            ['name' => 'HexaSys', 'industry' => CompanyIndustry::Software, 'employees' => 140, 'type' => $sme, 'address' => ['France', 'Lyon', '8 Quai Saint-Antoine', '69002'], 'cf' => []],
+            ['name' => 'SecurePeak Ltd', 'industry' => CompanyIndustry::Cybersecurity, 'employees' => 950, 'website' => 'https://securepeak.com', 'type' => $enterprise, 'address' => ['United Kingdom', 'London', '30 St Mary Axe', 'EC3A 8BF'], 'cf' => ['vat_number' => 'GB123456789']],
             ['name' => 'DevStudio Berlin', 'website' => 'https://devstudio.de', 'type' => $agency, 'address' => ['Germany', 'Berlin', 'Torstraße 110', '10119'], 'cf' => ['specialties' => ['Web', 'Design']]],
-            ['name' => 'InnoTech SA', 'employees' => 2300, 'type' => $enterprise, 'address' => ['Senegal', 'Dakar', 'Avenue Léopold Sédar Senghor', '10200'], 'cf' => ['industry' => 'Finance', 'vat_number' => 'SN0045821'], 'notes' => 'Azure migration opportunity, decision expected Q2.'],
+            ['name' => 'InnoTech SA', 'industry' => CompanyIndustry::FinanceBanking, 'employees' => 2300, 'type' => $enterprise, 'address' => ['Senegal', 'Dakar', 'Avenue Léopold Sédar Senghor', '10200'], 'cf' => ['vat_number' => 'SN0045821'], 'notes' => 'Azure migration opportunity, decision expected Q2.'],
             ['name' => 'StackOps', 'phone' => '+353 1 234 5678', 'website' => 'https://stackops.io', 'type' => $startup, 'address' => ['Ireland', 'Dublin', '1 Grand Canal Square', 'D02 P820'], 'cf' => ['funding_stage' => 'Series A', 'founded' => '2021-03-01']],
-            ['name' => 'SoftBridge Europe', 'employees' => 60, 'type' => $sme, 'address' => ['Bulgaria', 'Sofia', 'Vitosha Blvd 89', '1463'], 'cf' => ['industry' => 'Consulting']],
+            ['name' => 'SoftBridge Europe', 'industry' => CompanyIndustry::Consulting, 'employees' => 60, 'type' => $sme, 'address' => ['Bulgaria', 'Sofia', 'Vitosha Blvd 89', '1463'], 'cf' => []],
             ['name' => 'CyberNode Africa', 'type' => $startup, 'address' => ['Nigeria', 'Lagos', '14 Admiralty Way', '106104'], 'cf' => ['funding_stage' => 'Seed', 'founded' => '2023-01-15']],
             ['name' => 'PixelCraft Studio', 'website' => 'https://pixelcraft.studio', 'type' => $agency, 'address' => ['Spain', 'Barcelona', 'Carrer de Pallars 193', '08005'], 'cf' => ['specialties' => ['Design', 'Mobile']]],
             ['name' => 'DataLab Portugal', 'type' => $startup, 'address' => ['Portugal', 'Lisbon', 'Rua Augusta 27', '1100-048'], 'cf' => ['funding_stage' => 'Pre-seed', 'founded' => '2024-06-01']],
-            ['name' => 'CloudShift MENA', 'employees' => 700, 'type' => $enterprise, 'address' => ['United Arab Emirates', 'Dubai', 'Sheikh Zayed Road', null], 'cf' => ['industry' => 'Cloud & Hosting', 'vat_number' => 'AE100234567800003']],
-            ['name' => 'Nordic Security AB', 'employees' => 45, 'type' => $sme, 'address' => ['Sweden', 'Stockholm', 'Kungsgatan 12', '111 43'], 'cf' => ['industry' => 'Cybersecurity']],
+            ['name' => 'CloudShift MENA', 'industry' => CompanyIndustry::CloudHosting, 'employees' => 700, 'type' => $enterprise, 'address' => ['United Arab Emirates', 'Dubai', 'Sheikh Zayed Road', null], 'cf' => ['vat_number' => 'AE100234567800003']],
+            ['name' => 'Nordic Security AB', 'industry' => CompanyIndustry::Cybersecurity, 'employees' => 45, 'type' => $sme, 'address' => ['Sweden', 'Stockholm', 'Kungsgatan 12', '111 43'], 'cf' => []],
             ['name' => 'WebScale Paris', 'type' => $agency, 'address' => ['France', 'Paris', '55 Rue du Faubourg Saint-Honoré', '75008'], 'cf' => ['specialties' => ['Web', 'DevOps']]],
         ];
 
@@ -780,6 +772,7 @@ class ItConsultingSeeder extends Seeder
                     'name' => $data['name'],
                     'website' => $data['website'] ?? null,
                     'phone' => $data['phone'] ?? null,
+                    'industry' => $data['industry'] ?? null,
                     'employees' => $data['employees'] ?? null,
                     'annual_revenue' => $data['annual_revenue'] ?? null,
                     'notes' => $data['notes'] ?? null,
