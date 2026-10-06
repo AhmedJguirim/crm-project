@@ -29,7 +29,9 @@ class CustomFieldForm
                     ->rule(fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
                         $reserved = [...ContactImportService::RESERVED_COLUMNS, ...ContactImportService::FAILED_ROWS_META_COLUMNS];
 
-                        if (in_array(mb_strtolower(trim((string) $value)), $reserved, true)) {
+                        $name = mb_strtolower(trim((string) $value));
+
+                        if (in_array($name, $reserved, true) || preg_match('/^company\s*:/u', $name) === 1) {
                             $fail('This name is used by the import. Choose another name.');
                         }
                     })

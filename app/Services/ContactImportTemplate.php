@@ -2,8 +2,10 @@
 
 namespace App\Services;
 
+use App\Enums\CompanyIndustry;
 use App\Enums\ContactStatus;
 use App\Enums\LeadSource;
+use App\Models\CompanyCustomField;
 use App\Models\CustomField;
 use App\Support\TemporaryFile;
 use DateTimeImmutable;
@@ -29,6 +31,9 @@ class ContactImportTemplate
     /** The empty rows written below the example, only so that their cells carry the column format. */
     private const FORMATTED_EMPTY_ROWS = 1000;
 
+    /** The built-in columns written as numbers (no text format). */
+    private const NUMBER_COLUMNS = ['company employees', 'company annual revenue'];
+
     /** @var Collection<int, CustomField>|null */
     private ?Collection $customFields = null;
 
@@ -47,6 +52,7 @@ class ContactImportTemplate
         return [
             ...ContactImportService::BASE_COLUMNS,
             ...$this->customFields()->map(fn (CustomField $field): string => $field->name)->all(),
+            ...$this->companyCustomFields()->map(fn (CompanyCustomField $field): string => ContactImportService::COMPANY_FIELD_PREFIX.$field->name)->all(),
         ];
     }
 
@@ -60,7 +66,19 @@ class ContactImportTemplate
             implode(ContactImportService::MULTI_VALUE_SEPARATOR, ['VIP', 'Newsletter']),
             ContactStatus::Lead->getLabel(),
             LeadSource::Referral->getLabel(),
+            'Acme Corp',
+            'acme.com',
+            $this->importService->companyTypes()->first()?->name ?? '',
+            '+1 555 0100',
+            CompanyIndustry::Software->getLabel(),
+            50,
+            1000000,
+            '1 Main St',
+            'Springfield',
+            '12345',
+            'United States',
             ...$this->customFields()->map(fn (CustomField $field): string|int|float|DateTimeInterface => $this->exampleCellValue($field))->all(),
+            ...$this->companyCustomFields()->map(fn (CompanyCustomField $field): string|int|float|DateTimeInterface => $this->exampleCellValue($field))->all(),
         ];
     }
 
@@ -116,7 +134,7 @@ class ContactImportTemplate
     /**
      * Converts the example string of a custom field to the value of its column kind.
      */
-    private function exampleCellValue(CustomField $field): string|int|float|DateTimeInterface
+    private function exampleCellValue(CustomField|CompanyCustomField $field): string|int|float|DateTimeInterface
     {
         $example = $this->importService->exampleValueFor($field);
 
@@ -160,13 +178,19 @@ class ContactImportTemplate
         $text = (new Style)->setFormat('@');
         $date = (new Style)->setFormat('dd-mm-yyyy');
 
+        $fieldStyle = fn (CustomField|CompanyCustomField $field): ?Style => match ($field->type) {
+            'number' => null,
+            'date' => $date,
+            default => $text,
+        };
+
         return [
-            ...array_fill(0, count(ContactImportService::BASE_COLUMNS), $text),
-            ...$this->customFields()->map(fn (CustomField $field): ?Style => match ($field->type) {
-                'number' => null,
-                'date' => $date,
-                default => $text,
-            })->all(),
+            ...array_map(
+                fn (string $column): ?Style => in_array($column, self::NUMBER_COLUMNS, true) ? null : $text,
+                ContactImportService::BASE_COLUMNS,
+            ),
+            ...$this->customFields()->map($fieldStyle)->all(),
+            ...$this->companyCustomFields()->map($fieldStyle)->all(),
         ];
     }
 
@@ -174,5 +198,11 @@ class ContactImportTemplate
     private function customFields(): Collection
     {
         return $this->customFields ??= $this->importService->customFields();
+    }
+
+    /** @return Collection<int, CompanyCustomField> */
+    private function companyCustomFields(): Collection
+    {
+        return $this->importService->companyCustomFields();
     }
 }

@@ -183,18 +183,20 @@ describe('the template', function () {
 
         $template = ContactImportTemplate::forOrganization($this->org->id);
 
-        expect(array_slice($template->headers(), 0, 6))->toBe(['name', 'email', 'phone', 'tags', 'status', 'lead source'])
-            ->and(array_slice($template->exampleRow(), 4, 2))->toBe(['Lead', 'Referral']);
+        expect(array_slice($template->headers(), 0, 8))->toBe(['name', 'email', 'phone', 'tags', 'status', 'lead source', 'company', 'company website'])
+            ->and(array_slice($template->exampleRow(), 4, 4))->toBe(['Lead', 'Referral', 'Acme Corp', 'acme.com']);
 
         DatabaseNotification::query()->delete();
         ProcessContactImportJob::dispatchSync($storedPath, $this->org->id, $this->user->id);
 
-        expect(DatabaseNotification::where('notifiable_id', $this->user->id)->sole()->data['body'])->toBe('Imported: 1 | Failed: 0')
+        expect(DatabaseNotification::where('notifiable_id', $this->user->id)->sole()->data['body'])->toBe("Imported: 1 | Failed: 0\n\nCompanies created: 1")
             ->and(($this->contact)('john@example.com')->only(['name', 'status', 'lead_source']))
-            ->toBe(['name' => 'John Doe', 'status' => ContactStatus::Lead, 'lead_source' => LeadSource::Referral]);
+            ->toBe(['name' => 'John Doe', 'status' => ContactStatus::Lead, 'lead_source' => LeadSource::Referral])
+            ->and(($this->contact)('john@example.com')->companies()->withoutGlobalScope('organization')->get()->map->only(['name', 'website', 'domain'])->all())
+            ->toBe([['name' => 'Acme Corp', 'website' => 'acme.com', 'domain' => 'acme.com']]);
     });
 });
 
-it('lists the reserved columns after the base columns', function () {
-    expect(ContactImportService::RESERVED_COLUMNS)->toBe(['name', 'email', 'phone', 'tags', 'status', 'lead source', 'company', 'company website', 'company type']);
+it('reserves every base column', function () {
+    expect(ContactImportService::RESERVED_COLUMNS)->toBe(['name', 'email', 'phone', 'tags', 'status', 'lead source', 'company', 'company website', 'company type', 'company phone', 'company industry', 'company employees', 'company annual revenue', 'company street', 'company city', 'company zip', 'company country']);
 });

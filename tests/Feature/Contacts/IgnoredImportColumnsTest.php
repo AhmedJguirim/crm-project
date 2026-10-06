@@ -128,5 +128,5 @@ it('keeps the meta columns of the failed rows file in sync with what the import 
 });
 
 it('knows the base columns of the template', function () {
-    expect(ContactImportService::BASE_COLUMNS)->toBe(['name', 'email', 'phone', 'tags', 'status', 'lead source']);
+    expect(ContactImportService::BASE_COLUMNS)->toBe(['name', 'email', 'phone', 'tags', 'status', 'lead source', 'company', 'company website', 'company type', 'company phone', 'company industry', 'company employees', 'company annual revenue', 'company street', 'company city', 'company zip', 'company country']);
 });

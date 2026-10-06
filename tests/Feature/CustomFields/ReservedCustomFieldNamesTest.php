@@ -22,7 +22,7 @@ it('refuses the names the import uses', function (string $name) {
 
     expect($page->errors()->get('data.name'))->toBe(['This name is used by the import. Choose another name.'])
         ->and(CustomField::count())->toBe(0);
-})->with(['Tags', ' email', 'Lead Source', 'Company', 'STATUS', 'Company Website', 'company type', '_row_number', '_error', 'name', 'Phone']);
+})->with(['Tags', ' email', 'Lead Source', 'Company', 'STATUS', 'Company Website', 'company type', '_row_number', '_error', 'name', 'Phone', 'Company Phone', 'company annual revenue', ' Company: Region', 'company:Region', 'COMPANY :  VAT']);
 
 it('refuses to rename a field to a reserved name', function () {
     $field = CustomField::factory()->for($this->org)->create(['name' => 'Website', 'type' => 'url']);
@@ -50,3 +50,10 @@ it('accepts a name that only contains a reserved word', function () {
         ->call('create')
         ->assertHasNoFormErrors();
 });
+
+it('accepts a name that merely starts like the company prefix', function (string $name) {
+    Livewire::test(CreateCustomField::class)
+        ->fillForm(['name' => $name, 'type' => 'text'])
+        ->call('create')
+        ->assertHasNoFormErrors();
+})->with(['Company culture: strong', 'My company: Region', 'Companyx:y']);

@@ -156,7 +156,7 @@ class ProcessContactImportJob implements ShouldQueue
                 }
             }
         } catch (UnreadableImportFileException $exception) {
-            $this->handleUnreadableFile($exception, $importedCount, $failedRows, $headers, $rowNumber, $ignoredColumns, $dialect);
+            $this->handleUnreadableFile($exception, $importedCount, $failedRows, $headers, $rowNumber, $ignoredColumns, $dialect, $service);
 
             return;
         } finally {
@@ -176,6 +176,7 @@ class ProcessContactImportJob implements ShouldQueue
         }
 
         $ignoredLine = $this->ignoredColumnsLine($ignoredColumns);
+        $companyLines = $this->companyLines($service);
 
         if ($failedCount === 0) {
             $notification = $ignoredLine === null
@@ -183,7 +184,7 @@ class ProcessContactImportJob implements ShouldQueue
                 : Notification::make()->warning()->title('Import complete, some columns were ignored');
 
             $notification
-                ->body(implode("\n\n", array_filter(["Imported: {$importedCount} | Failed: 0", $ignoredLine])))
+                ->body(implode("\n\n", array_filter(["Imported: {$importedCount} | Failed: 0", ...$companyLines, $ignoredLine])))
                 ->sendToDatabase($user);
 
             return;
@@ -199,9 +200,23 @@ class ProcessContactImportJob implements ShouldQueue
         Notification::make()
             ->warning()
             ->title('Import complete with errors')
-            ->body(implode("\n\n", array_filter(["Imported: {$importedCount} | Failed: {$failedCount}", $ignoredLine, $errorSummary])))
+            ->body(implode("\n\n", array_filter(["Imported: {$importedCount} | Failed: {$failedCount}", ...$companyLines, $ignoredLine, $errorSummary])))
             ->actions([$this->failedRowsAction($failedCsvPath)])
             ->sendToDatabase($user);
+    }
+
+    /**
+     * The lines about the companies of the file: how many were created, and that the details of existing ones were
+     * left alone.
+     *
+     * @return array<int, string>
+     */
+    private function companyLines(ContactImportService $service): array
+    {
+        return array_values(array_filter([
+            $service->createdCompaniesCount() > 0 ? "Companies created: {$service->createdCompaniesCount()}" : null,
+            $service->companyDetailsIgnored() ? 'Company details were not changed for existing companies.' : null,
+        ]));
     }
 
     /**
@@ -253,7 +268,7 @@ class ProcessContactImportJob implements ShouldQueue
      * @param  array<int, string>|null  $headers
      * @param  array<int, string>  $ignoredColumns
      */
-    private function handleUnreadableFile(UnreadableImportFileException $exception, int $importedCount, array $failedRows, ?array $headers, int $lastRowRead, array $ignoredColumns, CsvDialect $dialect): void
+    private function handleUnreadableFile(UnreadableImportFileException $exception, int $importedCount, array $failedRows, ?array $headers, int $lastRowRead, array $ignoredColumns, CsvDialect $dialect, ContactImportService $service): void
     {
         Storage::disk('local')->delete($this->filePath);
 
@@ -284,6 +299,7 @@ class ProcessContactImportJob implements ShouldQueue
             ->title('Import stopped partway')
             ->body(implode("\n\n", array_filter([
                 "Imported: {$importedCount} | Failed: {$failedCount}. The file could not be read after row {$lastRowRead}, so the rest of it was not imported. The contacts above were kept; import the remaining rows in a new file.",
+                ...$this->companyLines($service),
                 $this->ignoredColumnsLine($ignoredColumns),
             ])));
 

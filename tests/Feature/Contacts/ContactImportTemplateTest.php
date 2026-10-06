@@ -3,6 +3,7 @@
 use App\Filament\Resources\Contacts\Pages\ListContacts;
 use App\Filament\Support\CustomFields\CustomFieldDefinitionFields;
 use App\Jobs\ProcessContactImportJob;
+use App\Models\Company;
 use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\User;
@@ -141,7 +142,7 @@ describe('template file', function () {
 
         expect($rows)->toHaveCount(2)
             ->and(count($rows[1]))->toBe(count($rows[0]))
-            ->and($rows[0][6])->toBe('Say "hi", please');
+            ->and($rows[0][17])->toBe('Say "hi", please');
     });
 
     it('follows the import column order and leaves out trashed fields', function () {
@@ -149,7 +150,7 @@ describe('template file', function () {
         templateField($this->org->id, 'text', 'First', 1);
         templateField($this->org->id, 'text', 'Gone', 3)->delete();
 
-        expect(ContactImportTemplate::forOrganization($this->org->id)->headers())->toBe(['name', 'email', 'phone', 'tags', 'status', 'lead source', 'First', 'Second'])
+        expect(ContactImportTemplate::forOrganization($this->org->id)->headers())->toBe(['name', 'email', 'phone', 'tags', 'status', 'lead source', 'company', 'company website', 'company type', 'company phone', 'company industry', 'company employees', 'company annual revenue', 'company street', 'company city', 'company zip', 'company country', 'First', 'Second'])
             ->and(ContactImportTemplate::forOrganization($this->org->id)->exampleRow()[3])->toBe('VIP;Newsletter');
     });
 
@@ -167,11 +168,14 @@ describe('template file', function () {
             ->and($rows[1][3])->toBe('VIP;Newsletter')
             ->and($rows[1][4])->toBe('Lead')
             ->and($rows[1][5])->toBe('Referral')
-            ->and($rows[1][6])->toBeInstanceOf(DateTimeInterface::class)
-            ->and($rows[1][6]->format('d-m'))->toBe('15-01')
-            ->and($rows[1][6]->format('Y H:i:s'))->toBe(now()->year.' 00:00:00')
-            ->and($rows[1][7])->toBe(42)
-            ->and($rows[1][8])->toBe('+33612345678');
+            ->and($rows[1][6])->toBe('Acme Corp')
+            ->and($rows[1][7])->toBe('acme.com')
+            ->and(array_slice($rows[1], 8, 9))->toBe(['', '+1 555 0100', 'Software', 50, 1000000, '1 Main St', 'Springfield', '12345', 'United States'])
+            ->and($rows[1][17])->toBeInstanceOf(DateTimeInterface::class)
+            ->and($rows[1][17]->format('d-m'))->toBe('15-01')
+            ->and($rows[1][17]->format('Y H:i:s'))->toBe(now()->year.' 00:00:00')
+            ->and($rows[1][18])->toBe(42)
+            ->and($rows[1][19])->toBe('+33612345678');
     });
 
     it('formats the text and date columns, including the empty rows below the example', function () {
@@ -183,7 +187,10 @@ describe('template file', function () {
             'phone, example row' => templateCellNumberFormat($path, 'C2'),
             'phone, last empty row' => templateCellNumberFormat($path, 'C1002'),
             'status, last empty row' => templateCellNumberFormat($path, 'E1002'),
-            'start, last empty row' => templateCellNumberFormat($path, 'G1002'),
+            'company website, last empty row' => templateCellNumberFormat($path, 'G1002'),
+            'employees, last empty row' => templateCellNumberFormat($path, 'L1002'),
+            'company country, last empty row' => templateCellNumberFormat($path, 'Q1002'),
+            'start, last empty row' => templateCellNumberFormat($path, 'R1002'),
         ];
 
         unlink($path);
@@ -192,6 +199,9 @@ describe('template file', function () {
             'phone, example row' => 49,
             'phone, last empty row' => 49,
             'status, last empty row' => 49,
+            'company website, last empty row' => 49,
+            'employees, last empty row' => 'no style',
+            'company country, last empty row' => 49,
             'start, last empty row' => 'dd-mm-yyyy',
         ]);
     });
@@ -203,8 +213,9 @@ describe('template file', function () {
 
         $body = DatabaseNotification::where('notifiable_id', $this->user->id)->sole()->data['body'];
 
-        expect($body)->toBe('Imported: 1 | Failed: 0')
-            ->and(Contact::where('organization_id', $this->org->id)->count())->toBe(1);
+        expect($body)->toBe("Imported: 1 | Failed: 0\n\nCompanies created: 1")
+            ->and(Contact::where('organization_id', $this->org->id)->count())->toBe(1)
+            ->and(Company::where('organization_id', $this->org->id)->count())->toBe(1);
     });
 
     it('is returned by the download action', function () {

@@ -194,13 +194,13 @@ test('multiple semicolon-separated tags in CSV are auto-created', function () {
 test('CSV with custom field columns are processed correctly', function () {
     $field = CustomField::factory()->create([
         'organization_id' => $this->org->id,
-        'name' => 'Company',
+        'name' => 'Department',
         'type' => 'text',
         'unique' => false,
         'order' => 1,
     ]);
 
-    $csv = "name,email,phone,tags,Company\nCorp Contact,corp@example.com,,,Acme\n";
+    $csv = "name,email,phone,tags,Department\nCorp Contact,corp@example.com,,,Acme\n";
     $path = makeCsv($csv);
 
     ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
@@ -344,6 +344,17 @@ describe('a file that becomes unreadable', function () {
             ->and($notification->data['actions'])->toBe([])
             ->and(Storage::disk('local')->exists($this->path))->toBeFalse();
         Queue::assertPushed(SyncSegmentMembership::class, 1);
+    });
+
+    it('tells how many companies were created before the error', function () {
+        bindReaderUnreadableAfter([['name', 'email', 'phone', 'tags', 'company'], ['A', 'a@example.com', '', '', 'Nova'], ['B', 'b@example.com', '', '', 'nova'], ['C', 'c@example.com', '', '', 'Orbit']]);
+
+        ProcessContactImportJob::dispatchSync($this->path, $this->org->id, $this->user->id);
+
+        $body = DatabaseNotification::where('notifiable_id', $this->user->id)->first()->data['body'];
+
+        expect($body)->toStartWith('Imported: 3 | Failed: 0. The file could not be read after row 3')
+            ->and($body)->toContain("\n\nCompanies created: 2");
     });
 
     it('offers the failed rows that were found before the error', function () {
