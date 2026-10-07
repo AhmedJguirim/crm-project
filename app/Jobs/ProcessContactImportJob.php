@@ -3,23 +3,19 @@
 namespace App\Jobs;
 
 use App\Exceptions\UnreadableImportFileException;
+use App\Jobs\Concerns\ReportsImportResults;
 use App\Jobs\Middleware\WithTenantContext;
 use App\Models\Segment;
 use App\Models\User;
 use App\Services\ContactImportFileReader;
 use App\Services\ContactImportService;
 use App\Support\CsvDialect;
-use App\Support\TemporaryFile;
 use DateTimeInterface;
-use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\WithoutOverlapping;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\URL;
-use Illuminate\Support\Str;
-use Spatie\SimpleExcel\SimpleExcelWriter;
 use Throwable;
 
 /**
@@ -36,8 +32,7 @@ use Throwable;
 class ProcessContactImportJob implements ShouldQueue
 {
     use Queueable;
-
-    private const MAX_IGNORED_COLUMNS_LISTED = 10;
+    use ReportsImportResults;
 
     /**
      * Just under the timeout of the `imports` Horizon supervisor, so a very long import fails cleanly before the
@@ -89,7 +84,7 @@ class ProcessContactImportJob implements ShouldQueue
     public function handle(ContactImportFileReader $reader): void
     {
         $extension = strtolower(pathinfo($this->filePath, PATHINFO_EXTENSION));
-        $tmpPath = $this->copyToTemporaryFile($extension);
+        $tmpPath = $this->copyToTemporaryFile($extension, 'contact-import-');
 
         $dialect = $reader->dialect($tmpPath, $extension);
         $service = new ContactImportService($this->organizationId, $dialect);
@@ -220,47 +215,6 @@ class ProcessContactImportJob implements ShouldQueue
     }
 
     /**
-     * The line naming the columns that matched no field, at most {@see self::MAX_IGNORED_COLUMNS_LISTED} of them.
-     *
-     * @param  array<int, string>  $ignoredColumns
-     */
-    private function ignoredColumnsLine(array $ignoredColumns): ?string
-    {
-        if ($ignoredColumns === []) {
-            return null;
-        }
-
-        $listed = implode(', ', array_slice($ignoredColumns, 0, self::MAX_IGNORED_COLUMNS_LISTED));
-        $more = count($ignoredColumns) - self::MAX_IGNORED_COLUMNS_LISTED;
-
-        return 'Ignored columns (no matching field): '.$listed.($more > 0 ? ", … and {$more} more" : '');
-    }
-
-    private function failedRowsAction(string $failedCsvPath): Action
-    {
-        return Action::make('downloadFailedRows')
-            ->label('Download failed rows')
-            ->url(URL::temporarySignedRoute(
-                'contacts.import.failed-rows',
-                now()->addDays(7),
-                ['file' => basename($failedCsvPath), 'user' => $this->userId],
-            ))
-            ->openUrlInNewTab();
-    }
-
-    /**
-     * Copies the uploaded file to a local temporary file that keeps its extension, as the stored disk may not be local.
-     */
-    private function copyToTemporaryFile(string $extension): string
-    {
-        $tmpPath = TemporaryFile::reserve('contact-import-', $extension);
-
-        file_put_contents($tmpPath, Storage::disk('local')->get($this->filePath));
-
-        return $tmpPath;
-    }
-
-    /**
      * The file became unreadable: what was imported before is kept, so when rows were handled the user is told how far
      * the import went instead of a plain failure.
      *
@@ -341,46 +295,5 @@ class ProcessContactImportJob implements ShouldQueue
             ->where('is_published', true)
             ->pluck('id')
             ->each(fn (int $segmentId) => SyncSegmentMembership::dispatch($segmentId));
-    }
-
-    /**
-     * Written with the delimiter of the imported file, in UTF-8 with a BOM, so the user can fix it in the same Excel
-     * and import it again as is.
-     *
-     * @param  array<int, string>  $headers
-     * @param  array<int, array{row: int, data: array<string, string>, error: string}>  $failedRows
-     */
-    private function storeFailedRowsCsv(array $headers, array $failedRows, CsvDialect $dialect): string
-    {
-        $tmpPath = TemporaryFile::reserve('failed-rows-', 'csv');
-
-        $headers = array_values(array_filter(
-            $headers,
-            fn (string $header): bool => ! in_array(mb_strtolower(trim($header)), ContactImportService::FAILED_ROWS_META_COLUMNS, true),
-        ));
-
-        try {
-            $writer = SimpleExcelWriter::create($tmpPath, delimiter: $dialect->delimiter)
-                ->noHeaderRow()
-                ->addRow([...ContactImportService::FAILED_ROWS_META_COLUMNS, ...$headers]);
-
-            foreach ($failedRows as $failedRow) {
-                $writer->addRow([
-                    $failedRow['row'],
-                    $failedRow['error'],
-                    ...array_map(fn (string $header): string => $failedRow['data'][$header] ?? '', $headers),
-                ]);
-            }
-
-            $writer->close();
-
-            $path = 'contact-imports/failed-'.Str::random(40).'.csv';
-
-            Storage::disk('local')->put($path, file_get_contents($tmpPath));
-        } finally {
-            @unlink($tmpPath);
-        }
-
-        return $path;
     }
 }

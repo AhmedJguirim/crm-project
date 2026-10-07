@@ -16,18 +16,16 @@ use App\Models\CustomField;
 use App\Models\Tag;
 use App\Services\Companies\CompanyMatch;
 use App\Services\Companies\CompanyMatcher;
+use App\Services\Imports\ImportCellParser;
 use App\Support\CsvDialect;
-use BackedEnum;
-use DateTime;
 use DateTimeInterface;
-use Filament\Support\Contracts\HasLabel;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 class ContactImportService
 {
     /** Separates several tags, or several values of a multi-select field, in one cell. */
-    public const MULTI_VALUE_SEPARATOR = ';';
+    public const MULTI_VALUE_SEPARATOR = ImportCellParser::MULTI_VALUE_SEPARATOR;
 
     /**
      * The columns of an import file that are not custom fields: what the import reads, in template order. Add a column
@@ -60,15 +58,11 @@ class ContactImportService
     /** The length of the `companies.name` and `companies.website` columns. */
     private const COMPANY_TEXT_MAX_LENGTH = 255;
 
-    private const MAX_EMPLOYEES = 2147483647;
-
-    private const MAX_ANNUAL_REVENUE = 9999999999999.99;
-
     /** The columns the failed rows file adds in front of the original ones, so a corrected file can be imported again. */
     public const FAILED_ROWS_META_COLUMNS = ['_row_number', '_error'];
 
     /** The date format shown to users; ISO (`Y-m-d`) and a trailing time are accepted too. */
-    public const DATE_FORMAT = 'd-m-Y';
+    public const DATE_FORMAT = ImportCellParser::DATE_FORMAT;
 
     /**
      * @param  CsvDialect|null  $dialect  How the file is written. A file with `;` between columns is a European Excel
@@ -76,8 +70,12 @@ class ContactImportService
      */
     public function __construct(
         private readonly int $organizationId,
-        private readonly ?CsvDialect $dialect = null,
-    ) {}
+        ?CsvDialect $dialect = null,
+    ) {
+        $this->parser = new ImportCellParser($organizationId, $dialect);
+    }
+
+    private ImportCellParser $parser;
 
     private ?CompanyMatcher $companyMatcher = null;
 
@@ -316,7 +314,7 @@ class ContactImportService
                 continue;
             }
 
-            $value = $this->enumFromCell($enumClass, $raw);
+            $value = $this->parser->enumFromCell($enumClass, $raw);
 
             if ($value === null) {
                 return ['success' => false, 'error' => "Invalid value for field '{$column}': {$raw}"];
@@ -335,11 +333,11 @@ class ContactImportService
             // skip if the column doesn't exist in the CSV
             $rawValue = $row[$fieldName] ?? null;
 
-            if (blank($rawValue) || ($field->type === 'multiselect' && $this->splitMultiValue($rawValue) === [])) {
+            if (blank($rawValue) || ($field->type === 'multiselect' && $this->parser->splitMultiValue($rawValue) === [])) {
                 continue;
             }
 
-            $value = $this->castFieldValue($field, $rawValue);
+            $value = $this->parser->castFieldValue($field, $rawValue);
 
             if ($value === null) {
                 return ['success' => false, 'error' => "Invalid value for field '{$fieldName}': {$rawValue}"];
@@ -501,11 +499,11 @@ class ContactImportService
             $column = self::COMPANY_FIELD_PREFIX.$field->name;
             $rawValue = $row[$column] ?? null;
 
-            if (blank($rawValue) || ($field->type === 'multiselect' && $this->splitMultiValue($rawValue) === [])) {
+            if (blank($rawValue) || ($field->type === 'multiselect' && $this->parser->splitMultiValue($rawValue) === [])) {
                 continue;
             }
 
-            $value = $this->castFieldValue($field, $rawValue);
+            $value = $this->parser->castFieldValue($field, $rawValue);
 
             if ($value === null) {
                 return $this->companyDetailsError("Invalid value for field '{$column}': {$rawValue}");
@@ -537,31 +535,11 @@ class ContactImportService
         return match ($column) {
             'company type' => $this->companyTypeIds()[mb_strtolower($raw)] ?? null,
             'company phone' => mb_strlen($raw) <= 50 ? $raw : null,
-            'company industry' => $this->enumFromCell(CompanyIndustry::class, $raw),
-            'company employees' => $this->parseEmployees($raw),
-            'company annual revenue' => $this->parseAnnualRevenue($raw),
+            'company industry' => $this->parser->enumFromCell(CompanyIndustry::class, $raw),
+            'company employees' => $this->parser->parseEmployees($raw),
+            'company annual revenue' => $this->parser->parseAnnualRevenue($raw),
             default => mb_strlen($raw) <= 255 ? $raw : null,
         };
-    }
-
-    private function parseEmployees(string $raw): ?int
-    {
-        if (preg_match('/^\d{1,10}$/', $raw) !== 1 || (int) $raw > self::MAX_EMPLOYEES) {
-            return null;
-        }
-
-        return (int) $raw;
-    }
-
-    private function parseAnnualRevenue(string $raw): ?string
-    {
-        $number = $this->parseNumber($raw);
-
-        if ($number === null || $number < 0 || $number > self::MAX_ANNUAL_REVENUE) {
-            return null;
-        }
-
-        return number_format($number, 2, '.', '');
     }
 
     /**
@@ -602,31 +580,6 @@ class ContactImportService
     }
 
     /**
-     * The case of an enum a cell designates: first its stored value (`active_client`), then its label ignoring case and
-     * surrounding spaces (`Active Client`).
-     *
-     * @param  class-string<BackedEnum&HasLabel>  $enumClass
-     */
-    private function enumFromCell(string $enumClass, string $raw): ?BackedEnum
-    {
-        $raw = trim($raw);
-
-        $byValue = $enumClass::tryFrom($raw);
-
-        if ($byValue !== null) {
-            return $byValue;
-        }
-
-        foreach ($enumClass::cases() as $case) {
-            if (mb_strtolower(trim((string) $case->getLabel())) === mb_strtolower($raw)) {
-                return $case;
-            }
-        }
-
-        return null;
-    }
-
-    /**
      * Resolve the tag names of an imported row, creating missing tags and restoring trashed ones. `firstOrCreate()`
      * already falls back to the existing row when someone else creates the tag in the meantime.
      *
@@ -656,149 +609,28 @@ class ContactImportService
         return $ids;
     }
 
-    private function castFieldValue(CustomField|CompanyCustomField $field, string $raw): mixed
-    {
-        return match ($field->type) {
-            'email' => filter_var($raw, FILTER_VALIDATE_EMAIL) ? $raw : null,
-            'url' => filter_var($raw, FILTER_VALIDATE_URL) ? $raw : null,
-            'phone' => $this->parsePhone($raw),
-            'number' => $this->parseNumber($raw),
-            'date' => $this->formatDate($raw),
-            'multiselect' => $this->parseMultiselectValue($field, $raw),
-            'select' => $this->parseSelectValue($field, trim($raw)),
-            default => trim($raw),
-        };
-    }
-
-    private function parseNumber(string $raw): ?float
-    {
-        if ($this->dialect?->isEuropean() && preg_match('/^-?\d+,\d+$/', $raw) === 1) {
-            $raw = str_replace(',', '.', $raw);
-        }
-
-        return is_numeric($raw) ? (float) $raw : null;
-    }
-
-    private function formatDate(string $raw): ?string
-    {
-        $date = $this->parseDate($raw);
-
-        return $date === false ? null : $date->format('Y-m-d');
-    }
-
-    private function parsePhone(string $raw): ?string
-    {
-        $phone = preg_replace('/[^\d+]/', '', $raw);
-
-        return preg_match('/\d/', $phone) === 1 ? $phone : null;
-    }
-
     /**
-     * Accepts "d-m-Y H:i:s", "d-m-Y" and ISO "Y-m-d", and "d/m/Y" and "d.m.Y" in a European Excel file ("03/04/2026" is
-     * ambiguous in other files, so it stays refused there). Each format must round-trip exactly, which is what rejects
-     * impossible dates such as "31-02-2024".
-     */
-    public function parseDate(string $raw): DateTimeInterface|false
-    {
-        $raw = trim($raw);
-
-        $formats = ['d-m-Y H:i:s', self::DATE_FORMAT, 'Y-m-d', ...($this->dialect?->isEuropean() ? ['d/m/Y', 'd.m.Y'] : [])];
-
-        foreach ($formats as $format) {
-            $date = DateTime::createFromFormat($format, $raw);
-
-            if ($date !== false && $date->format($format) === $raw) {
-                return $date;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * @return array<int, string>|null A list of allowed values, or null when a value is not allowed or there is none.
+     * @return array<int, string>|null
+     *
+     * @see ImportCellParser::parseMultiselectValue()
      */
     public function parseMultiselectValue(CustomField|CompanyCustomField $field, string $raw): ?array
     {
-        $parts = $this->splitMultiValue($raw);
-
-        if ($parts === []) {
-            return null;
-        }
-
-        $values = [];
-
-        foreach ($parts as $part) {
-            $value = $this->optionValueFor($field, $part);
-
-            if ($value === null) {
-                return null;
-            }
-
-            $values[] = $value;
-        }
-
-        return array_values(array_unique($values));
-    }
-
-    /**
-     * The non-empty, trimmed parts of a multi-value cell, as a list (a stored JSON array, never an object).
-     *
-     * @return array<int, string>
-     */
-    private function splitMultiValue(string $raw): array
-    {
-        return array_values(array_filter(
-            array_map('trim', explode(self::MULTI_VALUE_SEPARATOR, $raw)),
-            fn (string $value): bool => $value !== '',
-        ));
+        return $this->parser->parseMultiselectValue($field, $raw);
     }
 
     public function parseSelectValue(CustomField|CompanyCustomField $field, string $value): ?string
     {
-        return $this->optionValueFor($field, $value);
+        return $this->parser->parseSelectValue($field, $value);
     }
 
-    /**
-     * The stored value of the option a cell part designates: first an exact stored value (old files and failed-rows
-     * files keep working), otherwise the option with that label, ignoring case and surrounding spaces.
-     */
-    private function optionValueFor(CustomField|CompanyCustomField $field, string $part): ?string
+    public function parseDate(string $raw): DateTimeInterface|false
     {
-        $options = collect($field->options ?? []);
-        $part = trim($part);
-
-        $byValue = $options->first(fn (array $option): bool => (string) ($option['value'] ?? '') === $part);
-
-        if ($byValue !== null) {
-            return (string) $byValue['value'];
-        }
-
-        $byLabel = $options->first(fn (array $option): bool => mb_strtolower(trim((string) ($option['label'] ?? ''))) === mb_strtolower($part));
-
-        return $byLabel === null ? null : (string) $byLabel['value'];
+        return $this->parser->parseDate($raw);
     }
 
-    /**
-     * A value for the import template that the import accepts for the field, as it casts it.
-     */
     public function exampleValueFor(CustomField|CompanyCustomField $field): string
     {
-        $optionLabels = collect($field->options ?? [])->pluck('label')->map(fn ($label): string => (string) $label);
-
-        return match ($field->type) {
-            'textarea' => 'Some notes',
-            'email' => 'jane@example.com',
-            'url' => 'https://example.com',
-            'phone' => '+33612345678',
-            'number' => '42',
-            'date' => now()->startOfYear()->addDays(14)->format(self::DATE_FORMAT),
-            'select' => $optionLabels->first() ?? '',
-            'multiselect' => $optionLabels
-                ->reject(fn (string $label): bool => str_contains($label, self::MULTI_VALUE_SEPARATOR))
-                ->take(2)
-                ->implode(self::MULTI_VALUE_SEPARATOR),
-            default => 'Some text',
-        };
+        return $this->parser->exampleValueFor($field);
     }
 }
