@@ -1,9 +1,11 @@
 <?php
 
+use App\Enums\ImportMode;
 use App\Jobs\ExportCompaniesJob;
 use App\Jobs\ProcessCompanyImportJob;
 use App\Models\Company;
 use App\Models\User;
+use App\Services\Imports\TextPreservingExcelReader;
 use Database\Seeders\ItConsultingSeeder;
 use Filament\Facades\Filament;
 use Illuminate\Notifications\DatabaseNotification;
@@ -111,3 +113,22 @@ it('gives back a company whose name starts with an equals sign', function (strin
         ->and($after->name)->toBe($format === 'csv' ? "'=1+1" : '=1+1')
         ->and($after->phone)->toBe($company->phone);
 })->with(['xlsx', 'csv']);
+
+it('updates only the company whose phone was changed in the exported file, in update only', function () {
+    Storage::disk('local')->put('company-imports/exported.xlsx', ($this->exportAll)());
+    $rows = TextPreservingExcelReader::create(Storage::disk('local')->path('company-imports/exported.xlsx'), 'xlsx')->noHeaderRow()->getRows()->values()->all();
+    $phoneColumn = array_search('phone', $rows[0], true);
+    $target = Company::forOrganization($this->org->id)->findOrFail($rows[1][0]);
+    $snapshots = fn (): array => Company::forOrganization($this->org->id)->orderBy('id')->get()->mapWithKeys(fn (Company $company): array => [$company->id => companyRoundTripSnapshot($company)])->all();
+    $before = $snapshots();
+    $rows[1][$phoneColumn] = '+33 9 99 99 99 99';
+    $path = makeXlsx($rows);
+    DatabaseNotification::query()->delete();
+
+    ProcessCompanyImportJob::dispatchSync($path, $this->org->id, $this->user->id, ImportMode::UpdateOnly);
+
+    $before[$target->id]['phone'] = '+33 9 99 99 99 99';
+
+    expect(DatabaseNotification::where('notifiable_id', $this->user->id)->sole()->data['body'])->toStartWith('Created: 0 | Updated: '.count($before).' | Failed: 0')
+        ->and($snapshots())->toEqual($before);
+});

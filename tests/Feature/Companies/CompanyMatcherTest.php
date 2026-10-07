@@ -328,3 +328,22 @@ it('never writes', function () {
     expect(Company::query()->forOrganization($this->org->id)->withTrashed()->count())->toBe(2)
         ->and(Company::query()->forOrganization($this->org->id)->onlyTrashed()->count())->toBe(1);
 });
+
+it('queries again once the memo is forgotten, and no longer matches a stale website', function () {
+    $acme = ($this->makeCompany)('Acme', 'acme.com');
+    $this->matcher->match('Acme', 'acme.com');
+    $acme->update(['website' => 'acme.io']);
+
+    expect($this->matcher->match('Acme', 'acme.com')->isFound())->toBeTrue();
+
+    $this->matcher->forgetRemembered();
+
+    DB::enableQueryLog();
+    $stale = $this->matcher->match('Acme', 'acme.com');
+    $queries = DB::getQueryLog();
+    DB::disableQueryLog();
+
+    expect($stale->isNotFound())->toBeTrue()
+        ->and($queries[0]['query'])->toContain('"domain" = ?')
+        ->and($this->matcher->match('Acme', 'acme.io')->company->is($acme))->toBeTrue();
+});

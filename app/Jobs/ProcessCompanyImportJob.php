@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Enums\ImportMode;
 use App\Exceptions\UnreadableImportFileException;
 use App\Jobs\Concerns\ReportsImportResults;
 use App\Jobs\Middleware\WithTenantContext;
@@ -18,8 +19,9 @@ use Illuminate\Support\Facades\Storage;
 use Throwable;
 
 /**
- * Imports the companies of an uploaded CSV or Excel (.xlsx) file. Only the first worksheet is read. A company that
- * already exists is not updated: its row fails.
+ * Imports the companies of an uploaded CSV or Excel (.xlsx) file. Only the first worksheet is read. In "create only"
+ * mode a company that already exists is not updated: its row fails; "update only" and "create and update" match each
+ * row to an existing company and update it.
  *
  * Excel drops empty trailing cells, so shorter Excel rows are padded to the header length. CSV rows must match it.
  *
@@ -55,7 +57,8 @@ class ProcessCompanyImportJob implements ShouldQueue
     public function __construct(
         private readonly string $filePath,
         private readonly int $organizationId,
-        private readonly int $userId
+        private readonly int $userId,
+        private readonly ImportMode $mode = ImportMode::CreateOnly,
     ) {
         $this->onQueue('imports');
         $this->onConnection(config('queue.long_running_connection'));
@@ -87,7 +90,7 @@ class ProcessCompanyImportJob implements ShouldQueue
         $tmpPath = $this->copyToTemporaryFile($extension, 'company-import-');
 
         $dialect = $reader->dialect($tmpPath, $extension);
-        $service = new CompanyImportService($this->organizationId, $dialect);
+        $service = new CompanyImportService($this->organizationId, $dialect, $this->mode);
 
         $headers = null;
         $canonicalHeaders = null;
@@ -149,7 +152,7 @@ class ProcessCompanyImportJob implements ShouldQueue
                 }
             }
         } catch (UnreadableImportFileException $exception) {
-            $this->handleUnreadableFile($exception, $importedCount, $failedRows, $headers, $rowNumber, $ignoredColumns, $dialect);
+            $this->handleUnreadableFile($exception, $importedCount, $failedRows, $headers, $rowNumber, $ignoredColumns, $dialect, $service);
 
             return;
         } finally {
@@ -172,7 +175,7 @@ class ProcessCompanyImportJob implements ShouldQueue
                 : Notification::make()->warning()->title('Import complete, some columns were ignored');
 
             $notification
-                ->body(implode("\n\n", array_filter(["Imported: {$importedCount} | Failed: 0", $ignoredLine])))
+                ->body(implode("\n\n", array_filter([$this->countsLine($importedCount, 0, $service), $ignoredLine])))
                 ->sendToDatabase($user);
 
             return;
@@ -188,9 +191,25 @@ class ProcessCompanyImportJob implements ShouldQueue
         Notification::make()
             ->warning()
             ->title('Import complete with errors')
-            ->body(implode("\n\n", array_filter(["Imported: {$importedCount} | Failed: {$failedCount}", $ignoredLine, $errorSummary])))
+            ->body(implode("\n\n", array_filter([$this->countsLine($importedCount, $failedCount, $service), $ignoredLine, $errorSummary])))
             ->actions([$this->failedRowsAction($failedCsvPath)])
             ->sendToDatabase($user);
+    }
+
+    /**
+     * The counts of the notification: "Imported: N | Failed: M" when the import only creates, and the created and the
+     * updated companies apart in the other modes.
+     */
+    private function countsLine(int $importedCount, int $failedCount, CompanyImportService $service): string
+    {
+        if ($this->mode === ImportMode::CreateOnly) {
+            return "Imported: {$importedCount} | Failed: {$failedCount}";
+        }
+
+        $updatedCount = $service->updatedCompaniesCount();
+        $createdCount = $importedCount - $updatedCount;
+
+        return "Created: {$createdCount} | Updated: {$updatedCount} | Failed: {$failedCount}";
     }
 
     /**
@@ -201,7 +220,7 @@ class ProcessCompanyImportJob implements ShouldQueue
      * @param  array<int, string>|null  $headers
      * @param  array<int, string>  $ignoredColumns
      */
-    private function handleUnreadableFile(UnreadableImportFileException $exception, int $importedCount, array $failedRows, ?array $headers, int $lastRowRead, array $ignoredColumns, CsvDialect $dialect): void
+    private function handleUnreadableFile(UnreadableImportFileException $exception, int $importedCount, array $failedRows, ?array $headers, int $lastRowRead, array $ignoredColumns, CsvDialect $dialect, CompanyImportService $service): void
     {
         Storage::disk('local')->delete($this->filePath);
 
@@ -227,7 +246,7 @@ class ProcessCompanyImportJob implements ShouldQueue
             ->warning()
             ->title('Import stopped partway')
             ->body(implode("\n\n", array_filter([
-                "Imported: {$importedCount} | Failed: {$failedCount}. The file could not be read after row {$lastRowRead}, so the rest of it was not imported. The companies above were kept; import the remaining rows in a new file.",
+                $this->countsLine($importedCount, $failedCount, $service).". The file could not be read after row {$lastRowRead}, so the rest of it was not imported. The companies above were kept; import the remaining rows in a new file.",
                 $this->ignoredColumnsLine($ignoredColumns),
             ])));
 
@@ -255,7 +274,9 @@ class ProcessCompanyImportJob implements ShouldQueue
         Notification::make()
             ->danger()
             ->title('Import failed')
-            ->body('Something went wrong while importing your file. Companies already imported were kept; you can upload the file again, existing companies will be reported as already existing.')
+            ->body($this->mode === ImportMode::CreateOnly
+                ? 'Something went wrong while importing your file. Companies already imported were kept; you can upload the file again, existing companies will be reported as already existing.'
+                : 'Something went wrong while importing your file. Rows already imported or updated were kept; you can upload the file again.')
             ->sendToDatabase($user);
     }
 }

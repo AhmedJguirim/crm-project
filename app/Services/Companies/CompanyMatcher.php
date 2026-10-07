@@ -79,6 +79,16 @@ class CompanyMatcher
         }
     }
 
+    /**
+     * Empties the memo. An import that renames a company or changes its website calls it, so no later row is matched
+     * through a stale entry. The memo only saves queries, so forgetting it is always safe.
+     */
+    public function forgetRemembered(): void
+    {
+        $this->idsByDomain = [];
+        $this->idsByName = [];
+    }
+
     private function matchByDomain(string $domain, ?string $name): CompanyMatch
     {
         $remembered = $this->rememberedByDomain($domain);

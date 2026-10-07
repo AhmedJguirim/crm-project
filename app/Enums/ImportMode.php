@@ -23,10 +23,18 @@ enum ImportMode: string implements HasDescription, HasLabel
 
     public function getDescription(): string|Htmlable|null
     {
+        return $this->describeFor('contact', 'contacts');
+    }
+
+    /**
+     * What the mode does to the records of an import, in the words of the page that offers it.
+     */
+    public function describeFor(string $singular, string $plural): string
+    {
         return match ($this) {
-            self::CreateOnly => 'Adds the contacts that are new. A contact that already exists is reported as failed.',
-            self::UpdateOnly => 'Updates the contacts that already exist. A contact that is not found is reported as failed.',
-            self::CreateAndUpdate => 'Updates the contacts that exist and adds the new ones.',
+            self::CreateOnly => "Adds the {$plural} that are new. A {$singular} that already exists is reported as failed.",
+            self::UpdateOnly => "Updates the {$plural} that already exist. A {$singular} that is not found is reported as failed.",
+            self::CreateAndUpdate => "Updates the {$plural} that exist and adds the new ones.",
         };
     }
 

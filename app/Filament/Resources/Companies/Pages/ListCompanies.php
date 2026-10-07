@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Companies\Pages;
 
+use App\Enums\ImportMode;
 use App\Filament\Actions\ExportCompaniesAction;
 use App\Filament\Resources\Companies\CompanyResource;
 use App\Jobs\ProcessCompanyImportJob;
@@ -12,6 +13,7 @@ use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Radio;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Support\Facades\Storage;
@@ -46,9 +48,16 @@ class ListCompanies extends ListRecords
                 ->color('gray')
                 ->modalHeading('Import companies')
                 ->schema([
+                    Radio::make('mode')
+                        ->label('What should the import do?')
+                        ->options(ImportMode::class)
+                        ->descriptions(collect(ImportMode::cases())->mapWithKeys(fn (ImportMode $mode): array => [$mode->value => $mode->describeFor('company', 'companies')])->all())
+                        ->default(ImportMode::CreateOnly)
+                        ->helperText('Update modes match each row by its "id" column (from an exported file) or, when the id is blank, by its name and website. A blank cell keeps the current value and "-" clears it. Without an id, the name and website only find the company and are not changed.')
+                        ->required(),
                     FileUpload::make('file')
                         ->label('File')
-                        ->helperText('CSV or Excel (.xlsx). Comma- or semicolon-separated CSV files are accepted. The first row must contain the column headers — use the Excel template for the expected columns. Separate several multi-select values with "'.ImportCellParser::MULTI_VALUE_SEPARATOR.'". Write dates as dd-mm-yyyy (or yyyy-mm-dd). A company that already exists is not updated. Up to '.$maximumSize.'.')
+                        ->helperText('CSV or Excel (.xlsx). Comma- or semicolon-separated CSV files are accepted. The first row must contain the column headers — use the Excel template for the expected columns. Separate several multi-select values with "'.ImportCellParser::MULTI_VALUE_SEPARATOR.'". Write dates as dd-mm-yyyy (or yyyy-mm-dd). A company that already exists is not updated in "Create only" mode. Up to '.$maximumSize.'.')
                         ->acceptedFileTypes([
                             'text/csv',
                             'application/csv',
@@ -78,7 +87,7 @@ class ListCompanies extends ListRecords
                         return;
                     }
 
-                    ProcessCompanyImportJob::dispatch($path, Filament::getTenant()->id, auth()->id());
+                    ProcessCompanyImportJob::dispatch($path, Filament::getTenant()->id, auth()->id(), ImportMode::fromState($data['mode'] ?? ImportMode::CreateOnly));
 
                     Notification::make()
                         ->success()

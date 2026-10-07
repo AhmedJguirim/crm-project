@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ImportMode;
 use App\Enums\OrganizationRole;
 use App\Filament\Resources\Companies\Pages\ListCompanies;
 use App\Filament\Resources\CompanyCustomFields\Pages\CreateCompanyCustomField;
@@ -9,6 +10,7 @@ use App\Models\CompanyCustomField;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Radio;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -93,6 +95,40 @@ it('explains the separator, the date formats and that existing companies are kep
                 && str_contains($helperText, 'already exists is not updated');
         });
 });
+
+it('asks what the import should do, in the words of companies, with create only by default', function () {
+    ($this->actAs)(OrganizationRole::Admin);
+
+    Livewire::test(ListCompanies::class)
+        ->mountAction('importCompanies')
+        ->assertSchemaComponentExists('mode', 'mountedActionSchema0', function (Radio $field): bool {
+            return $field->getLabel() === 'What should the import do?'
+                && array_keys($field->getOptions()) === ['create', 'update', 'create_and_update']
+                && $field->isRequired()
+                && $field->getDefaultState() === ImportMode::CreateOnly
+                && $field->getDescription('update') === 'Updates the companies that already exist. A company that is not found is reported as failed.';
+        })
+        ->assertSchemaComponentExists('file', 'mountedActionSchema0', function (FileUpload $field): bool {
+            $helperText = collect($field->getChildComponents($field::BELOW_CONTENT_SCHEMA_KEY))->map(fn ($component): string => (string) $component->getContent())->implode(' ');
+
+            return str_contains($helperText, 'already exists is not updated in "Create only" mode');
+        });
+});
+
+it('passes the chosen mode to the job', function (?string $mode, ImportMode $expected, OrganizationRole $role) {
+    ($this->actAs)($role);
+
+    Livewire::test(ListCompanies::class)
+        ->callAction('importCompanies', ['file' => UploadedFile::fake()->create('c.csv', 10, 'text/csv'), ...($mode === null ? [] : ['mode' => $mode])])
+        ->assertNotified('Import queued');
+
+    Queue::assertPushed(ProcessCompanyImportJob::class, fn (ProcessCompanyImportJob $job): bool => (fn (): ImportMode => $this->mode)->call($job) === $expected);
+})->with([
+    'admin update' => ['update', ImportMode::UpdateOnly, OrganizationRole::Admin],
+    'owner create and update' => ['create_and_update', ImportMode::CreateAndUpdate, OrganizationRole::Owner],
+    'admin create' => ['create', ImportMode::CreateOnly, OrganizationRole::Admin],
+    'admin none given' => [null, ImportMode::CreateOnly, OrganizationRole::Admin],
+]);
 
 describe('reserved company field names', function () {
     beforeEach(function () {
