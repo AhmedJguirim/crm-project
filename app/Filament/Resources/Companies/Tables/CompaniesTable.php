@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Companies\Tables;
 
 use App\Enums\CompanyIndustry;
+use App\Filament\Actions\ExportCompaniesAction;
 use App\Filament\Support\SegmentUsageGuard;
 use App\Models\Company;
 use Filament\Actions\BulkActionGroup;
@@ -111,6 +112,7 @@ class CompaniesTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
+                    ExportCompaniesAction::forSelection(),
                     SegmentUsageGuard::protectBulkDelete(DeleteBulkAction::make()->authorizeIndividualRecords()),
                     RestoreBulkAction::make()->authorizeIndividualRecords(),
                 ]),

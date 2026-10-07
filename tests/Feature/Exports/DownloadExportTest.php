@@ -11,8 +11,8 @@ beforeEach(function () {
     $this->ann = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
     $this->bob = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
 
-    $this->stored = function (string $extension = 'xlsx', string $contents = 'file contents'): string {
-        $file = 'contacts-'.Str::random(40).".{$extension}";
+    $this->stored = function (string $extension = 'xlsx', string $contents = 'file contents', string $prefix = 'contacts'): string {
+        $file = "{$prefix}-".Str::random(40).".{$extension}";
         Storage::disk('local')->put("exports/{$file}", $contents);
 
         return $file;
@@ -34,6 +34,19 @@ it('lets the user download the file under the name given in the link', function 
         ->assertDownload('contacts-2026-10-06.xlsx')
         ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     expect($response->streamedContent())->toBe('xlsx bytes');
+});
+
+it('lets the user download a companies file under the name given in the link', function () {
+    $file = ($this->stored)('xlsx', 'companies bytes', 'companies');
+
+    $response = $this->actingAs($this->ann)->get(($this->link)(['file' => $file, 'name' => 'companies-2026-10-07.xlsx']));
+
+    $response->assertOk()
+        ->assertDownload('companies-2026-10-07.xlsx')
+        ->assertHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    expect($response->streamedContent())->toBe('companies bytes');
+
+    $this->actingAs($this->bob)->get(($this->link)(['file' => $file, 'name' => 'companies-2026-10-07.xlsx']))->assertForbidden();
 });
 
 it('serves a csv as text/csv', function () {
@@ -93,7 +106,7 @@ it('only accepts the file names of exports', function (string $file) {
     'a path to another folder' => '../livewire-tmp/secret.csv',
     'too short' => 'contacts-short.xlsx',
     'wrong extension' => 'contacts-'.str_repeat('a', 40).'.pdf',
-    'wrong prefix' => 'companies-'.str_repeat('a', 40).'.xlsx',
+    'wrong prefix' => 'deals-'.str_repeat('a', 40).'.xlsx',
     'a failed rows file' => 'failed-'.str_repeat('a', 40).'.csv',
     'a trailing newline' => 'contacts-'.str_repeat('a', 40).".csv\n",
 ]);

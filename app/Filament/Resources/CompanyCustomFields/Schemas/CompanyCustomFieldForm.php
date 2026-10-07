@@ -4,6 +4,7 @@ namespace App\Filament\Resources\CompanyCustomFields\Schemas;
 
 use App\Filament\Support\CustomFields\CustomFieldDefinitionFields;
 use App\Models\CompanyCustomField;
+use App\Services\CompanyExportWriter;
 use App\Services\CompanyImportService;
 use Closure;
 use Filament\Facades\Filament;
@@ -25,7 +26,7 @@ class CompanyCustomFieldForm
                         return $rule->where('organization_id', Filament::getTenant()->id);
                     })
                     ->rule(fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
-                        $reserved = [...CompanyImportService::COLUMNS, ...CompanyImportService::FAILED_ROWS_META_COLUMNS];
+                        $reserved = [...CompanyExportWriter::COLUMNS, ...CompanyImportService::FAILED_ROWS_META_COLUMNS];
 
                         if (in_array(mb_strtolower(trim((string) $value)), $reserved, true)) {
                             $fail('This name is used by the import. Choose another name.');

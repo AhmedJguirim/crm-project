@@ -20,7 +20,7 @@ class DownloadExportController extends Controller
 
         $file = $request->query('file');
 
-        if (! is_string($file) || preg_match('/^contacts-[A-Za-z0-9]{40}\.(xlsx|csv)$/', $file, $matches) !== 1) {
+        if (! is_string($file) || preg_match('/^(?:contacts|companies)-[A-Za-z0-9]{40}\.(xlsx|csv)$/', $file, $matches) !== 1) {
             abort(404);
         }
 

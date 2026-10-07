@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Companies\Pages;
 
+use App\Filament\Actions\ExportCompaniesAction;
 use App\Filament\Resources\Companies\CompanyResource;
 use App\Jobs\ProcessCompanyImportJob;
 use App\Services\CompanyImportTemplate;
@@ -85,6 +86,8 @@ class ListCompanies extends ListRecords
                         ->body('Your file is being processed. You will receive a notification when complete.')
                         ->send();
                 }),
+
+            ExportCompaniesAction::forList(),
 
             CreateAction::make(),
         ];
