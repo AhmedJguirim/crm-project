@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\CompanyIndustry;
 use App\Enums\ContactStatus;
+use App\Enums\ImportMode;
 use App\Enums\LeadSource;
 use App\Exceptions\ContactAlreadyExistsException;
 use App\Exceptions\DuplicateCustomFieldValueException;
@@ -19,6 +20,7 @@ use App\Services\Companies\CompanyMatcher;
 use App\Services\Imports\ImportCellParser;
 use App\Support\CsvDialect;
 use DateTimeInterface;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -64,6 +66,11 @@ class ContactImportService
     /** The columns the failed rows file adds in front of the original ones, so a corrected file can be imported again. */
     public const FAILED_ROWS_META_COLUMNS = ['_row_number', '_error'];
 
+    /**
+     * The columns whose cell can't be `-`: a contact can't be left without them, and tags and companies are only added.
+     */
+    private const NOT_CLEARABLE_COLUMNS = ['name', 'email', 'status', 'tags', 'company', 'company website'];
+
     /** The date format shown to users; ISO (`Y-m-d`) and a trailing time are accepted too. */
     public const DATE_FORMAT = ImportCellParser::DATE_FORMAT;
 
@@ -74,6 +81,7 @@ class ContactImportService
     public function __construct(
         private readonly int $organizationId,
         ?CsvDialect $dialect = null,
+        private readonly ImportMode $mode = ImportMode::CreateOnly,
     ) {
         $this->parser = new ImportCellParser($organizationId, $dialect);
     }
@@ -83,6 +91,8 @@ class ContactImportService
     private ?CompanyMatcher $companyMatcher = null;
 
     private int $createdCompaniesCount = 0;
+
+    private int $updatedContactsCount = 0;
 
     private bool $companyDetailsIgnored = false;
 
@@ -101,6 +111,14 @@ class ContactImportService
     public function createdCompaniesCount(): int
     {
         return $this->createdCompaniesCount;
+    }
+
+    /**
+     * How many existing contacts the rows processed so far updated (only counted once their row was committed).
+     */
+    public function updatedContactsCount(): int
+    {
+        return $this->updatedContactsCount;
     }
 
     /**
@@ -256,7 +274,24 @@ class ContactImportService
     }
 
     /**
-     * Process a single CSV row.
+     * Process a single CSV row: in an update mode the row is matched to an existing contact (see `updateOrCreate()`),
+     * otherwise it creates one.
+     *
+     * @param  array<string, string>  $row
+     * @param  array<string, CustomField>  $customFieldsByName
+     * @return array{success: bool, error: ?string}
+     */
+    public function processRow(array $row, array $customFieldsByName): array
+    {
+        if (! $this->mode->updatesExisting()) {
+            return $this->createContact($row, $customFieldsByName);
+        }
+
+        return $this->updateOrCreate($row, $customFieldsByName);
+    }
+
+    /**
+     * Create the contact of a single CSV row.
      *
      * The contact is created without model events on purpose: segment membership comes from the full sync queued
      * when the import finishes. Any future Contact observer that should apply to imports must be called explicitly.
@@ -273,7 +308,7 @@ class ContactImportService
      * @param  array<string, CustomField>  $customFieldsByName
      * @return array{success: bool, error: ?string}
      */
-    public function processRow(array $row, array $customFieldsByName): array
+    private function createContact(array $row, array $customFieldsByName): array
     {
         // handles base attributes
         $name = trim($row['name'] ?? '');
@@ -406,6 +441,19 @@ class ContactImportService
             return ['success' => false, 'error' => $exception->getMessage()];
         }
 
+        $this->recordCompanyOutcome($createdCompany, $companyMatch, $row);
+
+        return ['success' => true, 'error' => null];
+    }
+
+    /**
+     * The bookkeeping of a committed row: a created company is remembered and counted, and the company details of a row
+     * that linked an existing company are reported as left alone.
+     *
+     * @param  array<string, string>  $row
+     */
+    private function recordCompanyOutcome(?Company $createdCompany, ?CompanyMatch $companyMatch, array $row): void
+    {
         if ($createdCompany !== null) {
             $this->companyMatcher()->remember($createdCompany);
             $this->createdCompaniesCount++;
@@ -414,8 +462,297 @@ class ContactImportService
         if ($companyMatch?->isFound() && $this->hasCompanyDetails($row)) {
             $this->companyDetailsIgnored = true;
         }
+    }
+
+    /**
+     * An update mode: finds the contact of the row by its `id` cell, else by its email, then updates it. A row that
+     * matches no contact is created in "create and update" and fails in "update only"; an id that matches no contact
+     * always fails.
+     *
+     * @param  array<string, string>  $row
+     * @param  array<string, CustomField>  $customFieldsByName
+     * @return array{success: bool, error: ?string}
+     */
+    private function updateOrCreate(array $row, array $customFieldsByName): array
+    {
+        foreach (self::NOT_CLEARABLE_COLUMNS as $column) {
+            if (trim((string) ($row[$column] ?? '')) === '-') {
+                return $this->failure("The '{$column}' column can't be cleared.");
+            }
+        }
+
+        $id = trim((string) ($row[self::ID_COLUMN] ?? ''));
+
+        if ($id !== '') {
+            return $this->updateById($id, $row, $customFieldsByName);
+        }
+
+        $email = mb_strtolower(trim((string) ($row['email'] ?? '')));
+
+        if ($email === '') {
+            return $this->failure('Email is required.');
+        }
+
+        if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return $this->failure("Invalid email: {$email}");
+        }
+
+        $contact = Contact::withTrashed()
+            ->where('organization_id', $this->organizationId)
+            ->where('email', $email)
+            ->first();
+
+        if ($contact === null) {
+            return $this->mode->createsNew()
+                ? $this->createContact($row, $customFieldsByName)
+                : $this->failure("No contact with email '{$email}'.");
+        }
+
+        if ($contact->trashed()) {
+            return $this->failure("A deleted contact with email '{$email}' exists. Restore it from the trash first.");
+        }
+
+        return $this->updateContact($contact, $row, $customFieldsByName);
+    }
+
+    /**
+     * @param  array<string, string>  $row
+     * @param  array<string, CustomField>  $customFieldsByName
+     * @return array{success: bool, error: ?string}
+     */
+    private function updateById(string $id, array $row, array $customFieldsByName): array
+    {
+        if (preg_match('/^\d+$/', $id) !== 1) {
+            return $this->failure("Invalid value for field 'id': {$id}");
+        }
+
+        $contact = Contact::withTrashed()
+            ->where('organization_id', $this->organizationId)
+            ->whereKey((int) $id)
+            ->first();
+
+        if ($contact === null) {
+            return $this->failure("No contact with id {$id}.");
+        }
+
+        if ($contact->trashed()) {
+            return $this->failure("The contact with id {$id} is deleted. Restore it from the trash first.");
+        }
+
+        return $this->updateContact($contact, $row, $customFieldsByName);
+    }
+
+    /**
+     * Update the contact with the non-blank cells of the row, or fail the row and leave the contact untouched: every
+     * check runs before the transaction. A blank cell keeps the value, `-` clears it where that is allowed, tags are
+     * only added and an existing company is linked, never changed.
+     *
+     * Like the creation, it saves without model events: the segments are synced when the import finishes.
+     *
+     * @param  array<string, string>  $row
+     * @param  array<string, CustomField>  $customFieldsByName
+     * @return array{success: bool, error: ?string}
+     */
+    private function updateContact(Contact $contact, array $row, array $customFieldsByName): array
+    {
+        $base = $this->updatedBaseAttributes($contact, $row);
+
+        if ($base['error'] !== null) {
+            return $this->failure($base['error']);
+        }
+
+        $custom = $this->updatedCustomFieldValues($contact, $row, $customFieldsByName);
+
+        if ($custom['error'] !== null) {
+            return $this->failure($custom['error']);
+        }
+
+        $companyMatch = $this->matchCompany($row);
+
+        if ($companyMatch?->isFailed()) {
+            return $this->failure((string) $companyMatch->reason);
+        }
+
+        $companyDetails = null;
+
+        if ($companyMatch?->isNotFound()) {
+            $companyDetails = $this->companyDetailsFromRow($row);
+
+            if ($companyDetails['error'] !== null) {
+                return $this->failure($companyDetails['error']);
+            }
+        }
+
+        $attributes = $base['attributes'];
+
+        if ($custom['values'] !== ($contact->custom_field_values ?? [])) {
+            $attributes['custom_field_values'] = $custom['values'];
+        }
+
+        $tagIds = $this->resolveTagIds($row['tags'] ?? '');
+        $email = $attributes['email'] ?? $contact->email;
+
+        try {
+            $createdCompany = DB::transaction(function () use ($contact, $attributes, $companyMatch, $companyDetails, $row, $tagIds): ?Company {
+                $createdCompany = $companyMatch?->isNotFound() ? $this->createCompany($companyMatch, trim($row['company website'] ?? ''), $companyDetails) : null;
+                $company = $createdCompany ?? $companyMatch?->company;
+
+                Contact::withoutEvents(fn (): bool => $contact->fill($attributes)->save());
+
+                $contact->tags()->syncWithoutDetaching($tagIds);
+
+                if ($company !== null) {
+                    $contact->companies()->syncWithoutDetaching([$company->getKey()]);
+                }
+
+                return $createdCompany;
+            });
+        } catch (DuplicateCustomFieldValueException $exception) {
+            return $this->failure("Duplicate value for unique field '{$exception->fieldName}'.");
+        } catch (UniqueConstraintViolationException) {
+            return $this->failure("A contact with email '{$email}' already exists.");
+        }
+
+        $this->recordCompanyOutcome($createdCompany, $companyMatch, $row);
+        $this->updatedContactsCount++;
 
         return ['success' => true, 'error' => null];
+    }
+
+    /**
+     * The new values of name, email, phone, status and lead source: only the cells that are filled, `-` clearing the
+     * phone and the lead source.
+     *
+     * @param  array<string, string>  $row
+     * @return array{attributes: array<string, mixed>, error: ?string}
+     */
+    private function updatedBaseAttributes(Contact $contact, array $row): array
+    {
+        $attributes = [];
+
+        $name = trim((string) ($row['name'] ?? ''));
+
+        if ($name !== '') {
+            $attributes['name'] = $name;
+        }
+
+        $email = mb_strtolower(trim((string) ($row['email'] ?? '')));
+
+        if ($email !== '' && $email !== mb_strtolower((string) $contact->email)) {
+            $error = $this->emailChangeError($contact, $email);
+
+            if ($error !== null) {
+                return ['attributes' => [], 'error' => $error];
+            }
+
+            $attributes['email'] = $email;
+        }
+
+        $phone = trim((string) ($row['phone'] ?? ''));
+
+        if ($phone !== '') {
+            $attributes['phone'] = $phone === '-' ? null : $phone;
+        }
+
+        foreach (['status' => ContactStatus::class, 'lead source' => LeadSource::class] as $column => $enumClass) {
+            $raw = trim((string) ($row[$column] ?? ''));
+
+            if ($raw === '') {
+                continue;
+            }
+
+            if ($column === 'lead source' && $raw === '-') {
+                $attributes['lead_source'] = null;
+
+                continue;
+            }
+
+            $value = $this->parser->enumFromCell($enumClass, $raw);
+
+            if ($value === null) {
+                return ['attributes' => [], 'error' => "Invalid value for field '{$column}': {$raw}"];
+            }
+
+            $attributes[$column === 'status' ? 'status' : 'lead_source'] = $value;
+        }
+
+        return ['attributes' => $attributes, 'error' => null];
+    }
+
+    /**
+     * Why the contact can't get this other email: it is not an address, or another contact (a deleted one too) has it.
+     */
+    private function emailChangeError(Contact $contact, string $email): ?string
+    {
+        if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return "Invalid email: {$email}";
+        }
+
+        $taken = Contact::withTrashed()
+            ->where('organization_id', $this->organizationId)
+            ->where('email', $email)
+            ->whereKeyNot($contact->getKey())
+            ->exists();
+
+        return $taken ? "A contact with email '{$email}' already exists." : null;
+    }
+
+    /**
+     * The custom field values the contact has after the row: the stored ones, with the filled cells replacing them and
+     * `-` removing them. A unique value taken by another contact is an error; the contact's own value is not.
+     *
+     * @param  array<string, string>  $row
+     * @param  array<string, CustomField>  $customFieldsByName
+     * @return array{values: array<string, mixed>, error: ?string}
+     */
+    private function updatedCustomFieldValues(Contact $contact, array $row, array $customFieldsByName): array
+    {
+        $values = $contact->custom_field_values ?? [];
+
+        foreach ($customFieldsByName as $fieldName => $field) {
+            $rawValue = $row[$fieldName] ?? null;
+
+            if (blank($rawValue) || ($field->type === 'multiselect' && $this->parser->splitMultiValue($rawValue) === [])) {
+                continue;
+            }
+
+            if (trim($rawValue) === '-') {
+                unset($values[$field->key]);
+
+                continue;
+            }
+
+            $value = $this->parser->castFieldValue($field, $rawValue);
+
+            if ($value === null) {
+                return ['values' => [], 'error' => "Invalid value for field '{$fieldName}': {$rawValue}"];
+            }
+
+            if ($field->unique && $this->customFieldValueTakenByAnother($contact, $field, $value)) {
+                return ['values' => [], 'error' => "Duplicate value for unique field '{$field->name}'."];
+            }
+
+            $values[$field->key] = $value;
+        }
+
+        return ['values' => $values, 'error' => null];
+    }
+
+    private function customFieldValueTakenByAnother(Contact $contact, CustomField $field, mixed $value): bool
+    {
+        return Contact::query()
+            ->where('organization_id', $this->organizationId)
+            ->whereKeyNot($contact->getKey())
+            ->whereCustomFieldValue($field->key, $value)
+            ->exists();
+    }
+
+    /**
+     * @return array{success: false, error: string}
+     */
+    private function failure(string $error): array
+    {
+        return ['success' => false, 'error' => $error];
     }
 
     /**

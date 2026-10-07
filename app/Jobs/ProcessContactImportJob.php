@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Enums\ImportMode;
 use App\Exceptions\UnreadableImportFileException;
 use App\Jobs\Concerns\ReportsImportResults;
 use App\Jobs\Middleware\WithTenantContext;
@@ -55,7 +56,8 @@ class ProcessContactImportJob implements ShouldQueue
     public function __construct(
         private readonly string $filePath,
         private readonly int $organizationId,
-        private readonly int $userId
+        private readonly int $userId,
+        private readonly ImportMode $mode = ImportMode::CreateOnly,
     ) {
         $this->onQueue('imports');
         $this->onConnection(config('queue.long_running_connection'));
@@ -87,7 +89,7 @@ class ProcessContactImportJob implements ShouldQueue
         $tmpPath = $this->copyToTemporaryFile($extension, 'contact-import-');
 
         $dialect = $reader->dialect($tmpPath, $extension);
-        $service = new ContactImportService($this->organizationId, $dialect);
+        $service = new ContactImportService($this->organizationId, $dialect, $this->mode);
 
         $customFieldsByName = $service->customFields()->keyBy('name')->all();
 
@@ -179,7 +181,7 @@ class ProcessContactImportJob implements ShouldQueue
                 : Notification::make()->warning()->title('Import complete, some columns were ignored');
 
             $notification
-                ->body(implode("\n\n", array_filter(["Imported: {$importedCount} | Failed: 0", ...$companyLines, $ignoredLine])))
+                ->body(implode("\n\n", array_filter([$this->countsLine($importedCount, 0, $service), ...$companyLines, $ignoredLine])))
                 ->sendToDatabase($user);
 
             return;
@@ -195,9 +197,25 @@ class ProcessContactImportJob implements ShouldQueue
         Notification::make()
             ->warning()
             ->title('Import complete with errors')
-            ->body(implode("\n\n", array_filter(["Imported: {$importedCount} | Failed: {$failedCount}", ...$companyLines, $ignoredLine, $errorSummary])))
+            ->body(implode("\n\n", array_filter([$this->countsLine($importedCount, $failedCount, $service), ...$companyLines, $ignoredLine, $errorSummary])))
             ->actions([$this->failedRowsAction($failedCsvPath)])
             ->sendToDatabase($user);
+    }
+
+    /**
+     * The counts of the notification: "Imported: N | Failed: M" when the import only creates, and the created and the
+     * updated contacts apart in the other modes.
+     */
+    private function countsLine(int $importedCount, int $failedCount, ContactImportService $service): string
+    {
+        if ($this->mode === ImportMode::CreateOnly) {
+            return "Imported: {$importedCount} | Failed: {$failedCount}";
+        }
+
+        $updatedCount = $service->updatedContactsCount();
+        $createdCount = $importedCount - $updatedCount;
+
+        return "Created: {$createdCount} | Updated: {$updatedCount} | Failed: {$failedCount}";
     }
 
     /**
@@ -252,7 +270,7 @@ class ProcessContactImportJob implements ShouldQueue
             ->warning()
             ->title('Import stopped partway')
             ->body(implode("\n\n", array_filter([
-                "Imported: {$importedCount} | Failed: {$failedCount}. The file could not be read after row {$lastRowRead}, so the rest of it was not imported. The contacts above were kept; import the remaining rows in a new file.",
+                $this->countsLine($importedCount, $failedCount, $service).". The file could not be read after row {$lastRowRead}, so the rest of it was not imported. The contacts above were kept; import the remaining rows in a new file.",
                 ...$this->companyLines($service),
                 $this->ignoredColumnsLine($ignoredColumns),
             ])));
@@ -283,7 +301,9 @@ class ProcessContactImportJob implements ShouldQueue
         Notification::make()
             ->danger()
             ->title('Import failed')
-            ->body('Something went wrong while importing your file. Contacts already imported were kept; you can upload the file again, existing contacts will be reported as already existing.')
+            ->body($this->mode === ImportMode::CreateOnly
+                ? 'Something went wrong while importing your file. Contacts already imported were kept; you can upload the file again, existing contacts will be reported as already existing.'
+                : 'Something went wrong while importing your file. Rows already imported or updated were kept; you can upload the file again.')
             ->sendToDatabase($user);
     }
 

@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\ContactStatus;
+use App\Enums\ImportMode;
 use App\Enums\LeadSource;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
 use App\Jobs\ProcessContactImportJob;
@@ -12,6 +13,7 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Radio;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -80,6 +82,33 @@ test('accepted uploads queue the import', function (string $name, string $mimeTy
 })->with([
     'csv' => ['contacts.csv', 'text/csv'],
     'xlsx' => ['contacts.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+]);
+
+test('the import modal asks what the import should do, with create only by default', function () {
+    Livewire::test(ListContacts::class)
+        ->mountAction('importContacts')
+        ->assertSchemaComponentExists('mode', 'mountedActionSchema0', function (Radio $field): bool {
+            return $field->getLabel() === 'What should the import do?'
+                && array_keys($field->getOptions()) === ['create', 'update', 'create_and_update']
+                && $field->isRequired()
+                && $field->getDefaultState() === ImportMode::CreateOnly;
+        });
+});
+
+test('the chosen mode reaches the import job', function (?string $mode, ImportMode $expected) {
+    Storage::fake('local');
+    Queue::fake();
+
+    Livewire::test(ListContacts::class)
+        ->callAction('importContacts', ['file' => UploadedFile::fake()->create('contacts.csv', 10, 'text/csv'), ...($mode === null ? [] : ['mode' => $mode])])
+        ->assertNotified('Import queued');
+
+    Queue::assertPushed(ProcessContactImportJob::class, fn (ProcessContactImportJob $job): bool => (fn (): ImportMode => $this->mode)->call($job) === $expected);
+})->with([
+    'update' => ['update', ImportMode::UpdateOnly],
+    'create and update' => ['create_and_update', ImportMode::CreateAndUpdate],
+    'create' => ['create', ImportMode::CreateOnly],
+    'none given' => [null, ImportMode::CreateOnly],
 ]);
 
 test('a file over the limit is refused with a human message', function () {

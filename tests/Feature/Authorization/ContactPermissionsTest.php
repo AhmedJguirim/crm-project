@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ImportMode;
 use App\Enums\OrganizationRole;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Contacts\Pages\CreateContact;
@@ -161,6 +162,11 @@ describe('an admin', function () {
             ->callAction('importContacts', ['file' => UploadedFile::fake()->create('c.csv', 10, 'text/csv')]);
 
         Queue::assertPushed(ProcessContactImportJob::class, 1);
+
+        Livewire::test(ListContacts::class)
+            ->callAction('importContacts', ['file' => UploadedFile::fake()->create('c.csv', 10, 'text/csv'), 'mode' => ImportMode::CreateAndUpdate->value]);
+
+        Queue::assertPushed(ProcessContactImportJob::class, fn (ProcessContactImportJob $job): bool => (fn (): ImportMode => $this->mode)->call($job) === ImportMode::CreateAndUpdate);
 
         Livewire::test(ListContacts::class)
             ->assertTableBulkActionVisible(DeleteBulkAction::class)

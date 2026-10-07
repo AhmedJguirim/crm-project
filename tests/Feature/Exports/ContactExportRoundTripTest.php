@@ -1,11 +1,13 @@
 <?php
 
 use App\Enums\ContactStatus;
+use App\Enums\ImportMode;
 use App\Enums\LeadSource;
 use App\Jobs\ExportContactsJob;
 use App\Jobs\ProcessContactImportJob;
 use App\Models\Contact;
 use App\Models\User;
+use App\Services\Imports\TextPreservingExcelReader;
 use Database\Seeders\ItConsultingSeeder;
 use Filament\Facades\Filament;
 use Illuminate\Notifications\DatabaseNotification;
@@ -110,4 +112,23 @@ it('gives back a contact whose name starts with an equals sign', function () {
     expect($notification->data['body'])->toContain('Imported: 1 | Failed: '.($total - 1))
         ->and($after->name)->toBe('=1+1')
         ->and($after->phone)->toBe($contact->phone);
+});
+
+it('updates only the contact whose phone was changed in the exported file, in update only', function () {
+    Storage::disk('local')->put('contact-imports/exported.xlsx', ($this->exportAll)());
+    $rows = TextPreservingExcelReader::create(Storage::disk('local')->path('contact-imports/exported.xlsx'), 'xlsx')->noHeaderRow()->getRows()->values()->all();
+    $phoneColumn = array_search('phone', $rows[0], true);
+    $target = Contact::forOrganization($this->org->id)->findOrFail($rows[1][0]);
+    $before = Contact::forOrganization($this->org->id)->orderBy('id')->get()->mapWithKeys(fn (Contact $contact): array => [$contact->id => roundTripSnapshot($contact)])->all();
+    $rows[1][$phoneColumn] = '+33 9 99 99 99 99';
+    $path = makeXlsx($rows);
+    DatabaseNotification::query()->delete();
+
+    ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id, ImportMode::UpdateOnly);
+
+    $after = Contact::forOrganization($this->org->id)->orderBy('id')->get()->mapWithKeys(fn (Contact $contact): array => [$contact->id => roundTripSnapshot($contact)])->all();
+    $before[$target->id]['phone'] = '+33 9 99 99 99 99';
+
+    expect(DatabaseNotification::where('notifiable_id', $this->user->id)->sole()->data['body'])->toStartWith('Created: 0 | Updated: '.count($before).' | Failed: 0')
+        ->and($after)->toEqual($before);
 });

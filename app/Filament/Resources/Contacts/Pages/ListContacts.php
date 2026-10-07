@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Contacts\Pages;
 
+use App\Enums\ImportMode;
 use App\Filament\Actions\ExportContactsAction;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Jobs\ProcessContactImportJob;
@@ -12,6 +13,7 @@ use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Radio;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Support\Facades\Storage;
@@ -46,6 +48,12 @@ class ListContacts extends ListRecords
                 ->color('gray')
                 ->modalHeading('Import contacts')
                 ->schema([
+                    Radio::make('mode')
+                        ->label('What should the import do?')
+                        ->options(ImportMode::class)
+                        ->default(ImportMode::CreateOnly)
+                        ->helperText('Update modes match each row by its "id" column (from an exported file) or, when the id is blank, by its email. A blank cell keeps the current value, "-" clears it, tags are only added, and company details are only used for companies the row creates.')
+                        ->required(),
                     FileUpload::make('file')
                         ->label('File')
                         ->helperText('CSV or Excel (.xlsx). Comma- or semicolon-separated CSV files are accepted. The first row must contain the column headers — use the Excel template for the expected columns. Separate several tags or multi-select values with "'.ContactImportService::MULTI_VALUE_SEPARATOR.'". Write dates as dd-mm-yyyy (or yyyy-mm-dd). Up to '.$maximumSize.'.')
@@ -81,7 +89,7 @@ class ListContacts extends ListRecords
                     $orgId = Filament::getTenant()->id;
                     $userId = auth()->id();
 
-                    ProcessContactImportJob::dispatch($path, $orgId, $userId);
+                    ProcessContactImportJob::dispatch($path, $orgId, $userId, ImportMode::fromState($data['mode'] ?? ImportMode::CreateOnly));
 
                     Notification::make()
                         ->success()
