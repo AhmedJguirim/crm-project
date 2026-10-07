@@ -40,6 +40,6 @@ class CompanyObserver
             ->where('is_published', true)
             ->usingConditionType(SegmentConditionType::Company)
             ->pluck('id')
-            ->each(fn (int $segmentId) => SyncSegmentMembership::dispatch($segmentId));
+            ->each(fn (int $segmentId) => SyncSegmentMembership::dispatch($segmentId)->afterCommit());
     }
 }

@@ -24,6 +24,7 @@ use Filament\Actions\DetachBulkAction;
 use Filament\Actions\RestoreAction;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
@@ -221,5 +222,70 @@ describe('segments synced by a company change', function () {
         $type->restore();
 
         Queue::assertNotPushed(SyncSegmentMembership::class);
+    });
+});
+
+describe('segments synced after the commit', function () {
+    beforeEach(function () {
+        config(['queue.long_running_connection' => 'database']);
+
+        $this->partner = CompanyType::factory()->create(['organization_id' => $this->org->id]);
+        $this->supplier = CompanyType::factory()->create(['organization_id' => $this->org->id]);
+        $this->acme = Company::factory()->create(['organization_id' => $this->org->id, 'company_type_id' => $this->supplier->id]);
+        $this->partnerContacts = companyConditionSegment($this->org, SegmentOperator::CompanyTypeIsAnyOf, [$this->partner->id]);
+        $this->queuedJobs = fn (): int => DB::table('jobs')->count();
+        DB::table('jobs')->delete();
+    });
+
+    it('pushes nothing before the commit', function (string $change) {
+        $before = null;
+
+        if ($change === 'restored') {
+            Company::withoutEvents(fn (): ?bool => $this->acme->delete());
+        }
+
+        DB::transaction(function () use ($change, &$before) {
+            match ($change) {
+                'type updated' => $this->acme->update(['company_type_id' => $this->partner->id]),
+                'deleted' => $this->acme->delete(),
+                'restored' => $this->acme->restore(),
+            };
+            $before = ($this->queuedJobs)();
+        });
+
+        expect($before)->toBe(0)
+            ->and(($this->queuedJobs)())->toBe(1)
+            ->and(DB::table('jobs')->value('payload'))->toContain('SyncSegmentMembership');
+    })->with(['type updated', 'deleted', 'restored']);
+
+    it('pushes nothing for a rolled-back transaction and does not block the next sync', function () {
+        try {
+            DB::transaction(function () {
+                $this->acme->update(['company_type_id' => $this->partner->id]);
+
+                throw new RuntimeException('rolled back');
+            });
+        } catch (RuntimeException) {
+        }
+
+        expect(($this->queuedJobs)())->toBe(0);
+
+        $this->acme->update(['company_type_id' => $this->supplier->id]);
+
+        expect(($this->queuedJobs)())->toBe(1);
+    });
+
+    it('pushes at once outside a transaction', function () {
+        $this->acme->update(['company_type_id' => $this->partner->id]);
+
+        expect(($this->queuedJobs)())->toBe(1);
+    });
+
+    it('flags the dispatched job', function () {
+        Queue::fake([SyncSegmentMembership::class]);
+
+        $this->acme->update(['company_type_id' => $this->partner->id]);
+
+        Queue::assertPushed(SyncSegmentMembership::class, fn (SyncSegmentMembership $job): bool => $job->afterCommit === true);
     });
 });
