@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Invoices\Pages;
 use App\Enums\InvoiceStatus;
 use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Filament\Resources\Invoices\Schemas\InvoiceForm;
+use App\Models\Contact;
 use App\Models\Deal;
 use Filament\Resources\Pages\CreateRecord;
 use Livewire\Attributes\Url;
@@ -28,21 +29,65 @@ class CreateInvoice extends CreateRecord
         return $data;
     }
 
-    protected function mutateFormDataBeforeFill(array $data): array
+    /**
+     * The create page never calls mutateFormDataBeforeFill(), so the ?deal= / ?contact= prefill is applied here.
+     */
+    protected function fillForm(): void
     {
-        if ($this->prefillDealId) {
-            $deal = Deal::find($this->prefillDealId);
+        parent::fillForm();
 
-            if ($deal) {
-                $data['deal_id'] = $deal->id;
-                $data['contact_id'] = $deal->contact_id;
-                $data['amount'] = $deal->value;
-            }
-        } elseif ($this->prefillContactId) {
-            $data['contact_id'] = (int) $this->prefillContactId;
+        $prefill = $this->prefillData();
+
+        if ($prefill === []) {
+            return;
         }
 
-        return $data;
+        $this->form->fillPartially($prefill, array_keys($prefill));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function prefillData(): array
+    {
+        $dealId = $this->positiveIntOrNull($this->prefillDealId);
+
+        if ($dealId !== null) {
+            $deal = Deal::query()->with('contact')->find($dealId);
+
+            if ($deal?->contact !== null) {
+                return [
+                    'contact_id' => $deal->contact_id,
+                    'deal_id' => $deal->id,
+                    'amount' => $deal->value,
+                ];
+            }
+        }
+
+        $contactId = $this->positiveIntOrNull($this->prefillContactId);
+
+        if ($contactId === null) {
+            return [];
+        }
+
+        $contact = Contact::query()->find($contactId);
+
+        if ($contact === null) {
+            return [];
+        }
+
+        return ['contact_id' => $contact->id];
+    }
+
+    private function positiveIntOrNull(?string $value): ?int
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $id = filter_var($value, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
+
+        return is_int($id) ? $id : null;
     }
 
     protected function getRedirectUrl(): string
