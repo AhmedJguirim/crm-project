@@ -388,3 +388,20 @@ describe('a file that becomes unreadable', function () {
         Queue::assertNotPushed(SyncSegmentMembership::class);
     });
 });
+
+test('a name over 255 characters fails only its row and the import goes on', function () {
+    $longName = str_repeat('n', 300);
+    $path = makeCsv("name,email\nAnn,ann@x.test\nBob,bob@x.test\n{$longName},carl@x.test\nDina,dina@x.test\n");
+
+    ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
+
+    $notification = DatabaseNotification::where('notifiable_id', $this->user->id)->firstOrFail();
+    $report = collect(Storage::disk('local')->files('contact-imports'))->first(fn (string $file): bool => str_contains($file, 'failed-'));
+
+    expect(Contact::forOrganization($this->org->id)->orderBy('email')->pluck('email')->all())->toBe(['ann@x.test', 'bob@x.test', 'dina@x.test'])
+        ->and($notification->data['body'])->toContain('Imported: 3 | Failed: 1')
+        ->and($notification->data['body'])->toContain("Row 3: Invalid value for field 'name': ".str_repeat('n', 50).'...')
+        ->and($notification->data['body'])->not->toContain(str_repeat('n', 51))
+        ->and($report)->not->toBeNull()
+        ->and(Storage::disk('local')->get($report))->toContain($longName.',carl@x.test');
+});

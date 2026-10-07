@@ -23,6 +23,7 @@ use DateTimeInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class ContactImportService
 {
@@ -59,6 +60,9 @@ class ContactImportService
 
     /** The length of the `companies.name` and `companies.website` columns. */
     private const COMPANY_TEXT_MAX_LENGTH = 255;
+
+    /** The length of the `contacts.name`, `contacts.phone` and `tags.name` columns. */
+    private const TEXT_MAX_LENGTH = 255;
 
     /** The record id column of an exported file; read by the update modes of the import. */
     public const ID_COLUMN = 'id';
@@ -342,6 +346,12 @@ class ContactImportService
 
         $phone = trim($row['phone'] ?? '') ?: null;
 
+        $tooLong = $this->textTooLongError('name', $name) ?? $this->textTooLongError('phone', (string) $phone);
+
+        if ($tooLong !== null) {
+            return ['success' => false, 'error' => $tooLong];
+        }
+
         $status = ContactStatus::Lead;
         $leadSource = null;
 
@@ -409,6 +419,12 @@ class ContactImportService
             if ($companyDetails['error'] !== null) {
                 return ['success' => false, 'error' => $companyDetails['error']];
             }
+        }
+
+        $tagError = $this->tagNameError($row['tags'] ?? '');
+
+        if ($tagError !== null) {
+            return ['success' => false, 'error' => $tagError];
         }
 
         $tagIds = $this->resolveTagIds($row['tags'] ?? '');
@@ -589,6 +605,12 @@ class ContactImportService
             $attributes['custom_field_values'] = $custom['values'];
         }
 
+        $tagError = $this->tagNameError($row['tags'] ?? '');
+
+        if ($tagError !== null) {
+            return $this->failure($tagError);
+        }
+
         $tagIds = $this->resolveTagIds($row['tags'] ?? '');
         $email = $attributes['email'] ?? $contact->email;
 
@@ -631,6 +653,11 @@ class ContactImportService
         $attributes = [];
 
         $name = trim((string) ($row['name'] ?? ''));
+        $nameError = $this->textTooLongError('name', $name);
+
+        if ($nameError !== null) {
+            return ['attributes' => [], 'error' => $nameError];
+        }
 
         if ($name !== '') {
             $attributes['name'] = $name;
@@ -649,6 +676,11 @@ class ContactImportService
         }
 
         $phone = trim((string) ($row['phone'] ?? ''));
+        $phoneError = $this->textTooLongError('phone', $phone);
+
+        if ($phoneError !== null) {
+            return ['attributes' => [], 'error' => $phoneError];
+        }
 
         if ($phone !== '') {
             $attributes['phone'] = $phone === '-' ? null : $phone;
@@ -745,6 +777,34 @@ class ContactImportService
             ->whereKeyNot($contact->getKey())
             ->whereCustomFieldValue($field->key, $value)
             ->exists();
+    }
+
+    /**
+     * The row error for a value longer than its column, or null. The value is shortened: the failed rows file keeps it whole.
+     */
+    private function textTooLongError(string $column, string $value): ?string
+    {
+        if (mb_strlen($value) <= self::TEXT_MAX_LENGTH) {
+            return null;
+        }
+
+        return "Invalid value for field '{$column}': ".Str::limit($value, 50);
+    }
+
+    /**
+     * The row error for the first tag name of the cell longer than `tags.name`, or null. Splits like resolveTagIds().
+     */
+    private function tagNameError(string $raw): ?string
+    {
+        foreach (array_filter(array_map('trim', explode(self::MULTI_VALUE_SEPARATOR, $raw))) as $tagName) {
+            $error = $this->textTooLongError('tags', $tagName);
+
+            if ($error !== null) {
+                return $error;
+            }
+        }
+
+        return null;
     }
 
     /**

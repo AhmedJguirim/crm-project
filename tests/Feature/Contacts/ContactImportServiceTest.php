@@ -508,3 +508,48 @@ test('a multi-select option whose value is zero is kept', function () {
 
     expect(Contact::where('email', 'test@example.com')->first()->custom_field_values[$field->key])->toBe(['0', 'laravel']);
 });
+
+// Values longer than their column
+test('a name, a phone or a tag name over 255 characters fails the row with a shortened value', function (string $column, string $letter) {
+    $row = ['name' => 'Long', 'email' => 'long@example.test', 'phone' => '', 'tags' => ''];
+    $row[$column === 'tags' ? 'tags' : $column] = $column === 'tags' ? 'Newtag;'.str_repeat($letter, 300) : str_repeat($letter, 300);
+
+    $result = $this->service->processRow($row, []);
+
+    expect($result)->toBe(['success' => false, 'error' => "Invalid value for field '{$column}': ".str_repeat($letter, 50).'...'])
+        ->and(Contact::where('email', 'long@example.test')->exists())->toBeFalse();
+})->with([
+    'name' => ['name', 'n'],
+    'phone' => ['phone', '1'],
+    'tag name' => ['tags', 't'],
+]);
+
+test('a failed tag cell creates no tag at all', function () {
+    $this->service->processRow(['name' => 'Tags', 'email' => 'tags@example.test', 'tags' => 'Newtag;'.str_repeat('t', 300)], []);
+
+    expect(Tag::withTrashed()->count())->toBe(0);
+});
+
+test('a name, a phone and a tag name of exactly 255 characters are accepted, one more is not', function () {
+    $result = $this->service->processRow([
+        'name' => str_repeat('é', 255),
+        'email' => 'limit@example.test',
+        'phone' => str_repeat('1', 255),
+        'tags' => str_repeat('t', 255),
+    ], []);
+
+    $contact = Contact::where('email', 'limit@example.test')->first();
+
+    expect($result['success'])->toBeTrue()
+        ->and($contact->name)->toBe(str_repeat('é', 255))
+        ->and($contact->phone)->toBe(str_repeat('1', 255))
+        ->and(Tag::where('name', str_repeat('t', 255))->exists())->toBeTrue()
+        ->and($this->service->processRow(['name' => str_repeat('n', 256), 'email' => 'over@example.test'], [])['success'])->toBeFalse();
+});
+
+test('an email over 254 characters is still an invalid email', function () {
+    $email = str_repeat('a', 300).'@example.test';
+
+    expect($this->service->processRow(['name' => 'Long Email', 'email' => $email], []))
+        ->toBe(['success' => false, 'error' => "Invalid email: {$email}"]);
+});

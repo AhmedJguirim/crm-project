@@ -419,3 +419,53 @@ it('tells in update modes that rows were kept when the import crashes', function
 
     expect(DatabaseNotification::where('notifiable_id', $this->user->id)->sole()->data['body'])->toContain('existing contacts will be reported as already existing');
 });
+
+describe('values longer than their column', function () {
+    it('fails the row in update only and leaves the contact untouched, whatever the column', function (string $header, string $cells, string $column, string $letter) {
+        $before = ($this->untouched)(($this->fresh)($this->ann));
+        $csv = "{$header}\n".str_replace(['{A}', '{LONG}'], [(string) $this->ann->id, str_repeat($letter, 300)], $cells)."\n";
+
+        $notification = ($this->update)($csv);
+
+        expect($notification->data['body'])->toStartWith('Created: 0 | Updated: 0 | Failed: 1')
+            ->and($notification->data['body'])->toContain("Invalid value for field '{$column}': ".str_repeat($letter, 50).'...')
+            ->and(($this->untouched)(($this->fresh)($this->ann)))->toBe($before)
+            ->and(($this->tagNames)($this->ann))->toBe(['VIP']);
+    })->with([
+        'name by email' => ['name,email', '{LONG},ann@example.test', 'name', 'n'],
+        'phone by email' => ['email,phone', 'ann@example.test,{LONG}', 'phone', '1'],
+        'tags by email' => ['email,tags', 'ann@example.test,{LONG}', 'tags', 't'],
+        'name by id' => ['id,name', '{A},{LONG}', 'name', 'n'],
+    ]);
+
+    it('creates no tag when a tag cell of an update is too long', function () {
+        ($this->update)("email,tags\nann@example.test,Fresh;".str_repeat('t', 300)."\n");
+
+        expect(Tag::withTrashed()->where('name', 'Fresh')->exists())->toBeFalse();
+    });
+
+    it('goes on after the bad row in update only', function () {
+        $notification = ($this->update)("email,name\nann@example.test,Ann Two\nbob@example.test,".str_repeat('n', 300)."\nann@example.test,Ann Three\n");
+
+        expect($notification->data['body'])->toStartWith('Created: 0 | Updated: 2 | Failed: 1')
+            ->and(($this->fresh)($this->ann)->name)->toBe('Ann Three')
+            ->and(($this->fresh)($this->bob)->name)->toBe('Bob');
+    });
+
+    it('fails the row in create and update and creates nothing', function () {
+        $before = ($this->count)();
+
+        $notification = ($this->upsert)("name,email\n".str_repeat('n', 300).",new@example.test\n");
+
+        expect($notification->data['body'])->toContain("Invalid value for field 'name': ".str_repeat('n', 50).'...')
+            ->and(($this->count)())->toBe($before);
+    });
+
+    it('still reports a 300 character email as invalid in update only', function () {
+        $email = str_repeat('a', 300).'@example.test';
+
+        $notification = ($this->update)("email,name\n{$email},X\n");
+
+        expect($notification->data['body'])->toContain('Failed: 1');
+    });
+});
