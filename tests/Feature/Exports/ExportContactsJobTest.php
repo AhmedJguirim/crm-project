@@ -8,6 +8,7 @@ use App\Models\Organization;
 use App\Models\Tag;
 use App\Models\User;
 use App\Support\TemporaryFile;
+use Carbon\CarbonImmutable;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\Storage;
 use Spatie\SimpleExcel\SimpleExcelReader;
@@ -109,6 +110,17 @@ it('tells the user the export is ready with a signed download link', function ()
         ->and($url)->toContain("user={$this->user->id}");
 
     $this->actingAs($this->user)->get($url)->assertOk()->assertDownload('contacts-2026-10-06.xlsx');
+});
+
+it('makes the download link valid for exactly 7 days', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-10-07 10:00:00'));
+
+    ($this->exportNames)([($this->contact)('Ann')->id]);
+
+    $url = DatabaseNotification::where('notifiable_id', $this->user->id)->sole()->data['actions'][0]['url'];
+    parse_str(parse_url($url, PHP_URL_QUERY), $query);
+
+    expect((int) $query['expires'])->toBe(CarbonImmutable::parse('2026-10-14 10:00:00')->getTimestamp());
 });
 
 it('says "1 contact" for a single contact', function () {

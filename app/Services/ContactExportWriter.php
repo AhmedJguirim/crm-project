@@ -6,13 +6,9 @@ use App\Enums\ExportFormat;
 use App\Models\Company;
 use App\Models\Contact;
 use App\Models\CustomField;
-use DateTime;
+use App\Services\Exports\ExportCells;
+use App\Services\Exports\ExportFileWriter;
 use Illuminate\Support\Collection;
-use OpenSpout\Common\Entity\Cell;
-use OpenSpout\Common\Entity\Cell\StringCell;
-use OpenSpout\Common\Entity\Row;
-use OpenSpout\Common\Entity\Style\Style;
-use Spatie\SimpleExcel\SimpleExcelWriter;
 
 /**
  * Writes contacts to a spreadsheet with the column names the contacts import reads, so the file can be imported again.
@@ -39,12 +35,10 @@ class ContactExportWriter
     /** @return array<int, string> */
     public function headers(ExportFormat $format = ExportFormat::Xlsx): array
     {
-        $headers = [
+        return ExportCells::headers([
             ...self::COLUMNS,
             ...$this->customFields->map(fn (CustomField $field): string => $field->name)->all(),
-        ];
-
-        return $format === ExportFormat::Csv ? array_map(self::csvSafe(...), $headers) : $headers;
+        ], $format);
     }
 
     /**
@@ -52,24 +46,7 @@ class ContactExportWriter
      */
     public static function csvSafe(string $value): string
     {
-        $first = $value[0] ?? '';
-
-        if (in_array($first, ["\t", "\r", "\n"], true)) {
-            return "'".$value;
-        }
-
-        $trimmed = ltrim($value, ' ');
-        $lead = $trimmed[0] ?? '';
-
-        if ($lead === '=' || $lead === '@') {
-            return "'".$value;
-        }
-
-        if (($lead === '+' || $lead === '-') && preg_match('/^[+-][\d\s().-]+$/', $trimmed) !== 1) {
-            return "'".$value;
-        }
-
-        return $value;
+        return ExportCells::csvSafe($value);
     }
 
     /**
@@ -83,7 +60,7 @@ class ContactExportWriter
             ->sortBy(fn (Company $company): string => mb_strtolower($company->name))
             ->values();
 
-        $cells = [
+        return ExportCells::row([
             (string) $contact->name,
             (string) $contact->email,
             (string) $contact->phone,
@@ -94,13 +71,9 @@ class ContactExportWriter
             (string) $companies->first()?->website,
             $companies->count() >= 2 ? $companies->pluck('name')->implode('; ') : '',
             ...$this->customFields
-                ->map(fn (CustomField $field): string|int|float => $this->customFieldCell($contact, $field, $format))
+                ->map(fn (CustomField $field): string|int|float => ExportCells::customField($contact, $field, $format))
                 ->all(),
-        ];
-
-        return $format === ExportFormat::Csv
-            ? array_map(fn (string|int|float $cell): string|int|float => is_string($cell) ? self::csvSafe($cell) : $cell, $cells)
-            : $cells;
+        ], $format);
     }
 
     /**
@@ -111,90 +84,11 @@ class ContactExportWriter
      */
     public function write(string $path, ExportFormat $format, iterable $chunks): int
     {
-        $writer = SimpleExcelWriter::create($path)->noHeaderRow();
-
-        $headerStyle = (new Style)->setFontBold();
-
-        $writer->addRow(new Row(array_map(
-            fn (string $header): Cell => new StringCell($header, $headerStyle),
+        return ExportFileWriter::write(
+            $path,
             $this->headers($format),
-        )));
-
-        $count = 0;
-
-        foreach ($chunks as $contacts) {
-            foreach ($contacts as $contact) {
-                $writer->addRow(new Row(array_map(
-                    fn (string|int|float $cell): Cell => is_string($cell) ? new StringCell($cell, null) : Cell::fromValue($cell),
-                    $this->row($contact, $format),
-                )));
-                $count++;
-            }
-        }
-
-        $writer->close();
-
-        return $count;
-    }
-
-    private function customFieldCell(Contact $contact, CustomField $field, ExportFormat $format): string|int|float
-    {
-        $value = $contact->customFieldValue($field->key);
-
-        if ($value === null || $value === '' || $value === []) {
-            return '';
-        }
-
-        return match ($field->type) {
-            'select' => $this->optionLabel($field, $value),
-            'multiselect' => collect((array) $value)->map(fn (mixed $part): string => $this->optionLabel($field, $part))->implode(ContactImportService::MULTI_VALUE_SEPARATOR),
-            'date' => $this->dateText($value),
-            'number' => $this->numberCell($value, $format),
-            default => is_array($value) ? implode(ContactImportService::MULTI_VALUE_SEPARATOR, array_map('strval', $value)) : (string) $value,
-        };
-    }
-
-    /**
-     * The label of the option with the stored value, or the stored value when it is no longer an option.
-     */
-    private function optionLabel(CustomField $field, mixed $value): string
-    {
-        $stored = is_scalar($value) ? (string) $value : '';
-
-        $option = collect($field->options ?? [])->first(fn (array $option): bool => (string) ($option['value'] ?? '') === $stored);
-
-        return (string) ($option['label'] ?? $stored);
-    }
-
-    private function dateText(mixed $value): string
-    {
-        $stored = (string) $value;
-        $date = DateTime::createFromFormat('Y-m-d', $stored);
-
-        return $date !== false && $date->format('Y-m-d') === $stored
-            ? $date->format(ContactImportService::DATE_FORMAT)
-            : $stored;
-    }
-
-    /**
-     * A decimal point, no thousands separator, and no `.0` on an integer. A numeric cell in an .xlsx.
-     */
-    private function numberCell(mixed $value, ExportFormat $format): string|int|float
-    {
-        if (! is_numeric($value)) {
-            return (string) $value;
-        }
-
-        $number = $value + 0;
-
-        if ($format === ExportFormat::Xlsx) {
-            return $number;
-        }
-
-        if (is_int($number) || ($number == (int) $number && abs($number) < 1e15)) {
-            return (string) (int) $number;
-        }
-
-        return rtrim(rtrim(number_format((float) $number, 10, '.', ''), '0'), '.');
+            $chunks,
+            fn (Contact $contact): array => $this->row($contact, $format),
+        );
     }
 }
