@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Contacts\DownloadFailedImportRowsController;
+use App\Http\Controllers\DownloadExportController;
 use App\Http\Controllers\InviteAcceptController;
 use App\Http\Controllers\InvoicePdfController;
 use App\Http\Controllers\TagsController;
@@ -23,6 +24,11 @@ Route::get('/invite/accept/{token}', InviteAcceptController::class)
 Route::get('/contacts/import/failed-rows', DownloadFailedImportRowsController::class)
     ->middleware(['auth', 'signed'])
     ->name('contacts.import.failed-rows');
+
+// Download an export file: a signed link, for the user who asked for the export only
+Route::get('/exports/download', DownloadExportController::class)
+    ->middleware(['auth', 'signed'])
+    ->name('exports.download');
 
 // Invoice PDF download (authenticated users only, tenant check in controller)
 Route::get('/invoices/{invoice}/pdf', InvoicePdfController::class)

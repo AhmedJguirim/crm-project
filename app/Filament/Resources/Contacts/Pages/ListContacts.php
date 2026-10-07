@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Contacts\Pages;
 
+use App\Filament\Actions\ExportContactsAction;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Jobs\ProcessContactImportJob;
 use App\Services\ContactImportFileReader;
@@ -88,6 +89,8 @@ class ListContacts extends ListRecords
                         ->body('Your file is being processed. You will receive a notification when complete.')
                         ->send();
                 }),
+
+            ExportContactsAction::forList(),
 
             CreateAction::make(),
         ];

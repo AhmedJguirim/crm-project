@@ -4,6 +4,9 @@ use App\Exceptions\UnreadableImportFileException;
 use App\Services\ContactImportFileReader;
 use App\Support\CsvDialect;
 use Illuminate\Support\Facades\Storage;
+use OpenSpout\Common\Entity\Cell\StringCell;
+use OpenSpout\Common\Entity\Row;
+use Spatie\SimpleExcel\SimpleExcelWriter;
 
 beforeEach(function () {
     Storage::fake('local');
@@ -146,4 +149,32 @@ describe('the dialect of a csv file', function () {
             ['Ann', 'ann@x.test', 'VIP;Newsletter'],
         ]);
     });
+});
+
+it('reads a text cell that starts with an equals sign as text', function () {
+    $absolute = Storage::disk('local')->path('contact-imports/equals-text.xlsx');
+    Storage::disk('local')->makeDirectory('contact-imports');
+
+    $writer = SimpleExcelWriter::create($absolute)->noHeaderRow();
+    $writer->addRow(new Row([
+        new StringCell('name', null),
+        new StringCell('=1+1', null),
+    ]));
+    $writer->close();
+
+    expect(readImportFile('contact-imports/equals-text.xlsx'))->toBe([['name', '=1+1']]);
+});
+
+it('reads a formula with a stored result as that result', function () {
+    $path = makeXlsx([['name', '=1+1']]);
+    $absolute = Storage::disk('local')->path($path);
+
+    $zip = new ZipArchive;
+    $zip->open($absolute);
+    $sheet = $zip->getFromName('xl/worksheets/sheet1.xml');
+    $zip->addFromString('xl/worksheets/sheet1.xml', str_replace('<f>1+1</f>', '<f>1+1</f><v>2</v>', $sheet));
+    $zip->close();
+
+    expect($sheet)->toContain('<f>1+1</f>')
+        ->and(readImportFile($path))->toBe([['name', '2']]);
 });

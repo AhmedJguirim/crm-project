@@ -7,6 +7,7 @@ use App\Enums\ContactStatus;
 use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\LeadSource;
+use App\Filament\Actions\ExportContactsAction;
 use App\Filament\Actions\QuickTaskAction;
 use App\Filament\Support\AbilityCheck;
 use App\Jobs\ResyncContactSegments;
@@ -242,6 +243,8 @@ class ContactsTable
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
+
+                    ExportContactsAction::forSelection(),
 
                     DeleteBulkAction::make()->authorizeIndividualRecords(),
                     RestoreBulkAction::make()->authorizeIndividualRecords(),

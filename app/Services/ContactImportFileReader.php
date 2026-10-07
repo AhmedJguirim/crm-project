@@ -3,11 +3,11 @@
 namespace App\Services;
 
 use App\Exceptions\UnreadableImportFileException;
+use App\Services\Imports\TextPreservingExcelReader;
 use App\Support\CsvDialect;
 use DateInterval;
 use DateTimeInterface;
 use Generator;
-use Spatie\SimpleExcel\SimpleExcelReader;
 use Throwable;
 
 /**
@@ -108,7 +108,7 @@ class ContactImportFileReader
         $reader = null;
 
         try {
-            $reader = SimpleExcelReader::create($absolutePath, $extension === 'xlsx' ? 'xlsx' : 'csv')->noHeaderRow();
+            $reader = TextPreservingExcelReader::create($absolutePath, $extension === 'xlsx' ? 'xlsx' : 'csv')->noHeaderRow();
 
             if ($extension !== 'xlsx') {
                 $dialect ??= $this->dialect($absolutePath, $extension);

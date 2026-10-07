@@ -23,4 +23,6 @@ Schedule::command('segments:sync')->weeklyOn(0, '03:30')->withoutOverlapping();
 
 Schedule::command('custom-fields:report-duplicates')->dailyAt('02:00')->withoutOverlapping();
 
+Schedule::command('exports:prune')->dailyAt('03:00')->withoutOverlapping();
+
 Schedule::command('horizon:snapshot')->everyFiveMinutes();

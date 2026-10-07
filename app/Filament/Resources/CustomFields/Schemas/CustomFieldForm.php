@@ -5,6 +5,7 @@ namespace App\Filament\Resources\CustomFields\Schemas;
 use App\Exceptions\UsedInSegmentsException;
 use App\Filament\Support\CustomFields\CustomFieldDefinitionFields;
 use App\Models\CustomField;
+use App\Services\ContactExportWriter;
 use App\Services\ContactImportService;
 use App\Services\Segments\SegmentUsage;
 use Closure;
@@ -27,7 +28,7 @@ class CustomFieldForm
                         return $rule->where('organization_id', Filament::getTenant()->id);
                     })
                     ->rule(fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
-                        $reserved = [...ContactImportService::RESERVED_COLUMNS, ...ContactImportService::FAILED_ROWS_META_COLUMNS];
+                        $reserved = [...ContactImportService::RESERVED_COLUMNS, ...ContactImportService::FAILED_ROWS_META_COLUMNS, ...ContactExportWriter::COLUMNS];
 
                         $name = mb_strtolower(trim((string) $value));
 

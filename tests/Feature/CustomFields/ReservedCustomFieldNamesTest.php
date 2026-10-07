@@ -22,7 +22,7 @@ it('refuses the names the import uses', function (string $name) {
 
     expect($page->errors()->get('data.name'))->toBe(['This name is used by the import. Choose another name.'])
         ->and(CustomField::count())->toBe(0);
-})->with(['Tags', ' email', 'Lead Source', 'Company', 'STATUS', 'Company Website', 'company type', '_row_number', '_error', 'name', 'Phone', 'Company Phone', 'company annual revenue', ' Company: Region', 'company:Region', 'COMPANY :  VAT']);
+})->with(['Tags', ' email', 'Lead Source', 'Company', 'STATUS', 'Company Website', 'company type', '_row_number', '_error', 'name', 'Phone', 'Company Phone', 'company annual revenue', ' Company: Region', 'company:Region', 'COMPANY :  VAT', ' All Companies ', 'all companies']);
 
 it('refuses to rename a field to a reserved name', function () {
     $field = CustomField::factory()->for($this->org)->create(['name' => 'Website', 'type' => 'url']);
