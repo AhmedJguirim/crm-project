@@ -21,11 +21,11 @@ class EditDeal extends EditRecord
 
         if ($stage === DealStage::Won) {
             $data['status'] = DealStatus::Won;
-            $data['won_at'] ??= now();
+            $data['won_at'] = $this->getRecord()->won_at ?? now();
             $data['lost_at'] = null;
         } elseif ($stage === DealStage::Lost) {
             $data['status'] = DealStatus::Lost;
-            $data['lost_at'] ??= now();
+            $data['lost_at'] = $this->getRecord()->lost_at ?? now();
             $data['won_at'] = null;
         } else {
             $data['status'] = DealStatus::Open;
