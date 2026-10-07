@@ -108,11 +108,11 @@ test('create validates required fields and select options', function () {
 test('names are unique per organization', function () {
     CompanyCustomField::factory()->create([
         'organization_id' => $this->org->id,
-        'name' => 'Website',
+        'name' => 'Region',
     ]);
 
     Livewire::test(CreateCompanyCustomField::class)
-        ->fillForm(['name' => 'Website', 'type' => 'url'])
+        ->fillForm(['name' => 'Region', 'type' => 'url'])
         ->call('create')
         ->assertHasFormErrors(['name' => 'unique']);
 });
@@ -130,10 +130,10 @@ test('the same field name is allowed in another organization', function () {
 });
 
 test('a field keeps its own name valid when it is edited', function () {
-    $field = CompanyCustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'Website', 'type' => 'url']);
+    $field = CompanyCustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'Region', 'type' => 'url']);
 
     Livewire::test(EditCompanyCustomField::class, ['record' => $field->id])
-        ->fillForm(['name' => 'Website'])
+        ->fillForm(['name' => 'Region'])
         ->call('save')
         ->assertHasNoFormErrors();
 });

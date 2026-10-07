@@ -70,13 +70,13 @@ describe('creating a field', function () {
         $type = CompanyType::factory()->for($this->org)->create();
 
         $page = Livewire::test(CreateCompanyCustomField::class)
-            ->fillForm(['company_type_id' => $type->id, 'name' => 'Industry', 'type' => 'select', 'options' => [['label' => 'Software']]])
+            ->fillForm(['company_type_id' => $type->id, 'name' => 'Sector', 'type' => 'select', 'options' => [['label' => 'Software']]])
             ->call('create')
             ->assertHasNoFormErrors();
 
         expect($page->instance()->getSchema('form')->getFlatFields()['options.0.value'])->toBeInstanceOf(Hidden::class);
 
-        expect(CompanyCustomField::where('name', 'Industry')->sole()->options[0]['value'])->toMatch('/^opt_[a-z0-9]{10}$/');
+        expect(CompanyCustomField::where('name', 'Sector')->sole()->options[0]['value'])->toMatch('/^opt_[a-z0-9]{10}$/');
     });
 });
 

@@ -163,6 +163,7 @@ describe('policies', function () {
         $user = ($this->userWith)($role);
 
         expect(Gate::forUser($user)->allows('import', Contact::class))->toBe($allowed)
+            ->and(Gate::forUser($user)->allows('import', Company::class))->toBe($allowed)
             ->and(Gate::forUser($user)->allows('publish', authorizationRecord(Segment::class, $this->acme)))->toBe($allowed)
             ->and(Gate::forUser($user)->allows('cancel', authorizationRecord(Invoice::class, $this->acme)))->toBe($allowed);
     })->with([

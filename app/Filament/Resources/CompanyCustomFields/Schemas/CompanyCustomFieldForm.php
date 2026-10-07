@@ -4,6 +4,8 @@ namespace App\Filament\Resources\CompanyCustomFields\Schemas;
 
 use App\Filament\Support\CustomFields\CustomFieldDefinitionFields;
 use App\Models\CompanyCustomField;
+use App\Services\CompanyImportService;
+use Closure;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -21,6 +23,13 @@ class CompanyCustomFieldForm
                     ->maxLength(255)
                     ->unique(CompanyCustomField::class, 'name', ignoreRecord: true, modifyRuleUsing: function ($rule) {
                         return $rule->where('organization_id', Filament::getTenant()->id);
+                    })
+                    ->rule(fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
+                        $reserved = [...CompanyImportService::COLUMNS, ...CompanyImportService::FAILED_ROWS_META_COLUMNS];
+
+                        if (in_array(mb_strtolower(trim((string) $value)), $reserved, true)) {
+                            $fail('This name is used by the import. Choose another name.');
+                        }
                     })
                     ->validationMessages(['unique' => CustomFieldDefinitionFields::nameTakenMessage()])
                     ->helperText('A descriptive name for this custom field'),
