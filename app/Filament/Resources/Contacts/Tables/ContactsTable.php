@@ -15,6 +15,7 @@ use App\Models\Activity;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Tag;
+use App\Support\MoneyLimit;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
@@ -151,6 +152,7 @@ class ContactsTable
                                 TextInput::make('value')
                                     ->numeric()
                                     ->minValue(0)
+                                    ->maxValue(MoneyLimit::MAX)
                                     ->nullable(),
                                 Select::make('currency')
                                     ->options([

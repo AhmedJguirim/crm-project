@@ -6,6 +6,7 @@ use App\Enums\InvoiceStatus;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Invoice;
+use App\Support\MoneyLimit;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -106,6 +107,7 @@ class InvoiceForm
                     ->numeric()
                     ->required()
                     ->minValue(0)
+                    ->maxValue(MoneyLimit::MAX)
                     ->step(0.01)
                     ->prefix(fn (Get $get): string => $get('currency') ?? 'USD'),
 
@@ -157,6 +159,7 @@ class InvoiceForm
                     ->label('Amount Paid')
                     ->numeric()
                     ->minValue(0)
+                    ->maxValue(MoneyLimit::MAX)
                     ->step(0.01)
                     ->default(0)
                     ->prefix(fn (Get $get): string => $get('currency') ?? 'USD')

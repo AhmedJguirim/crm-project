@@ -14,6 +14,7 @@ use App\Filament\Support\AbilityCheck;
 use App\Models\Activity;
 use App\Models\CustomField;
 use App\Models\Deal;
+use App\Support\MoneyLimit;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Facades\Filament;
@@ -127,6 +128,7 @@ class ViewContact extends Page
                             TextInput::make('value')
                                 ->numeric()
                                 ->minValue(0)
+                                ->maxValue(MoneyLimit::MAX)
                                 ->nullable(),
                             Select::make('currency')
                                 ->options([

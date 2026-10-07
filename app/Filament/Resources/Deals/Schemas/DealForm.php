@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Deals\Schemas;
 
 use App\Enums\DealStage;
 use App\Models\Contact;
+use App\Support\MoneyLimit;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -46,6 +47,7 @@ class DealForm
                 TextInput::make('value')
                     ->numeric()
                     ->minValue(0)
+                    ->maxValue(MoneyLimit::MAX)
                     ->nullable(),
 
                 Select::make('currency')

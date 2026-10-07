@@ -11,6 +11,7 @@ use App\Filament\Support\AbilityCheck;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Task;
+use App\Support\MoneyLimit;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DateTimePicker;
@@ -214,6 +215,7 @@ class QuickTaskAction
                 TextInput::make('value')
                     ->numeric()
                     ->minValue(0)
+                    ->maxValue(MoneyLimit::MAX)
                     ->nullable(),
                 Select::make('currency')
                     ->options([

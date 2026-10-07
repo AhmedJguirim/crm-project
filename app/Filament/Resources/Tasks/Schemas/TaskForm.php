@@ -9,6 +9,7 @@ use App\Enums\TaskStatus;
 use App\Enums\TaskType;
 use App\Models\Contact;
 use App\Models\Deal;
+use App\Support\MoneyLimit;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
@@ -84,6 +85,7 @@ class TaskForm
                         TextInput::make('value')
                             ->numeric()
                             ->minValue(0)
+                            ->maxValue(MoneyLimit::MAX)
                             ->nullable(),
                         Select::make('currency')
                             ->options([
