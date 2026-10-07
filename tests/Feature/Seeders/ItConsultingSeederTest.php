@@ -1,11 +1,14 @@
 <?php
 
 use App\Enums\CompanyIndustry;
+use App\Enums\Currency;
 use App\Enums\DealStatus;
 use App\Enums\OrganizationRole;
 use App\Enums\SegmentRefreshFrequency;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
+use App\Filament\Widgets\DealsOverviewWidget;
+use App\Filament\Widgets\RevenueOverviewWidget;
 use App\Models\Activity;
 use App\Models\Company;
 use App\Models\CompanyCustomField;
@@ -22,6 +25,7 @@ use App\Support\Tenancy\TenantContext;
 use Database\Seeders\ItConsultingSeeder;
 use Filament\Facades\Filament;
 use Illuminate\Database\Eloquent\Model;
+use Livewire\Livewire;
 
 function customFieldKey(Model $record, string $name): string
 {
@@ -346,4 +350,22 @@ test('it consulting seeder fails loudly on an unknown option label', function ()
 
     expect($optionValues($field, ['Signed']))->toHaveCount(1)
         ->and(fn () => $optionValues($field, ['Signd']))->toThrow(RuntimeException::class, 'has no option with that label');
+});
+
+test('it consulting seeder seeds one currency and the dashboard adds the amounts up in it', function () {
+    $this->seed(ItConsultingSeeder::class);
+
+    $user = User::query()->where('email', 'test@example.com')->firstOrFail();
+    $organization = $user->personalOrganization();
+
+    $this->actingAs($user);
+    Filament::setTenant($organization);
+
+    expect($organization->currency)->toBe(Currency::Usd);
+
+    Livewire::test(DealsOverviewWidget::class)
+        ->assertSeeInOrder(['Pipeline Value', '$222,000.00']);
+
+    Livewire::test(RevenueOverviewWidget::class)
+        ->assertSeeInOrder(['Outstanding', '$22,600.00']);
 });

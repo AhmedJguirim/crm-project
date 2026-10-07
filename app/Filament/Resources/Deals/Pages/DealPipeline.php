@@ -63,7 +63,7 @@ class DealPipeline extends BoardResourcePage
                     TextEntry::make('value')
                         ->label('Value')
                         ->state(fn (Deal $record): string => $record->value
-                            ? number_format((float) $record->value, 2).' '.$record->currency
+                            ? number_format((float) $record->value, 2).' '.(Filament::getTenant()?->currencyCode() ?? 'USD')
                             : '—'),
 
                     TextEntry::make('expected_close_date')

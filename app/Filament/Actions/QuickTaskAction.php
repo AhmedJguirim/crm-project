@@ -217,14 +217,6 @@ class QuickTaskAction
                     ->minValue(0)
                     ->maxValue(MoneyLimit::MAX)
                     ->nullable(),
-                Select::make('currency')
-                    ->options([
-                        'USD' => 'USD',
-                        'EUR' => 'EUR',
-                        'GBP' => 'GBP',
-                    ])
-                    ->default('USD')
-                    ->required(),
                 Textarea::make('notes')
                     ->rows(3)
                     ->nullable(),
@@ -236,7 +228,6 @@ class QuickTaskAction
                     'title' => $data['title'],
                     'stage' => $data['stage'],
                     'value' => $data['value'] ?? null,
-                    'currency' => $data['currency'],
                     'notes' => $data['notes'] ?? null,
                     'status' => DealStatus::Open,
                     'created_by' => Auth::id(),

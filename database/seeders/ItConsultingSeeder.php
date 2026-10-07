@@ -527,12 +527,12 @@ class ItConsultingSeeder extends Seeder
 
         // ── Deals ────────────────────────────────────────────────────────────
         $dealsData = [
-            ['title' => 'TechCorp Infra Expansion', 'email' => 'marcus.chen@techcorp.io', 'stage' => DealStage::Negotiating, 'status' => DealStatus::Open, 'value' => 85000, 'currency' => 'USD', 'expected_close_date' => now()->addDays(9)->toDateString(), 'notes' => 'Final legal review before signature.'],
-            ['title' => 'Cloudbase Cost Optimization Retainer', 'email' => 'sarah.johansson@cloudbase.dev', 'stage' => DealStage::ProposalSent, 'status' => DealStatus::Open, 'value' => 42000, 'currency' => 'EUR', 'expected_close_date' => now()->addDays(5)->toDateString(), 'notes' => 'Proposal sent, waiting for finance sign-off.'],
-            ['title' => 'HexaSys React Platform Migration', 'email' => 'damien.leroy@hexasys.fr', 'stage' => DealStage::Discovery, 'status' => DealStatus::Open, 'value' => 65000, 'currency' => 'EUR', 'expected_close_date' => now()->addDays(18)->toDateString(), 'notes' => 'Technical workshops scheduled next week.'],
-            ['title' => 'SecurePeak Annual Security Program', 'email' => 'priya.nair@securepeak.com', 'stage' => DealStage::Won, 'status' => DealStatus::Won, 'value' => 120000, 'currency' => 'USD', 'expected_close_date' => now()->subDays(12)->toDateString(), 'won_at' => now()->subDays(10), 'notes' => 'Contract signed and onboarded.'],
-            ['title' => 'InnoTech Transformation Advisory', 'email' => 'amara.diallo@innotech-sa.com', 'stage' => DealStage::Lead, 'status' => DealStatus::Open, 'value' => 30000, 'currency' => 'EUR', 'expected_close_date' => now()->addDays(24)->toDateString(), 'notes' => 'Initial qualification in progress.'],
-            ['title' => 'NordicSec Pen Testing Extension', 'email' => 'ingrid.svensson@nordicsec.com', 'stage' => DealStage::Lost, 'status' => DealStatus::Lost, 'value' => 38000, 'currency' => 'USD', 'expected_close_date' => now()->subDays(20)->toDateString(), 'lost_at' => now()->subDays(18), 'notes' => 'Budget reallocated to internal team.'],
+            ['title' => 'TechCorp Infra Expansion', 'email' => 'marcus.chen@techcorp.io', 'stage' => DealStage::Negotiating, 'status' => DealStatus::Open, 'value' => 85000, 'expected_close_date' => now()->addDays(9)->toDateString(), 'notes' => 'Final legal review before signature.'],
+            ['title' => 'Cloudbase Cost Optimization Retainer', 'email' => 'sarah.johansson@cloudbase.dev', 'stage' => DealStage::ProposalSent, 'status' => DealStatus::Open, 'value' => 42000, 'expected_close_date' => now()->addDays(5)->toDateString(), 'notes' => 'Proposal sent, waiting for finance sign-off.'],
+            ['title' => 'HexaSys React Platform Migration', 'email' => 'damien.leroy@hexasys.fr', 'stage' => DealStage::Discovery, 'status' => DealStatus::Open, 'value' => 65000, 'expected_close_date' => now()->addDays(18)->toDateString(), 'notes' => 'Technical workshops scheduled next week.'],
+            ['title' => 'SecurePeak Annual Security Program', 'email' => 'priya.nair@securepeak.com', 'stage' => DealStage::Won, 'status' => DealStatus::Won, 'value' => 120000, 'expected_close_date' => now()->subDays(12)->toDateString(), 'won_at' => now()->subDays(10), 'notes' => 'Contract signed and onboarded.'],
+            ['title' => 'InnoTech Transformation Advisory', 'email' => 'amara.diallo@innotech-sa.com', 'stage' => DealStage::Lead, 'status' => DealStatus::Open, 'value' => 30000, 'expected_close_date' => now()->addDays(24)->toDateString(), 'notes' => 'Initial qualification in progress.'],
+            ['title' => 'NordicSec Pen Testing Extension', 'email' => 'ingrid.svensson@nordicsec.com', 'stage' => DealStage::Lost, 'status' => DealStatus::Lost, 'value' => 38000, 'expected_close_date' => now()->subDays(20)->toDateString(), 'lost_at' => now()->subDays(18), 'notes' => 'Budget reallocated to internal team.'],
         ];
 
         foreach ($dealsData as $dealData) {
@@ -552,7 +552,6 @@ class ItConsultingSeeder extends Seeder
                     'stage' => $dealData['stage'],
                     'status' => $dealData['status'],
                     'value' => $dealData['value'],
-                    'currency' => $dealData['currency'],
                     'expected_close_date' => $dealData['expected_close_date'],
                     'notes' => $dealData['notes'],
                     'won_at' => $dealData['won_at'] ?? null,
@@ -564,12 +563,12 @@ class ItConsultingSeeder extends Seeder
 
         // ── Invoices ─────────────────────────────────────────────────────────
         $invoicesData = [
-            ['invoice_number' => 'INV-2026-001', 'email' => 'marcus.chen@techcorp.io', 'deal_title' => 'TechCorp Infra Expansion', 'amount' => 24000, 'currency' => 'USD', 'status' => InvoiceStatus::Paid, 'issued_at' => now()->subDays(20)->toDateString(), 'due_at' => now()->subDays(5)->toDateString(), 'paid_at' => now()->subDays(6)->toDateString(), 'notes' => 'Phase 1 infrastructure migration milestone.'],
-            ['invoice_number' => 'INV-2026-002', 'email' => 'sarah.johansson@cloudbase.dev', 'deal_title' => 'Cloudbase Cost Optimization Retainer', 'amount' => 7800, 'currency' => 'EUR', 'status' => InvoiceStatus::Sent, 'issued_at' => now()->subDays(9)->toDateString(), 'due_at' => now()->addDays(7)->toDateString(), 'notes' => 'Monthly retainer February.'],
-            ['invoice_number' => 'INV-2026-003', 'email' => 'damien.leroy@hexasys.fr', 'deal_title' => 'HexaSys React Platform Migration', 'amount' => 5600, 'currency' => 'EUR', 'status' => InvoiceStatus::Partial, 'issued_at' => now()->subDays(18)->toDateString(), 'due_at' => now()->subDays(2)->toDateString(), 'paid_at' => now()->subDays(1)->toDateString(), 'notes' => 'Deposit received, awaiting final transfer.'],
-            ['invoice_number' => 'INV-2026-004', 'email' => 'ingrid.svensson@nordicsec.com', 'deal_title' => 'NordicSec Pen Testing Extension', 'amount' => 9200, 'currency' => 'USD', 'status' => InvoiceStatus::Overdue, 'issued_at' => now()->subDays(26)->toDateString(), 'due_at' => now()->subDays(8)->toDateString(), 'notes' => 'Reminder sent twice.'],
-            ['invoice_number' => 'INV-2026-005', 'email' => 'priya.nair@securepeak.com', 'deal_title' => 'SecurePeak Annual Security Program', 'amount' => 31000, 'currency' => 'USD', 'status' => InvoiceStatus::Paid, 'issued_at' => now()->subDays(40)->toDateString(), 'due_at' => now()->subDays(25)->toDateString(), 'paid_at' => now()->subDays(24)->toDateString(), 'notes' => 'Annual security program Q1 billing.'],
-            ['invoice_number' => 'INV-2026-006', 'email' => 'amara.diallo@innotech-sa.com', 'deal_title' => null, 'amount' => 3500, 'currency' => 'EUR', 'status' => InvoiceStatus::Draft, 'issued_at' => now()->toDateString(), 'due_at' => now()->addDays(14)->toDateString(), 'notes' => 'Draft invoice for discovery workshops.'],
+            ['invoice_number' => 'INV-2026-001', 'email' => 'marcus.chen@techcorp.io', 'deal_title' => 'TechCorp Infra Expansion', 'amount' => 24000, 'status' => InvoiceStatus::Paid, 'issued_at' => now()->subDays(20)->toDateString(), 'due_at' => now()->subDays(5)->toDateString(), 'paid_at' => now()->subDays(6)->toDateString(), 'notes' => 'Phase 1 infrastructure migration milestone.'],
+            ['invoice_number' => 'INV-2026-002', 'email' => 'sarah.johansson@cloudbase.dev', 'deal_title' => 'Cloudbase Cost Optimization Retainer', 'amount' => 7800, 'status' => InvoiceStatus::Sent, 'issued_at' => now()->subDays(9)->toDateString(), 'due_at' => now()->addDays(7)->toDateString(), 'notes' => 'Monthly retainer February.'],
+            ['invoice_number' => 'INV-2026-003', 'email' => 'damien.leroy@hexasys.fr', 'deal_title' => 'HexaSys React Platform Migration', 'amount' => 5600, 'status' => InvoiceStatus::Partial, 'issued_at' => now()->subDays(18)->toDateString(), 'due_at' => now()->subDays(2)->toDateString(), 'paid_at' => now()->subDays(1)->toDateString(), 'notes' => 'Deposit received, awaiting final transfer.'],
+            ['invoice_number' => 'INV-2026-004', 'email' => 'ingrid.svensson@nordicsec.com', 'deal_title' => 'NordicSec Pen Testing Extension', 'amount' => 9200, 'status' => InvoiceStatus::Overdue, 'issued_at' => now()->subDays(26)->toDateString(), 'due_at' => now()->subDays(8)->toDateString(), 'notes' => 'Reminder sent twice.'],
+            ['invoice_number' => 'INV-2026-005', 'email' => 'priya.nair@securepeak.com', 'deal_title' => 'SecurePeak Annual Security Program', 'amount' => 31000, 'status' => InvoiceStatus::Paid, 'issued_at' => now()->subDays(40)->toDateString(), 'due_at' => now()->subDays(25)->toDateString(), 'paid_at' => now()->subDays(24)->toDateString(), 'notes' => 'Annual security program Q1 billing.'],
+            ['invoice_number' => 'INV-2026-006', 'email' => 'amara.diallo@innotech-sa.com', 'deal_title' => null, 'amount' => 3500, 'status' => InvoiceStatus::Draft, 'issued_at' => now()->toDateString(), 'due_at' => now()->addDays(14)->toDateString(), 'notes' => 'Draft invoice for discovery workshops.'],
         ];
 
         foreach ($invoicesData as $invoiceData) {
@@ -597,7 +596,6 @@ class ItConsultingSeeder extends Seeder
                     'contact_id' => $contact->id,
                     'deal_id' => $deal?->id,
                     'amount' => $invoiceData['amount'],
-                    'currency' => $invoiceData['currency'],
                     'status' => $invoiceData['status'],
                     'issued_at' => $invoiceData['issued_at'],
                     'due_at' => $invoiceData['due_at'],

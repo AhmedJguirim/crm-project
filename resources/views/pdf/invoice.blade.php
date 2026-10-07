@@ -273,23 +273,23 @@
                     <td>
                         {{ $invoice->deal?->title ?? 'Invoice ' . $invoice->invoice_number }}
                     </td>
-                    <td>{{ Number::currency((float) $invoice->amount, $invoice->currency) }}</td>
+                    <td>{{ Number::currency((float) $invoice->amount, $organization->currencyCode()) }}</td>
                 </tr>
             </tbody>
             <tfoot>
                 <tr>
                     <td>Subtotal</td>
-                    <td>{{ Number::currency((float) $invoice->amount, $invoice->currency) }}</td>
+                    <td>{{ Number::currency((float) $invoice->amount, $organization->currencyCode()) }}</td>
                 </tr>
                 @if ((float) $invoice->amount_paid > 0)
                     <tr>
                         <td style="border-top: none; color: #15803d;">Amount Paid</td>
-                        <td style="border-top: none; font-size: 14px; color: #15803d;">- {{ Number::currency((float) $invoice->amount_paid, $invoice->currency) }}</td>
+                        <td style="border-top: none; font-size: 14px; color: #15803d;">- {{ Number::currency((float) $invoice->amount_paid, $organization->currencyCode()) }}</td>
                     </tr>
                 @endif
                 <tr>
                     <td style="{{ (float) $invoice->amount_paid > 0 ? 'border-top: 2px solid #111827;' : 'border-top: none;' }}">Balance Due</td>
-                    <td style="{{ (float) $invoice->amount_paid > 0 ? 'border-top: 2px solid #111827;' : 'border-top: none;' }}">{{ Number::currency((float) $invoice->amount - (float) $invoice->amount_paid, $invoice->currency) }}</td>
+                    <td style="{{ (float) $invoice->amount_paid > 0 ? 'border-top: 2px solid #111827;' : 'border-top: none;' }}">{{ Number::currency((float) $invoice->amount - (float) $invoice->amount_paid, $organization->currencyCode()) }}</td>
                 </tr>
             </tfoot>
         </table>

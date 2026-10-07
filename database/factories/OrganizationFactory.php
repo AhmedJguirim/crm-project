@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\Currency;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -23,6 +24,7 @@ class OrganizationFactory extends Factory
             'slug' => Str::slug($name),
             'description' => fake()->optional()->sentence(),
             'personal_team' => false,
+            'currency' => Currency::Usd,
             'created_by' => User::factory(),
         ];
     }

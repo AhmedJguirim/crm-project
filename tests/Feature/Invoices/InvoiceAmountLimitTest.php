@@ -30,7 +30,6 @@ test('the invoice form refuses an amount above the column size', function () {
             'contact_id' => $this->contact->id,
             'deal_id' => $this->deal->id,
             'amount' => 100000000,
-            'currency' => 'EUR',
             'issued_at' => today()->format('Y-m-d'),
             'due_at' => today()->addDays(30)->format('Y-m-d'),
         ])
@@ -46,7 +45,6 @@ test('the invoice form accepts the largest amount the column holds', function ()
             'contact_id' => $this->contact->id,
             'deal_id' => $this->deal->id,
             'amount' => '99999999.99',
-            'currency' => 'EUR',
             'issued_at' => today()->format('Y-m-d'),
             'due_at' => today()->addDays(30)->format('Y-m-d'),
         ])

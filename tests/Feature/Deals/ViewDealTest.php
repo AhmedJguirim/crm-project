@@ -43,7 +43,6 @@ test('deal detail page renders deal metadata and contact activities', function (
         'stage' => DealStage::ProposalSent,
         'status' => DealStatus::Open,
         'value' => 5000,
-        'currency' => 'USD',
         'notes' => 'Proposal sent, waiting for signature.',
     ]);
 

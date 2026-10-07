@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\Currency;
 use App\Enums\InvoiceStatus;
 use App\Filament\Widgets\RevenueOverviewWidget;
 use App\Models\Contact;
@@ -30,7 +31,6 @@ test('revenue overview widget shows expected revenue metrics', function () {
         'contact_id' => $contact->id,
         'status' => InvoiceStatus::Paid,
         'amount' => 5000,
-        'currency' => 'USD',
         'paid_at' => now()->subDays(2),
     ]);
 
@@ -39,7 +39,6 @@ test('revenue overview widget shows expected revenue metrics', function () {
         'contact_id' => $contact->id,
         'status' => InvoiceStatus::Paid,
         'amount' => 3000,
-        'currency' => 'USD',
         'paid_at' => now()->subMonth(),
     ]);
 
@@ -48,7 +47,6 @@ test('revenue overview widget shows expected revenue metrics', function () {
         'contact_id' => $contact->id,
         'status' => InvoiceStatus::Sent,
         'amount' => 1200,
-        'currency' => 'USD',
         'due_at' => now()->addDays(5),
     ]);
 
@@ -57,7 +55,6 @@ test('revenue overview widget shows expected revenue metrics', function () {
         'contact_id' => $contact->id,
         'status' => InvoiceStatus::Overdue,
         'amount' => 800,
-        'currency' => 'USD',
         'due_at' => now()->subDays(3),
     ]);
 
@@ -83,7 +80,6 @@ test('revenue overview widget is tenant scoped', function () {
         'contact_id' => $contact->id,
         'status' => InvoiceStatus::Paid,
         'amount' => 1000,
-        'currency' => 'USD',
         'paid_at' => now()->subDays(1),
     ]);
 
@@ -96,7 +92,6 @@ test('revenue overview widget is tenant scoped', function () {
         'contact_id' => $otherContact->id,
         'status' => InvoiceStatus::Paid,
         'amount' => 9000,
-        'currency' => 'USD',
         'paid_at' => now()->subDays(1),
     ]);
 
@@ -104,4 +99,43 @@ test('revenue overview widget is tenant scoped', function () {
         ->assertSuccessful()
         ->assertSee('$1,000.00')
         ->assertDontSee('$9,000.00');
+});
+
+test('revenue overview widget shows every card in the currency of the organization', function () {
+    $this->org->update(['currency' => Currency::Eur]);
+    $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
+
+    $rows = [
+        [InvoiceStatus::Paid, 5000, ['paid_at' => now()->subDays(2)]],
+        [InvoiceStatus::Paid, 3000, ['paid_at' => now()->subDay()]],
+        [InvoiceStatus::Paid, 1000, ['paid_at' => now()->subMonth()]],
+        [InvoiceStatus::Sent, 1200, ['due_at' => now()->addDays(5)]],
+        [InvoiceStatus::Partial, 300, ['due_at' => now()->addDays(5)]],
+        [InvoiceStatus::Overdue, 800, ['due_at' => now()->subDays(3)]],
+    ];
+
+    foreach ($rows as [$status, $amount, $dates]) {
+        Invoice::factory()->create([
+            'organization_id' => $this->org->id,
+            'contact_id' => $contact->id,
+            'status' => $status,
+            'amount' => $amount,
+            ...$dates,
+        ]);
+    }
+
+    Livewire::test(RevenueOverviewWidget::class)
+        ->assertSeeInOrder(['Paid This Month', '€8,000.00', 'Paid invoices this month'])
+        ->assertSeeInOrder(['Outstanding', '€2,300.00', 'Sent, partial, and overdue'])
+        ->assertSeeInOrder(['Overdue Invoices', '1 invoice', '€800.00'])
+        ->assertSeeInOrder(['YTD Revenue', '€9,000.00', 'Paid invoices this year'])
+        ->assertDontSee('Mixed currencies')
+        ->assertDontSee('$8,000.00')
+        ->assertDontSee('$800.00');
+});
+
+test('revenue overview widget shows dollars for a default organization without invoices', function () {
+    Livewire::test(RevenueOverviewWidget::class)
+        ->assertSeeInOrder(['Paid This Month', '$0.00'])
+        ->assertSeeInOrder(['Overdue Invoices', '0 invoices', '$0.00']);
 });

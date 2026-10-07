@@ -37,7 +37,6 @@ class CreateInvoice extends CreateRecord
                 $data['deal_id'] = $deal->id;
                 $data['contact_id'] = $deal->contact_id;
                 $data['amount'] = $deal->value;
-                $data['currency'] = $deal->currency;
             }
         } elseif ($this->prefillContactId) {
             $data['contact_id'] = (int) $this->prefillContactId;

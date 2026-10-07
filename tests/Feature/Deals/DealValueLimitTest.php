@@ -28,7 +28,6 @@ test('the main deal form refuses a value above the column size', function (strin
         ->fillForm([
             'title' => 'Big one',
             'stage' => DealStage::Lead,
-            'currency' => 'USD',
             'value' => $value,
         ])
         ->call('create')
@@ -46,7 +45,6 @@ test('the main deal form accepts the largest value the column holds', function (
         ->fillForm([
             'title' => 'Big one',
             'stage' => DealStage::Lead,
-            'currency' => 'USD',
             'value' => '99999999.99',
         ])
         ->call('create')
@@ -98,7 +96,6 @@ test('the create deal option form of each select refuses a value above the colum
         ->callAction($actions(), data: [
             'title' => 'Big',
             'stage' => DealStage::Lead,
-            'currency' => 'USD',
             'value' => 100000000,
         ])
         ->assertHasActionErrors(['value' => 'max']);
@@ -111,7 +108,6 @@ test('the create deal option form of each select accepts the largest value', fun
         ->callAction($actions(), data: [
             'title' => 'Big',
             'stage' => DealStage::Lead,
-            'currency' => 'USD',
             'value' => '99999999.99',
         ])
         ->assertHasNoActionErrors();
@@ -125,7 +121,6 @@ test('the create task form option for a deal refuses a value above the column si
         ->callAction(TestAction::make('createOption')->schemaComponent('deal_id'), data: [
             'title' => 'Big',
             'stage' => DealStage::Lead,
-            'currency' => 'USD',
             'value' => 100000000,
         ])
         ->assertHasActionErrors(['value' => 'max']);
@@ -139,7 +134,6 @@ test('the create task form option for a deal accepts the largest value', functio
         ->callAction(TestAction::make('createOption')->schemaComponent('deal_id'), data: [
             'title' => 'Big',
             'stage' => DealStage::Lead,
-            'currency' => 'USD',
             'value' => '99999999.99',
         ])
         ->assertHasNoActionErrors();

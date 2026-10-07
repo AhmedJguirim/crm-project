@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\Currency;
 use App\Enums\OrganizationRole;
 use App\Observers\OrganizationObserver;
 use Carbon\CarbonImmutable;
@@ -28,12 +29,14 @@ class Organization extends Model
         'personal_team',
         'created_by',
         'timezone',
+        'currency',
     ];
 
     protected function casts(): array
     {
         return [
             'personal_team' => 'boolean',
+            'currency' => Currency::class,
         ];
     }
 
@@ -53,6 +56,14 @@ class Organization extends Model
     public static function validTimezoneOrUtc(?string $timezone): string
     {
         return in_array($timezone, self::timezoneIdentifiers(), true) ? $timezone : 'UTC';
+    }
+
+    /**
+     * The ISO code of the currency every amount of the organization is shown in (USD while it is not set).
+     */
+    public function currencyCode(): string
+    {
+        return ($this->currency ?? Currency::Usd)->value;
     }
 
     /** The current time in the organization's timezone. */

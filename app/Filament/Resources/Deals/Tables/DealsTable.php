@@ -10,6 +10,7 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Facades\Filament;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
@@ -34,7 +35,7 @@ class DealsTable
                         : null),
 
                 TextColumn::make('value')
-                    ->money(fn (Deal $record): string => $record->currency)
+                    ->money(fn (): string => Filament::getTenant()?->currencyCode() ?? 'USD')
                     ->placeholder('—')
                     ->sortable(),
 

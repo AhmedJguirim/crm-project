@@ -3,6 +3,7 @@
 namespace App\Filament\Pages\Tenancy;
 
 use App\Enums\OrganizationRole;
+use App\Filament\Support\OrganizationCurrencySelect;
 use App\Filament\Support\OrganizationNameInput;
 use App\Filament\Support\OrganizationTimezoneSelect;
 use App\Models\Organization;
@@ -83,6 +84,7 @@ class RegisterOrganization extends RegisterTenant
                     ->maxLength(1000)
                     ->rows(3),
                 OrganizationTimezoneSelect::make(),
+                OrganizationCurrencySelect::make(),
                 Hidden::make('timezone_from_browser')
                     ->dehydrated(false)
                     ->extraAttributes(['x-init' => 'setTimeout(() => $wire.prefillTimezone(Intl.DateTimeFormat().resolvedOptions().timeZone), 1000)']),

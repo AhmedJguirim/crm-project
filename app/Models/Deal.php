@@ -28,7 +28,6 @@ class Deal extends Model
         'title',
         'stage',
         'value',
-        'currency',
         'expected_close_date',
         'notes',
         'status',

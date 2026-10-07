@@ -33,7 +33,7 @@
                                     </x-filament::badge>
                                 </td>
                                 <td class="py-2 pr-4 text-right font-semibold text-gray-900 dark:text-gray-100">
-                                    {{ Number::currency((float) $invoice->amount, $invoice->currency ?: 'USD') }}
+                                    {{ Number::currency((float) $invoice->amount, $currency) }}
                                 </td>
                                 <td class="py-2 pr-4 text-gray-600 dark:text-gray-400">
                                     {{ $invoice->issued_at?->format('M j, Y') ?? '—' }}
@@ -48,7 +48,6 @@
             </div>
 
             @php
-                $currency = $invoices->first()->currency ?: 'USD';
                 $totalAmount = (float) $invoices->sum('amount');
                 $totalPaid = (float) $invoices->sum('amount_paid');
                 $balance = $totalAmount - $totalPaid;

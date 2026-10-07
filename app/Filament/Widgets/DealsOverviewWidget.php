@@ -5,6 +5,7 @@ namespace App\Filament\Widgets;
 use App\Enums\DealStage;
 use App\Filament\Resources\Deals\DealResource;
 use App\Models\Deal;
+use Filament\Facades\Filament;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\View;
@@ -75,9 +76,11 @@ class DealsOverviewWidget extends BaseWidget
 
     protected function getStats(): array
     {
+        $currency = Filament::getTenant()?->currencyCode() ?? 'USD';
+
         $openAggregate = Deal::query()
             ->open()
-            ->selectRaw('COUNT(*) as deals_count, COALESCE(SUM(value), 0) as total_value, COALESCE(COUNT(DISTINCT currency), 0) as currencies_count, COALESCE(MIN(currency), ?) as primary_currency', ['USD'])
+            ->selectRaw('COUNT(*) as deals_count, COALESCE(SUM(value), 0) as total_value')
             ->first();
 
         $wonThisMonthAggregate = Deal::query()
@@ -88,8 +91,6 @@ class DealsOverviewWidget extends BaseWidget
 
         $openDealsCount = (int) ($openAggregate?->deals_count ?? 0);
         $openPipelineValue = (float) ($openAggregate?->total_value ?? 0);
-        $openCurrency = (string) ($openAggregate?->primary_currency ?? 'USD');
-        $hasMixedCurrencies = (int) ($openAggregate?->currencies_count ?? 0) > 1;
 
         $wonDealsThisMonth = (int) ($wonThisMonthAggregate?->deals_count ?? 0);
         $wonRevenueThisMonth = (float) ($wonThisMonthAggregate?->total_value ?? 0);
@@ -100,8 +101,8 @@ class DealsOverviewWidget extends BaseWidget
                 ->color('primary')
                 ->url(DealResource::getUrl('index').'?tableFilters[status][value]=open'),
 
-            Stat::make('Pipeline Value', Number::currency($openPipelineValue, $openCurrency))
-                ->description($hasMixedCurrencies ? 'Multiple currencies in pipeline' : 'Total open pipeline value')
+            Stat::make('Pipeline Value', Number::currency($openPipelineValue, $currency))
+                ->description('Total open pipeline value')
                 ->color('primary')
                 ->url(DealResource::getUrl('index').'?tableFilters[status][value]=open'),
 
@@ -110,7 +111,7 @@ class DealsOverviewWidget extends BaseWidget
                 ->color('success')
                 ->url(DealResource::getUrl('index').'?tableFilters[status][value]=won'),
 
-            Stat::make('Revenue Won This Month', Number::currency($wonRevenueThisMonth, $openCurrency))
+            Stat::make('Revenue Won This Month', Number::currency($wonRevenueThisMonth, $currency))
                 ->description('Won deal value this month')
                 ->color('success')
                 ->url(DealResource::getUrl('index').'?tableFilters[status][value]=won'),

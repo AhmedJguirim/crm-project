@@ -35,7 +35,6 @@ class InvoiceFactory extends Factory
             'invoice_number' => sprintf('INV-%s-%03d', now()->year, fake()->unique()->numberBetween(1, 999)),
             'amount' => $amount,
             'amount_paid' => $amountPaid,
-            'currency' => fake()->randomElement(['USD', 'EUR', 'GBP', 'CAD', 'AUD']),
             'payment_terms' => $paymentTerms,
             'status' => $status,
             'issued_at' => fake()->dateTimeBetween('-45 days', 'now'),

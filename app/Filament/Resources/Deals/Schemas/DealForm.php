@@ -50,15 +50,6 @@ class DealForm
                     ->maxValue(MoneyLimit::MAX)
                     ->nullable(),
 
-                Select::make('currency')
-                    ->options([
-                        'USD' => 'USD',
-                        'EUR' => 'EUR',
-                        'GBP' => 'GBP',
-                    ])
-                    ->default('USD')
-                    ->required(),
-
                 DatePicker::make('expected_close_date')
                     ->label('Expected Close Date')
                     ->nullable(),

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages\Tenancy;
 
+use App\Filament\Support\OrganizationCurrencySelect;
 use App\Filament\Support\OrganizationNameInput;
 use App\Filament\Support\OrganizationTimezoneSelect;
 use Filament\Facades\Filament;
@@ -28,6 +29,7 @@ class EditOrganization extends EditTenantProfile
                     ->rows(3),
 
                 OrganizationTimezoneSelect::make(),
+                OrganizationCurrencySelect::make(),
 
                 FileUpload::make('logo_path')
                     ->label('Logo')

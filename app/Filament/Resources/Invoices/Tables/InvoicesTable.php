@@ -11,6 +11,7 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Facades\Filament;
 use Filament\Forms\Components\DatePicker;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -55,7 +56,7 @@ class InvoicesTable
                         : null),
 
                 TextColumn::make('amount')
-                    ->money(fn (Invoice $record): string => $record->currency)
+                    ->money(fn (): string => Filament::getTenant()?->currencyCode() ?? 'USD')
                     ->sortable(),
 
                 TextColumn::make('status')

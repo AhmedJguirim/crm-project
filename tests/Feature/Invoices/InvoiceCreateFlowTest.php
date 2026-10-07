@@ -23,7 +23,6 @@ beforeEach(function () {
         'contact_id' => $this->contact->id,
         'created_by' => $this->user->id,
         'value' => 5000.00,
-        'currency' => 'EUR',
         'stage' => DealStage::ProposalSent,
         'status' => DealStatus::Open,
     ]);
@@ -48,7 +47,6 @@ test('creating invoice always sets draft status', function () {
             'contact_id' => $this->contact->id,
             'deal_id' => $this->deal->id,
             'amount' => 5000.00,
-            'currency' => 'EUR',
             'issued_at' => today()->format('Y-m-d'),
             'due_at' => today()->addDays(30)->format('Y-m-d'),
         ])
@@ -68,7 +66,6 @@ test('creating invoice defaults to Net 30 payment terms', function () {
             'contact_id' => $this->contact->id,
             'deal_id' => $this->deal->id,
             'amount' => 5000.00,
-            'currency' => 'EUR',
             'issued_at' => today()->format('Y-m-d'),
             'due_at' => today()->addDays(30)->format('Y-m-d'),
         ])

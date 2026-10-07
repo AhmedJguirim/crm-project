@@ -27,7 +27,6 @@ class Invoice extends Model
         'invoice_number',
         'amount',
         'amount_paid',
-        'currency',
         'payment_terms',
         'status',
         'issued_at',

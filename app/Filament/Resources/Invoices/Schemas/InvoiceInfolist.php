@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Invoices\Schemas;
 
+use Filament\Facades\Filament;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -31,14 +32,12 @@ class InvoiceInfolist
                             ->placeholder('No deal linked'),
 
                         TextEntry::make('amount')
-                            ->money(fn ($record): string => $record->currency)
+                            ->money(fn (): string => Filament::getTenant()?->currencyCode() ?? 'USD')
                             ->label('Amount'),
 
                         TextEntry::make('amount_paid')
-                            ->money(fn ($record): string => $record->currency)
+                            ->money(fn (): string => Filament::getTenant()?->currencyCode() ?? 'USD')
                             ->label('Amount Paid'),
-
-                        TextEntry::make('currency'),
 
                         TextEntry::make('payment_terms')
                             ->label('Payment Terms')
@@ -49,7 +48,7 @@ class InvoiceInfolist
 
                         TextEntry::make('balance')
                             ->label('Balance Due')
-                            ->state(fn ($record): string => number_format((float) $record->amount - (float) $record->amount_paid, 2).' '.$record->currency)
+                            ->state(fn ($record): string => number_format((float) $record->amount - (float) $record->amount_paid, 2).' '.(Filament::getTenant()?->currencyCode() ?? 'USD'))
                             ->color(fn ($record): ?string => (float) $record->amount - (float) $record->amount_paid > 0 ? 'danger' : 'success'),
 
                         TextEntry::make('issued_at')
