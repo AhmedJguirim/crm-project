@@ -63,26 +63,26 @@ beforeEach(function () {
 it('has the import columns, then the active custom fields by name', function () {
     ($this->field)('text', 'Gone', 5)->delete();
 
-    expect(($this->writer)()->headers())->toBe(['name', 'email', 'phone', 'status', 'lead source', 'tags', 'company', 'company website', 'all companies', 'Plan', 'Stack', 'Since', 'Rate']);
+    expect(($this->writer)()->headers())->toBe(['id', 'name', 'email', 'phone', 'status', 'lead source', 'tags', 'company', 'company website', 'all companies', 'Plan', 'Stack', 'Since', 'Rate']);
 });
 
 it('writes the values the way a person reads them', function () {
-    expect(($this->rowOf)($this->ann))->toBe(['Ann', 'ann@x.test', '+33 1', 'Active Client', 'LinkedIn', 'Newsletter;VIP', 'Acme', 'acme.com', 'Acme; Zeta', 'Gold', 'PHP;Vue', '16-03-2026', '25.5']);
+    expect(($this->rowOf)($this->ann))->toBe([$this->ann->id, 'Ann', 'ann@x.test', '+33 1', 'Active Client', 'LinkedIn', 'Newsletter;VIP', 'Acme', 'acme.com', 'Acme; Zeta', 'Gold', 'PHP;Vue', '16-03-2026', '25.5']);
 });
 
 it('leaves blank what a contact does not have', function () {
     $bob = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Bob', 'email' => 'bob@x.test', 'phone' => null, 'status' => null, 'lead_source' => null]);
 
-    expect(($this->rowOf)($bob))->toBe(['Bob', 'bob@x.test', '', '', '', '', '', '', '', '', '', '', '']);
+    expect(($this->rowOf)($bob))->toBe([$bob->id, 'Bob', 'bob@x.test', '', '', '', '', '', '', '', '', '', '', '']);
 });
 
 it('names all the companies only when there are two or more', function () {
     $solo = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Solo', 'email' => 'solo@x.test']);
     $solo->companies()->attach(Company::factory()->create(['organization_id' => $this->org->id, 'name' => 'Only', 'website' => 'https://Only.io/about'])->id);
 
-    expect(($this->rowOf)($solo)[6])->toBe('Only')
-        ->and(($this->rowOf)($solo)[7])->toBe('https://Only.io/about')
-        ->and(($this->rowOf)($solo)[8])->toBe('');
+    expect(($this->rowOf)($solo)[7])->toBe('Only')
+        ->and(($this->rowOf)($solo)[8])->toBe('https://Only.io/about')
+        ->and(($this->rowOf)($solo)[9])->toBe('');
 });
 
 it('leaves out the trashed companies and tags', function () {
@@ -91,8 +91,8 @@ it('leaves out the trashed companies and tags', function () {
 
     $row = ($this->rowOf)($this->ann);
 
-    expect($row[5])->not->toContain(';')
-        ->and($row[8])->toBe('');
+    expect($row[6])->not->toContain(';')
+        ->and($row[9])->toBe('');
 });
 
 it('writes a value that is no longer an option as stored', function () {
@@ -103,14 +103,14 @@ it('writes a value that is no longer an option as stored', function () {
 
     $row = ($this->rowOf)($this->ann);
 
-    expect($row[9])->toBe('platinum')
-        ->and($row[10])->toBe('PHP;cobol');
+    expect($row[10])->toBe('platinum')
+        ->and($row[11])->toBe('PHP;cobol');
 });
 
 it('writes numbers with a decimal point, no thousands separator and no trailing zero', function (mixed $stored, string $expected) {
     $this->ann->update(['custom_field_values' => [$this->rate->key => $stored]]);
 
-    expect(($this->rowOf)($this->ann)[12])->toBe($expected);
+    expect(($this->rowOf)($this->ann)[13])->toBe($expected);
 })->with([
     'integer' => [42, '42'],
     'whole float' => [42.0, '42'],
@@ -123,9 +123,10 @@ it('writes numbers with a decimal point, no thousands separator and no trailing 
 it('writes number fields as numeric cells in an xlsx, and everything else as text', function () {
     $row = ($this->rowOf)($this->ann, ExportFormat::Xlsx);
 
-    expect($row[12])->toBe(25.5)
-        ->and($row[2])->toBe('+33 1')
-        ->and($row[11])->toBe('16-03-2026');
+    expect($row[0])->toBe($this->ann->id)
+        ->and($row[13])->toBe(25.5)
+        ->and($row[3])->toBe('+33 1')
+        ->and($row[12])->toBe('16-03-2026');
 });
 
 it('writes a csv with a BOM, UTF-8 text and the header row', function () {
@@ -139,7 +140,7 @@ it('writes a csv with a BOM, UTF-8 text and the header row', function () {
     unlink($path);
 
     expect($count)->toBe(1)
-        ->and($contents)->toStartWith("\xEF\xBB\xBFname,email,phone,status,\"lead source\",tags,company,\"company website\",\"all companies\",Plan,Stack,Since,Rate,Budget\n")
+        ->and($contents)->toStartWith("\xEF\xBB\xBFid,name,email,phone,status,\"lead source\",tags,company,\"company website\",\"all companies\",Plan,Stack,Since,Rate,Budget\n")
         ->and($contents)->toContain('Hélène')
         ->and($contents)->toContain('50 €');
 });
@@ -157,9 +158,10 @@ it('writes an xlsx whose number cells are numeric and whose header is bold', fun
     unlink($path);
 
     expect($rows)->toHaveCount(2)
-        ->and($rows[0][0])->toBe('name')
-        ->and($rows[1][12])->toBe(25.5)
-        ->and($rows[1][2])->toBe('+33 1')
+        ->and($rows[0][0])->toBe('id')
+        ->and($rows[1][0])->toBe($this->ann->id)
+        ->and($rows[1][13])->toBe(25.5)
+        ->and($rows[1][3])->toBe('+33 1')
         ->and($styles)->toContain('<b/>');
 });
 
@@ -185,10 +187,10 @@ it('writes text that starts with an equals sign as a text cell in an xlsx, never
     unlink($path);
 
     expect($sheet)->not->toContain('<f>')
-        ->and($rows[1][0])->toBe('=HYPERLINK("http://evil.test","x")')
-        ->and($rows[1][6])->toBe('=cmd')
-        ->and($rows[1][13])->toBe('=1+1')
-        ->and($rows[0][13])->toBe('=SUM(1,1)');
+        ->and($rows[1][1])->toBe('=HYPERLINK("http://evil.test","x")')
+        ->and($rows[1][7])->toBe('=cmd')
+        ->and($rows[1][14])->toBe('=1+1')
+        ->and($rows[0][14])->toBe('=SUM(1,1)');
 });
 
 it('prefixes the csv cells a spreadsheet app would evaluate, and leaves the others as stored', function (string $value, string $expected) {
@@ -228,10 +230,10 @@ it('prefixes every kind of csv cell: contact, company, custom field value and he
     $rows = SimpleExcelReader::create($path, 'csv')->noHeaderRow()->getRows()->values()->all();
     unlink($path);
 
-    expect($rows[0][13])->toBe("'=x")
-        ->and($rows[1][0])->toBe("'=1+1")
-        ->and($rows[1][2])->toBe('+33 1')
-        ->and($rows[1][6])->toBe("'-cmd")
-        ->and($rows[1][8])->toBe("'-cmd; =Acme")
-        ->and($rows[1][13])->toBe("'@y");
+    expect($rows[0][14])->toBe("'=x")
+        ->and($rows[1][1])->toBe("'=1+1")
+        ->and($rows[1][3])->toBe('+33 1')
+        ->and($rows[1][7])->toBe("'-cmd")
+        ->and($rows[1][9])->toBe("'-cmd; =Acme")
+        ->and($rows[1][14])->toBe("'@y");
 });

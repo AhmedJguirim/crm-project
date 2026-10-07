@@ -26,6 +26,9 @@ class CompanyImportService
      */
     public const COLUMNS = ['name', 'website', 'type', 'phone', 'industry', 'employees', 'annual revenue', 'street', 'city', 'zip', 'country', 'notes'];
 
+    /** The record id column of an exported file; read by the update modes of the import. */
+    public const ID_COLUMN = ContactImportService::ID_COLUMN;
+
     /** The columns the failed rows file adds in front of the original ones, so a corrected file can be imported again. */
     public const FAILED_ROWS_META_COLUMNS = ContactImportService::FAILED_ROWS_META_COLUMNS;
 
@@ -335,7 +338,7 @@ class CompanyImportService
             $columns[$this->headerKey($name)] ??= $name;
         }
 
-        foreach ([...self::COLUMNS, ...self::FAILED_ROWS_META_COLUMNS] as $column) {
+        foreach ([...self::COLUMNS, ...self::FAILED_ROWS_META_COLUMNS, self::ID_COLUMN] as $column) {
             $columns[$column] = $column;
         }
 

@@ -178,6 +178,11 @@ describe('headers', function () {
             ->toBe(['name', 'website', 'annual revenue', 'VAT Number', 'Shoe size', '_row_number']);
     });
 
+    it('matches the id column ignoring case and spaces, and does not list it as ignored', function () {
+        expect($this->service->canonicalHeaders(['ID ', 'Name']))->toBe(['id', 'name'])
+            ->and($this->service->ignoredColumns(['ID ', 'name']))->toBe([]);
+    });
+
     it('lists the headers no column uses, naming the ones of a deleted field', function () {
         CompanyCustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'Old', 'type' => 'text', 'order' => 2])->delete();
         $service = new CompanyImportService($this->org->id);

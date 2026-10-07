@@ -194,6 +194,8 @@ it('delivers the contact export file of the members', function () {
 
     expect($notification->data['title'])->toBe('Export ready')
         ->and($notification->data['body'])->toBe('2 contacts')
+        ->and(array_slice(array_keys($rows[0]), 0, 2))->toBe(['id', 'name'])
+        ->and(array_map('intval', array_column($rows, 'id')))->toBe([$this->ann->id, $this->cid->id])
         ->and(array_keys($rows[0]))->toContain('name', 'email', 'all companies')
         ->and(array_column($rows, 'name'))->toBe(['Ann', 'Cid']);
 });

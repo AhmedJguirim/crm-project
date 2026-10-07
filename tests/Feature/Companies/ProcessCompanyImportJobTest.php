@@ -72,6 +72,22 @@ it('matches loose headers and lists the ignored columns', function () {
         ->and(($this->companyNamed)('Nova')->domain)->toBe('nova.io');
 });
 
+it('knows the id column of an exported file', function () {
+    $notification = ($this->importCompanies)("id,name\n7,Nova\n");
+
+    expect(($this->companyNamed)('Nova'))->not->toBeNull()
+        ->and($notification->data['title'])->toBe('Import complete')
+        ->and($notification->data['body'])->not->toContain('Ignored columns');
+});
+
+it('fails the file when the id column is named twice', function () {
+    $notification = ($this->importCompanies)("id,ID ,name\n7,7,Nova\n");
+
+    expect($notification->data['title'])->toBe('Import failed')
+        ->and($notification->data['body'])->toBe('Two columns are named "id". Keep only one and import the file again.')
+        ->and(($this->companyNamed)('Nova'))->toBeNull();
+});
+
 it('fails the file when two headers name one column', function () {
     $notification = ($this->importCompanies)("name,Name,website\nNova,Nova,nova.io\n");
 

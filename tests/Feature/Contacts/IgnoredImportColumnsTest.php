@@ -58,6 +58,26 @@ it('does not warn about the columns of the failed rows file', function () {
     expect($notification->data['body'])->not->toContain('Ignored columns');
 });
 
+it('knows the id column of an exported file', function () {
+    $notification = ($this->importCsv)("id,name,email\n7,Ann,ann@example.test\n");
+
+    expect(Contact::forOrganization($this->org->id)->where('name', 'Ann')->exists())->toBeTrue()
+        ->and($notification->data['title'])->toBe('Import complete')
+        ->and($notification->data['body'])->not->toContain('Ignored columns');
+});
+
+it('matches the id header ignoring case and spaces', function () {
+    expect((new ContactImportService($this->org->id))->canonicalHeaders(['ID ', 'Name']))->toBe(['id', 'name']);
+});
+
+it('fails the file when the id column is named twice', function () {
+    $notification = ($this->importCsv)("id,ID,name,email\n7,7,Ann,ann@example.test\n");
+
+    expect($notification->data['title'])->toBe('Import failed')
+        ->and($notification->data['body'])->toBe('Two columns are named "id". Keep only one and import the file again.')
+        ->and(Contact::forOrganization($this->org->id)->count())->toBe(0);
+});
+
 it('does not report blank headers', function () {
     $path = makeXlsx([['name', '', 'email'], ['Ann', '', 'ann@example.com']]);
     ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);

@@ -24,8 +24,8 @@ use Illuminate\Support\Collection;
  */
 class ContactExportWriter
 {
-    /** The columns that are not custom fields. `all companies` is for people; the import ignores it. */
-    public const COLUMNS = ['name', 'email', 'phone', 'status', 'lead source', 'tags', 'company', 'company website', 'all companies'];
+    /** The columns that are not custom fields. `id` is the record id; `all companies` is for people and the import ignores it. */
+    public const COLUMNS = ['id', 'name', 'email', 'phone', 'status', 'lead source', 'tags', 'company', 'company website', 'all companies'];
 
     /**
      * @param  Collection<int, CustomField>  $customFields  The active custom fields, in column order.
@@ -61,6 +61,7 @@ class ContactExportWriter
             ->values();
 
         return ExportCells::row([
+            (int) $contact->id,
             (string) $contact->name,
             (string) $contact->email,
             (string) $contact->phone,

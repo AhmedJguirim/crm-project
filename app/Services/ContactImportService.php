@@ -58,6 +58,9 @@ class ContactImportService
     /** The length of the `companies.name` and `companies.website` columns. */
     private const COMPANY_TEXT_MAX_LENGTH = 255;
 
+    /** The record id column of an exported file; read by the update modes of the import. */
+    public const ID_COLUMN = 'id';
+
     /** The columns the failed rows file adds in front of the original ones, so a corrected file can be imported again. */
     public const FAILED_ROWS_META_COLUMNS = ['_row_number', '_error'];
 
@@ -235,7 +238,7 @@ class ContactImportService
             $columns[$this->headerKey($column)] ??= $column;
         }
 
-        foreach ([...self::BASE_COLUMNS, ...self::FAILED_ROWS_META_COLUMNS] as $column) {
+        foreach ([...self::BASE_COLUMNS, ...self::FAILED_ROWS_META_COLUMNS, self::ID_COLUMN] as $column) {
             $columns[$column] = $column;
         }
 

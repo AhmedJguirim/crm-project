@@ -46,6 +46,20 @@ it('writes the contacts in the order of the given ids, including trashed ones', 
     expect(($this->exportNames)([$dan->id, $ann->id, $bob->id]))->toBe(['Dan', 'Ann', 'Bob']);
 });
 
+it('starts every row with the id of the contact', function (string $format) {
+    $ann = ($this->contact)('Ann');
+    $bob = ($this->contact)('Bob');
+
+    ExportContactsJob::dispatchSync([$bob->id, $ann->id], $this->org->id, $this->user->id, $format, "contacts-2026-10-06.{$format}");
+
+    $file = Storage::disk('local')->files('exports')[0];
+    $rows = SimpleExcelReader::create(Storage::disk('local')->path($file), $format)->getRows()->all();
+
+    expect(array_keys($rows[0])[0])->toBe('id')
+        ->and(array_keys($rows[0])[1])->toBe('name')
+        ->and(array_map('intval', array_column($rows, 'id')))->toBe([$bob->id, $ann->id]);
+})->with(['xlsx', 'csv']);
+
 it('reads the contacts in chunks of 500 and keeps the order across chunks', function () {
     $ids = [];
 

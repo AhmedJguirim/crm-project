@@ -72,7 +72,9 @@ it('writes the companies in the order of the given ids, including trashed ones, 
 
     $rows = ($this->exportRows)([$cid->id, 999999, $bob->id, $ann->id]);
 
-    expect(array_column($rows, 'name'))->toBe(['Cid', 'Bob', 'Ann']);
+    expect(array_column($rows, 'name'))->toBe(['Cid', 'Bob', 'Ann'])
+        ->and(array_slice(array_keys($rows[0]), 0, 2))->toBe(['id', 'name'])
+        ->and(array_map('intval', array_column($rows, 'id')))->toBe([$cid->id, $bob->id, $ann->id]);
 });
 
 it('reads the companies in chunks of 500 and keeps the order across chunks', function () {

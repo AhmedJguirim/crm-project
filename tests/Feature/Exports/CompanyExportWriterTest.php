@@ -66,12 +66,12 @@ beforeEach(function () {
 });
 
 it('names the columns like the import, then contacts, then the custom fields', function () {
-    expect(($this->writer)()->headers())->toBe(['name', 'website', 'type', 'phone', 'industry', 'employees', 'annual revenue', 'street', 'city', 'zip', 'country', 'notes', 'contacts', 'Funding', 'Specialties', 'Founded', 'Headcount band']);
+    expect(($this->writer)()->headers())->toBe(['id', 'name', 'website', 'type', 'phone', 'industry', 'employees', 'annual revenue', 'street', 'city', 'zip', 'country', 'notes', 'contacts', 'Funding', 'Specialties', 'Founded', 'Headcount band']);
 });
 
 it('writes the cells of a company as numbers in an xlsx', function () {
     expect(($this->writer)()->row(($this->load)($this->acme), ExportFormat::Xlsx))->toBe([
-        'Acme Corp', 'https://www.acme.com', 'Client', '+33 1 23 45 67 89', 'Software', 120, 1500000.5,
+        $this->acme->id, 'Acme Corp', 'https://www.acme.com', 'Client', '+33 1 23 45 67 89', 'Software', 120, 1500000.5,
         '1 Main St', 'Lyon', '69001', 'France', "Line 1\nLine 2", 2, 'Series A', 'PHP;Vue', '04-05-2019', 2.5,
     ]);
 });
@@ -79,17 +79,18 @@ it('writes the cells of a company as numbers in an xlsx', function () {
 it('writes the numbers as text in a csv', function () {
     $row = ($this->writer)()->row(($this->load)($this->acme), ExportFormat::Csv);
 
-    expect($row[5])->toBe('120')
-        ->and($row[6])->toBe('1500000.5')
-        ->and($row[12])->toBe(2)
-        ->and($row[16])->toBe('2.5')
-        ->and($row[0])->toBe('Acme Corp');
+    expect($row[0])->toBe($this->acme->id)
+        ->and($row[1])->toBe('Acme Corp')
+        ->and($row[6])->toBe('120')
+        ->and($row[7])->toBe('1500000.5')
+        ->and($row[13])->toBe(2)
+        ->and($row[17])->toBe('2.5');
 });
 
 it('writes a whole annual revenue without decimals in a csv', function () {
     $this->acme->update(['annual_revenue' => '1500000.00']);
 
-    expect(($this->writer)()->row(($this->load)($this->acme), ExportFormat::Csv)[6])->toBe('1500000');
+    expect(($this->writer)()->row(($this->load)($this->acme), ExportFormat::Csv)[7])->toBe('1500000');
 });
 
 it('writes empty cells for a company with little data', function () {
@@ -97,19 +98,19 @@ it('writes empty cells for a company with little data', function () {
 
     $row = ($this->writer)()->row(($this->load)($bare), ExportFormat::Xlsx);
 
-    expect($row)->toBe(['Bare', '', '', '', '', '', '', '', '', '', '', '', 0, '', '', '', '']);
+    expect($row)->toBe([$bare->id, 'Bare', '', '', '', '', '', '', '', '', '', '', '', 0, '', '', '', '']);
 });
 
 it('keeps the plain name of a deleted type', function () {
     $this->type->delete();
 
-    expect(($this->writer)()->row(($this->load)($this->acme), ExportFormat::Xlsx)[2])->toBe('Client');
+    expect(($this->writer)()->row(($this->load)($this->acme), ExportFormat::Xlsx)[3])->toBe('Client');
 });
 
 it('reads a deleted address as none', function () {
     $this->acme->address->delete();
 
-    expect(array_slice(($this->writer)()->row(($this->load)($this->acme), ExportFormat::Xlsx), 7, 4))->toBe(['', '', '', '']);
+    expect(array_slice(($this->writer)()->row(($this->load)($this->acme), ExportFormat::Xlsx), 8, 4))->toBe(['', '', '', '']);
 });
 
 it('keeps a text that starts like a formula safe', function () {
@@ -118,10 +119,10 @@ it('keeps a text that starts like a formula safe', function () {
     $csv = ($this->writer)()->row(($this->load)($tricky), ExportFormat::Csv);
     $xlsx = ($this->writer)()->row(($this->load)($tricky), ExportFormat::Xlsx);
 
-    expect($csv[0])->toBe("'=1+1")
-        ->and($csv[11])->toBe("'@home")
-        ->and($xlsx[0])->toBe('=1+1')
-        ->and(($this->writer)()->headers(ExportFormat::Csv)[0])->toBe('name');
+    expect($csv[1])->toBe("'=1+1")
+        ->and($csv[12])->toBe("'@home")
+        ->and($xlsx[1])->toBe('=1+1')
+        ->and(($this->writer)()->headers(ExportFormat::Csv)[1])->toBe('name');
 });
 
 it('writes the header and the companies of every chunk to an xlsx and a csv', function (ExportFormat $format) {
@@ -136,9 +137,10 @@ it('writes the header and the companies of every chunk to an xlsx and a csv', fu
     expect($count)->toBe(2)
         ->and($rows)->toHaveCount(3)
         ->and($rows[0])->toBe(($this->writer)()->headers($format))
-        ->and(array_column($rows, 0))->toBe(['name', 'Acme Corp', 'Other']);
+        ->and(array_column($rows, 1))->toBe(['name', 'Acme Corp', 'Other'])
+        ->and(array_map('strval', array_column($rows, 0)))->toBe(['id', (string) $this->acme->id, (string) $other->id]);
 
     if ($format === ExportFormat::Csv) {
-        expect($contents)->toStartWith("\xEF\xBB\xBFname,website,type,phone,industry,employees,");
+        expect($contents)->toStartWith("\xEF\xBB\xBFid,name,website,type,phone,industry,employees,");
     }
 })->with([ExportFormat::Xlsx, ExportFormat::Csv]);
