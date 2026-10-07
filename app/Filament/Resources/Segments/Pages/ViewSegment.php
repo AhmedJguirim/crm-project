@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Segments\Pages;
 
+use App\Filament\Resources\Segments\Actions\ExportSegmentMembersAction;
 use App\Filament\Resources\Segments\Actions\PublishSegmentAction;
 use App\Filament\Resources\Segments\Actions\SegmentDeletionActions;
 use App\Filament\Resources\Segments\SegmentResource;
@@ -42,6 +43,8 @@ class ViewSegment extends ViewRecord
     {
         return [
             PublishSegmentAction::make(),
+
+            ExportSegmentMembersAction::make(),
 
             Action::make('editRules')
                 ->authorize('update')
