@@ -17,6 +17,7 @@ use App\Filament\Support\AbilityCheck;
 use App\Models\Activity;
 use App\Models\Deal;
 use App\Models\Invoice;
+use App\Services\Deals\DealStageMover;
 use App\Support\MoneyLimit;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
@@ -186,10 +187,9 @@ class ViewDeal extends Page
                                 'organization_id' => $this->getRecord()->organization_id,
                                 'contact_id' => $this->getRecord()->contact_id,
                                 'title' => $data['title'],
-                                'stage' => $data['stage'],
+                                ...DealStageMover::attributesFor($data['stage']),
                                 'value' => $data['value'] ?? null,
                                 'notes' => $data['deal_notes'] ?? null,
-                                'status' => DealStatus::Open,
                                 'created_by' => auth()->id(),
                             ])->getKey();
                         }),
@@ -236,12 +236,7 @@ class ViewDeal extends Page
                 ->modalDescription('This will close the deal as Won and set the won date to now.')
                 ->modalSubmitActionLabel('Yes, mark as won')
                 ->action(function (): void {
-                    $this->getRecord()->update([
-                        'status' => DealStatus::Won,
-                        'stage' => DealStage::Won,
-                        'won_at' => now(),
-                        'lost_at' => null,
-                    ]);
+                    DealStageMover::move($this->getRecord(), DealStage::Won);
 
                     Notification::make()
                         ->title('Deal moved to Won')
@@ -262,12 +257,7 @@ class ViewDeal extends Page
                 ->modalDescription('This will close the deal as Lost and set the lost date to now.')
                 ->modalSubmitActionLabel('Yes, mark as lost')
                 ->action(function (): void {
-                    $this->getRecord()->update([
-                        'status' => DealStatus::Lost,
-                        'stage' => DealStage::Lost,
-                        'lost_at' => now(),
-                        'won_at' => null,
-                    ]);
+                    DealStageMover::move($this->getRecord(), DealStage::Lost);
 
                     Notification::make()
                         ->title('Deal moved to Lost')

@@ -3,7 +3,6 @@
 namespace App\Filament\Actions;
 
 use App\Enums\DealStage;
-use App\Enums\DealStatus;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
@@ -11,6 +10,7 @@ use App\Filament\Support\AbilityCheck;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Task;
+use App\Services\Deals\DealStageMover;
 use App\Support\MoneyLimit;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
@@ -226,10 +226,9 @@ class QuickTaskAction
                     'organization_id' => Filament::getTenant()?->id,
                     'contact_id' => $get('contact_id') ?: null,
                     'title' => $data['title'],
-                    'stage' => $data['stage'],
+                    ...DealStageMover::attributesFor($data['stage']),
                     'value' => $data['value'] ?? null,
                     'notes' => $data['notes'] ?? null,
-                    'status' => DealStatus::Open,
                     'created_by' => Auth::id(),
                 ])->getKey();
             })

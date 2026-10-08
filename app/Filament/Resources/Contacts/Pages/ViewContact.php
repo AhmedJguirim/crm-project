@@ -5,7 +5,6 @@ namespace App\Filament\Resources\Contacts\Pages;
 use App\Enums\ActivityOutcome;
 use App\Enums\ActivityType;
 use App\Enums\DealStage;
-use App\Enums\DealStatus;
 use App\Filament\Actions\QuickTaskAction;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Contacts\Widgets\ContactActivityFeed;
@@ -14,6 +13,7 @@ use App\Filament\Support\AbilityCheck;
 use App\Models\Activity;
 use App\Models\CustomField;
 use App\Models\Deal;
+use App\Services\Deals\DealStageMover;
 use App\Support\MoneyLimit;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
@@ -139,10 +139,9 @@ class ViewContact extends Page
                                 'organization_id' => Filament::getTenant()?->id,
                                 'contact_id' => $this->getRecord()->getKey(),
                                 'title' => $data['title'],
-                                'stage' => $data['stage'],
+                                ...DealStageMover::attributesFor($data['stage']),
                                 'value' => $data['value'] ?? null,
                                 'notes' => $data['deal_notes'] ?? null,
-                                'status' => DealStatus::Open,
                                 'created_by' => auth()->id(),
                             ])->getKey();
                         }),

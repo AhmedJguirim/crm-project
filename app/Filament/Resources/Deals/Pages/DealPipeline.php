@@ -7,6 +7,7 @@ use App\Enums\DealStatus;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Deals\DealResource;
 use App\Models\Deal;
+use App\Services\Deals\DealStageMover;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Facades\Filament;
@@ -15,6 +16,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Relaticle\Flowforge\Board;
 use Relaticle\Flowforge\BoardResourcePage;
@@ -88,7 +90,7 @@ class DealPipeline extends BoardResourcePage
     }
 
     /**
-     * Override moveCard to sync status/won_at/lost_at when stage changes.
+     * Moves the card and lets DealStageMover set the status and the won / lost dates, in one transaction.
      */
     public function moveCard(
         string $cardId,
@@ -105,29 +107,13 @@ class DealPipeline extends BoardResourcePage
 
         Gate::authorize('update', $deal);
 
-        parent::moveCard($cardId, $targetColumnId, $afterCardId, $beforeCardId);
-
         $stage = DealStage::from($targetColumnId);
 
-        $updates = match ($stage) {
-            DealStage::Won => [
-                'status' => DealStatus::Won,
-                'won_at' => $deal->won_at ?? now(),
-                'lost_at' => null,
-            ],
-            DealStage::Lost => [
-                'status' => DealStatus::Lost,
-                'lost_at' => $deal->lost_at ?? now(),
-                'won_at' => null,
-            ],
-            default => [
-                'status' => DealStatus::Open,
-                'won_at' => null,
-                'lost_at' => null,
-            ],
-        };
+        DB::transaction(function () use ($deal, $stage, $cardId, $targetColumnId, $afterCardId, $beforeCardId): void {
+            parent::moveCard($cardId, $targetColumnId, $afterCardId, $beforeCardId);
 
-        $deal->update($updates);
+            DealStageMover::move($deal->refresh(), $stage);
+        });
     }
 
     /** @return array<int, Column> */

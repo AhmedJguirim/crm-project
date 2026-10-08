@@ -5,7 +5,6 @@ namespace App\Filament\Resources\Contacts\Tables;
 use App\Enums\ActivityType;
 use App\Enums\ContactStatus;
 use App\Enums\DealStage;
-use App\Enums\DealStatus;
 use App\Enums\LeadSource;
 use App\Filament\Actions\ExportContactsAction;
 use App\Filament\Actions\QuickTaskAction;
@@ -15,6 +14,7 @@ use App\Models\Activity;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Tag;
+use App\Services\Deals\DealStageMover;
 use App\Support\MoneyLimit;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
@@ -163,10 +163,9 @@ class ContactsTable
                                     'organization_id' => Filament::getTenant()?->id,
                                     'contact_id' => $record->getKey(),
                                     'title' => $data['title'],
-                                    'stage' => $data['stage'],
+                                    ...DealStageMover::attributesFor($data['stage']),
                                     'value' => $data['value'] ?? null,
                                     'notes' => $data['notes'] ?? null,
-                                    'status' => DealStatus::Open,
                                     'created_by' => auth()->id(),
                                 ])->getKey();
                             }),
