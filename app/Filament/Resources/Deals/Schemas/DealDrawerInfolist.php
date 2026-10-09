@@ -41,6 +41,11 @@ class DealDrawerInfolist
                             ->placeholder('—')
                             ->color(fn (?Deal $record): string => $record?->isOverdue() ? 'danger' : 'gray'),
 
+                        TextEntry::make('owner')
+                            ->label('Deal owner')
+                            ->state(fn (?Deal $record): ?string => $record?->ownerLabel())
+                            ->placeholder('No owner'),
+
                         TextEntry::make('next_tasks')
                             ->label('Next tasks')
                             ->state(fn (?Deal $record): array => $record === null ? [] : self::nextTaskLines($record))

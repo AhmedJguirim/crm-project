@@ -155,6 +155,7 @@ final class LogDealActivityAction
                         'value' => $data['value'] ?? null,
                         'notes' => $data['deal_notes'] ?? null,
                         'created_by' => auth()->id(),
+                        'owner_id' => auth()->id(),
                     ])->getKey();
                 }),
         ];

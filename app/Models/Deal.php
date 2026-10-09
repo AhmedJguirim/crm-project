@@ -34,6 +34,7 @@ class Deal extends Model
         'won_at',
         'lost_at',
         'created_by',
+        'owner_id',
         'position',
     ];
 
@@ -57,6 +58,25 @@ class Deal extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'owner_id');
+    }
+
+    /**
+     * The owner's name, marked when they are no longer a member of the deal's organization; null when the deal has no owner.
+     */
+    public function ownerLabel(): ?string
+    {
+        if ($this->owner === null) {
+            return null;
+        }
+
+        return $this->owner->roleIn($this->organization_id) !== null
+            ? $this->owner->name
+            : "{$this->owner->name} (no longer a member)";
     }
 
     public function invoices(): HasMany

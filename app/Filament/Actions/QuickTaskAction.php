@@ -269,6 +269,7 @@ class QuickTaskAction
                     'value' => $data['value'] ?? null,
                     'notes' => $data['notes'] ?? null,
                     'created_by' => Auth::id(),
+                    'owner_id' => Auth::id(),
                 ])->getKey();
             })
             ->rules([

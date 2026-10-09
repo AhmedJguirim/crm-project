@@ -6,6 +6,7 @@ use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Models\Deal;
+use App\Services\Deals\DealOwnerOptions;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -22,6 +23,7 @@ class DealsTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('owner'))
             ->columns([
                 TextColumn::make('title')
                     ->searchable()
@@ -33,6 +35,11 @@ class DealsTable
                     ->url(fn (Deal $record): ?string => $record->contact
                         ? ContactResource::getUrl('view', ['record' => $record->contact])
                         : null),
+
+                TextColumn::make('owner_id')
+                    ->label('Deal owner')
+                    ->state(fn (Deal $record): ?string => $record->ownerLabel())
+                    ->placeholder('No owner'),
 
                 TextColumn::make('value')
                     ->money(fn (): string => Filament::getTenant()?->currencyCode() ?? 'USD')
@@ -71,6 +78,11 @@ class DealsTable
                     ->relationship('contact', 'name')
                     ->searchable()
                     ->preload(),
+
+                SelectFilter::make('owner_id')
+                    ->label('Deal owner')
+                    ->options(fn (): array => DealOwnerOptions::forFilter())
+                    ->searchable(),
 
                 Filter::make('closing_this_week')
                     ->label('Closing This Week')

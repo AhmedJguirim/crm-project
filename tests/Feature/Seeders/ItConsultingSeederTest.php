@@ -369,3 +369,16 @@ test('it consulting seeder seeds one currency and the dashboard adds the amounts
     Livewire::test(RevenueOverviewWidget::class)
         ->assertSeeInOrder(['Outstanding', '$22,600.00']);
 });
+
+test('it consulting seeder gives the demo deals to test@example.com except one', function () {
+    $this->seed(ItConsultingSeeder::class);
+
+    $user = User::query()->where('email', 'test@example.com')->firstOrFail();
+    $this->actingAs($user);
+    Filament::setTenant($user->personalOrganization());
+
+    $owners = Deal::query()->pluck('owner_id', 'title');
+
+    expect($owners['InnoTech Transformation Advisory'])->toBeNull()
+        ->and($owners->except('InnoTech Transformation Advisory')->unique()->values()->all())->toBe([$user->id]);
+});

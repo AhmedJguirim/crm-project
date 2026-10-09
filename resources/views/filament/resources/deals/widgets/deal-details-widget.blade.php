@@ -42,6 +42,17 @@
             </div>
 
             <div>
+                <dt class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Deal owner</dt>
+                <dd class="mt-1 text-sm text-gray-700 dark:text-gray-300">
+                    @if (filled($record->ownerLabel()))
+                        {{ $record->ownerLabel() }}
+                    @else
+                        <span class="text-gray-400 dark:text-gray-600">No owner</span>
+                    @endif
+                </dd>
+            </div>
+
+            <div>
                 <dt class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Expected Close</dt>
                 <dd class="mt-1 text-sm {{ $isOverdue ? 'font-semibold text-danger-600 dark:text-danger-400' : 'text-gray-700 dark:text-gray-300' }}">
                     @if ($record->expected_close_date)

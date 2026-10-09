@@ -227,6 +227,22 @@ dataset('inline deal create forms', [
     ],
 ]);
 
+test('every inline create deal form sets the creator as the deal owner', function (Closure $page, Closure $actions) {
+    $this->contact = Contact::factory()->create(['organization_id' => $this->org->id]);
+
+    $page()
+        ->callAction($actions(), data: [
+            'title' => 'Inline deal',
+            'stage' => DealStage::Lead,
+        ])
+        ->assertHasNoActionErrors();
+
+    $deal = Deal::query()->where('title', 'Inline deal')->firstOrFail();
+
+    expect($deal->owner_id)->toBe($this->user->id)
+        ->and($deal->created_by)->toBe($this->user->id);
+})->with('inline deal create forms');
+
 test('every inline create deal form sets the status and the dates from the stage', function (Closure $page, Closure $actions, DealStage $stage, DealStatus $status, ?string $wonAt, ?string $lostAt) {
     $this->contact = Contact::factory()->create(['organization_id' => $this->org->id]);
 

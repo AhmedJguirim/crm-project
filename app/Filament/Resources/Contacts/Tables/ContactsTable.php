@@ -167,6 +167,7 @@ class ContactsTable
                                     'value' => $data['value'] ?? null,
                                     'notes' => $data['notes'] ?? null,
                                     'created_by' => auth()->id(),
+                                    'owner_id' => auth()->id(),
                                 ])->getKey();
                             }),
 
