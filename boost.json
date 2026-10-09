@@ -2,23 +2,29 @@
     "agents": [
         "claude_code"
     ],
+    "cloud": true,
     "guidelines": true,
-    "herd_mcp": false,
     "mcp": true,
+    "nightwatch": false,
     "packages": [
         "filament/filament",
         "spatie/boost-spatie-guidelines",
-        "laravel/fortify",
         "relaticle/flowforge"
     ],
     "sail": false,
     "skills": [
+        "infer-conventions",
+        "deploying-to-cloud",
+        "fortify-development",
+        "laravel-best-practices",
+        "testing-best-practices",
+        "configuring-horizon",
         "fluxui-development",
         "livewire-development",
-        "pest-testing",
         "inertia-react-development",
         "tailwindcss-development",
-        "developing-with-fortify",
-        "flowforge-development"
+        "filament-development",
+        "flowforge-development",
+        "spatie-laravel-php-standards"
     ]
 }

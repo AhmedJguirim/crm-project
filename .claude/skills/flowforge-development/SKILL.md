@@ -345,7 +345,6 @@ public function moveCard(
 ```bash
 php artisan flowforge:make-board TaskBoard
 php artisan flowforge:make-board TaskBoard --resource  # For resource page
-
 ```
 
 ### Diagnose Position Issues
