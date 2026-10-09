@@ -14,6 +14,7 @@ use Filament\Facades\Filament;
 use Filament\Infolists\Components\TextEntry;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Js;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -204,4 +205,56 @@ test('more cards do not add company queries', function () {
     }
 
     expect($countCompanyQueries())->toBe($one)->toBeGreaterThan(0);
+});
+
+$pipelineCardElements = function (string $html): array {
+    $dom = new DOMDocument;
+    @$dom->loadHTML($html, LIBXML_NOERROR);
+
+    return iterator_to_array($dom->getElementsByTagName('*'));
+};
+
+test('the outer card carries the click, the keys and the drag attributes', function () use ($pipelineCardElements) {
+    $html = Livewire::test(DealPipeline::class)->html();
+    $id = (string) $this->deal->id;
+    $expression = "mountAction('openDeal', [], ".Js::from(['recordKey' => $id]).')';
+
+    $card = collect($pipelineCardElements($html))
+        ->first(fn (DOMElement $element): bool => $element->getAttribute('data-card-id') === $id);
+
+    expect($card)->not->toBeNull()
+        ->and($card->getAttribute('wire:click'))->toBe($expression)
+        ->and($card->getAttribute('wire:keydown.enter'))->toBe($expression)
+        ->and($card->getAttribute('wire:keydown.space.prevent'))->toBe($expression)
+        ->and($card->getAttribute('tabindex'))->toBe('0')
+        ->and($card->getAttribute('role'))->toBe('button')
+        ->and($card->getAttribute('x-sortable-item'))->toBe($id)
+        ->and($card->hasAttribute('x-sortable-handle'))->toBeTrue()
+        ->and($card->getAttribute('class'))->toContain('cursor-pointer', 'focus-visible:ring-2')
+        ->not->toContain('cursor-grab ');
+});
+
+test('one click mounts the action exactly once, on the card itself', function () use ($pipelineCardElements) {
+    $second = Deal::factory()->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $this->contact->id,
+        'created_by' => $this->user->id,
+        'title' => 'Second Deal',
+        'stage' => DealStage::Discovery,
+        'status' => DealStatus::Open,
+        'position' => '1000.0000000000',
+    ]);
+
+    $elements = collect($pipelineCardElements(Livewire::test(DealPipeline::class)->html()));
+
+    $clickable = $elements->filter(fn (DOMElement $element): bool => str_contains($element->getAttribute('wire:click'), "mountAction('openDeal'"));
+
+    expect($clickable)->toHaveCount(2)
+        ->and($clickable->map(fn (DOMElement $element): string => $element->getAttribute('data-card-id'))->sort()->values()->all())
+        ->toBe(collect([(string) $this->deal->id, (string) $second->id])->sort()->values()->all());
+
+    $inner = $elements->filter(fn (DOMElement $element): bool => $element->hasAttribute('wire:click')
+        && ($element->tagName === 'h4' || str_contains(' '.$element->getAttribute('class').' ', ' px-3 pb-3 ')));
+
+    expect($inner)->toHaveCount(0);
 });
