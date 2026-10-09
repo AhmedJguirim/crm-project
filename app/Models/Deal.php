@@ -90,4 +90,14 @@ class Deal extends Model
             ->whereNotNull('expected_close_date')
             ->whereBetween('expected_close_date', [now()->startOfWeek(), now()->endOfWeek()]);
     }
+
+    /**
+     * An open deal whose expected close date is strictly before today (a deal closing today is not late yet).
+     */
+    public function isOverdue(): bool
+    {
+        return $this->status === DealStatus::Open
+            && $this->expected_close_date !== null
+            && $this->expected_close_date->lt(today());
+    }
 }

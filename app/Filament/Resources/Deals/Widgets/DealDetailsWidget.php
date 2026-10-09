@@ -34,9 +34,7 @@ class DealDetailsWidget extends Widget
             'formattedValue' => $deal->value !== null
                 ? Number::currency((float) $deal->value, $currency)
                 : null,
-            'isOverdue' => $deal->status === DealStatus::Open
-                && filled($deal->expected_close_date)
-                && $deal->expected_close_date->isPast(),
+            'isOverdue' => $deal->isOverdue(),
             'isWon' => $deal->status === DealStatus::Won,
             'isLost' => $deal->status === DealStatus::Lost,
         ];

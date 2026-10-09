@@ -92,13 +92,13 @@ test('the invoices widget of a deal shows amounts and totals in the currency of 
         ->assertDontSee('$2,000.00');
 });
 
-test('the pipeline card shows the value with the code of the organization currency', function () {
-    Livewire::test(DealPipeline::class)->assertSee('1,234.50 EUR');
+test('the pipeline card shows the value in the currency of the organization', function () {
+    Livewire::test(DealPipeline::class)->assertSee('€1,234.50');
 });
 
 test('a default organization shows dollars', function () {
     $this->org->update(['currency' => Currency::Usd]);
 
     Livewire::test(ListDeals::class)->assertSee('$1,234.50')->assertDontSee('€1,234.50');
-    Livewire::test(DealPipeline::class)->assertSee('1,234.50 USD');
+    Livewire::test(DealPipeline::class)->assertSee('$1,234.50');
 });

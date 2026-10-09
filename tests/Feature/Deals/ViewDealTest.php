@@ -179,3 +179,20 @@ test('cannot view a deal from another organization', function () {
     $this->get(DealResource::getUrl('view', ['record' => $otherDeal->id]))
         ->assertNotFound();
 });
+
+test('the deal page flags only an open deal whose close date is before today as overdue', function (DealStatus $status, string $date, bool $overdue) {
+    $deal = Deal::factory()->create([
+        'organization_id' => $this->org->id,
+        'created_by' => $this->user->id,
+        'status' => $status,
+        'expected_close_date' => $date,
+    ]);
+
+    $widget = Livewire::test(DealDetailsWidget::class, ['record' => $deal]);
+
+    $overdue ? $widget->assertSee('Overdue') : $widget->assertDontSee('Overdue');
+})->with([
+    'open, yesterday' => [DealStatus::Open, '2026-02-20', true],
+    'won, yesterday' => [DealStatus::Won, '2026-02-20', false],
+    'open, today' => [DealStatus::Open, '2026-02-21', false],
+]);

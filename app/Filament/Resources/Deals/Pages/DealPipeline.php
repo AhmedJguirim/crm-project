@@ -4,7 +4,6 @@ namespace App\Filament\Resources\Deals\Pages;
 
 use App\Enums\DealStage;
 use App\Enums\DealStatus;
-use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Deals\DealResource;
 use App\Models\Deal;
 use App\Services\Deals\DealStageMover;
@@ -13,14 +12,19 @@ use Filament\Actions\CreateAction;
 use Filament\Facades\Filament;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\TextSize;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Number;
 use Relaticle\Flowforge\Board;
 use Relaticle\Flowforge\BoardResourcePage;
 use Relaticle\Flowforge\Column;
+use Relaticle\Flowforge\Components\CardFlex;
 
 class DealPipeline extends BoardResourcePage
 {
@@ -33,11 +37,7 @@ class DealPipeline extends BoardResourcePage
     public function board(Board $board): Board
     {
         return $board
-            ->query(
-                Deal::query()
-                    ->where('organization_id', Filament::getTenant()->id)
-                    ->with(['contact', 'creator'])
-            )
+            ->query($this->getBoardQuery())
             ->recordTitleAttribute('title')
             ->columnIdentifier('stage')
             ->positionIdentifier('position')
@@ -55,38 +55,66 @@ class DealPipeline extends BoardResourcePage
             ])
             ->cardSchema(function (Schema $schema): Schema {
                 return $schema->schema([
-                    TextEntry::make('contact.name')
-                        ->label('Contact')
-                        ->placeholder('No contact')
-                        ->url(fn (Deal $record): ?string => $record->contact
-                            ? ContactResource::getUrl('view', ['record' => $record->contact])
-                            : null),
+                    TextEntry::make('subtitle')
+                        ->hiddenLabel()
+                        ->state(fn (Deal $record): ?string => $this->cardSubtitle($record))
+                        ->size(TextSize::ExtraSmall)
+                        ->color('gray')
+                        ->limit(60)
+                        ->tooltip(function (Deal $record): ?string {
+                            $subtitle = $this->cardSubtitle($record);
 
-                    TextEntry::make('value')
-                        ->label('Value')
-                        ->state(fn (Deal $record): string => $record->value
-                            ? number_format((float) $record->value, 2).' '.(Filament::getTenant()?->currencyCode() ?? 'USD')
-                            : '—'),
+                            return $subtitle !== null && mb_strlen($subtitle) > 60 ? $subtitle : null;
+                        })
+                        ->visible(fn (Deal $record): bool => $this->cardSubtitle($record) !== null),
 
-                    TextEntry::make('expected_close_date')
-                        ->label('Close Date')
-                        ->date('M j, Y')
-                        ->placeholder('—')
-                        ->color(fn (Deal $record): ?string => $record->expected_close_date?->isPast() ? 'danger' : null),
+                    CardFlex::make([
+                        TextEntry::make('value')
+                            ->hiddenLabel()
+                            ->state(fn (Deal $record): ?string => $record->value !== null
+                                ? Number::currency((float) $record->value, Filament::getTenant()?->currencyCode() ?? 'USD')
+                                : null)
+                            ->weight(FontWeight::Bold)
+                            ->visible(fn (Deal $record): bool => $record->value !== null),
+
+                        TextEntry::make('expected_close_date')
+                            ->hiddenLabel()
+                            ->date('M j, Y')
+                            ->size(TextSize::Small)
+                            ->color(fn (Deal $record): string => $record->isOverdue() ? 'danger' : 'gray')
+                            ->visible(fn (Deal $record): bool => $record->expected_close_date !== null),
+                    ])
+                        ->justify('between')
+                        ->align('center'),
                 ]);
             })
-            ->recordActions([
-                Action::make('view')
-                    ->icon(Heroicon::OutlinedEye)
-                    ->url(fn (Deal $record): string => DealResource::getUrl('view', ['record' => $record]))
-                    ->openUrlInNewTab(false),
+            ->actions([
+                Action::make('openDeal')
+                    ->action(function (?Deal $record): void {
+                        if ($record === null) {
+                            return;
+                        }
 
-                Action::make('edit')
-                    ->authorize('update')
-                    ->icon(Heroicon::OutlinedPencilSquare)
-                    ->url(fn (Deal $record): string => DealResource::getUrl('edit', ['record' => $record]))
-                    ->openUrlInNewTab(false),
-            ]);
+                        $this->redirect(DealResource::getUrl('view', ['record' => $record]));
+                    }),
+            ])
+            ->cardAction('openDeal');
+    }
+
+    /**
+     * The small grey line under the title: the contact's name, then the name of the contact's first live company by name.
+     */
+    protected function cardSubtitle(Deal $deal): ?string
+    {
+        $contact = $deal->contact;
+
+        if ($contact === null) {
+            return null;
+        }
+
+        $company = $contact->companies->first();
+
+        return $company === null ? $contact->name : "{$contact->name} · {$company->name}";
     }
 
     /**
@@ -148,6 +176,9 @@ class DealPipeline extends BoardResourcePage
     {
         return Deal::query()
             ->where('organization_id', Filament::getTenant()->id)
-            ->with(['contact', 'creator']);
+            ->with([
+                'contact.companies' => fn (BelongsToMany $query) => $query->orderBy('companies.name'),
+                'creator',
+            ]);
     }
 }

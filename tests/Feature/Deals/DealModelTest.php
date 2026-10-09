@@ -112,3 +112,34 @@ test('stage and closing this week scopes work correctly', function () {
         ->toContain($negotiatingThisWeek->id)
         ->not->toContain($leadNextMonth->id);
 });
+
+test('a deal is overdue only when it is open and its close date is before today', function (DealStatus $status, ?string $date, bool $expected) {
+    $deal = Deal::factory()->make([
+        'organization_id' => $this->org->id,
+        'status' => $status,
+        'expected_close_date' => $date,
+    ]);
+
+    expect($deal->isOverdue())->toBe($expected);
+})->with([
+    'open, yesterday' => [DealStatus::Open, '2026-02-20', true],
+    'open, today' => [DealStatus::Open, '2026-02-21', false],
+    'open, tomorrow' => [DealStatus::Open, '2026-02-22', false],
+    'open, no date' => [DealStatus::Open, null, false],
+    'won, past' => [DealStatus::Won, '2026-02-01', false],
+    'lost, past' => [DealStatus::Lost, '2026-02-01', false],
+]);
+
+test('the overdue day boundary is midnight', function () {
+    $deal = Deal::factory()->make([
+        'organization_id' => $this->org->id,
+        'status' => DealStatus::Open,
+        'expected_close_date' => '2026-02-20',
+    ]);
+
+    Carbon::setTestNow('2026-02-21 00:00:00');
+    expect($deal->isOverdue())->toBeTrue();
+
+    Carbon::setTestNow('2026-02-20 23:59:59');
+    expect($deal->isOverdue())->toBeFalse();
+});
