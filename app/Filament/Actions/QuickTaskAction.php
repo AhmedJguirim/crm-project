@@ -24,6 +24,7 @@ use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
@@ -52,6 +53,7 @@ class QuickTaskAction
             ->modalSubmitActionLabel('Create Task')
             ->authorize(AbilityCheck::for('create', Task::class))
             ->fillForm([
+                ...self::defaultFormData(),
                 'contact_id' => $contact->getKey(),
                 'contact_name' => filled($contact->name) ? $contact->name : $contact->email,
             ])
@@ -69,6 +71,7 @@ class QuickTaskAction
             ->modalSubmitActionLabel('Create Task')
             ->authorize(AbilityCheck::for('create', Task::class))
             ->fillForm(fn (Contact $record): array => [
+                ...self::defaultFormData(),
                 'contact_id' => $record->getKey(),
                 'contact_name' => filled($record->name) ? $record->name : $record->email,
             ])
@@ -90,14 +93,26 @@ class QuickTaskAction
             ->authorize(AbilityCheck::for('create', Task::class))
             ->visible(fn (?Deal $record): bool => $record?->contact !== null)
             ->fillForm(fn (Deal $record): array => [
+                ...self::defaultFormData(),
                 'contact_id' => $record->contact->getKey(),
                 'contact_name' => filled($record->contact->name) ? $record->contact->name : $record->contact->email,
                 'deal_id' => $record->getKey(),
-                'due_at' => now()->addDays(3),
-                'type' => TaskType::FollowUp,
             ])
             ->schema(self::getLockedContactSchema())
             ->action(fn (array $data): Task => self::createTask($data));
+    }
+
+    /**
+     * The values a quick task form starts with, because fillForm() replaces the field defaults.
+     *
+     * @return array{due_at: Carbon, type: TaskType}
+     */
+    private static function defaultFormData(): array
+    {
+        return [
+            'due_at' => now()->addDays(3),
+            'type' => TaskType::FollowUp,
+        ];
     }
 
     /**

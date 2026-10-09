@@ -4,6 +4,7 @@ use App\Enums\TaskStatus;
 use App\Enums\TaskType;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
 use App\Filament\Resources\Contacts\Pages\ViewContact;
+use App\Filament\Resources\Deals\Pages\ViewDeal;
 use App\Filament\Resources\Tasks\Pages\EditTask;
 use App\Filament\Resources\Tasks\Pages\ListTasks;
 use App\Livewire\Filament\QuickTaskFloatingButton;
@@ -13,6 +14,7 @@ use App\Models\Task;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Support\Carbon;
+use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -222,3 +224,73 @@ test('edit task mark done header action marks task as done', function () {
     expect($task->status)->toBe(TaskStatus::Done)
         ->and($task->completed_at)->not->toBeNull();
 });
+
+dataset('locked contact quick task entry points', [
+    'contact page' => 'contact',
+    'deal page' => 'deal',
+    'contacts table row' => 'table',
+]);
+
+function mountLockedContactQuickTask(string $entryPoint, Contact $contact, Deal $deal): Testable
+{
+    if ($entryPoint === 'contact') {
+        return Livewire::test(ViewContact::class, ['record' => $contact->id])->mountAction('quickTask');
+    }
+
+    if ($entryPoint === 'deal') {
+        return Livewire::test(ViewDeal::class, ['record' => $deal->id])->mountAction('quickTask');
+    }
+
+    return Livewire::test(ListContacts::class)->mountTableAction('addTask', $contact);
+}
+
+function lockedContactQuickTaskFixture(object $test): array
+{
+    Carbon::setTestNow('2026-10-09 12:00:00');
+
+    $contact = Contact::factory()->create(['organization_id' => $test->org->id, 'name' => 'Jane Doe']);
+    $deal = Deal::factory()->create([
+        'organization_id' => $test->org->id,
+        'contact_id' => $contact->id,
+        'created_by' => $test->user->id,
+    ]);
+
+    return [$contact, $deal];
+}
+
+test('locked contact quick task forms open with follow-up and a due date in 3 days', function (string $entryPoint) {
+    [$contact, $deal] = lockedContactQuickTaskFixture($this);
+
+    $hasDefaults = function (array $state) use ($contact): array {
+        expect($state['type'])->toBeIn([TaskType::FollowUp, TaskType::FollowUp->value])
+            ->and($state['due_at'])->not->toBeNull()
+            ->and(Carbon::parse($state['due_at'])->toDateTimeString())->toBe('2026-10-12 12:00:00')
+            ->and($state['contact_id'])->toBe($contact->id);
+
+        return [];
+    };
+
+    $component = mountLockedContactQuickTask($entryPoint, $contact, $deal);
+
+    $entryPoint === 'table'
+        ? $component->assertTableActionDataSet($hasDefaults)
+        : $component->assertActionDataSet($hasDefaults);
+})->with('locked contact quick task entry points');
+
+test('locked contact quick task forms create a task from a title alone', function (string $entryPoint) {
+    [$contact, $deal] = lockedContactQuickTaskFixture($this);
+
+    mountLockedContactQuickTask($entryPoint, $contact, $deal)
+        ->fillForm(['title' => 'Call back'])
+        ->callMountedAction()
+        ->assertHasNoErrors()
+        ->assertNotified('Task created successfully');
+
+    $task = Task::query()->where('title', 'Call back')->first();
+
+    expect($task)->not->toBeNull()
+        ->and($task->type)->toBe(TaskType::FollowUp)
+        ->and($task->due_at->toDateTimeString())->toBe('2026-10-12 12:00:00')
+        ->and($task->status)->toBe(TaskStatus::Pending)
+        ->and($task->contact_id)->toBe($contact->id);
+})->with('locked contact quick task entry points');
