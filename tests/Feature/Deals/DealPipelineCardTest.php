@@ -4,7 +4,6 @@ use App\Enums\Currency;
 use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\OrganizationRole;
-use App\Filament\Resources\Deals\DealResource;
 use App\Filament\Resources\Deals\Pages\DealPipeline;
 use App\Models\Company;
 use App\Models\Contact;
@@ -131,7 +130,7 @@ test('a long subtitle is cut and carries a tooltip with the full text', function
     expect($short->getTooltip())->toBeNull();
 });
 
-test('every role opens the deal by clicking the card', function (OrganizationRole $role) {
+test('every role opens the deal drawer by clicking the card', function (OrganizationRole $role) {
     $member = User::factory()->onboardingCompleted()->create();
     $this->org->members()->attach($member, ['role' => $role->value]);
     $this->actingAs($member);
@@ -139,7 +138,9 @@ test('every role opens the deal by clicking the card', function (OrganizationRol
 
     Livewire::test(DealPipeline::class)
         ->call('mountAction', 'openDeal', [], ['recordKey' => (string) $this->deal->id])
-        ->assertRedirect(DealResource::getUrl('view', ['record' => $this->deal]));
+        ->assertSet('mountedActions.0.name', 'openDeal')
+        ->assertNoRedirect()
+        ->assertMountedActionModalSee('Retainer');
 })->with([OrganizationRole::Owner, OrganizationRole::Admin, OrganizationRole::Member, OrganizationRole::Viewer]);
 
 test("another organization's deal is neither shown nor opened", function () {
@@ -154,13 +155,19 @@ test("another organization's deal is neither shown nor opened", function () {
         'stage' => DealStage::Lead,
     ]);
 
-    Livewire::test(DealPipeline::class)
+    $component = Livewire::test(DealPipeline::class)
         ->assertDontSee('Other Org Secret Deal')
         ->assertDontSee('Spy Contact')
         ->call('mountAction', 'openDeal', [], ['recordKey' => (string) $otherDeal->id])
-        ->assertNoRedirect()
+        ->assertNoRedirect();
+
+    expect($component->instance()->mountedActions)->toBe([]);
+
+    $component
         ->call('mountAction', 'openDeal', [], ['recordKey' => '999999'])
         ->assertNoRedirect();
+
+    expect($component->instance()->mountedActions)->toBe([]);
 });
 
 test('html in a title, a contact name and a company name is escaped on the card', function () {

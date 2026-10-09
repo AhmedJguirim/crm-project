@@ -64,6 +64,16 @@ class Deal extends Model
         return $this->hasMany(Invoice::class);
     }
 
+    public function tasks(): HasMany
+    {
+        return $this->hasMany(Task::class);
+    }
+
+    public function activities(): HasMany
+    {
+        return $this->hasMany(Activity::class);
+    }
+
     public function scopeOpen(Builder $query): Builder
     {
         return $query->where('status', DealStatus::Open->value);

@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Deals\Pages;
 use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Filament\Resources\Deals\DealResource;
+use App\Filament\Resources\Deals\Schemas\DealDrawerInfolist;
 use App\Models\Deal;
 use App\Services\Deals\DealStageMover;
 use Filament\Actions\Action;
@@ -14,10 +15,12 @@ use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
 use Filament\Support\Enums\TextSize;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Number;
@@ -90,13 +93,21 @@ class DealPipeline extends BoardResourcePage
             })
             ->actions([
                 Action::make('openDeal')
-                    ->action(function (?Deal $record): void {
-                        if ($record === null) {
-                            return;
-                        }
-
-                        $this->redirect(DealResource::getUrl('view', ['record' => $record]));
-                    }),
+                    ->authorize(fn (?Deal $record): bool => $record !== null && (Auth::user()?->can('view', $record) ?? false))
+                    ->slideOver()
+                    ->modalWidth(Width::Large)
+                    ->modalHeading(fn (?Deal $record): string => (string) $record?->title)
+                    ->modalDescription(fn (?Deal $record): ?string => $record === null ? null : $this->cardSubtitle($record))
+                    ->schema(fn (Schema $schema): Schema => DealDrawerInfolist::configure($schema))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Close')
+                    ->extraModalFooterActions([
+                        Action::make('openFullPage')
+                            ->label('Open full page')
+                            ->icon(Heroicon::OutlinedArrowTopRightOnSquare)
+                            ->color('gray')
+                            ->url(fn (?Deal $record): ?string => $record === null ? null : DealResource::getUrl('view', ['record' => $record])),
+                    ]),
             ])
             ->cardAction('openDeal');
     }
