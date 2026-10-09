@@ -99,6 +99,18 @@ class User extends Authenticatable implements FilamentUser, HasTenants
         $this->organizationRoles = null;
     }
 
+    /**
+     * Whether the user is a member of an organization. Uses the loaded `organizations` relation when present, so a list can load the memberships once.
+     */
+    public function isMemberOf(int $organizationId): bool
+    {
+        if ($this->relationLoaded('organizations')) {
+            return $this->organizations->contains($organizationId);
+        }
+
+        return $this->roleIn($organizationId) !== null;
+    }
+
     public function createdDeals(): HasMany
     {
         return $this->hasMany(Deal::class, 'created_by');

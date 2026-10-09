@@ -256,3 +256,38 @@ test('the deals table does not query the owner of every row', function () {
 
     expect($countUserQueries())->toBe($withOne);
 });
+
+test('the deals table reads owner memberships once whatever the number of owners', function () {
+    $countMembershipQueries = function (): int {
+        $queries = 0;
+        DB::listen(function ($query) use (&$queries): void {
+            if (str_contains($query->sql, 'organization_user')) {
+                $queries++;
+            }
+        });
+
+        Livewire::test(ListDeals::class);
+
+        return $queries;
+    };
+
+    ($this->makeDeal)('Deal 0', $this->bob);
+    Livewire::test(ListDeals::class);
+    $withOne = $countMembershipQueries();
+
+    foreach (range(1, 4) as $i) {
+        $owner = User::factory()->onboardingCompleted()->create(['name' => "Owner {$i}"]);
+        $this->org->members()->attach($owner, ['role' => OrganizationRole::Member->value]);
+        ($this->makeDeal)("Deal {$i}a", $owner);
+        ($this->makeDeal)("Deal {$i}b", $owner);
+    }
+
+    expect($countMembershipQueries())->toBe($withOne);
+});
+
+test('an owner who only belongs to another organization is marked in the deals table', function () {
+    ($this->makeDeal)('Foreign owner', $this->eve);
+
+    Livewire::test(ListDeals::class)
+        ->assertTableColumnStateSet('owner_id', 'Eve Other (no longer a member)', Deal::query()->where('title', 'Foreign owner')->firstOrFail());
+});

@@ -74,7 +74,7 @@ class Deal extends Model
             return null;
         }
 
-        return $this->owner->roleIn($this->organization_id) !== null
+        return $this->owner->isMemberOf($this->organization_id)
             ? $this->owner->name
             : "{$this->owner->name} (no longer a member)";
     }
