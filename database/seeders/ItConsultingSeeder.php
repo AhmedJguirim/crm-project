@@ -612,7 +612,7 @@ class ItConsultingSeeder extends Seeder
             ['title' => 'Call Sarah for proposal approval', 'email' => 'sarah.johansson@cloudbase.dev', 'type' => TaskType::Call, 'priority' => TaskPriority::Medium, 'status' => TaskStatus::Pending, 'due_at' => now()->addDays(2), 'notes' => 'Confirm timeline and procurement process.'],
             ['title' => 'Prepare HexaSys discovery workshop agenda', 'email' => 'damien.leroy@hexasys.fr', 'type' => TaskType::Meeting, 'priority' => TaskPriority::High, 'status' => TaskStatus::Pending, 'due_at' => now()->addDays(3), 'notes' => 'Share architecture questionnaire in advance.'],
             ['title' => 'Send SecurePeak kickoff summary', 'email' => 'priya.nair@securepeak.com', 'type' => TaskType::Email, 'priority' => TaskPriority::Low, 'status' => TaskStatus::Done, 'due_at' => now()->subDays(2), 'completed_at' => now()->subDay(), 'notes' => 'Kickoff notes and next milestones sent.'],
-            ['title' => 'Invoice StackOps sprint support', 'email' => 'tom.whitfield@stackops.io', 'type' => TaskType::Invoice, 'priority' => TaskPriority::Medium, 'status' => TaskStatus::Pending, 'due_at' => now()->addDays(5), 'notes' => 'Prepare invoice for February sprint support.'],
+            ['title' => 'Invoice StackOps sprint support', 'email' => 'tom.whitfield@stackops.io', 'type' => TaskType::Invoice, 'priority' => TaskPriority::Medium, 'status' => TaskStatus::Pending, 'due_at' => now()->addDays(5), 'notes' => 'Prepare invoice for February sprint support.', 'no_owner' => true],
             ['title' => 'Follow up with Yasmin on budget confirmation', 'email' => 'yasmin.alrashid@cloudshift.ae', 'type' => TaskType::FollowUp, 'priority' => TaskPriority::High, 'status' => TaskStatus::Pending, 'due_at' => now()->addDays(4), 'notes' => 'Clarify budget owner and procurement steps.'],
         ];
 
@@ -631,6 +631,7 @@ class ItConsultingSeeder extends Seeder
                 [
                     'contact_id' => $contact->id,
                     'created_by' => $user->id,
+                    'owner_id' => ($taskData['no_owner'] ?? false) ? null : $user->id,
                     'type' => $taskData['type'],
                     'priority' => $taskData['priority'],
                     'status' => $taskData['status'],

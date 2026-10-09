@@ -206,6 +206,7 @@ class QuickTaskAction
         $task = Task::create([
             'organization_id' => Filament::getTenant()?->id,
             'created_by' => Auth::id(),
+            'owner_id' => Auth::id(),
             'title' => $data['title'],
             'due_at' => $data['due_at'] ?? null,
             'contact_id' => $data['contact_id'] ?? null,

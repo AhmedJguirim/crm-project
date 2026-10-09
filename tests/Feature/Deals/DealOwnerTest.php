@@ -10,7 +10,7 @@ use App\Filament\Resources\Deals\Widgets\DealDetailsWidget;
 use App\Models\Deal;
 use App\Models\Organization;
 use App\Models\User;
-use App\Services\Deals\DealOwnerOptions;
+use App\Services\Owners\OwnerOptions;
 use Filament\Facades\Filament;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -64,11 +64,11 @@ test('a new deal is owned by its creator by default', function () {
 });
 
 test('the owner options are the current members ordered by name', function () {
-    expect(DealOwnerOptions::forForm(null))->toBe([
+    expect(OwnerOptions::forForm(null))->toBe([
         $this->alice->id => 'Alice Martin',
         $this->bob->id => 'Bob Stone',
         $this->vera->id => 'Vera Viewer',
-    ])->and(DealOwnerOptions::forFilter())->toBe(DealOwnerOptions::forForm(null));
+    ])->and(OwnerOptions::forFilter(Deal::class))->toBe(OwnerOptions::forForm(null));
 });
 
 test('a deal can be given to another member or to nobody', function () {
@@ -122,8 +122,8 @@ test('a removed member stays the owner and is marked everywhere', function () {
     Livewire::test(DealDetailsWidget::class, ['record' => $legacy])
         ->assertSee('Carl Weber (no longer a member)');
 
-    expect(DealOwnerOptions::forForm($legacy))->toHaveKey($carl->id, 'Carl Weber (no longer a member)')
-        ->and(DealOwnerOptions::forForm(null))->not->toHaveKey($carl->id);
+    expect(OwnerOptions::forForm($legacy))->toHaveKey($carl->id, 'Carl Weber (no longer a member)')
+        ->and(OwnerOptions::forForm(null))->not->toHaveKey($carl->id);
 
     Livewire::test(EditDeal::class, ['record' => $legacy->id])
         ->call('save')
@@ -181,18 +181,18 @@ test('the owner filter narrows the table and lists former owners only when they 
 
     $carl = User::factory()->onboardingCompleted()->create(['name' => 'Carl Weber']);
 
-    expect(DealOwnerOptions::forFilter())->not->toContain('Carl Weber (no longer a member)');
+    expect(OwnerOptions::forFilter(Deal::class))->not->toContain('Carl Weber (no longer a member)');
 
     ($this->makeDeal)('Legacy', $carl);
 
-    expect(DealOwnerOptions::forFilter())->toHaveKey($carl->id, 'Carl Weber (no longer a member)');
+    expect(OwnerOptions::forFilter(Deal::class))->toHaveKey($carl->id, 'Carl Weber (no longer a member)');
 });
 
 test('another organization never leaks into the table, the tabs or the options', function () {
     $secret = ($this->makeDeal)('Globex secret', $this->eve, $this->eve->personalOrganization());
 
-    expect(DealOwnerOptions::forForm(null))->not->toHaveKey($this->eve->id)
-        ->and(DealOwnerOptions::forFilter())->not->toHaveKey($this->eve->id);
+    expect(OwnerOptions::forForm(null))->not->toHaveKey($this->eve->id)
+        ->and(OwnerOptions::forFilter(Deal::class))->not->toHaveKey($this->eve->id);
 
     Livewire::test(ListDeals::class)
         ->assertCanNotSeeTableRecords([$secret])

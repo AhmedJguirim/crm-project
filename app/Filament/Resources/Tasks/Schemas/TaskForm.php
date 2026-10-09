@@ -8,7 +8,9 @@ use App\Enums\TaskStatus;
 use App\Enums\TaskType;
 use App\Models\Contact;
 use App\Models\Deal;
+use App\Models\Task;
 use App\Services\Deals\DealStageMover;
+use App\Services\Owners\OwnerOptions;
 use App\Support\MoneyLimit;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DateTimePicker;
@@ -110,6 +112,15 @@ class TaskForm
                                 ->where('contact_id', $get('contact_id'))
                         ),
                     ]),
+
+                Select::make('owner_id')
+                    ->label('Assigned to')
+                    ->options(fn (?Task $record): array => OwnerOptions::forForm($record))
+                    ->in(fn (?Task $record): array => array_keys(OwnerOptions::forForm($record)))
+                    ->default(fn (): ?int => Auth::id())
+                    ->searchable()
+                    ->nullable()
+                    ->placeholder('Unassigned'),
 
                 Select::make('type')
                     ->options(TaskType::class)

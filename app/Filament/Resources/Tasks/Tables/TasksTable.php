@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Tasks\Tables;
 use App\Enums\TaskStatus;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Models\Task;
+use App\Services\Owners\OwnerOptions;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
@@ -26,6 +27,7 @@ class TasksTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('owner.organizations'))
             ->columns([
                 TextColumn::make('title')
                     ->searchable()
@@ -40,6 +42,11 @@ class TasksTable
                         ? ContactResource::getUrl('view', ['record' => $record->contact])
                         : null)
                     ->openUrlInNewTab(),
+
+                TextColumn::make('owner_id')
+                    ->label('Assigned to')
+                    ->state(fn (Task $record): ?string => $record->ownerLabel())
+                    ->placeholder('Unassigned'),
 
                 TextColumn::make('due_at')
                     ->label('Due Date')
@@ -83,6 +90,11 @@ class TasksTable
                 SelectFilter::make('status')
                     ->options(TaskStatus::class)
                     ->default(TaskStatus::Pending->value),
+
+                SelectFilter::make('owner_id')
+                    ->label('Assigned to')
+                    ->options(fn (): array => OwnerOptions::forFilter(Task::class))
+                    ->searchable(),
             ])
             ->defaultSort(function (Builder $query): Builder {
                 return $query

@@ -5,7 +5,7 @@ namespace App\Filament\Resources\Deals\Schemas;
 use App\Enums\DealStage;
 use App\Models\Contact;
 use App\Models\Deal;
-use App\Services\Deals\DealOwnerOptions;
+use App\Services\Owners\OwnerOptions;
 use App\Support\MoneyLimit;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DatePicker;
@@ -44,8 +44,8 @@ class DealForm
 
                 Select::make('owner_id')
                     ->label('Deal owner')
-                    ->options(fn (?Deal $record): array => DealOwnerOptions::forForm($record))
-                    ->in(fn (?Deal $record): array => array_keys(DealOwnerOptions::forForm($record)))
+                    ->options(fn (?Deal $record): array => OwnerOptions::forForm($record))
+                    ->in(fn (?Deal $record): array => array_keys(OwnerOptions::forForm($record)))
                     ->default(fn (): ?int => Auth::id())
                     ->searchable()
                     ->nullable()

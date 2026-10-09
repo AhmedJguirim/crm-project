@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\HasOwner;
 use App\Observers\DealObserver;
 use Database\Factories\DealFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -21,6 +22,8 @@ class Deal extends Model
 
     /** @use HasFactory<DealFactory> */
     use HasFactory;
+
+    use HasOwner;
 
     protected $fillable = [
         'organization_id',
@@ -58,25 +61,6 @@ class Deal extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
-    }
-
-    public function owner(): BelongsTo
-    {
-        return $this->belongsTo(User::class, 'owner_id');
-    }
-
-    /**
-     * The owner's name, marked when they are no longer a member of the deal's organization; null when the deal has no owner.
-     */
-    public function ownerLabel(): ?string
-    {
-        if ($this->owner === null) {
-            return null;
-        }
-
-        return $this->owner->isMemberOf($this->organization_id)
-            ? $this->owner->name
-            : "{$this->owner->name} (no longer a member)";
     }
 
     public function invoices(): HasMany

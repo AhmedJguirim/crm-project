@@ -6,7 +6,7 @@ use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Models\Deal;
-use App\Services\Deals\DealOwnerOptions;
+use App\Services\Owners\OwnerOptions;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -81,7 +81,7 @@ class DealsTable
 
                 SelectFilter::make('owner_id')
                     ->label('Deal owner')
-                    ->options(fn (): array => DealOwnerOptions::forFilter())
+                    ->options(fn (): array => OwnerOptions::forFilter(Deal::class))
                     ->searchable(),
 
                 Filter::make('closing_this_week')

@@ -382,3 +382,16 @@ test('it consulting seeder gives the demo deals to test@example.com except one',
     expect($owners['InnoTech Transformation Advisory'])->toBeNull()
         ->and($owners->except('InnoTech Transformation Advisory')->unique()->values()->all())->toBe([$user->id]);
 });
+
+test('it consulting seeder assigns the demo tasks to test@example.com except one', function () {
+    $this->seed(ItConsultingSeeder::class);
+
+    $user = User::query()->where('email', 'test@example.com')->firstOrFail();
+    $this->actingAs($user);
+    Filament::setTenant($user->personalOrganization());
+
+    $owners = Task::query()->pluck('owner_id', 'title');
+
+    expect($owners['Invoice StackOps sprint support'])->toBeNull()
+        ->and($owners->except('Invoice StackOps sprint support')->unique()->values()->all())->toBe([$user->id]);
+});
