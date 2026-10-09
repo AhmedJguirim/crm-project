@@ -8,6 +8,7 @@ use App\Models\Company;
 use App\Models\Organization;
 use App\Models\User;
 use Filament\Facades\Filament;
+use Filament\Support\Icons\Heroicon;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -22,6 +23,7 @@ beforeEach(function () {
         'website' => $website,
     ]);
     $this->hintOf = fn ($page): ?string => $page->instance()->getSchema('form')->getFlatFields()['website']->getHint();
+    $this->websiteField = fn ($page) => $page->instance()->getSchema('form')->getFlatFields()['website'];
 });
 
 it('derives the domain from the website', function (?string $website, ?string $domain) {
@@ -183,6 +185,50 @@ describe('the form', function () {
 
         expect(($this->hintOf)(Livewire::test(CreateCompany::class)))->toBeNull()
             ->and(($this->hintOf)(Livewire::test(CreateCompany::class)->fillForm(['website' => 'nonsense'])))->toBeNull();
+    });
+});
+
+describe('the shared-domain warning icon', function () {
+    it('shows no icon on an empty create form', function () {
+        $field = ($this->websiteField)(Livewire::test(CreateCompany::class));
+
+        expect($field->getHintIcon())->toBeNull()->and($field->getHint())->toBeNull();
+    });
+
+    it('shows no icon for a unique or invalid domain', function (string $website) {
+        ($this->company)('Other', 'other.com');
+
+        $page = Livewire::test(CreateCompany::class)->fillForm(['website' => $website]);
+
+        expect(($this->websiteField)($page)->getHintIcon())->toBeNull();
+    })->with(['unique' => 'acme.com', 'invalid' => 'nonsense']);
+
+    it('shows the icon and its tooltip when the domain is shared', function () {
+        ($this->company)('Acme France', 'acme.com');
+
+        $page = Livewire::test(CreateCompany::class)->fillForm(['name' => 'Acme Spain', 'website' => 'www.acme.com/fr']);
+        $field = ($this->websiteField)($page);
+
+        expect($field->getHint())->toBe('Also used by: Acme France')
+            ->and($field->getHintIcon())->toBe(Heroicon::ExclamationTriangle)
+            ->and($field->getHintIconTooltip())->toBe('Another company in this organization already uses this website\'s domain. This is only a warning: you can still save.');
+    });
+
+    it('shows no icon on the edit form of the only company with that domain', function () {
+        $acme = ($this->company)('Acme', 'acme.com');
+        ($this->company)('Old Acme', 'acme.com')->delete();
+
+        $page = Livewire::test(EditCompany::class, ['record' => $acme->id]);
+
+        expect(($this->websiteField)($page)->getHintIcon())->toBeNull();
+    });
+
+    it('does not raise the icon for another organization\'s company', function () {
+        ($this->company)('Foreign Acme', 'acme.com', Organization::factory()->create());
+
+        $page = Livewire::test(CreateCompany::class)->fillForm(['website' => 'acme.com']);
+
+        expect(($this->websiteField)($page)->getHintIcon())->toBeNull();
     });
 });
 

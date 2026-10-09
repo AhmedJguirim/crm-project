@@ -64,7 +64,8 @@ class CompanyForm
                             })
                             ->hint(fn (Get $get, ?Company $record): ?string => static::sharedDomainHint($get('website'), $record))
                             ->hintColor('warning')
-                            ->hintIcon(Heroicon::ExclamationTriangle),
+                            ->hintIcon(fn (Get $get, ?Company $record): ?Heroicon => filled(static::sharedDomainHint($get('website'), $record)) ? Heroicon::ExclamationTriangle : null)
+                            ->hintIconTooltip('Another company in this organization already uses this website\'s domain. This is only a warning: you can still save.'),
 
                         TextInput::make('phone')
                             ->tel()
