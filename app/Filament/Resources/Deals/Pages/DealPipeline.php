@@ -25,7 +25,9 @@ use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -233,7 +235,48 @@ class DealPipeline extends BoardResourcePage
     }
 
     /**
-     * Moves the card and lets DealStageMover set the status and the won / lost dates, in one transaction.
+     * A deal key a forged request could send: a positive integer within the bigint range.
+     */
+    protected static function isDealKey(mixed $key): bool
+    {
+        return filter_var($key, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]) !== false;
+    }
+
+    /**
+     * Resolves a board action, dropping a malformed record key so the lookup never reaches the database.
+     *
+     * @param  array<string, mixed>  $action
+     * @param  array<int, Action>  $parentActions
+     */
+    protected function resolveBoardAction(array $action, array $parentActions): ?Action
+    {
+        $key = $action['context']['recordKey'] ?? $action['arguments']['recordKey'] ?? null;
+
+        if (filled($key) && ! self::isDealKey($key)) {
+            $action = Arr::except($action, ['context.recordKey', 'arguments.recordKey']);
+        }
+
+        return parent::resolveBoardAction($action, $parentActions);
+    }
+
+    /**
+     * Returns no record for a malformed key on the last mounted action, instead of querying the database with it.
+     */
+    public function getDefaultActionRecord(Action $action): ?Model
+    {
+        $mountedActions = $this->mountedActions ?? [];
+        $current = end($mountedActions);
+        $key = $current['context']['recordKey'] ?? $current['arguments']['recordKey'] ?? null;
+
+        if (filled($key) && ! self::isDealKey($key)) {
+            return null;
+        }
+
+        return parent::getDefaultActionRecord($action);
+    }
+
+    /**
+     * Moves the card and lets DealStageMover set the status and the won / lost dates, in one transaction; ignores a forged card, neighbour or column.
      */
     public function moveCard(
         string $cardId,
@@ -241,6 +284,17 @@ class DealPipeline extends BoardResourcePage
         ?string $afterCardId = null,
         ?string $beforeCardId = null
     ): void {
+        $stage = DealStage::tryFrom($targetColumnId);
+
+        if (
+            $stage === null
+            || ! self::isDealKey($cardId)
+            || ($afterCardId !== null && ! self::isDealKey($afterCardId))
+            || ($beforeCardId !== null && ! self::isDealKey($beforeCardId))
+        ) {
+            return;
+        }
+
         $deal = Deal::query()
             ->find($cardId);
 
@@ -249,8 +303,6 @@ class DealPipeline extends BoardResourcePage
         }
 
         Gate::authorize('update', $deal);
-
-        $stage = DealStage::from($targetColumnId);
 
         DB::transaction(function () use ($deal, $stage, $cardId, $targetColumnId, $afterCardId, $beforeCardId): void {
             parent::moveCard($cardId, $targetColumnId, $afterCardId, $beforeCardId);
