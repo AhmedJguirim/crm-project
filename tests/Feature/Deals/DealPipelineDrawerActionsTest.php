@@ -217,10 +217,16 @@ test('log an activity from the drawer', function () {
 });
 
 test('add a task from the drawer', function () {
+    $hasPrefill = function (array $state): array {
+        expect($state['contact_id'])->toEqual($this->contact->id)
+            ->and($state['deal_id'])->toEqual($this->deal->id)
+            ->and($state['contact_name'])->toBe('Jane Doe');
+
+        return [];
+    };
+
     $component = ($this->mountChild)(($this->openDrawer)(), 'addTask')
-        ->assertActionDataSet(fn (array $state): bool => $state['contact_id'] === $this->contact->id
-            && $state['deal_id'] === $this->deal->id
-            && $state['contact_name'] === 'Jane Doe');
+        ->assertActionDataSet($hasPrefill);
 
     $component->fillForm(['title' => 'Follow up'])
         ->call('callMountedAction')
@@ -260,8 +266,16 @@ test('the deal page quick task is not changed by the new factory', function () {
 });
 
 test('edit from the drawer saves through the deal form and the stage rule', function () {
+    $hasPrefill = function (array $state): array {
+        expect($state['title'])->toBe('Retainer')
+            ->and($state['stage'])->toBeIn([DealStage::Lead, DealStage::Lead->value])
+            ->and((float) $state['value'])->toBe(1234.5);
+
+        return [];
+    };
+
     $component = ($this->mountChild)(($this->openDrawer)(), 'editDeal')
-        ->assertActionDataSet(fn (array $state): bool => $state['title'] === 'Retainer' && DealStage::from($state['stage'] instanceof DealStage ? $state['stage']->value : $state['stage']) === DealStage::Lead)
+        ->assertActionDataSet($hasPrefill)
         ->fillForm(['value' => 2000, 'stage' => DealStage::Lost])
         ->call('callMountedAction')
         ->assertHasNoFormErrors()

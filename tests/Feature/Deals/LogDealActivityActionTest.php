@@ -38,14 +38,20 @@ afterEach(function () {
 });
 
 test('the deal page builds its action from the class', function () {
+    $hasPrefill = function (array $state): array {
+        expect($state['deal'])->toBe('Retainer')
+            ->and($state['contact_name'])->toBe('Jane Doe')
+            ->and($state['deal_id'])->toEqual($this->deal->id);
+
+        return [];
+    };
+
     $page = Livewire::test(ViewDeal::class, ['record' => $this->deal->id]);
 
     $page->assertActionVisible('logActivity')
         ->assertActionHasLabel('logActivity', 'Log Activity')
         ->mountAction('logActivity')
-        ->assertActionDataSet(fn (array $state): bool => $state['deal'] === 'Retainer'
-            && $state['contact_name'] === 'Jane Doe'
-            && $state['deal_id'] === $this->deal->id);
+        ->assertActionDataSet($hasPrefill);
 
     expect(LogDealActivityAction::make())->toBeInstanceOf(Action::class)
         ->and(LogDealActivityAction::make()->getName())->toBe('logActivity')
