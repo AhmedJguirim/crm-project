@@ -4,14 +4,20 @@ namespace App\Filament\Resources\Deals\Pages;
 
 use App\Enums\DealStage;
 use App\Enums\DealStatus;
+use App\Filament\Actions\LogDealActivityAction;
+use App\Filament\Actions\QuickTaskAction;
 use App\Filament\Resources\Deals\DealResource;
 use App\Filament\Resources\Deals\Schemas\DealDrawerInfolist;
+use App\Filament\Resources\Deals\Schemas\DealForm;
 use App\Models\Deal;
 use App\Services\Deals\DealStageMover;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Select;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
 use Filament\Support\Enums\TextSize;
@@ -93,7 +99,7 @@ class DealPipeline extends BoardResourcePage
             })
             ->actions([
                 Action::make('openDeal')
-                    ->authorize(fn (?Deal $record): bool => $record !== null && (Auth::user()?->can('view', $record) ?? false))
+                    ->authorize(fn (?Deal $record): bool => $this->canOnDrawerDeal('view', $record))
                     ->slideOver()
                     ->modalWidth(Width::Large)
                     ->modalHeading(fn (?Deal $record): string => (string) $record?->title)
@@ -102,6 +108,12 @@ class DealPipeline extends BoardResourcePage
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Close')
                     ->extraModalFooterActions([
+                        $this->moveStageAction(),
+                        LogDealActivityAction::make()
+                            ->after(fn (Action $action) => $this->refreshDrawerDeal($action)),
+                        QuickTaskAction::makeForDeal()
+                            ->after(fn (Action $action) => $this->refreshDrawerDeal($action)),
+                        $this->editDealAction(),
                         Action::make('openFullPage')
                             ->label('Open full page')
                             ->icon(Heroicon::OutlinedArrowTopRightOnSquare)
@@ -110,6 +122,98 @@ class DealPipeline extends BoardResourcePage
                     ]),
             ])
             ->cardAction('openDeal');
+    }
+
+    /**
+     * True when the deal exists in this organization's board and the user may run the ability on it; a missing deal (a forged key) is refused.
+     */
+    protected function canOnDrawerDeal(string $ability, ?Deal $record): bool
+    {
+        return $record !== null && (Auth::user()?->can($ability, $record) ?? false);
+    }
+
+    /**
+     * Reloads the drawer's deal after a child action, because the child works on its own instance of the deal.
+     */
+    protected function refreshDrawerDeal(Action $action): void
+    {
+        $action->getParentAction()?->getRecord()?->refresh();
+    }
+
+    /**
+     * Moves the open deal to another stage through moveCard(), unless it was moved by someone else since the form opened.
+     */
+    protected function moveStageAction(): Action
+    {
+        return Action::make('moveStage')
+            ->label('Move stage')
+            ->icon(Heroicon::OutlinedArrowsRightLeft)
+            ->color('gray')
+            ->authorize(fn (?Deal $record): bool => $this->canOnDrawerDeal('update', $record))
+            ->modalHeading('Move deal')
+            ->modalSubmitActionLabel('Move')
+            ->fillForm(fn (Deal $record): array => [
+                'stage' => $record->stage,
+                'from_stage' => $record->stage->value,
+            ])
+            ->schema([
+                Select::make('stage')
+                    ->label('Stage')
+                    ->options(DealStage::class)
+                    ->required(),
+
+                Hidden::make('from_stage'),
+            ])
+            ->action(function (array $data, Deal $record): void {
+                $target = $data['stage'] instanceof DealStage ? $data['stage'] : DealStage::from($data['stage']);
+
+                if ($record->stage->value !== $data['from_stage']) {
+                    Notification::make()
+                        ->title('This deal was moved meanwhile')
+                        ->body("It is now in {$record->stage->getLabel()}. Nothing was changed.")
+                        ->warning()
+                        ->send();
+
+                    return;
+                }
+
+                if ($target === $record->stage) {
+                    return;
+                }
+
+                $this->moveCard((string) $record->getKey(), $target->value);
+
+                Notification::make()
+                    ->title("Deal moved to {$target->getLabel()}")
+                    ->success()
+                    ->send();
+            })
+            ->after(fn (Action $action) => $this->refreshDrawerDeal($action));
+    }
+
+    /**
+     * Edits the open deal with the deal form; the stage keeps deciding the status and the won / lost dates.
+     */
+    protected function editDealAction(): Action
+    {
+        return Action::make('editDeal')
+            ->label('Edit')
+            ->icon(Heroicon::OutlinedPencilSquare)
+            ->color('gray')
+            ->authorize(fn (?Deal $record): bool => $this->canOnDrawerDeal('update', $record))
+            ->modalHeading('Edit deal')
+            ->modalSubmitActionLabel('Save changes')
+            ->fillForm(fn (Deal $record): array => $record->attributesToArray())
+            ->schema(fn (Schema $schema, ?Deal $record): Schema => $record === null ? $schema->components([]) : DealForm::configure($schema))
+            ->action(function (array $data, Deal $record): void {
+                $record->update([...$data, ...DealStageMover::attributesFor($data['stage'], $record)]);
+
+                Notification::make()
+                    ->title('Saved')
+                    ->success()
+                    ->send();
+            })
+            ->after(fn (Action $action) => $this->refreshDrawerDeal($action));
     }
 
     /**

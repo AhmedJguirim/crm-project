@@ -42,7 +42,7 @@ final class LogDealActivityAction
                 'contact_id' => $record->contact_id,
                 'occurred_at' => now(),
             ])
-            ->schema(fn (Deal $record): array => self::schema($record))
+            ->schema(fn (?Deal $record): array => $record === null ? [] : self::schema($record))
             ->action(function (array $data, Deal $record, Component $livewire): void {
                 Activity::create([
                     'contact_id' => $record->contact_id,

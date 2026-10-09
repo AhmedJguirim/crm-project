@@ -77,6 +77,30 @@ class QuickTaskAction
     }
 
     /**
+     * Creates a task for the action's record (a deal) and its live contact, with the deal pre-selected; hidden when the deal has no live contact.
+     */
+    public static function makeForDeal(string $name = 'addTask'): Action
+    {
+        return Action::make($name)
+            ->label('Add Task')
+            ->icon(Heroicon::OutlinedPlus)
+            ->color('gray')
+            ->modalHeading('Quick Task')
+            ->modalSubmitActionLabel('Create Task')
+            ->authorize(AbilityCheck::for('create', Task::class))
+            ->visible(fn (?Deal $record): bool => $record?->contact !== null)
+            ->fillForm(fn (Deal $record): array => [
+                'contact_id' => $record->contact->getKey(),
+                'contact_name' => filled($record->contact->name) ? $record->contact->name : $record->contact->email,
+                'deal_id' => $record->getKey(),
+                'due_at' => now()->addDays(3),
+                'type' => TaskType::FollowUp,
+            ])
+            ->schema(self::getLockedContactSchema())
+            ->action(fn (array $data): Task => self::createTask($data));
+    }
+
+    /**
      * @return array<int, Component>
      */
     private static function getBaseSchema(): array
