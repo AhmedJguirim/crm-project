@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Companies\Tables;
 
 use App\Enums\CompanyIndustry;
 use App\Filament\Actions\ExportCompaniesAction;
+use App\Filament\Support\NullsLastSort;
 use App\Filament\Support\SegmentUsageGuard;
 use App\Models\Company;
 use Filament\Actions\BulkActionGroup;
@@ -36,12 +37,12 @@ class CompaniesTable
                     ->formatStateUsing(fn (Company $record): ?string => $record->companyTypeLabel())
                     ->badge()
                     ->placeholder('—')
-                    ->sortable(),
+                    ->sortable(query: NullsLastSort::relationship('companyTypeWithTrashed', 'name')),
 
                 TextColumn::make('industry')
                     ->toggleable()
                     ->placeholder('—')
-                    ->sortable(),
+                    ->sortable(query: NullsLastSort::column('industry')),
 
                 TextColumn::make('domain')
                     ->label('Website')
@@ -56,7 +57,7 @@ class CompaniesTable
 
                 TextColumn::make('employees')
                     ->numeric()
-                    ->sortable()
+                    ->sortable(query: NullsLastSort::column('employees'))
                     ->alignEnd()
                     ->toggleable(isToggledHiddenByDefault: true)
                     ->placeholder('—'),
@@ -64,7 +65,7 @@ class CompaniesTable
                 TextColumn::make('annual_revenue')
                     ->label('Annual revenue')
                     ->numeric(decimalPlaces: 0)
-                    ->sortable()
+                    ->sortable(query: NullsLastSort::column('annual_revenue'))
                     ->alignEnd()
                     ->toggleable(isToggledHiddenByDefault: true)
                     ->placeholder('—'),

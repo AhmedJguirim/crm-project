@@ -85,7 +85,7 @@ describe('the table', function () {
 
         Livewire::test(ListCompanies::class)
             ->sortTable('employees', 'desc')
-            ->assertCanSeeTableRecords([$b, $a], inOrder: true);
+            ->assertCanSeeTableRecords([$b, $a, $c], inOrder: true);
     });
 
     it('sorts by annual revenue', function () {

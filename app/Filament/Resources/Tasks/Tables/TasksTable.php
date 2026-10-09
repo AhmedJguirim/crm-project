@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Tasks\Tables;
 
 use App\Enums\TaskStatus;
 use App\Filament\Resources\Contacts\ContactResource;
+use App\Filament\Support\NullsLastSort;
 use App\Models\Task;
 use App\Services\Owners\OwnerOptions;
 use Filament\Actions\Action;
@@ -60,7 +61,7 @@ class TasksTable
 
                         return $record->status === TaskStatus::Done ? 'success' : 'gray';
                     })
-                    ->sortable(),
+                    ->sortable(query: NullsLastSort::column('due_at')),
 
                 TextColumn::make('type')
                     ->badge()

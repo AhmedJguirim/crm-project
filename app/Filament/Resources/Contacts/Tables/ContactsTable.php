@@ -9,6 +9,7 @@ use App\Enums\LeadSource;
 use App\Filament\Actions\ExportContactsAction;
 use App\Filament\Actions\QuickTaskAction;
 use App\Filament\Support\AbilityCheck;
+use App\Filament\Support\NullsLastSort;
 use App\Jobs\ResyncContactSegments;
 use App\Models\Activity;
 use App\Models\Contact;
@@ -55,7 +56,7 @@ class ContactsTable
 
                 TextColumn::make('status')
                     ->badge()
-                    ->sortable(),
+                    ->sortable(query: NullsLastSort::column('status')),
 
                 TextColumn::make('phone')
                     ->toggleable(),

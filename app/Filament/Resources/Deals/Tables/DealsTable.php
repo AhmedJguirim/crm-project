@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Deals\Tables;
 use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Filament\Resources\Contacts\ContactResource;
+use App\Filament\Support\NullsLastSort;
 use App\Models\Deal;
 use App\Services\Owners\OwnerOptions;
 use Filament\Actions\BulkActionGroup;
@@ -44,7 +45,7 @@ class DealsTable
                 TextColumn::make('value')
                     ->money(fn (): string => Filament::getTenant()?->currencyCode() ?? 'USD')
                     ->placeholder('—')
-                    ->sortable(),
+                    ->sortable(query: NullsLastSort::column('value')),
 
                 TextColumn::make('stage')
                     ->badge()
@@ -58,7 +59,7 @@ class DealsTable
                     ->label('Expected Close')
                     ->date()
                     ->placeholder('—')
-                    ->sortable(),
+                    ->sortable(query: NullsLastSort::column('expected_close_date')),
 
                 TextColumn::make('created_at')
                     ->label('Created At')

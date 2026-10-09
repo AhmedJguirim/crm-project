@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Segments\Tables;
 use App\Enums\SegmentStatus;
 use App\Filament\Resources\Segments\Actions\SegmentDeletionActions;
 use App\Filament\Resources\Segments\SegmentResource;
+use App\Filament\Support\NullsLastSort;
 use App\Models\Segment;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
@@ -42,7 +43,7 @@ class SegmentsTable
                     ->label('Last full sync')
                     ->since()
                     ->placeholder('Never')
-                    ->sortable(),
+                    ->sortable(query: NullsLastSort::column('last_synced_at')),
 
                 TextColumn::make('created_at')
                     ->dateTime()
