@@ -8,6 +8,7 @@ use App\Models\Task;
 use App\Models\User;
 use App\Notifications\TaskDueSoonNotification;
 use App\Notifications\TaskOverdueNotification;
+use App\Services\Tasks\TaskRecipients;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Console\Command;
 use Illuminate\Notifications\DatabaseNotification;
@@ -78,7 +79,7 @@ class SendTaskRemindersCommand extends Command
         foreach ($tasks as $task) {
             $notificationKey = 'due-soon:'.$task->getKey().':'.$task->due_at?->setTimezone($organization->timezone)->toDateString();
 
-            foreach ($organization->members as $member) {
+            foreach (TaskRecipients::for($task, $organization->members) as $member) {
                 if (! $member instanceof User || $this->alreadyNotified($member, TaskDueSoonNotification::class, $notificationKey)) {
                     continue;
                 }
@@ -96,7 +97,7 @@ class SendTaskRemindersCommand extends Command
         foreach ($tasks as $task) {
             $notificationKey = 'overdue:'.$task->getKey().':'.$organization->localNow()->toDateString();
 
-            foreach ($organization->members as $member) {
+            foreach (TaskRecipients::for($task, $organization->members) as $member) {
                 if (! $member instanceof User || $this->alreadyNotified($member, TaskOverdueNotification::class, $notificationKey)) {
                     continue;
                 }

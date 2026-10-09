@@ -6,6 +6,7 @@ use App\Enums\TaskStatus;
 use App\Models\Organization;
 use App\Models\Task;
 use App\Notifications\TaskDailyDigestNotification;
+use App\Services\Tasks\TaskRecipients;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Console\Command;
 
@@ -74,7 +75,14 @@ class SendTaskDailyDigestCommand extends Command
         }
 
         foreach ($organization->members as $member) {
-            $member->notify(new TaskDailyDigestNotification($organization, $overdueTasks, $dueTodayTasks));
+            $overdue = $overdueTasks->filter(fn (Task $task): bool => TaskRecipients::includes($task, $member, $organization->members))->values();
+            $dueToday = $dueTodayTasks->filter(fn (Task $task): bool => TaskRecipients::includes($task, $member, $organization->members))->values();
+
+            if ($overdue->isEmpty() && $dueToday->isEmpty()) {
+                continue;
+            }
+
+            $member->notify(new TaskDailyDigestNotification($organization, $overdue, $dueToday));
         }
     }
 }
