@@ -12,7 +12,9 @@ use App\Models\User;
 use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
+use Spatie\SimpleExcel\SimpleExcelReader;
 
 beforeEach(function () {
     Queue::fake();
@@ -180,6 +182,76 @@ describe('an admin', function () {
             ->and($jobs[0]['ids'])->toEqualCanonicalizing([$this->ann->id, $this->cid->id])
             ->and($jobs[0]['format'])->toBe('csv')
             ->and($jobs[0]['user'])->toBe($this->admin->id);
+    });
+
+    it('exports only the selection the browser sends, whatever the table state', function (string $state) {
+        $page = Livewire::test(ListCompanies::class);
+
+        match ($state) {
+            'default sort' => null,
+            'sorted by type ascending' => $page->call('sortTable', 'companyType.name', 'asc'),
+            'with trashed' => $page->filterTable('trashed', true),
+        };
+
+        $page
+            ->set('isTrackingDeselectedTableRecords', false)
+            ->set('selectedTableRecords', [(string) $this->ann->id, (string) $this->cid->id])
+            ->set('deselectedTableRecords', [])
+            ->call('mountAction', 'exportSelected', [], ['table' => true, 'bulk' => true])
+            ->fillForm(['format' => ExportFormat::Csv->value])
+            ->callMountedAction()
+            ->assertNotified('Export queued');
+
+        $jobs = ($this->pushedJob)();
+
+        expect($jobs)->toHaveCount(1)
+            ->and($jobs[0]['ids'])->toEqualCanonicalizing([$this->ann->id, $this->cid->id]);
+    })->with(['default sort', 'sorted by type ascending', 'with trashed']);
+
+    it('writes a file with only the selected companies', function () {
+        Storage::fake('local');
+
+        Livewire::test(ListCompanies::class)
+            ->set('isTrackingDeselectedTableRecords', false)
+            ->set('selectedTableRecords', [(string) $this->ann->id, (string) $this->cid->id])
+            ->set('deselectedTableRecords', [])
+            ->call('mountAction', 'exportSelected', [], ['table' => true, 'bulk' => true])
+            ->fillForm(['format' => ExportFormat::Csv->value])
+            ->callMountedAction();
+
+        Queue::pushed(ExportCompaniesJob::class)->sole()->handle();
+
+        $file = Storage::disk('local')->files('exports')[0];
+        $rows = SimpleExcelReader::create(Storage::disk('local')->path($file), 'csv')->getRows()->all();
+
+        expect(array_column($rows, 'name'))->toBe(['Ann Ltd', 'Cid SA']);
+    });
+
+    it('narrows the selection to what a search shows', function () {
+        Livewire::test(ListCompanies::class)
+            ->searchTable('Ltd')
+            ->set('isTrackingDeselectedTableRecords', false)
+            ->set('selectedTableRecords', [(string) $this->ann->id, (string) $this->cid->id])
+            ->set('deselectedTableRecords', [])
+            ->call('mountAction', 'exportSelected', [], ['table' => true, 'bulk' => true])
+            ->fillForm(['format' => ExportFormat::Csv->value])
+            ->callMountedAction()
+            ->assertNotified('Export queued');
+
+        expect(($this->pushedJob)()[0]['ids'])->toEqualCanonicalizing([$this->ann->id]);
+    });
+
+    it('exports everything but the deselected rows when select-all tracking is on', function () {
+        Livewire::test(ListCompanies::class)
+            ->set('isTrackingDeselectedTableRecords', true)
+            ->set('selectedTableRecords', [])
+            ->set('deselectedTableRecords', [(string) $this->bob->id])
+            ->call('mountAction', 'exportSelected', [], ['table' => true, 'bulk' => true])
+            ->fillForm(['format' => ExportFormat::Csv->value])
+            ->callMountedAction()
+            ->assertNotified('Export queued');
+
+        expect(($this->pushedJob)()[0]['ids'])->toEqualCanonicalizing([$this->ann->id, $this->cid->id]);
     });
 });
 
