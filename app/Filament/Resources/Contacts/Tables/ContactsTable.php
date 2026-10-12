@@ -10,6 +10,7 @@ use App\Filament\Actions\ExportContactsAction;
 use App\Filament\Actions\QuickTaskAction;
 use App\Filament\Support\AbilityCheck;
 use App\Filament\Support\NullsLastSort;
+use App\Filament\Support\RecordKeyField;
 use App\Jobs\ResyncContactSegments;
 use App\Models\Activity;
 use App\Models\Contact;
@@ -132,7 +133,7 @@ class ContactsTable
                             ->default(now())
                             ->native(false),
 
-                        Select::make('deal_id')
+                        RecordKeyField::select('deal_id')
                             ->label('Deal')
                             ->options(fn (): array => Deal::query()
                                 ->where('organization_id', Filament::getTenant()?->id)

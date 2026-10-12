@@ -6,6 +6,7 @@ use App\Enums\DealStage;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
+use App\Filament\Support\RecordKeyField;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Task;
@@ -40,7 +41,7 @@ class TaskForm
                     ->native(false)
                     ->nullable(),
 
-                Select::make('contact_id')
+                RecordKeyField::select('contact_id')
                     ->label('Contact')
                     ->relationship(
                         'contact',
@@ -60,7 +61,7 @@ class TaskForm
                         $set('deal_id', null);
                     }),
 
-                Select::make('deal_id')
+                RecordKeyField::select('deal_id')
                     ->label('Deal')
                     ->relationship(
                         name: 'deal',
@@ -115,7 +116,7 @@ class TaskForm
                         ),
                     ]),
 
-                Select::make('owner_id')
+                RecordKeyField::select('owner_id')
                     ->label('Assigned to')
                     ->options(fn (?Task $record): array => OwnerOptions::forForm($record))
                     ->in(fn (?Task $record): array => array_keys(OwnerOptions::forForm($record)))

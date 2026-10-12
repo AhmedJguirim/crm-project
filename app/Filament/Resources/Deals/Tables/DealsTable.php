@@ -7,6 +7,7 @@ use App\Enums\DealStatus;
 use App\Filament\Resources\Companies\CompanyResource;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Support\NullsLastSort;
+use App\Filament\Support\RecordKeyField;
 use App\Models\Deal;
 use App\Services\Owners\OwnerOptions;
 use Filament\Actions\BulkAction;
@@ -15,7 +16,6 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Facades\Filament;
-use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -124,7 +124,7 @@ class DealsTable
                         ->modalHeading('Assign owner')
                         ->modalSubmitActionLabel('Assign')
                         ->schema([
-                            Select::make('owner_id')
+                            RecordKeyField::select('owner_id')
                                 ->label('Deal owner')
                                 ->options(fn (): array => OwnerOptions::forForm(null))
                                 ->in(fn (): array => array_keys(OwnerOptions::forForm(null)))

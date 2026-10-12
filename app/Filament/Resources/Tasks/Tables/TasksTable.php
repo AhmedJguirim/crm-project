@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Tasks\Tables;
 use App\Enums\TaskStatus;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Support\NullsLastSort;
+use App\Filament\Support\RecordKeyField;
 use App\Models\Task;
 use App\Services\Owners\OwnerOptions;
 use Carbon\CarbonInterface;
@@ -17,7 +18,6 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 use Filament\Support\Facades\FilamentTimezone;
 use Filament\Support\Icons\Heroicon;
@@ -193,7 +193,7 @@ class TasksTable
                         ->modalHeading('Assign tasks')
                         ->modalSubmitActionLabel('Assign')
                         ->schema([
-                            Select::make('owner_id')
+                            RecordKeyField::select('owner_id')
                                 ->label('Assigned to')
                                 ->options(fn (): array => OwnerOptions::forForm(null))
                                 ->in(fn (): array => array_keys(OwnerOptions::forForm(null)))

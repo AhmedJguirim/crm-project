@@ -6,6 +6,7 @@ use App\Enums\ActivityOutcome;
 use App\Enums\ActivityType;
 use App\Enums\DealStage;
 use App\Filament\Support\AbilityCheck;
+use App\Filament\Support\RecordKeyField;
 use App\Models\Activity;
 use App\Models\Deal;
 use App\Services\Deals\DealCompany;
@@ -119,7 +120,7 @@ final class LogDealActivityAction
             Select::make('outcome')
                 ->options(ActivityOutcome::class),
 
-            Select::make('deal_id')
+            RecordKeyField::select('deal_id')
                 ->label('Deal')
                 ->options(fn (): array => Deal::query()
                     ->where('organization_id', $deal->organization_id)

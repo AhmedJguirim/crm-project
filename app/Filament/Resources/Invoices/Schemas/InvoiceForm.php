@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Invoices\Schemas;
 
 use App\Enums\InvoiceStatus;
+use App\Filament\Support\RecordKeyField;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Invoice;
@@ -24,7 +25,7 @@ class InvoiceForm
     {
         return $schema
             ->components([
-                Select::make('contact_id')
+                RecordKeyField::select('contact_id')
                     ->label('Contact')
                     ->relationship(
                         'contact',
@@ -45,7 +46,7 @@ class InvoiceForm
                         ),
                     ]),
 
-                Select::make('deal_id')
+                RecordKeyField::select('deal_id')
                     ->label('Deal')
                     ->nullable()
                     ->searchable()

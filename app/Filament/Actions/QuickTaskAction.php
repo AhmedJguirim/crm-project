@@ -7,6 +7,7 @@ use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
 use App\Filament\Support\AbilityCheck;
+use App\Filament\Support\RecordKeyField;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Task;
@@ -132,7 +133,7 @@ class QuickTaskAction
                 ->native(false)
                 ->nullable(),
 
-            Select::make('contact_id')
+            RecordKeyField::select('contact_id')
                 ->label('Contact')
                 ->options(fn (): array => Contact::query()
                     ->where('organization_id', Filament::getTenant()?->id)
@@ -182,7 +183,7 @@ class QuickTaskAction
                 ->disabled()
                 ->dehydrated(false),
 
-            Hidden::make('contact_id')
+            RecordKeyField::hidden('contact_id')
                 ->required()
                 ->rules([
                     fn () => Rule::exists(Contact::class, 'id')->where(
@@ -227,7 +228,7 @@ class QuickTaskAction
 
     private static function dealSelect(): Select
     {
-        return Select::make('deal_id')
+        return RecordKeyField::select('deal_id')
             ->label('Deal')
             ->options(function (Get $get): array {
                 return Deal::query()

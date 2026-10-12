@@ -6,6 +6,7 @@ use App\Enums\CompanyIndustry;
 use App\Filament\Resources\CompanyTypes\Schemas\CompanyTypeForm;
 use App\Filament\Support\AbilityCheck;
 use App\Filament\Support\CustomFields\CustomFieldValuesSection;
+use App\Filament\Support\RecordKeyField;
 use App\Models\Company;
 use App\Models\CompanyCustomField;
 use App\Models\CompanyType;
@@ -35,7 +36,7 @@ class CompanyForm
                             ->required()
                             ->maxLength(255),
 
-                        Select::make('company_type_id')
+                        RecordKeyField::select('company_type_id')
                             ->label('Type')
                             ->relationship('companyType', 'name')
                             ->searchable()

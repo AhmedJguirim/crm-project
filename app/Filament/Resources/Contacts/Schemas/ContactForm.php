@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Contacts\Schemas;
 use App\Enums\ContactStatus;
 use App\Enums\LeadSource;
 use App\Filament\Support\CustomFields\CustomFieldValuesSection;
+use App\Filament\Support\RecordKeyField;
 use App\Models\Contact;
 use App\Models\CustomField;
 use Filament\Facades\Filament;
@@ -46,8 +47,7 @@ class ContactForm
                     ->options(LeadSource::class)
                     ->placeholder('Select source...'),
 
-                Select::make('tags')
-                    ->multiple()
+                RecordKeyField::multiSelect('tags')
                     ->relationship(
                         'tags',
                         'name',
@@ -56,8 +56,7 @@ class ContactForm
                     ->preload()
                     ->searchable(),
 
-                Select::make('companies')
-                    ->multiple()
+                RecordKeyField::multiSelect('companies')
                     ->relationship('companies', 'name')
                     ->preload()
                     ->searchable()

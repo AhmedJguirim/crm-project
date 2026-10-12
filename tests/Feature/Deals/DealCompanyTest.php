@@ -59,6 +59,7 @@ test('the default company of a contact is its only live company', function (stri
         'sam' => $this->sam->id,
         'null' => null,
         'blank' => '',
+        'letters' => 'abc',
         'trashed contact' => (function () {
             $this->jane->delete();
 
@@ -82,6 +83,7 @@ test('the default company of a contact is its only live company', function (stri
     'no company' => ['sam', 'none'],
     'null' => ['null', 'none'],
     'blank string' => ['blank', 'none'],
+    'letters' => ['letters', 'none'],
     'trashed contact' => ['trashed contact', 'none'],
     'trashed company' => ['trashed company', 'none'],
     'contact of another organization' => ['other organization', 'none'],

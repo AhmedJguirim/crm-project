@@ -4,6 +4,7 @@ namespace App\Filament\Pages\Tenancy;
 
 use App\Enums\InviteStatus;
 use App\Enums\OrganizationRole;
+use App\Filament\Support\RecordKeyField;
 use App\Mail\OrganizationInvitationMail;
 use App\Models\Organization;
 use App\Models\OrganizationInvite;
@@ -248,7 +249,7 @@ class OrganizationMembers extends Page implements HasTable
                             ->pluck('name', 'users.id');
 
                         return [
-                            Select::make('new_owner_id')
+                            RecordKeyField::select('new_owner_id')
                                 ->label('Transfer ownership to')
                                 ->options($members)
                                 ->required()

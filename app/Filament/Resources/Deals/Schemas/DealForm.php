@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Deals\Schemas;
 
 use App\Enums\DealStage;
+use App\Filament\Support\RecordKeyField;
 use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Deal;
@@ -31,7 +32,7 @@ class DealForm
                     ->required()
                     ->maxLength(255),
 
-                Select::make('contact_id')
+                RecordKeyField::select('contact_id')
                     ->label('Contact')
                     ->relationship(
                         'contact',
@@ -53,7 +54,7 @@ class DealForm
                         ),
                     ]),
 
-                Select::make('company_id')
+                RecordKeyField::select('company_id')
                     ->label('Company')
                     ->relationship(
                         'company',
@@ -75,7 +76,7 @@ class DealForm
                         ),
                     ]),
 
-                Select::make('owner_id')
+                RecordKeyField::select('owner_id')
                     ->label('Deal owner')
                     ->options(fn (?Deal $record): array => OwnerOptions::forForm($record))
                     ->in(fn (?Deal $record): array => array_keys(OwnerOptions::forForm($record)))

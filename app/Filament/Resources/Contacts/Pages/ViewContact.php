@@ -10,6 +10,7 @@ use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Contacts\Widgets\ContactActivityFeed;
 use App\Filament\Resources\Contacts\Widgets\ContactDetailsWidget;
 use App\Filament\Support\AbilityCheck;
+use App\Filament\Support\RecordKeyField;
 use App\Models\Activity;
 use App\Models\CustomField;
 use App\Models\Deal;
@@ -107,7 +108,7 @@ class ViewContact extends Page
                     Select::make('outcome')
                         ->options(ActivityOutcome::class),
 
-                    Select::make('deal_id')
+                    RecordKeyField::select('deal_id')
                         ->label('Deal')
                         ->options(fn (): array => Deal::query()
                             ->where('organization_id', Filament::getTenant()?->id)

@@ -265,7 +265,7 @@ test('locked contact quick task forms open with follow-up and a due date in 3 da
         expect($state['type'])->toBeIn([TaskType::FollowUp, TaskType::FollowUp->value])
             ->and($state['due_at'])->not->toBeNull()
             ->and(Carbon::parse($state['due_at'])->toDateTimeString())->toBe('2026-10-12 12:00:00')
-            ->and($state['contact_id'])->toBe($contact->id);
+            ->and((int) $state['contact_id'])->toBe($contact->id);
 
         return [];
     };
