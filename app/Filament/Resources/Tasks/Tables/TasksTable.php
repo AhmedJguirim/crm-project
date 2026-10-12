@@ -9,12 +9,14 @@ use App\Models\Task;
 use App\Services\Owners\OwnerOptions;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
+use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -22,6 +24,8 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class TasksTable
 {
@@ -179,6 +183,38 @@ class TasksTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
+                    BulkAction::make('assignTasks')
+                        ->authorize('updateAny')
+                        ->authorizeIndividualRecords('update')
+                        ->label('Assign to')
+                        ->icon(Heroicon::OutlinedUserCircle)
+                        ->modalHeading('Assign tasks')
+                        ->modalSubmitActionLabel('Assign')
+                        ->schema([
+                            Select::make('owner_id')
+                                ->label('Assigned to')
+                                ->options(fn (): array => OwnerOptions::forForm(null))
+                                ->in(fn (): array => array_keys(OwnerOptions::forForm(null)))
+                                ->searchable()
+                                ->placeholder('Unassigned'),
+                        ])
+                        ->action(function (Collection $records, array $data): void {
+                            $ownerId = filled($data['owner_id'] ?? null) ? (int) $data['owner_id'] : null;
+
+                            $records->each(fn (Task $task) => $task->update(['owner_id' => $ownerId]));
+
+                            $count = $records->count();
+                            $noun = Str::plural('task', $count);
+
+                            Notification::make()
+                                ->title($ownerId === null
+                                    ? "Unassigned {$count} {$noun}"
+                                    : "Assigned {$count} {$noun} to ".OwnerOptions::forForm(null)[$ownerId])
+                                ->success()
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
                     DeleteBulkAction::make()->authorizeIndividualRecords(),
                 ]),
             ])
