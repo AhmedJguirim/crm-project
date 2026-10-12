@@ -4,6 +4,7 @@ namespace App\Filament\Widgets;
 
 use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Models\Invoice;
+use App\Support\LocalTime;
 use Filament\Facades\Filament;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Section;
@@ -44,7 +45,7 @@ class RevenueOverviewWidget extends BaseWidget
 
         $paidThisMonth = (float) Invoice::query()
             ->paid()
-            ->whereBetween('paid_at', [now()->startOfMonth(), now()->endOfMonth()])
+            ->whereBetween('paid_at', LocalTime::periodDates('month'))
             ->sum('amount');
 
         $outstanding = (float) Invoice::query()
@@ -58,7 +59,7 @@ class RevenueOverviewWidget extends BaseWidget
 
         $ytdRevenue = (float) Invoice::query()
             ->paid()
-            ->whereBetween('paid_at', [now()->startOfYear(), now()->endOfYear()])
+            ->whereBetween('paid_at', LocalTime::periodDates('year'))
             ->sum('amount');
 
         $overdueCount = (int) ($overdueAggregate?->invoices_count ?? 0);

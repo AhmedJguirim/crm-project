@@ -7,6 +7,7 @@ use App\Enums\DealStatus;
 use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\HasOwner;
 use App\Observers\DealObserver;
+use App\Support\LocalTime;
 use Database\Factories\DealFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
@@ -138,16 +139,17 @@ class Deal extends Model
     {
         return $query
             ->whereNotNull('expected_close_date')
-            ->whereBetween('expected_close_date', [now()->startOfWeek(), now()->endOfWeek()]);
+            ->whereBetween('expected_close_date', LocalTime::periodDates('week'));
     }
 
     /**
-     * An open deal whose expected close date is strictly before today (a deal closing today is not late yet).
+     * An open deal whose expected close date is strictly before today in the organization timezone (a deal closing
+     * today is not late yet).
      */
     public function isOverdue(): bool
     {
         return $this->status === DealStatus::Open
             && $this->expected_close_date !== null
-            && $this->expected_close_date->lt(today());
+            && $this->expected_close_date->toDateString() < LocalTime::todayDate();
     }
 }

@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\InvoiceStatus;
 use App\Models\Concerns\BelongsToOrganization;
 use App\Observers\InvoiceObserver;
+use App\Support\LocalTime;
 use Database\Factories\InvoiceFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
@@ -82,13 +83,24 @@ class Invoice extends Model
                 ->orWhere(function (Builder $innerBuilder): void {
                     $innerBuilder
                         ->whereIn('status', [InvoiceStatus::Sent->value, InvoiceStatus::Partial->value])
-                        ->whereDate('due_at', '<', today());
+                        ->where('due_at', '<', LocalTime::todayDate());
                 });
         });
     }
 
+    /**
+     * An unpaid invoice whose due date is strictly before today in the organization timezone (an invoice due today is
+     * not past due yet).
+     */
+    public function isPastDue(): bool
+    {
+        return in_array($this->status, [InvoiceStatus::Sent, InvoiceStatus::Partial, InvoiceStatus::Overdue], true)
+            && $this->due_at !== null
+            && $this->due_at->toDateString() < LocalTime::todayDate();
+    }
+
     public function scopeThisMonth(Builder $query): Builder
     {
-        return $query->whereBetween('issued_at', [now()->startOfMonth(), now()->endOfMonth()]);
+        return $query->whereBetween('issued_at', LocalTime::periodDates('month'));
     }
 }

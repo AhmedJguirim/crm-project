@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Invoices\Pages;
 
 use App\Enums\InvoiceStatus;
 use App\Filament\Resources\Invoices\InvoiceResource;
+use App\Support\LocalTime;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Resources\Pages\ViewRecord;
@@ -45,7 +46,7 @@ class ViewInvoice extends ViewRecord
                 ->action(function (): void {
                     $this->getRecord()->update([
                         'status' => InvoiceStatus::Paid,
-                        'paid_at' => $this->getRecord()->paid_at ?? today(),
+                        'paid_at' => $this->getRecord()->paid_at ?? LocalTime::todayDate(),
                     ]);
                 }),
 

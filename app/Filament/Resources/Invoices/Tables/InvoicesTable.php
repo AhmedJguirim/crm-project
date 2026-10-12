@@ -6,6 +6,7 @@ use App\Enums\InvoiceStatus;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Deals\DealResource;
 use App\Models\Invoice;
+use App\Support\LocalTime;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -71,11 +72,7 @@ class InvoicesTable
                 TextColumn::make('due_at')
                     ->label('Due')
                     ->date()
-                    ->color(function (Invoice $record): ?string {
-                        return $record->due_at && $record->due_at->isPast() && in_array($record->status, [InvoiceStatus::Sent, InvoiceStatus::Partial, InvoiceStatus::Overdue], true)
-                            ? 'danger'
-                            : null;
-                    })
+                    ->color(fn (Invoice $record): ?string => $record->isPastDue() ? 'danger' : null)
                     ->sortable(),
 
                 TextColumn::make('paid_at')
@@ -121,7 +118,7 @@ class InvoicesTable
                     ->action(function (Invoice $record): void {
                         $record->update([
                             'status' => InvoiceStatus::Paid,
-                            'paid_at' => $record->paid_at ?? today(),
+                            'paid_at' => $record->paid_at ?? LocalTime::todayDate(),
                         ]);
                     }),
 

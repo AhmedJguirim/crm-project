@@ -8,6 +8,7 @@ use App\Filament\Support\NullsLastSort;
 use App\Filament\Support\RecordKeyField;
 use App\Models\Task;
 use App\Services\Owners\OwnerOptions;
+use App\Support\LocalTime;
 use Carbon\CarbonInterface;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -87,7 +88,7 @@ class TasksTable
 
                 Filter::make('today')
                     ->query(fn (Builder $query): Builder => $query
-                        ->whereDate('due_at', now()->toDateString())
+                        ->whereBetween('due_at', LocalTime::period('day'))
                         ->where('status', TaskStatus::Pending)),
 
                 Filter::make('this_week')

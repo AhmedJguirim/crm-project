@@ -7,6 +7,7 @@ use App\Filament\Support\RecordKeyField;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Invoice;
+use App\Support\LocalTime;
 use App\Support\MoneyLimit;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DatePicker;
@@ -155,7 +156,7 @@ class InvoiceForm
 
                 DatePicker::make('issued_at')
                     ->label('Issued')
-                    ->default(today())
+                    ->default(fn (): string => LocalTime::todayDate())
                     ->required()
                     ->live()
                     ->afterStateUpdated(function (?string $state, Set $set, Get $get): void {
@@ -170,7 +171,7 @@ class InvoiceForm
                 DatePicker::make('due_at')
                     ->label('Due')
                     ->required()
-                    ->default(fn (): string => today()->addDays(30)->format('Y-m-d')),
+                    ->default(fn (): string => LocalTime::now()->addDays(30)->toDateString()),
 
                 DatePicker::make('paid_at')
                     ->label('Paid')

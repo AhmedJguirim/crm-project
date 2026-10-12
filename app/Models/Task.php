@@ -8,6 +8,7 @@ use App\Enums\TaskType;
 use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\HasOwner;
 use App\Observers\TaskObserver;
+use App\Support\LocalTime;
 use Database\Factories\TaskFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
@@ -79,7 +80,7 @@ class Task extends Model
 
     public function scopeDueThisWeek(Builder $query): Builder
     {
-        return $query->whereBetween('due_at', [now()->startOfWeek(), now()->endOfWeek()]);
+        return $query->whereBetween('due_at', LocalTime::period('week'));
     }
 
     public function scopeCompleted(Builder $query): Builder

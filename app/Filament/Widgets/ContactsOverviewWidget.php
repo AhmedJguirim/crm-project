@@ -5,6 +5,7 @@ namespace App\Filament\Widgets;
 use App\Enums\ContactStatus;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Models\Contact;
+use App\Support\LocalTime;
 use Filament\Support\Icons\Heroicon;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -22,7 +23,7 @@ class ContactsOverviewWidget extends StatsOverviewWidget
     {
         $totalContacts = Contact::query()->count();
         $newThisMonth = Contact::query()
-            ->whereBetween('created_at', [now()->startOfMonth(), now()->endOfMonth()])
+            ->whereBetween('created_at', LocalTime::period('month'))
             ->count();
 
         $supportsStatusColumn = Schema::hasColumn('contacts', 'status');

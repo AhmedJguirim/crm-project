@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Invoices\Pages;
 
 use App\Enums\InvoiceStatus;
 use App\Filament\Resources\Invoices\InvoiceResource;
+use App\Support\LocalTime;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
@@ -19,7 +20,7 @@ class EditInvoice extends EditRecord
             : InvoiceStatus::from($data['status']);
 
         if ($status === InvoiceStatus::Paid) {
-            $data['paid_at'] ??= today();
+            $data['paid_at'] ??= LocalTime::todayDate();
         }
 
         if (! in_array($status, [InvoiceStatus::Paid, InvoiceStatus::Partial], true)) {

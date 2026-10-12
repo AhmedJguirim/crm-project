@@ -281,3 +281,37 @@ test('the custom snooze on the edit page refuses a past local time east of UTC',
 
     expect($this->task->fresh()->due_at->utc()->format('Y-m-d H:i:s'))->toBe('2026-10-12 07:30:00');
 });
+
+test('LocalTime gives the local day and periods as UTC bounds and as dates', function (string $utcNow, string $timezone, string $unit, string $startUtc, string $endUtc, string $startDate, string $endDate) {
+    $this->travelTo(CarbonImmutable::parse($utcNow, 'UTC'));
+
+    [$start, $end] = LocalTime::period($unit, $timezone);
+
+    expect($start->format('Y-m-d H:i:s'))->toBe($startUtc)
+        ->and($end->format('Y-m-d H:i:s'))->toBe($endUtc)
+        ->and($start->timezone->getName())->toBe('UTC')
+        ->and($end->timezone->getName())->toBe('UTC')
+        ->and(LocalTime::periodDates($unit, $timezone))->toBe([$startDate, $endDate]);
+})->with([
+    'Tokyo day' => ['2026-10-12 23:30:00', 'Asia/Tokyo', 'day', '2026-10-12 15:00:00', '2026-10-13 14:59:59', '2026-10-13', '2026-10-13'],
+    'New York week' => ['2026-10-12 02:00:00', 'America/New_York', 'week', '2026-10-05 04:00:00', '2026-10-12 03:59:59', '2026-10-05', '2026-10-11'],
+    'Paris month' => ['2026-10-31 23:30:00', 'Europe/Paris', 'month', '2026-10-31 23:00:00', '2026-11-30 22:59:59', '2026-11-01', '2026-11-30'],
+    'Paris year' => ['2026-12-31 23:30:00', 'Europe/Paris', 'year', '2026-12-31 23:00:00', '2027-12-31 22:59:59', '2027-01-01', '2027-12-31'],
+    'Paris day with a DST change' => ['2026-10-25 12:00:00', 'Europe/Paris', 'day', '2026-10-24 22:00:00', '2026-10-25 22:59:59', '2026-10-25', '2026-10-25'],
+    'UTC week' => ['2026-10-12 23:30:00', 'UTC', 'week', '2026-10-12 00:00:00', '2026-10-18 23:59:59', '2026-10-12', '2026-10-18'],
+]);
+
+test('LocalTime refuses an unknown period unit', function () {
+    LocalTime::period('fortnight', 'UTC');
+})->throws(UnhandledMatchError::class);
+
+test('LocalTime::todayDate() and now() follow the panel timezone by default', function () {
+    $this->travelTo(CarbonImmutable::parse('2026-10-12 23:30:00', 'UTC'));
+
+    expect(LocalTime::todayDate())->toBe('2026-10-13')
+        ->and(LocalTime::now()->timezone->getName())->toBe('Asia/Tokyo');
+
+    Filament::setTenant(null);
+
+    expect(LocalTime::todayDate())->toBe('2026-10-12');
+});

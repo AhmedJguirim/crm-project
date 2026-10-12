@@ -5,6 +5,7 @@ namespace App\Filament\Widgets;
 use App\Enums\DealStage;
 use App\Filament\Resources\Deals\DealResource;
 use App\Models\Deal;
+use App\Support\LocalTime;
 use Filament\Facades\Filament;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Section;
@@ -85,7 +86,7 @@ class DealsOverviewWidget extends BaseWidget
 
         $wonThisMonthAggregate = Deal::query()
             ->won()
-            ->whereBetween('won_at', [now()->startOfMonth(), now()->endOfMonth()])
+            ->whereBetween('won_at', LocalTime::period('month'))
             ->selectRaw('COUNT(*) as deals_count, COALESCE(SUM(value), 0) as total_value')
             ->first();
 
