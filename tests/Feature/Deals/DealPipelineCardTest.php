@@ -33,6 +33,7 @@ beforeEach(function () {
     $this->deal = Deal::factory()->create([
         'organization_id' => $this->org->id,
         'contact_id' => $this->contact->id,
+        'company_id' => $this->acme->id,
         'created_by' => $this->user->id,
         'title' => 'Retainer',
         'stage' => DealStage::Lead,
@@ -94,23 +95,43 @@ test('the value uses the organization currency, zero is shown and null is hidden
     expect(($this->cardEntry)($this->deal->fresh(), 'value')->isVisible())->toBeFalse();
 });
 
-test('the subtitle is hidden without a live contact and skips trashed companies', function () {
-    $noContact = Deal::factory()->create([
+test('the subtitle joins the live contact and the live company of the deal', function (?string $contactName, ?string $companyName, bool $trashContact, bool $trashCompany, ?string $expected) {
+    $contact = $contactName === null ? null : Contact::factory()->create(['organization_id' => $this->org->id, 'name' => $contactName]);
+    $company = $companyName === null ? null : Company::factory()->create(['organization_id' => $this->org->id, 'name' => $companyName]);
+    $deal = Deal::factory()->create([
         'organization_id' => $this->org->id,
-        'contact_id' => null,
+        'contact_id' => $contact?->id,
+        'company_id' => $company?->id,
         'created_by' => $this->user->id,
         'stage' => DealStage::Lead,
     ]);
 
-    expect(($this->cardEntry)($noContact, 'subtitle')->isVisible())->toBeFalse();
+    if ($trashContact) {
+        $contact->delete();
+    }
 
-    $this->contact->delete();
+    if ($trashCompany) {
+        $company->delete();
+    }
 
-    expect(($this->cardEntry)($this->deal->fresh(), 'subtitle')->isVisible())->toBeFalse();
+    $entry = ($this->cardEntry)($deal->fresh(), 'subtitle');
 
-    $this->contact->restore();
-    $this->zeta->delete();
-    $this->acme->delete();
+    expect($entry->isVisible())->toBe($expected !== null);
+
+    if ($expected !== null) {
+        expect($entry->getState())->toBe($expected);
+    }
+})->with([
+    'contact and company' => ['Jane Doe', 'Acme Ltd', false, false, 'Jane Doe · Acme Ltd'],
+    'contact only' => ['John Roe', null, false, false, 'John Roe'],
+    'company only' => [null, 'Acme Ltd', false, false, 'Acme Ltd'],
+    'trashed contact' => ['Jane Doe', 'Acme Ltd', true, false, 'Acme Ltd'],
+    'trashed company' => ['Jane Doe', 'Acme Ltd', false, true, 'Jane Doe'],
+    'neither' => [null, null, false, false, null],
+]);
+
+test('the contact companies no longer feed the subtitle', function () {
+    $this->deal->forceFill(['company_id' => null])->saveQuietly();
 
     Livewire::test(DealPipeline::class)->assertSee('Jane Doe')->assertDontSee('Acme Ltd')->assertDontSee('Zeta Corp');
 });
@@ -123,9 +144,9 @@ test('a long subtitle is cut and carries a tooltip with the full text', function
     $entry = ($this->cardEntry)($this->deal->fresh(), 'subtitle');
 
     expect($entry->formatState($entry->getState()))->toBe(str_repeat('A', 60).'...')
-        ->and($entry->getTooltip())->toBe($name);
+        ->and($entry->getTooltip())->toBe("{$name} · Acme Ltd");
 
-    $short = ($this->cardEntry)(Deal::query()->find($this->deal->id)->setRelation('contact', $this->contact->load('companies')), 'subtitle');
+    $short = ($this->cardEntry)(Deal::query()->with(['contact', 'company'])->find($this->deal->id)->setRelation('contact', $this->contact), 'subtitle');
 
     expect($short->getTooltip())->toBeNull();
 });
@@ -174,7 +195,7 @@ test('html in a title, a contact name and a company name is escaped on the card'
     $contact = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => '<script>alert("c")</script>']);
     $company = Company::factory()->create(['organization_id' => $this->org->id, 'name' => '<b>Evil</b>']);
     $contact->companies()->attach($company);
-    $this->deal->forceFill(['contact_id' => $contact->id, 'title' => '<img src=x onerror=alert(1)>'])->saveQuietly();
+    $this->deal->forceFill(['contact_id' => $contact->id, 'company_id' => $company->id, 'title' => '<img src=x onerror=alert(1)>'])->saveQuietly();
 
     Livewire::test(DealPipeline::class)
         ->assertSee('<img src=x onerror=alert(1)>')
@@ -201,10 +222,10 @@ test('more cards do not add company queries', function () {
 
     foreach (range(1, 6) as $i) {
         $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
-        $contact->companies()->attach(Company::factory()->create(['organization_id' => $this->org->id]));
         Deal::factory()->create([
             'organization_id' => $this->org->id,
             'contact_id' => $contact->id,
+            'company_id' => Company::factory()->create(['organization_id' => $this->org->id])->id,
             'created_by' => $this->user->id,
             'stage' => DealStage::Lead,
             'status' => DealStatus::Open,

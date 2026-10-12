@@ -15,6 +15,7 @@ use App\Models\Activity;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Tag;
+use App\Services\Deals\DealCompany;
 use App\Services\Deals\DealStageMover;
 use App\Support\MoneyLimit;
 use Filament\Actions\Action;
@@ -163,6 +164,7 @@ class ContactsTable
                                 return Deal::create([
                                     'organization_id' => Filament::getTenant()?->id,
                                     'contact_id' => $record->getKey(),
+                                    'company_id' => DealCompany::defaultIdFor($record->getKey()),
                                     'title' => $data['title'],
                                     ...DealStageMover::attributesFor($data['stage']),
                                     'value' => $data['value'] ?? null,

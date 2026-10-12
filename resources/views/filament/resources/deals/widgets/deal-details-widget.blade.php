@@ -42,6 +42,22 @@
             </div>
 
             <div>
+                <dt class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Company</dt>
+                <dd class="mt-1 text-sm text-gray-700 dark:text-gray-300">
+                    @if ($record->companyWithTrashed)
+                        <a
+                            href="{{ \App\Filament\Resources\Companies\CompanyResource::getUrl('edit', ['record' => $record->companyWithTrashed]) }}"
+                            class="font-medium text-primary-600 hover:underline dark:text-primary-400"
+                        >
+                            {{ $record->companyLabel() }}
+                        </a>
+                    @else
+                        <span class="text-gray-400 dark:text-gray-600">No company</span>
+                    @endif
+                </dd>
+            </div>
+
+            <div>
                 <dt class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Deal owner</dt>
                 <dd class="mt-1 text-sm text-gray-700 dark:text-gray-300">
                     @if (filled($record->ownerLabel()))

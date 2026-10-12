@@ -32,6 +32,7 @@ use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\Deals\DealCompany;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -549,6 +550,7 @@ class ItConsultingSeeder extends Seeder
                 ],
                 [
                     'contact_id' => $contact->id,
+                    'company_id' => DealCompany::defaultIdFor($contact->id),
                     'stage' => $dealData['stage'],
                     'status' => $dealData['status'],
                     'value' => $dealData['value'],

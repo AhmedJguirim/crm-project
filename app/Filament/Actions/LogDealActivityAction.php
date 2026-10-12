@@ -8,6 +8,7 @@ use App\Enums\DealStage;
 use App\Filament\Support\AbilityCheck;
 use App\Models\Activity;
 use App\Models\Deal;
+use App\Services\Deals\DealCompany;
 use App\Services\Deals\DealStageMover;
 use App\Support\MoneyLimit;
 use Filament\Actions\Action;
@@ -150,6 +151,7 @@ final class LogDealActivityAction
                     return Deal::create([
                         'organization_id' => $deal->organization_id,
                         'contact_id' => $deal->contact_id,
+                        'company_id' => DealCompany::defaultIdFor($deal->contact_id),
                         'title' => $data['title'],
                         ...DealStageMover::attributesFor($data['stage']),
                         'value' => $data['value'] ?? null,

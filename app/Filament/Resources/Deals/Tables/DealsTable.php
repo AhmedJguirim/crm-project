@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Deals\Tables;
 
 use App\Enums\DealStage;
 use App\Enums\DealStatus;
+use App\Filament\Resources\Companies\CompanyResource;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Support\NullsLastSort;
 use App\Models\Deal;
@@ -24,7 +25,7 @@ class DealsTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('owner.organizations'))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['owner.organizations', 'companyWithTrashed']))
             ->columns([
                 TextColumn::make('title')
                     ->searchable()
@@ -35,6 +36,14 @@ class DealsTable
                     ->placeholder('No contact')
                     ->url(fn (Deal $record): ?string => $record->contact
                         ? ContactResource::getUrl('view', ['record' => $record->contact])
+                        : null),
+
+                TextColumn::make('company_id')
+                    ->label('Company')
+                    ->state(fn (Deal $record): ?string => $record->companyLabel())
+                    ->placeholder('No company')
+                    ->url(fn (Deal $record): ?string => $record->companyWithTrashed
+                        ? CompanyResource::getUrl('edit', ['record' => $record->companyWithTrashed])
                         : null),
 
                 TextColumn::make('owner_id')
@@ -77,6 +86,12 @@ class DealsTable
                 SelectFilter::make('contact_id')
                     ->label('Contact')
                     ->relationship('contact', 'name')
+                    ->searchable()
+                    ->preload(),
+
+                SelectFilter::make('company_id')
+                    ->label('Company')
+                    ->relationship('company', 'name')
                     ->searchable()
                     ->preload(),
 

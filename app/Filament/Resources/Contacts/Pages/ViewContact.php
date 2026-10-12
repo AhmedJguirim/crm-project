@@ -13,6 +13,7 @@ use App\Filament\Support\AbilityCheck;
 use App\Models\Activity;
 use App\Models\CustomField;
 use App\Models\Deal;
+use App\Services\Deals\DealCompany;
 use App\Services\Deals\DealStageMover;
 use App\Support\MoneyLimit;
 use Filament\Actions\Action;
@@ -138,6 +139,7 @@ class ViewContact extends Page
                             return Deal::create([
                                 'organization_id' => Filament::getTenant()?->id,
                                 'contact_id' => $this->getRecord()->getKey(),
+                                'company_id' => DealCompany::defaultIdFor($this->getRecord()->getKey()),
                                 'title' => $data['title'],
                                 ...DealStageMover::attributesFor($data['stage']),
                                 'value' => $data['value'] ?? null,

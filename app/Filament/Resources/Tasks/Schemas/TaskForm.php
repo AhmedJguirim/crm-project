@@ -9,6 +9,7 @@ use App\Enums\TaskType;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Task;
+use App\Services\Deals\DealCompany;
 use App\Services\Deals\DealStageMover;
 use App\Services\Owners\OwnerOptions;
 use App\Support\MoneyLimit;
@@ -97,6 +98,7 @@ class TaskForm
                         return Deal::create([
                             'organization_id' => Filament::getTenant()?->id,
                             'contact_id' => $get('contact_id') ?: null,
+                            'company_id' => DealCompany::defaultIdFor($get('contact_id')),
                             'title' => $data['title'],
                             ...DealStageMover::attributesFor($data['stage']),
                             'value' => $data['value'] ?? null,

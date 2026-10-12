@@ -28,6 +28,7 @@ class Deal extends Model
     protected $fillable = [
         'organization_id',
         'contact_id',
+        'company_id',
         'title',
         'stage',
         'value',
@@ -56,6 +57,41 @@ class Deal extends Model
     public function contact(): BelongsTo
     {
         return $this->belongsTo(Contact::class);
+    }
+
+    /**
+     * The company of the deal, only while it is live.
+     *
+     * @return BelongsTo<Company, $this>
+     */
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
+    }
+
+    /**
+     * The company of the deal, including a deleted one: only for display, so the options of the forms keep hiding the
+     * companies that are deleted.
+     *
+     * @return BelongsTo<Company, $this>
+     */
+    public function companyWithTrashed(): BelongsTo
+    {
+        return $this->belongsTo(Company::class, 'company_id')->withTrashed();
+    }
+
+    /**
+     * The name of the company of the deal, followed by " (deleted)" when the company is deleted; null without a company.
+     */
+    public function companyLabel(): ?string
+    {
+        $company = $this->companyWithTrashed;
+
+        if ($company === null) {
+            return null;
+        }
+
+        return $company->name.($company->trashed() ? ' (deleted)' : '');
     }
 
     public function creator(): BelongsTo

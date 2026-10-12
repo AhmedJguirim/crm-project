@@ -10,6 +10,7 @@ use App\Filament\Support\AbilityCheck;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Task;
+use App\Services\Deals\DealCompany;
 use App\Services\Deals\DealStageMover;
 use App\Support\MoneyLimit;
 use Filament\Actions\Action;
@@ -265,6 +266,7 @@ class QuickTaskAction
                 return Deal::create([
                     'organization_id' => Filament::getTenant()?->id,
                     'contact_id' => $get('contact_id') ?: null,
+                    'company_id' => DealCompany::defaultIdFor($get('contact_id')),
                     'title' => $data['title'],
                     ...DealStageMover::attributesFor($data['stage']),
                     'value' => $data['value'] ?? null,

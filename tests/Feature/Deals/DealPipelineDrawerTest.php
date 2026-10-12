@@ -39,6 +39,7 @@ beforeEach(function () {
     $this->deal = Deal::factory()->create([
         'organization_id' => $this->org->id,
         'contact_id' => $this->contact->id,
+        'company_id' => $this->acme->id,
         'created_by' => $this->user->id,
         'title' => 'Retainer',
         'stage' => DealStage::Lead,

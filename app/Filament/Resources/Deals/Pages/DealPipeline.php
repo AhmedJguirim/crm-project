@@ -26,7 +26,6 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -219,19 +218,13 @@ class DealPipeline extends BoardResourcePage
     }
 
     /**
-     * The small grey line under the title: the contact's name, then the name of the contact's first live company by name.
+     * The small grey line under the title: the contact's name and the deal's company name, whichever are live.
      */
     protected function cardSubtitle(Deal $deal): ?string
     {
-        $contact = $deal->contact;
+        $parts = array_filter([$deal->contact?->name, $deal->company?->name], fn (?string $part): bool => $part !== null);
 
-        if ($contact === null) {
-            return null;
-        }
-
-        $company = $contact->companies->first();
-
-        return $company === null ? $contact->name : "{$contact->name} · {$company->name}";
+        return $parts === [] ? null : implode(' · ', $parts);
     }
 
     /**
@@ -343,9 +336,6 @@ class DealPipeline extends BoardResourcePage
     {
         return Deal::query()
             ->where('organization_id', Filament::getTenant()->id)
-            ->with([
-                'contact.companies' => fn (BelongsToMany $query) => $query->orderBy('companies.name'),
-                'creator',
-            ]);
+            ->with(['contact', 'company', 'creator']);
     }
 }

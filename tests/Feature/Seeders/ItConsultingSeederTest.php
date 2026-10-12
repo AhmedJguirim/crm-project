@@ -383,6 +383,19 @@ test('it consulting seeder gives the demo deals to test@example.com except one',
         ->and($owners->except('InnoTech Transformation Advisory')->unique()->values()->all())->toBe([$user->id]);
 });
 
+test('it consulting seeder gives every demo deal the single company of its contact', function () {
+    $this->seed(ItConsultingSeeder::class);
+
+    $user = User::query()->where('email', 'test@example.com')->firstOrFail();
+    $this->actingAs($user);
+    Filament::setTenant($user->personalOrganization());
+
+    $deal = Deal::query()->where('title', 'TechCorp Infra Expansion')->firstOrFail();
+
+    expect(Deal::query()->whereNull('company_id')->count())->toBe(0)
+        ->and($deal->company->name)->toBe('TechCorp Solutions');
+});
+
 test('it consulting seeder assigns the demo tasks to test@example.com except one', function () {
     $this->seed(ItConsultingSeeder::class);
 
