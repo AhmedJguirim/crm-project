@@ -45,7 +45,7 @@ test('shows type, contacts count and location columns', function () {
     $company->contacts()->attach(Contact::factory()->count(2)->create(['organization_id' => $this->org->id]));
 
     $page = Livewire::test(ListCompanies::class)
-        ->assertTableColumnStateSet('companyType.name', 'Enterprise', $company)
+        ->assertTableColumnStateSet('companyTypeWithTrashed.name', 'Enterprise', $company)
         ->assertTableColumnStateSet('address.city', 'Paris', $company)
         ->assertTableColumnStateSet('address.country', 'France', $company);
 
@@ -119,6 +119,28 @@ test('can bulk delete and restore companies', function () {
         ->callAction(TestAction::make(RestoreBulkAction::class)->table()->bulk());
 
     $companies->each(fn (Company $company) => $this->assertNotSoftDeleted($company));
+});
+
+test('row delete action soft deletes the company', function () {
+    $company = Company::factory()->create(['organization_id' => $this->org->id]);
+
+    Livewire::test(ListCompanies::class)
+        ->callAction(TestAction::make('delete')->table($company))
+        ->assertNotified();
+
+    $this->assertSoftDeleted($company);
+});
+
+test('row restore action restores a trashed company', function () {
+    $company = Company::factory()->create(['organization_id' => $this->org->id]);
+    $company->delete();
+
+    Livewire::test(ListCompanies::class)
+        ->filterTable('trashed', false)
+        ->callAction(TestAction::make('restore')->table($company))
+        ->assertNotified();
+
+    $this->assertNotSoftDeleted($company);
 });
 
 test('companies are globally searchable', function () {

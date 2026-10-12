@@ -17,6 +17,8 @@ use Filament\Tables\Table;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
+use UnitEnum;
 
 class CustomFieldResource extends Resource
 {
@@ -26,11 +28,13 @@ class CustomFieldResource extends Resource
 
     protected static ?string $recordTitleAttribute = 'name';
 
-    protected static ?string $navigationLabel = 'Custom Fields';
+    protected static ?string $navigationLabel = 'Contact fields';
 
-    protected static ?string $modelLabel = 'Custom Field';
+    protected static ?string $modelLabel = 'Contact field';
 
-    protected static ?string $pluralModelLabel = 'Custom Fields';
+    protected static ?string $pluralModelLabel = 'Contact fields';
+
+    protected static string|UnitEnum|null $navigationGroup = 'Audience';
 
     protected static ?int $navigationSort = 10;
 
@@ -64,6 +68,15 @@ class CustomFieldResource extends Resource
         return parent::getEloquentQuery()
             ->where('organization_id', Filament::getTenant()->id)
             ->orderBy('order');
+    }
+
+    public static function getRecordRouteBindingEloquentQuery(): Builder
+    {
+        return parent::getRecordRouteBindingEloquentQuery()
+            ->where('organization_id', Filament::getTenant()->id)
+            ->withoutGlobalScopes([
+                SoftDeletingScope::class,
+            ]);
     }
 
     public static function getRelations(): array

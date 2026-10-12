@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Contacts\DownloadFailedImportRowsController;
+use App\Http\Controllers\DownloadExportController;
 use App\Http\Controllers\InviteAcceptController;
 use App\Http\Controllers\InvoicePdfController;
 use App\Http\Controllers\TagsController;
@@ -19,10 +20,15 @@ Route::view('dashboard', 'dashboard')
 Route::get('/invite/accept/{token}', InviteAcceptController::class)
     ->name('invite.accept');
 
-// Download failed CSV import rows (authenticated users only)
+// Download failed CSV import rows: a signed link, for the user who ran the import only
 Route::get('/contacts/import/failed-rows', DownloadFailedImportRowsController::class)
-    ->middleware(['auth'])
+    ->middleware(['auth', 'signed'])
     ->name('contacts.import.failed-rows');
+
+// Download an export file: a signed link, for the user who asked for the export only
+Route::get('/exports/download', DownloadExportController::class)
+    ->middleware(['auth', 'signed'])
+    ->name('exports.download');
 
 // Invoice PDF download (authenticated users only, tenant check in controller)
 Route::get('/invoices/{invoice}/pdf', InvoicePdfController::class)
@@ -36,7 +42,7 @@ Route::middleware(HandleInertiaRequests::class)
     ->group(function () {
         Route::inertia('/', 'Welcome', ['appName' => config('app.name')])->name('welcome');
 
-        Route::middleware(['auth', 'can:view,organization'])
+        Route::middleware(['auth', 'can:view,organization', 'tenant.context'])
             ->prefix('{organization:slug}')
             ->group(function () {
                 Route::get('/tags', [TagsController::class, 'index'])->name('tags.index');

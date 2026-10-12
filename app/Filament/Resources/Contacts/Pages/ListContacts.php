@@ -2,15 +2,22 @@
 
 namespace App\Filament\Resources\Contacts\Pages;
 
+use App\Enums\ImportMode;
+use App\Filament\Actions\ExportContactsAction;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Jobs\ProcessContactImportJob;
-use App\Models\CustomField;
+use App\Services\ContactImportFileReader;
+use App\Services\ContactImportService;
+use App\Services\ContactImportTemplate;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Radio;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Number;
 
 class ListContacts extends ListRecords
 {
@@ -18,70 +25,80 @@ class ListContacts extends ListRecords
 
     protected function getHeaderActions(): array
     {
+        $maximumSize = Number::fileSize(ContactImportFileReader::MAX_UPLOAD_KILOBYTES * 1024);
+
         return [
             Action::make('downloadTemplate')
-                ->label('Download CSV Template')
+                ->authorize('viewAny')
+                ->label('Download Excel Template')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->action(function () {
-                    $orgId = Filament::getTenant()->id;
+                ->action(fn () => response()
+                    ->download(
+                        ContactImportTemplate::forOrganization(Filament::getTenant()->id)->writeXlsx(),
+                        'contacts-import-template.xlsx',
+                        ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+                    )
+                    ->deleteFileAfterSend()),
 
-                    $customFields = CustomField::where('organization_id', $orgId)
-                        ->orderBy('order')
-                        ->get();
-
-                    $headers = ['name', 'email', 'phone', 'tags'];
-
-                    foreach ($customFields as $field) {
-                        $headers[] = $field->name;
-                    }
-
-                    $exampleRow = ['John Doe', 'john@example.com', '+1234567890', 'VIP,Newsletter'];
-
-                    foreach ($customFields as $field) {
-                        $exampleRow[] = match ($field->type) {
-                            'date' => '2024-01-15',
-                            'number' => '42',
-                            'select', 'multiselect' => isset($field->options[0]) ? $field->options[0]['value'] : 'example',
-                            default => 'example value',
-                        };
-                    }
-
-                    $csv = implode(',', $headers)."\n".implode(',', $exampleRow)."\n";
-
-                    return response()->streamDownload(
-                        fn () => print ($csv),
-                        'contacts-import-template.csv',
-                        ['Content-Type' => 'text/csv']
-                    );
-                }),
-
-            Action::make('importCsv')
-                ->label('Import from CSV')
+            Action::make('importContacts')
+                ->authorize('import')
+                ->label('Import Excel')
                 ->icon('heroicon-o-arrow-up-tray')
                 ->color('gray')
+                ->modalHeading('Import contacts')
                 ->schema([
-                    FileUpload::make('csv_file')
-                        ->label('CSV File')
-                        ->acceptedFileTypes(['text/csv', 'application/csv', 'text/plain'])
+                    Radio::make('mode')
+                        ->label('What should the import do?')
+                        ->options(ImportMode::class)
+                        ->default(ImportMode::CreateOnly)
+                        ->helperText('Update modes match each row by its "id" column (from an exported file) or, when the id is blank, by its email. A blank cell keeps the current value, "-" clears it, tags are only added, and company details are only used for companies the row creates.')
+                        ->required(),
+                    FileUpload::make('file')
+                        ->label('File')
+                        ->helperText('CSV or Excel (.xlsx). Comma- or semicolon-separated CSV files are accepted. The first row must contain the column headers — use the Excel template for the expected columns. Separate several tags or multi-select values with "'.ContactImportService::MULTI_VALUE_SEPARATOR.'". Write dates as dd-mm-yyyy (or yyyy-mm-dd). Up to '.$maximumSize.'.')
+                        ->acceptedFileTypes([
+                            'text/csv',
+                            'application/csv',
+                            'text/plain',
+                            'application/vnd.ms-excel',
+                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                        ])
+                        ->maxSize(ContactImportFileReader::MAX_UPLOAD_KILOBYTES)
+                        ->validationMessages(['max' => "This file is too large: the maximum is {$maximumSize}. Tip: save it as .xlsx, which is much smaller than CSV."])
                         ->disk('local')
                         ->directory('contact-imports')
                         ->visibility('private')
                         ->required(),
                 ])
                 ->action(function (array $data) {
-                    $path = $data['csv_file'];
+                    $path = $data['file'];
+
+                    if (! in_array(strtolower(pathinfo($path, PATHINFO_EXTENSION)), ['csv', 'txt', 'xlsx'], true)) {
+                        Storage::disk('local')->delete($path);
+
+                        Notification::make()
+                            ->danger()
+                            ->title('Unsupported file type')
+                            ->body('Upload a CSV or an Excel (.xlsx) file.')
+                            ->send();
+
+                        return;
+                    }
+
                     $orgId = Filament::getTenant()->id;
                     $userId = auth()->id();
 
-                    ProcessContactImportJob::dispatch($path, $orgId, $userId);
+                    ProcessContactImportJob::dispatch($path, $orgId, $userId, ImportMode::fromState($data['mode'] ?? ImportMode::CreateOnly));
 
                     Notification::make()
                         ->success()
                         ->title('Import queued')
-                        ->body('Your CSV is being processed. You will receive a notification when complete.')
+                        ->body('Your file is being processed. You will receive a notification when complete.')
                         ->send();
                 }),
+
+            ExportContactsAction::forList(),
 
             CreateAction::make(),
         ];

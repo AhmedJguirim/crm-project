@@ -2,13 +2,17 @@
 
 namespace App\Filament\Resources\Deals\Tables;
 
+use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Filament\Resources\Contacts\ContactResource;
+use App\Filament\Support\NullsLastSort;
 use App\Models\Deal;
+use App\Services\Owners\OwnerOptions;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Facades\Filament;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
@@ -20,6 +24,7 @@ class DealsTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('owner.organizations'))
             ->columns([
                 TextColumn::make('title')
                     ->searchable()
@@ -32,10 +37,15 @@ class DealsTable
                         ? ContactResource::getUrl('view', ['record' => $record->contact])
                         : null),
 
+                TextColumn::make('owner_id')
+                    ->label('Deal owner')
+                    ->state(fn (Deal $record): ?string => $record->ownerLabel())
+                    ->placeholder('No owner'),
+
                 TextColumn::make('value')
-                    ->money(fn (Deal $record): string => $record->currency)
+                    ->money(fn (): string => Filament::getTenant()?->currencyCode() ?? 'USD')
                     ->placeholder('—')
-                    ->sortable(),
+                    ->sortable(query: NullsLastSort::column('value')),
 
                 TextColumn::make('stage')
                     ->badge()
@@ -49,7 +59,7 @@ class DealsTable
                     ->label('Expected Close')
                     ->date()
                     ->placeholder('—')
-                    ->sortable(),
+                    ->sortable(query: NullsLastSort::column('expected_close_date')),
 
                 TextColumn::make('created_at')
                     ->label('Created At')
@@ -58,7 +68,7 @@ class DealsTable
             ])
             ->filters([
                 SelectFilter::make('stage')
-                    ->options(\App\Enums\DealStage::class)
+                    ->options(DealStage::class)
                     ->multiple(),
 
                 SelectFilter::make('status')
@@ -70,6 +80,11 @@ class DealsTable
                     ->searchable()
                     ->preload(),
 
+                SelectFilter::make('owner_id')
+                    ->label('Deal owner')
+                    ->options(fn (): array => OwnerOptions::forFilter(Deal::class))
+                    ->searchable(),
+
                 Filter::make('closing_this_week')
                     ->label('Closing This Week')
                     ->query(fn (Builder $query): Builder => $query->closingThisWeek()),
@@ -80,7 +95,7 @@ class DealsTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()->authorizeIndividualRecords(),
                 ]),
             ])
             ->defaultSort('created_at', 'desc')

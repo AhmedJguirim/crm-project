@@ -3,7 +3,6 @@
 namespace Database\Factories;
 
 use App\Models\CompanyCustomField;
-use App\Models\CompanyType;
 use App\Models\Organization;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -19,9 +18,6 @@ class CompanyCustomFieldFactory extends Factory
     {
         return [
             'organization_id' => Organization::factory(),
-            'company_type_id' => fn (array $attributes) => CompanyType::factory()->create([
-                'organization_id' => $attributes['organization_id'],
-            ])->id,
             'name' => fake()->unique()->words(2, true),
             'type' => fake()->randomElement(['text', 'email', 'url', 'phone', 'number', 'date', 'textarea']),
             'unique' => fake()->boolean(30),

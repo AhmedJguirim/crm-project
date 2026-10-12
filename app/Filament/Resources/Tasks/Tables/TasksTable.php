@@ -4,7 +4,9 @@ namespace App\Filament\Resources\Tasks\Tables;
 
 use App\Enums\TaskStatus;
 use App\Filament\Resources\Contacts\ContactResource;
+use App\Filament\Support\NullsLastSort;
 use App\Models\Task;
+use App\Services\Owners\OwnerOptions;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
@@ -26,6 +28,7 @@ class TasksTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('owner.organizations'))
             ->columns([
                 TextColumn::make('title')
                     ->searchable()
@@ -41,6 +44,11 @@ class TasksTable
                         : null)
                     ->openUrlInNewTab(),
 
+                TextColumn::make('owner_id')
+                    ->label('Assigned to')
+                    ->state(fn (Task $record): ?string => $record->ownerLabel())
+                    ->placeholder('Unassigned'),
+
                 TextColumn::make('due_at')
                     ->label('Due Date')
                     ->dateTime('M j, Y g:i A')
@@ -53,7 +61,7 @@ class TasksTable
 
                         return $record->status === TaskStatus::Done ? 'success' : 'gray';
                     })
-                    ->sortable(),
+                    ->sortable(query: NullsLastSort::column('due_at')),
 
                 TextColumn::make('type')
                     ->badge()
@@ -83,6 +91,11 @@ class TasksTable
                 SelectFilter::make('status')
                     ->options(TaskStatus::class)
                     ->default(TaskStatus::Pending->value),
+
+                SelectFilter::make('owner_id')
+                    ->label('Assigned to')
+                    ->options(fn (): array => OwnerOptions::forFilter(Task::class))
+                    ->searchable(),
             ])
             ->defaultSort(function (Builder $query): Builder {
                 return $query
@@ -92,24 +105,28 @@ class TasksTable
             ->recordActions([
                 ActionGroup::make([
                     Action::make('snooze1Day')
+                        ->authorize('update')
                         ->label('+1 day')
                         ->action(function (Task $record): void {
                             self::snoozeTask($record, 1, 'Task snoozed for 1 day');
                         }),
 
                     Action::make('snooze3Days')
+                        ->authorize('update')
                         ->label('+3 days')
                         ->action(function (Task $record): void {
                             self::snoozeTask($record, 3, 'Task snoozed for 3 days');
                         }),
 
                     Action::make('snooze1Week')
+                        ->authorize('update')
                         ->label('+1 week')
                         ->action(function (Task $record): void {
                             self::snoozeTask($record, 7, 'Task snoozed for 1 week');
                         }),
 
                     Action::make('snoozeCustom')
+                        ->authorize('update')
                         ->label('Custom')
                         ->schema([
                             DateTimePicker::make('due_at')
@@ -135,6 +152,7 @@ class TasksTable
                     ->visible(fn (Task $record): bool => $record->status !== TaskStatus::Done),
 
                 Action::make('markDone')
+                    ->authorize('update')
                     ->label('Mark Done')
                     ->icon(Heroicon::OutlinedCheck)
                     ->color('success')
@@ -161,7 +179,7 @@ class TasksTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()->authorizeIndividualRecords(),
                 ]),
             ])
             ->emptyStateHeading('No tasks yet')

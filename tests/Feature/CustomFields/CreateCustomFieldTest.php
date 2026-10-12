@@ -4,6 +4,8 @@ use App\Filament\Resources\CustomFields\Pages\CreateCustomField;
 use App\Models\CustomField;
 use App\Models\User;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\TextInput;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -88,7 +90,7 @@ test('user can create select field with options', function () {
 test('user can create multiselect field with options', function () {
     Livewire::test(CreateCustomField::class)
         ->fillForm([
-            'name' => 'Tags',
+            'name' => 'Labels',
             'type' => 'multiselect',
             'options' => [
                 ['label' => 'VIP', 'value' => 'vip'],
@@ -98,7 +100,7 @@ test('user can create multiselect field with options', function () {
         ->call('create')
         ->assertHasNoFormErrors();
 
-    $field = CustomField::where('name', 'Tags')->first();
+    $field = CustomField::where('name', 'Labels')->first();
 
     expect($field)->not->toBeNull()
         ->and($field->type)->toBe('multiselect')
@@ -150,7 +152,7 @@ test('creation rejects duplicate name in same organization', function () {
 test('select type requires options', function () {
     Livewire::test(CreateCustomField::class)
         ->fillForm([
-            'name' => 'Status',
+            'name' => 'Stage',
             'type' => 'select',
             'options' => [],
         ])
@@ -335,7 +337,7 @@ test('same field name is allowed in a different organization', function () {
 test('option label is required for select type', function () {
     Livewire::test(CreateCustomField::class)
         ->fillForm([
-            'name' => 'Status',
+            'name' => 'Stage',
             'type' => 'select',
             'options' => [
                 ['label' => '', 'value' => 'val'],
@@ -345,23 +347,25 @@ test('option label is required for select type', function () {
         ->assertHasFormErrors(['options.0.label']);
 });
 
-test('option value is required for select type', function () {
+test('an option value is generated, not asked for', function () {
     Livewire::test(CreateCustomField::class)
         ->fillForm([
-            'name' => 'Status',
+            'name' => 'Stage',
             'type' => 'select',
             'options' => [
                 ['label' => 'Label', 'value' => ''],
             ],
         ])
         ->call('create')
-        ->assertHasFormErrors(['options.0.value']);
+        ->assertHasNoFormErrors();
+
+    expect(CustomField::where('name', 'Stage')->sole()->options[0]['value'])->toMatch('/^opt_[a-z0-9]{10}$/');
 });
 
 test('option label cannot exceed 255 characters', function () {
     Livewire::test(CreateCustomField::class)
         ->fillForm([
-            'name' => 'Status',
+            'name' => 'Stage',
             'type' => 'select',
             'options' => [
                 ['label' => str_repeat('a', 256), 'value' => 'val'],
@@ -371,15 +375,11 @@ test('option label cannot exceed 255 characters', function () {
         ->assertHasFormErrors(['options.0.label']);
 });
 
-test('option value cannot exceed 255 characters', function () {
-    Livewire::test(CreateCustomField::class)
-        ->fillForm([
-            'name' => 'Status',
-            'type' => 'select',
-            'options' => [
-                ['label' => 'Label', 'value' => str_repeat('a', 256)],
-            ],
-        ])
-        ->call('create')
-        ->assertHasFormErrors(['options.0.value']);
+test('the options have no value input', function () {
+    $fields = Livewire::test(CreateCustomField::class)
+        ->fillForm(['type' => 'select', 'options' => [['label' => 'Label']]])
+        ->instance()->getSchema('form')->getFlatFields();
+
+    expect($fields['options.0.label'])->toBeInstanceOf(TextInput::class)
+        ->and($fields['options.0.value'])->toBeInstanceOf(Hidden::class);
 });

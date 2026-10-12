@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Jobs\Middleware\WithTenantContext;
 use App\Models\Organization;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -18,6 +19,16 @@ class TaskDailyDigestNotification extends Notification implements ShouldQueue
         public Collection $overdueTasks,
         public Collection $dueTodayTasks,
     ) {}
+
+    /**
+     * Runs the delivery in the organization's context, so what the mail or the database payload loads is scoped to it.
+     *
+     * @return array<int, object>
+     */
+    public function middleware(object $notifiable, string $channel): array
+    {
+        return [new WithTenantContext($this->organization->getKey())];
+    }
 
     /**
      * Get the notification's delivery channels.

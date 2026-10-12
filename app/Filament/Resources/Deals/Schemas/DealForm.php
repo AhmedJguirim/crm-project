@@ -4,12 +4,16 @@ namespace App\Filament\Resources\Deals\Schemas;
 
 use App\Enums\DealStage;
 use App\Models\Contact;
+use App\Models\Deal;
+use App\Services\Owners\OwnerOptions;
+use App\Support\MoneyLimit;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 class DealForm
@@ -38,6 +42,15 @@ class DealForm
                         ),
                     ]),
 
+                Select::make('owner_id')
+                    ->label('Deal owner')
+                    ->options(fn (?Deal $record): array => OwnerOptions::forForm($record))
+                    ->in(fn (?Deal $record): array => array_keys(OwnerOptions::forForm($record)))
+                    ->default(fn (): ?int => Auth::id())
+                    ->searchable()
+                    ->nullable()
+                    ->placeholder('No owner'),
+
                 Select::make('stage')
                     ->options(DealStage::class)
                     ->default(DealStage::Lead)
@@ -46,16 +59,8 @@ class DealForm
                 TextInput::make('value')
                     ->numeric()
                     ->minValue(0)
+                    ->maxValue(MoneyLimit::MAX)
                     ->nullable(),
-
-                Select::make('currency')
-                    ->options([
-                        'USD' => 'USD',
-                        'EUR' => 'EUR',
-                        'GBP' => 'GBP',
-                    ])
-                    ->default('USD')
-                    ->required(),
 
                 DatePicker::make('expected_close_date')
                     ->label('Expected Close Date')

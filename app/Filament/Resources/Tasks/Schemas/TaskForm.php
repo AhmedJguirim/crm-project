@@ -3,20 +3,23 @@
 namespace App\Filament\Resources\Tasks\Schemas;
 
 use App\Enums\DealStage;
-use App\Enums\DealStatus;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
 use App\Models\Contact;
 use App\Models\Deal;
+use App\Models\Task;
+use App\Services\Deals\DealStageMover;
+use App\Services\Owners\OwnerOptions;
+use App\Support\MoneyLimit;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Schemas\Schema;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
@@ -84,15 +87,8 @@ class TaskForm
                         TextInput::make('value')
                             ->numeric()
                             ->minValue(0)
+                            ->maxValue(MoneyLimit::MAX)
                             ->nullable(),
-                        Select::make('currency')
-                            ->options([
-                                'USD' => 'USD',
-                                'EUR' => 'EUR',
-                                'GBP' => 'GBP',
-                            ])
-                            ->default('USD')
-                            ->required(),
                         Textarea::make('notes')
                             ->rows(3)
                             ->nullable(),
@@ -102,12 +98,11 @@ class TaskForm
                             'organization_id' => Filament::getTenant()?->id,
                             'contact_id' => $get('contact_id') ?: null,
                             'title' => $data['title'],
-                            'stage' => $data['stage'],
+                            ...DealStageMover::attributesFor($data['stage']),
                             'value' => $data['value'] ?? null,
-                            'currency' => $data['currency'],
                             'notes' => $data['notes'] ?? null,
-                            'status' => DealStatus::Open,
                             'created_by' => Auth::id(),
+                            'owner_id' => Auth::id(),
                         ])->getKey();
                     })
                     ->rules([
@@ -117,6 +112,15 @@ class TaskForm
                                 ->where('contact_id', $get('contact_id'))
                         ),
                     ]),
+
+                Select::make('owner_id')
+                    ->label('Assigned to')
+                    ->options(fn (?Task $record): array => OwnerOptions::forForm($record))
+                    ->in(fn (?Task $record): array => array_keys(OwnerOptions::forForm($record)))
+                    ->default(fn (): ?int => Auth::id())
+                    ->searchable()
+                    ->nullable()
+                    ->placeholder('Unassigned'),
 
                 Select::make('type')
                     ->options(TaskType::class)

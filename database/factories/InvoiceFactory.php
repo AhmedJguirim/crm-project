@@ -4,11 +4,12 @@ namespace Database\Factories;
 
 use App\Enums\InvoiceStatus;
 use App\Models\Contact;
+use App\Models\Invoice;
 use App\Models\Organization;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\Invoice>
+ * @extends Factory<Invoice>
  */
 class InvoiceFactory extends Factory
 {
@@ -34,7 +35,6 @@ class InvoiceFactory extends Factory
             'invoice_number' => sprintf('INV-%s-%03d', now()->year, fake()->unique()->numberBetween(1, 999)),
             'amount' => $amount,
             'amount_paid' => $amountPaid,
-            'currency' => fake()->randomElement(['USD', 'EUR', 'GBP', 'CAD', 'AUD']),
             'payment_terms' => $paymentTerms,
             'status' => $status,
             'issued_at' => fake()->dateTimeBetween('-45 days', 'now'),

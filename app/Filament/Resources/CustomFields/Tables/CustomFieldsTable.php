@@ -2,11 +2,12 @@
 
 namespace App\Filament\Resources\CustomFields\Tables;
 
+use App\Filament\Support\CustomFields\CustomFieldDefinitionActions;
 use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 
 class CustomFieldsTable
@@ -40,14 +41,17 @@ class CustomFieldsTable
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                TrashedFilter::make(),
             ])
             ->recordActions([
                 EditAction::make(),
+                CustomFieldDefinitionActions::delete('contacts'),
+                CustomFieldDefinitionActions::restore('contacts'),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    CustomFieldDefinitionActions::deleteBulk('contacts'),
+                    CustomFieldDefinitionActions::restoreBulk('contacts'),
                 ]),
             ])
             ->reorderable('order')

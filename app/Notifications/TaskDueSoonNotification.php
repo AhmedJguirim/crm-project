@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Jobs\Middleware\WithTenantContext;
 use App\Models\Organization;
 use App\Models\Task;
 use Illuminate\Bus\Queueable;
@@ -19,6 +20,16 @@ class TaskDueSoonNotification extends Notification implements ShouldQueue
         public Organization $organization,
         public string $notificationKey,
     ) {}
+
+    /**
+     * Runs the delivery in the task's organization, so what the mail or the database payload loads is scoped to it.
+     *
+     * @return array<int, object>
+     */
+    public function middleware(object $notifiable, string $channel): array
+    {
+        return [new WithTenantContext($this->task->organization_id)];
+    }
 
     /**
      * Get the notification's delivery channels.

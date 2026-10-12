@@ -6,6 +6,7 @@ use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
 use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\HasOwner;
 use App\Observers\TaskObserver;
 use Database\Factories\TaskFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
@@ -23,6 +24,7 @@ class Task extends Model
     /** @use HasFactory<TaskFactory> */
     use HasFactory;
 
+    use HasOwner;
     use SoftDeletes;
 
     protected $fillable = [
@@ -37,6 +39,7 @@ class Task extends Model
         'status',
         'completed_at',
         'created_by',
+        'owner_id',
     ];
 
     protected function casts(): array

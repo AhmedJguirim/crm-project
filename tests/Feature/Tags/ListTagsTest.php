@@ -1,6 +1,8 @@
 <?php
 
+use App\Enums\OrganizationRole;
 use App\Filament\Resources\Tags\Pages\ListTags;
+use App\Models\Organization;
 use App\Models\Tag;
 use App\Models\User;
 use Filament\Actions\DeleteBulkAction;
@@ -113,8 +115,8 @@ test('switching organizations shows different tags', function () {
         'name' => 'org-one-tag',
     ]);
 
-    $secondOrg = \App\Models\Organization::factory()->create(['created_by' => $this->user->id]);
-    $this->user->organizations()->attach($secondOrg, ['role' => \App\Enums\OrganizationRole::Owner->value]);
+    $secondOrg = Organization::factory()->create(['created_by' => $this->user->id]);
+    $this->user->organizations()->attach($secondOrg, ['role' => OrganizationRole::Owner->value]);
 
     $tag2 = Tag::factory()->create([
         'organization_id' => $secondOrg->id,
@@ -145,6 +147,7 @@ test('user can bulk delete tags', function () {
         ->assertCanNotSeeTableRecords($tags);
 
     expect(Tag::where('organization_id', $this->org->id)->count())->toBe(0);
+    $tags->each(fn (Tag $tag) => $this->assertSoftDeleted($tag));
 });
 
 test('bulk delete only removes selected tags', function () {

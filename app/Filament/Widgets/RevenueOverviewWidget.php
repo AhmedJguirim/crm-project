@@ -4,6 +4,7 @@ namespace App\Filament\Widgets;
 
 use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Models\Invoice;
+use Filament\Facades\Filament;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\View;
@@ -39,64 +40,51 @@ class RevenueOverviewWidget extends BaseWidget
 
     protected function getStats(): array
     {
-        $paidThisMonthAggregate = Invoice::query()
+        $currency = Filament::getTenant()?->currencyCode() ?? 'USD';
+
+        $paidThisMonth = (float) Invoice::query()
             ->paid()
             ->whereBetween('paid_at', [now()->startOfMonth(), now()->endOfMonth()])
-            ->selectRaw('COALESCE(SUM(amount), 0) as total_amount, COALESCE(COUNT(DISTINCT currency), 0) as currencies_count, COALESCE(MIN(currency), ?) as primary_currency', ['USD'])
-            ->first();
+            ->sum('amount');
 
-        $outstandingAggregate = Invoice::query()
+        $outstanding = (float) Invoice::query()
             ->outstanding()
-            ->selectRaw('COALESCE(SUM(amount), 0) as total_amount, COALESCE(COUNT(DISTINCT currency), 0) as currencies_count, COALESCE(MIN(currency), ?) as primary_currency', ['USD'])
-            ->first();
+            ->sum('amount');
 
         $overdueAggregate = Invoice::query()
             ->overdue()
             ->selectRaw('COUNT(*) as invoices_count, COALESCE(SUM(amount), 0) as total_amount')
             ->first();
 
-        $ytdAggregate = Invoice::query()
+        $ytdRevenue = (float) Invoice::query()
             ->paid()
             ->whereBetween('paid_at', [now()->startOfYear(), now()->endOfYear()])
-            ->selectRaw('COALESCE(SUM(amount), 0) as total_amount, COALESCE(COUNT(DISTINCT currency), 0) as currencies_count, COALESCE(MIN(currency), ?) as primary_currency', ['USD'])
-            ->first();
-
-        $paidThisMonth = (float) ($paidThisMonthAggregate?->total_amount ?? 0);
-        $paidThisMonthCurrency = (string) ($paidThisMonthAggregate?->primary_currency ?? 'USD');
-        $paidThisMonthMixed = (int) ($paidThisMonthAggregate?->currencies_count ?? 0) > 1;
-
-        $outstanding = (float) ($outstandingAggregate?->total_amount ?? 0);
-        $outstandingCurrency = (string) ($outstandingAggregate?->primary_currency ?? 'USD');
-        $outstandingMixed = (int) ($outstandingAggregate?->currencies_count ?? 0) > 1;
+            ->sum('amount');
 
         $overdueCount = (int) ($overdueAggregate?->invoices_count ?? 0);
         $overdueValue = (float) ($overdueAggregate?->total_amount ?? 0);
 
-        $ytdRevenue = (float) ($ytdAggregate?->total_amount ?? 0);
-        $ytdCurrency = (string) ($ytdAggregate?->primary_currency ?? 'USD');
-        $ytdMixed = (int) ($ytdAggregate?->currencies_count ?? 0) > 1;
-
         return [
-            Stat::make('Paid This Month', Number::currency($paidThisMonth, $paidThisMonthCurrency))
-                ->description($paidThisMonthMixed ? 'Mixed currencies' : 'Paid invoices this month')
+            Stat::make('Paid This Month', Number::currency($paidThisMonth, $currency))
+                ->description('Paid invoices this month')
                 ->descriptionIcon(Heroicon::OutlinedBanknotes)
                 ->color('success')
                 ->url(InvoiceResource::getUrl('index').'?tableFilters[status][values][0]=paid'),
 
-            Stat::make('Outstanding', Number::currency($outstanding, $outstandingCurrency))
-                ->description($outstandingMixed ? 'Mixed currencies' : 'Sent, partial, and overdue')
+            Stat::make('Outstanding', Number::currency($outstanding, $currency))
+                ->description('Sent, partial, and overdue')
                 ->descriptionIcon(Heroicon::OutlinedClock)
                 ->color('warning')
                 ->url(InvoiceResource::getUrl('index').'?tableFilters[status][values][0]=sent&tableFilters[status][values][1]=partial&tableFilters[status][values][2]=overdue'),
 
             Stat::make('Overdue Invoices', sprintf('%d invoice%s', $overdueCount, $overdueCount === 1 ? '' : 's'))
-                ->description(Number::currency($overdueValue, $outstandingCurrency))
+                ->description(Number::currency($overdueValue, $currency))
                 ->descriptionIcon(Heroicon::OutlinedExclamationCircle)
                 ->color($overdueCount > 0 ? 'danger' : 'gray')
                 ->url(InvoiceResource::getUrl('index').'?tableFilters[overdue][isActive]=1'),
 
-            Stat::make('YTD Revenue', Number::currency($ytdRevenue, $ytdCurrency))
-                ->description($ytdMixed ? 'Mixed currencies' : 'Paid invoices this year')
+            Stat::make('YTD Revenue', Number::currency($ytdRevenue, $currency))
+                ->description('Paid invoices this year')
                 ->descriptionIcon(Heroicon::OutlinedChartBar)
                 ->color('primary')
                 ->url(InvoiceResource::getUrl('index').'?tableFilters[status][values][0]=paid'),

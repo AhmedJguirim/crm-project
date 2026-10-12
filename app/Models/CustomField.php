@@ -4,11 +4,14 @@ namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\IsCustomField;
+use App\Models\Concerns\PreventsDeletionWhileUsedInSegments;
+use App\Models\Concerns\PreventsForceDeletion;
 use App\Observers\CustomFieldObserver;
 use Database\Factories\CustomFieldFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[ObservedBy([CustomFieldObserver::class])]
 class CustomField extends Model
@@ -19,6 +22,9 @@ class CustomField extends Model
     use HasFactory;
 
     use IsCustomField;
+    use PreventsDeletionWhileUsedInSegments;
+    use PreventsForceDeletion;
+    use SoftDeletes;
 
     protected $fillable = [
         'organization_id',

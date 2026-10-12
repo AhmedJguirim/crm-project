@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\PreventsDeletionWhileUsedInSegments;
+use App\Models\Concerns\PreventsForceDeletion;
 use Database\Factories\CompanyTypeFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +18,8 @@ class CompanyType extends Model
     /** @use HasFactory<CompanyTypeFactory> */
     use HasFactory;
 
+    use PreventsDeletionWhileUsedInSegments;
+    use PreventsForceDeletion;
     use SoftDeletes;
 
     protected $guarded = [];
@@ -25,8 +29,11 @@ class CompanyType extends Model
         return $this->hasMany(Company::class);
     }
 
-    public function customFields(): HasMany
+    /**
+     * The name, followed by " (deleted)" when the type is deleted.
+     */
+    public function companyTypeLabel(): string
     {
-        return $this->hasMany(CompanyCustomField::class)->orderBy('order');
+        return $this->name.($this->trashed() ? ' (deleted)' : '');
     }
 }

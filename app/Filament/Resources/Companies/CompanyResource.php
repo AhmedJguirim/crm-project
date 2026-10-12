@@ -30,21 +30,22 @@ class CompanyResource extends Resource
 
     public static function getGloballySearchableAttributes(): array
     {
-        return ['name'];
+        return ['name', 'domain'];
     }
 
     /** @return array<string, string> */
     public static function getGlobalSearchResultDetails(Model $record): array
     {
         return array_filter([
-            'Type' => $record->companyType?->name,
+            'Type' => $record->companyTypeLabel(),
+            'Website' => $record->domain,
             'City' => $record->address?->city,
         ]);
     }
 
     public static function getGlobalSearchEloquentQuery(): Builder
     {
-        return parent::getGlobalSearchEloquentQuery()->with(['companyType', 'address']);
+        return parent::getGlobalSearchEloquentQuery()->with(['companyTypeWithTrashed', 'address']);
     }
 
     public static function form(Schema $schema): Schema

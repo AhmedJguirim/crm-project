@@ -74,37 +74,39 @@ test('adds an address to a company that had none', function () {
         ->toBe(['city' => 'Berlin', 'country' => 'Germany', 'organization_id' => $this->org->id]);
 });
 
-test('changing the type shows the new type fields and keeps values of the previous type', function () {
-    CompanyCustomField::factory()->create([
-        'organization_id' => $this->org->id,
-        'company_type_id' => $this->companyType->id,
-        'name' => 'VAT Number',
-        'type' => 'text',
-        'unique' => false,
-    ]);
+test('every company shows the same fields, whatever its type', function () {
+    $website = CompanyCustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'Website', 'type' => 'url', 'unique' => false]);
+    $agency = CompanyType::factory()->create(['organization_id' => $this->org->id]);
+    $companies = [
+        $this->company,
+        Company::factory()->create(['organization_id' => $this->org->id, 'company_type_id' => $agency->id]),
+        Company::factory()->create(['organization_id' => $this->org->id, 'company_type_id' => null]),
+    ];
+
+    foreach ($companies as $company) {
+        Livewire::test(EditCompany::class, ['record' => $company->id])
+            ->assertFormFieldExists('custom_field_picker', fn ($picker): bool => $picker->getOptions() === [$website->key => 'Website']);
+    }
+
+    $company->update(['custom_field_values' => [$website->key => 'https://c.test']]);
+
+    Livewire::test(EditCompany::class, ['record' => $company->id])
+        ->assertFormSet(["custom_field_values.{$website->key}" => 'https://c.test']);
+});
+
+test('changing the type keeps the values', function () {
+    $website = CompanyCustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'Website', 'type' => 'url', 'unique' => false]);
     $startup = CompanyType::factory()->create(['organization_id' => $this->org->id]);
-    CompanyCustomField::factory()->create([
-        'organization_id' => $this->org->id,
-        'company_type_id' => $startup->id,
-        'name' => 'Funding Stage',
-        'type' => 'text',
-        'unique' => false,
-    ]);
-    $this->company->update(['custom_field_values' => ['vat_number' => 'FR123']]);
+    $this->company->update(['custom_field_values' => [$website->key => 'https://a.test']]);
 
     Livewire::test(EditCompany::class, ['record' => $this->company->id])
         ->fillForm(['company_type_id' => $startup->id])
-        ->assertFormFieldExists('custom_field_values.funding_stage')
-        ->assertFormFieldDoesNotExist('custom_field_values.vat_number')
-        ->fillForm(['custom_field_values.funding_stage' => 'Seed'])
+        ->assertFormFieldExists("custom_field_values.{$website->key}")
         ->call('save')
         ->assertHasNoFormErrors();
 
     expect($this->company->fresh()->company_type_id)->toBe($startup->id)
-        ->and($this->company->fresh()->custom_field_values)->toEqual([
-            'vat_number' => 'FR123',
-            'funding_stage' => 'Seed',
-        ]);
+        ->and($this->company->fresh()->custom_field_values)->toEqual([$website->key => 'https://a.test']);
 });
 
 test('can soft delete, restore and force delete a company', function () {
@@ -121,18 +123,18 @@ test('can soft delete, restore and force delete a company', function () {
     $this->assertNotSoftDeleted($this->company);
 });
 
-test('force delete is only available for trashed companies', function () {
+test('companies cannot be force deleted, only restored once trashed', function () {
     Livewire::test(EditCompany::class, ['record' => $this->company->id])
-        ->assertActionHidden(ForceDeleteAction::class)
+        ->assertActionDoesNotExist(ForceDeleteAction::class)
         ->assertActionHidden(RestoreAction::class);
 
     $this->company->delete();
 
     Livewire::test(EditCompany::class, ['record' => $this->company->id])
-        ->callAction(ForceDeleteAction::class)
-        ->assertRedirect();
+        ->assertActionDoesNotExist(ForceDeleteAction::class)
+        ->assertActionVisible(RestoreAction::class);
 
-    $this->assertModelMissing($this->company);
+    $this->assertSoftDeleted($this->company);
 });
 
 test('cannot open a company from another organization', function () {

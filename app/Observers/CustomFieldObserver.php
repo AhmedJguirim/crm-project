@@ -2,8 +2,10 @@
 
 namespace App\Observers;
 
+use App\Exceptions\UsedInSegmentsException;
 use App\Models\CustomField;
-use Filament\Facades\Filament;
+use App\Services\Segments\SegmentUsage;
+use App\Support\Tenancy\TenantContext;
 
 class CustomFieldObserver
 {
@@ -12,13 +14,36 @@ class CustomFieldObserver
      */
     public function creating(CustomField $customField): void
     {
-        if (! $customField->organization_id && Filament::getTenant()) {
-            $customField->organization_id = Filament::getTenant()->id;
+        if (! $customField->organization_id && $organizationId = app(TenantContext::class)->id()) {
+            $customField->organization_id = $organizationId;
         }
 
         if (is_null($customField->order)) {
-            $maxOrder = CustomField::where('organization_id', $customField->organization_id)->max('order') ?? 0;
+            $maxOrder = CustomField::forOrganization($customField->organization_id)->max('order') ?? 0;
             $customField->order = $maxOrder + 1;
+        }
+    }
+
+    /**
+     * Keep the options used by segment conditions from being removed, as that would break those conditions.
+     */
+    public function updating(CustomField $customField): void
+    {
+        if (! $customField->isDirty('options')) {
+            return;
+        }
+
+        $segments = SegmentUsage::segmentsUsing($customField);
+
+        if ($segments->isEmpty()) {
+            return;
+        }
+
+        $keptValues = collect($customField->options ?? [])->pluck('value')->map(fn (mixed $value): string => (string) $value)->all();
+        $removedUsedOptions = array_diff_key(SegmentUsage::usedOptionValues($customField), array_flip($keptValues));
+
+        if ($removedUsedOptions !== []) {
+            throw UsedInSegmentsException::cannotRemoveOptions($customField, $removedUsedOptions);
         }
     }
 

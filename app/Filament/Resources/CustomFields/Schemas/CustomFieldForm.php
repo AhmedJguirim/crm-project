@@ -2,8 +2,13 @@
 
 namespace App\Filament\Resources\CustomFields\Schemas;
 
+use App\Exceptions\UsedInSegmentsException;
 use App\Filament\Support\CustomFields\CustomFieldDefinitionFields;
 use App\Models\CustomField;
+use App\Services\ContactExportWriter;
+use App\Services\ContactImportService;
+use App\Services\Segments\SegmentUsage;
+use Closure;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -22,13 +27,36 @@ class CustomFieldForm
                     ->unique(CustomField::class, 'name', ignoreRecord: true, modifyRuleUsing: function ($rule) {
                         return $rule->where('organization_id', Filament::getTenant()->id);
                     })
+                    ->rule(fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
+                        $reserved = [...ContactImportService::RESERVED_COLUMNS, ...ContactImportService::FAILED_ROWS_META_COLUMNS, ...ContactExportWriter::COLUMNS];
+
+                        $name = mb_strtolower(trim((string) $value));
+
+                        if (in_array($name, $reserved, true) || preg_match('/^company\s*:/u', $name) === 1) {
+                            $fail('This name is used by the import. Choose another name.');
+                        }
+                    })
+                    ->validationMessages(['unique' => CustomFieldDefinitionFields::nameTakenMessage()])
                     ->helperText('A descriptive name for this custom field'),
 
                 CustomFieldDefinitionFields::key(),
 
                 CustomFieldDefinitionFields::type(),
 
-                CustomFieldDefinitionFields::options(),
+                CustomFieldDefinitionFields::options()
+                    ->rule(fn (?CustomField $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($record): void {
+                        if ($record === null) {
+                            return;
+                        }
+
+                        $keptValues = collect($value)->pluck('value')->map(fn (mixed $optionValue): string => (string) $optionValue)->all();
+                        $removedUsedOptions = array_diff_key(SegmentUsage::usedOptionValues($record), array_flip($keptValues));
+
+                        if ($removedUsedOptions !== []) {
+                            $fail(UsedInSegmentsException::cannotRemoveOptions($record, $removedUsedOptions)->getMessage());
+                        }
+                    })
+                    ->rule(CustomFieldDefinitionFields::optionsInUseRule()),
 
                 Toggle::make('unique')
                     ->label('Unique Value')

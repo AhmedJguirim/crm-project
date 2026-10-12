@@ -18,7 +18,7 @@ class Login extends BaseLogin
         $response = parent::authenticate();
 
         if ($response) {
-            /** @var \App\Models\User|null $user */
+            /** @var User|null $user */
             $user = Filament::auth()->user();
 
             if ($user && ! $user->onboarding_completed) {
