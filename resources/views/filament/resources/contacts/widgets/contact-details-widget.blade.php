@@ -37,7 +37,7 @@
             <div>
                 <dt class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Added</dt>
                 <dd class="mt-1 text-sm text-gray-700 dark:text-gray-300">
-                    {{ $record->created_at->format('M j, Y') }}
+                    {{ \App\Support\LocalTime::format($record->created_at, 'M j, Y') }}
                 </dd>
             </div>
 

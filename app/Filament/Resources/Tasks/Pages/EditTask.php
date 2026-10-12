@@ -4,12 +4,14 @@ namespace App\Filament\Resources\Tasks\Pages;
 
 use App\Enums\TaskStatus;
 use App\Filament\Resources\Tasks\TaskResource;
+use Carbon\CarbonInterface;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Support\Facades\FilamentTimezone;
 use Filament\Support\Icons\Heroicon;
 
 class EditTask extends EditRecord
@@ -49,7 +51,7 @@ class EditTask extends EditRecord
                             ->label('New Due Date')
                             ->required()
                             ->native(false)
-                            ->minDate(now()),
+                            ->minDate(fn (): CarbonInterface => now()->setTimezone(FilamentTimezone::get())),
                     ])
                     ->action(function (array $data): void {
                         $this->getRecord()->update([

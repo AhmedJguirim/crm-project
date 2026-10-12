@@ -5,6 +5,7 @@ namespace App\Notifications;
 use App\Jobs\Middleware\WithTenantContext;
 use App\Models\Organization;
 use App\Models\Task;
+use App\Support\LocalTime;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\DatabaseMessage;
@@ -55,7 +56,7 @@ class TaskDueSoonNotification extends Notification implements ShouldQueue
         return (new MailMessage)
             ->subject('Task due tomorrow: '.$this->task->title)
             ->line('Your task "'.$this->task->title.'" is due tomorrow.')
-            ->line('Due date: '.$this->task->due_at?->format('M j, Y g:i A'))
+            ->line('Due date: '.LocalTime::format($this->task->due_at, 'M j, Y g:i A', Organization::validTimezoneOrUtc($this->organization->timezone)))
             ->action('Open Task', $this->getTaskEditUrl());
     }
 
@@ -63,7 +64,7 @@ class TaskDueSoonNotification extends Notification implements ShouldQueue
     {
         return [
             'title' => 'Task due tomorrow',
-            'body' => $this->task->title.' is due on '.$this->task->due_at?->format('M j, Y g:i A').'.',
+            'body' => $this->task->title.' is due on '.LocalTime::format($this->task->due_at, 'M j, Y g:i A', Organization::validTimezoneOrUtc($this->organization->timezone)).'.',
             'task_id' => $this->task->getKey(),
             'organization_id' => $this->organization->getKey(),
             'notification_key' => $this->notificationKey,

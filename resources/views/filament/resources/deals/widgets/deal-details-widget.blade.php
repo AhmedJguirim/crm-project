@@ -86,7 +86,7 @@
                 <div>
                     <dt class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Won Date</dt>
                     <dd class="mt-1 text-sm font-medium text-success-700 dark:text-success-400">
-                        {{ $record->won_at?->format('M j, Y \a\t g:i A') ?? '—' }}
+                        {{ \App\Support\LocalTime::format($record->won_at, 'M j, Y \a\t g:i A') ?? '—' }}
                     </dd>
                 </div>
             @endif
@@ -95,7 +95,7 @@
                 <div>
                     <dt class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Lost Date</dt>
                     <dd class="mt-1 text-sm font-medium text-gray-600 dark:text-gray-400">
-                        {{ $record->lost_at?->format('M j, Y \a\t g:i A') ?? '—' }}
+                        {{ \App\Support\LocalTime::format($record->lost_at, 'M j, Y \a\t g:i A') ?? '—' }}
                     </dd>
                 </div>
             @endif

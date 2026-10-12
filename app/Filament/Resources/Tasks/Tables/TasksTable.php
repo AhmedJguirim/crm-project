@@ -7,6 +7,7 @@ use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Support\NullsLastSort;
 use App\Models\Task;
 use App\Services\Owners\OwnerOptions;
+use Carbon\CarbonInterface;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkAction;
@@ -18,6 +19,7 @@ use Filament\Actions\EditAction;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
+use Filament\Support\Facades\FilamentTimezone;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
@@ -137,7 +139,7 @@ class TasksTable
                                 ->label('New Due Date')
                                 ->required()
                                 ->native(false)
-                                ->minDate(now()),
+                                ->minDate(fn (): CarbonInterface => now()->setTimezone(FilamentTimezone::get())),
                         ])
                         ->action(function (Task $record, array $data): void {
                             $record->update([

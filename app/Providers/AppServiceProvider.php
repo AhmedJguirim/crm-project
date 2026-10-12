@@ -3,10 +3,13 @@
 namespace App\Providers;
 
 use App\Filament\Http\Responses\LogoutResponse;
+use App\Models\Organization;
 use App\Policies\SegmentPolicy;
 use App\Services\Segments\SegmentUsageIndex;
 use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
+use Filament\Facades\Filament;
+use Filament\Support\Facades\FilamentTimezone;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
@@ -50,6 +53,18 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->configurePanelTimezone();
+    }
+
+    /**
+     * Dates and times are picked and shown in the timezone of the current organization. The closure is evaluated on every
+     * read, so a tenant switch never keeps the previous timezone; without a tenant the app timezone (UTC) applies.
+     */
+    protected function configurePanelTimezone(): void
+    {
+        FilamentTimezone::set(fn (): ?string => ($tenant = Filament::getTenant()) instanceof Organization
+            ? Organization::validTimezoneOrUtc($tenant->timezone)
+            : null);
     }
 
     /**

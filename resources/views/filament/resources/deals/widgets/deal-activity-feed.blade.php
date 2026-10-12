@@ -53,7 +53,7 @@
                                     @endif
 
                                     <span class="ml-auto text-xs text-gray-400 dark:text-gray-500">
-                                        {{ $activity->occurred_at->format('M j, Y \a\t g:i A') }}
+                                        {{ \App\Support\LocalTime::format($activity->occurred_at, 'M j, Y \a\t g:i A') }}
                                         @if ($activity->duration_minutes)
                                             &middot; {{ $activity->duration_minutes }} min
                                         @endif

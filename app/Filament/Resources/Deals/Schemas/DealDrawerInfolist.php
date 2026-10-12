@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Deals\Schemas;
 
 use App\Enums\TaskStatus;
 use App\Models\Deal;
+use App\Support\LocalTime;
 use Filament\Facades\Filament;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
@@ -81,7 +82,7 @@ class DealDrawerInfolist
             ->get()
             ->map(fn ($task): string => $task->due_at === null
                 ? "{$task->title} — no due date"
-                : "{$task->title} — due {$task->due_at->format('M j, Y')}")
+                : "{$task->title} — due ".LocalTime::format($task->due_at, 'M j, Y'))
             ->all();
     }
 
@@ -98,7 +99,7 @@ class DealDrawerInfolist
             ->limit(self::LIST_LIMIT)
             ->get()
             ->map(function ($activity): string {
-                $line = "{$activity->type->getLabel()} · {$activity->occurred_at->format('M j, Y')}";
+                $line = "{$activity->type->getLabel()} · ".LocalTime::format($activity->occurred_at, 'M j, Y');
 
                 return blank($activity->subject) ? $line : "{$line} · {$activity->subject}";
             })
