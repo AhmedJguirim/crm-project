@@ -13,6 +13,7 @@ use App\Models\Task;
 use App\Services\Deals\DealCompany;
 use App\Services\Deals\DealStageMover;
 use App\Services\Owners\OwnerOptions;
+use App\Support\LocalTime;
 use App\Support\MoneyLimit;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DateTimePicker;
@@ -27,6 +28,23 @@ use Illuminate\Validation\Rule;
 
 class TaskForm
 {
+    /**
+     * The picker of both "Custom" snooze actions. Its minimum is the start of today in the organization timezone, not
+     * the current moment: the picker clears any date before its minimum on each keystroke, so a minimum of "now" would
+     * wipe the hour while the user types it. Past days stay disabled in the calendar, and the server refuses a time
+     * earlier than now (organization timezone) with its own message.
+     */
+    public static function snoozeDueAtPicker(): DateTimePicker
+    {
+        return DateTimePicker::make('due_at')
+            ->label('New Due Date')
+            ->required()
+            ->native(false)
+            ->minDate(fn (): string => LocalTime::now()->startOfDay()->format('Y-m-d H:i:s'))
+            ->afterOrEqual(fn (): string => LocalTime::now()->format('Y-m-d H:i:s'))
+            ->validationMessages(['after_or_equal' => "The new due date can't be in the past."]);
+    }
+
     public static function configure(Schema $schema): Schema
     {
         return $schema

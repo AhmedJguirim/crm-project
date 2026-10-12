@@ -4,12 +4,12 @@ namespace App\Filament\Resources\Tasks\Tables;
 
 use App\Enums\TaskStatus;
 use App\Filament\Resources\Contacts\ContactResource;
+use App\Filament\Resources\Tasks\Schemas\TaskForm;
 use App\Filament\Support\NullsLastSort;
 use App\Filament\Support\RecordKeyField;
 use App\Models\Task;
 use App\Services\Owners\OwnerOptions;
 use App\Support\LocalTime;
-use Carbon\CarbonInterface;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkAction;
@@ -18,9 +18,7 @@ use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
-use Filament\Forms\Components\DateTimePicker;
 use Filament\Notifications\Notification;
-use Filament\Support\Facades\FilamentTimezone;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
@@ -135,13 +133,7 @@ class TasksTable
                     Action::make('snoozeCustom')
                         ->authorize('update')
                         ->label('Custom')
-                        ->schema([
-                            DateTimePicker::make('due_at')
-                                ->label('New Due Date')
-                                ->required()
-                                ->native(false)
-                                ->minDate(fn (): CarbonInterface => now()->setTimezone(FilamentTimezone::get())),
-                        ])
+                        ->schema([TaskForm::snoozeDueAtPicker()])
                         ->action(function (Task $record, array $data): void {
                             $record->update([
                                 'due_at' => $data['due_at'],

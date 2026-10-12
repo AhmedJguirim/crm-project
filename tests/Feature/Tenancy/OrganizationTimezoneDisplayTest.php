@@ -25,6 +25,7 @@ use App\Notifications\TaskOverdueNotification;
 use App\Support\LocalTime;
 use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\DateTimePicker;
 use Filament\Support\Facades\FilamentTimezone;
 use Illuminate\Support\Carbon;
 use Livewire\Livewire;
@@ -258,7 +259,7 @@ test('the custom snooze in the tasks table accepts a future local time west of U
 test('the custom snooze in the tasks table refuses a past local time east of UTC', function () {
     Livewire::test(ListTasks::class)
         ->callTableAction('snoozeCustom', $this->task, ['due_at' => '2026-10-12 10:00:00'])
-        ->assertHasTableActionErrors(['due_at']);
+        ->assertHasTableActionErrors(['due_at' => "The new due date can't be in the past."]);
 
     expect($this->task->fresh()->due_at->utc()->format('Y-m-d H:i:s'))->toBe('2026-10-12 07:30:00');
 });
@@ -277,9 +278,57 @@ test('the custom snooze on the edit page accepts a future local time west of UTC
 test('the custom snooze on the edit page refuses a past local time east of UTC', function () {
     Livewire::test(EditTask::class, ['record' => $this->task->id])
         ->callAction('snoozeCustom', ['due_at' => '2026-10-12 10:00:00'])
-        ->assertHasActionErrors(['due_at']);
+        ->assertHasActionErrors(['due_at' => "The new due date can't be in the past."]);
 
     expect($this->task->fresh()->due_at->utc()->format('Y-m-d H:i:s'))->toBe('2026-10-12 07:30:00');
+});
+
+test('the custom snooze picker has the start of the local day as its minimum', function (string $place) {
+    $component = Livewire::test($place === 'edit page' ? EditTask::class : ListTasks::class, $place === 'edit page' ? ['record' => $this->task->id] : []);
+
+    $place === 'edit page' ? $component->mountAction('snoozeCustom') : $component->mountTableAction('snoozeCustom', $this->task);
+
+    $component->assertSchemaComponentExists('due_at', 'mountedActionSchema0', fn (DateTimePicker $field): bool => $field->getMinDate() === '2026-10-12 00:00:00');
+})->with(['edit page', 'tasks table']);
+
+test('the custom snooze minimum follows the local day, not the UTC day', function () {
+    Carbon::setTestNow('2026-10-12 20:00:00');
+
+    Livewire::test(EditTask::class, ['record' => $this->task->id])
+        ->mountAction('snoozeCustom')
+        ->assertSchemaComponentExists('due_at', 'mountedActionSchema0', fn (DateTimePicker $field): bool => $field->getMinDate() === '2026-10-13 00:00:00');
+});
+
+test('the custom snooze accepts any later time today', function (string $place) {
+    $dueAt = '2026-10-12 23:00:00';
+
+    if ($place === 'edit page') {
+        Livewire::test(EditTask::class, ['record' => $this->task->id])->callAction('snoozeCustom', ['due_at' => $dueAt])->assertHasNoActionErrors();
+    } else {
+        Livewire::test(ListTasks::class)->callTableAction('snoozeCustom', $this->task, ['due_at' => $dueAt])->assertHasNoTableActionErrors();
+    }
+
+    expect($this->task->fresh()->due_at->utc()->format('Y-m-d H:i:s'))->toBe('2026-10-12 14:00:00');
+})->with(['edit page', 'tasks table']);
+
+test('the custom snooze refuses a time earlier today with the message', function (string $place) {
+    $dueAt = '2026-10-12 16:59:00';
+
+    if ($place === 'edit page') {
+        Livewire::test(EditTask::class, ['record' => $this->task->id])->callAction('snoozeCustom', ['due_at' => $dueAt])->assertHasActionErrors(['due_at' => "The new due date can't be in the past."]);
+    } else {
+        Livewire::test(ListTasks::class)->callTableAction('snoozeCustom', $this->task, ['due_at' => $dueAt])->assertHasTableActionErrors(['due_at' => "The new due date can't be in the past."]);
+    }
+
+    expect($this->task->fresh()->due_at->utc()->format('Y-m-d H:i:s'))->toBe('2026-10-12 07:30:00');
+})->with(['edit page', 'tasks table']);
+
+test('the custom snooze accepts the exact current local minute', function () {
+    Livewire::test(EditTask::class, ['record' => $this->task->id])
+        ->callAction('snoozeCustom', ['due_at' => '2026-10-12 17:00:00'])
+        ->assertHasNoActionErrors();
+
+    expect($this->task->fresh()->due_at->utc()->format('Y-m-d H:i:s'))->toBe('2026-10-12 08:00:00');
 });
 
 test('LocalTime gives the local day and periods as UTC bounds and as dates', function (string $utcNow, string $timezone, string $unit, string $startUtc, string $endUtc, string $startDate, string $endDate) {
