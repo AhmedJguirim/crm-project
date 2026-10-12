@@ -4,12 +4,14 @@ namespace App\Filament\Resources\Tasks\Pages;
 
 use App\Enums\TaskStatus;
 use App\Filament\Resources\Tasks\TaskResource;
+use Carbon\CarbonInterface;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Support\Facades\FilamentTimezone;
 use Filament\Support\Icons\Heroicon;
 
 class EditTask extends EditRecord
@@ -21,31 +23,35 @@ class EditTask extends EditRecord
         return [
             ActionGroup::make([
                 Action::make('snooze1Day')
+                    ->authorize('update')
                     ->label('+1 day')
                     ->action(function (): void {
                         $this->snoozeTask(1, 'Task snoozed for 1 day');
                     }),
 
                 Action::make('snooze3Days')
+                    ->authorize('update')
                     ->label('+3 days')
                     ->action(function (): void {
                         $this->snoozeTask(3, 'Task snoozed for 3 days');
                     }),
 
                 Action::make('snooze1Week')
+                    ->authorize('update')
                     ->label('+1 week')
                     ->action(function (): void {
                         $this->snoozeTask(7, 'Task snoozed for 1 week');
                     }),
 
                 Action::make('snoozeCustom')
+                    ->authorize('update')
                     ->label('Custom')
                     ->schema([
                         DateTimePicker::make('due_at')
                             ->label('New Due Date')
                             ->required()
                             ->native(false)
-                            ->minDate(now()),
+                            ->minDate(fn (): CarbonInterface => now()->setTimezone(FilamentTimezone::get())),
                     ])
                     ->action(function (array $data): void {
                         $this->getRecord()->update([
@@ -64,6 +70,7 @@ class EditTask extends EditRecord
                 ->visible(fn (): bool => $this->getRecord()->status !== TaskStatus::Done),
 
             Action::make('markDone')
+                ->authorize('update')
                 ->label('Mark Done')
                 ->icon(Heroicon::OutlinedCheck)
                 ->color('success')

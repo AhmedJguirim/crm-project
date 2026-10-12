@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Deals\Widgets;
 
 use App\Enums\DealStatus;
+use Filament\Facades\Filament;
 use Filament\Widgets\Widget;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Number;
@@ -18,6 +19,7 @@ class DealDetailsWidget extends Widget
     protected function getViewData(): array
     {
         $deal = $this->record;
+        $currency = Filament::getTenant()?->currencyCode() ?? 'USD';
 
         if (! $deal) {
             return [
@@ -30,11 +32,9 @@ class DealDetailsWidget extends Widget
 
         return [
             'formattedValue' => $deal->value !== null
-                ? Number::currency((float) $deal->value, $deal->currency ?: 'USD')
+                ? Number::currency((float) $deal->value, $currency)
                 : null,
-            'isOverdue' => $deal->status === DealStatus::Open
-                && filled($deal->expected_close_date)
-                && $deal->expected_close_date->isPast(),
+            'isOverdue' => $deal->isOverdue(),
             'isWon' => $deal->status === DealStatus::Won,
             'isLost' => $deal->status === DealStatus::Lost,
         ];

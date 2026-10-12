@@ -5,12 +5,15 @@ use App\Models\Company;
 use App\Models\CompanyType;
 use App\Models\Organization;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 use Filament\Facades\Filament;
 
 it('soft deletes companies, company types and addresses', function (): void {
-    $company = Company::factory()->create();
-    $type = CompanyType::factory()->create();
-    $address = Address::factory()->create();
+    $organization = Organization::factory()->create();
+    $company = Company::factory()->create(['organization_id' => $organization->id]);
+    $type = CompanyType::factory()->create(['organization_id' => $organization->id]);
+    $address = Address::factory()->create(['organization_id' => $organization->id]);
+    app(TenantContext::class)->set($organization->id);
 
     $company->delete();
     $type->delete();
@@ -23,11 +26,14 @@ it('soft deletes companies, company types and addresses', function (): void {
 });
 
 it('links company to address, type and organization', function (): void {
+    $organization = Organization::factory()->create();
     $company = Company::factory()->create([
-        'address_id' => Address::factory(),
-        'company_type_id' => CompanyType::factory(),
+        'organization_id' => $organization->id,
+        'address_id' => Address::factory()->create(['organization_id' => $organization->id])->id,
+        'company_type_id' => CompanyType::factory()->create(['organization_id' => $organization->id])->id,
         'custom_field_values' => ['1' => 'x'],
     ]);
+    app(TenantContext::class)->set($organization->id);
 
     expect($company->address)->toBeInstanceOf(Address::class)
         ->and($company->companyType->companies)->toHaveCount(1)

@@ -3,13 +3,16 @@
 namespace App\Filament\Actions;
 
 use App\Enums\DealStage;
-use App\Enums\DealStatus;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
+use App\Filament\Support\AbilityCheck;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Task;
+use App\Services\Deals\DealCompany;
+use App\Services\Deals\DealStageMover;
+use App\Support\MoneyLimit;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DateTimePicker;
@@ -18,9 +21,11 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
@@ -34,6 +39,7 @@ class QuickTaskAction
             ->color('primary')
             ->modalHeading('Quick Task')
             ->modalSubmitActionLabel('Create Task')
+            ->authorize(AbilityCheck::for('create', Task::class))
             ->schema(self::getBaseSchema())
             ->action(fn (array $data): Task => self::createTask($data));
     }
@@ -46,7 +52,9 @@ class QuickTaskAction
             ->color('primary')
             ->modalHeading('Quick Task')
             ->modalSubmitActionLabel('Create Task')
+            ->authorize(AbilityCheck::for('create', Task::class))
             ->fillForm([
+                ...self::defaultFormData(),
                 'contact_id' => $contact->getKey(),
                 'contact_name' => filled($contact->name) ? $contact->name : $contact->email,
             ])
@@ -62,7 +70,9 @@ class QuickTaskAction
             ->color('gray')
             ->modalHeading('Quick Task')
             ->modalSubmitActionLabel('Create Task')
+            ->authorize(AbilityCheck::for('create', Task::class))
             ->fillForm(fn (Contact $record): array => [
+                ...self::defaultFormData(),
                 'contact_id' => $record->getKey(),
                 'contact_name' => filled($record->name) ? $record->name : $record->email,
             ])
@@ -71,7 +81,43 @@ class QuickTaskAction
     }
 
     /**
-     * @return array<int, \Filament\Schemas\Components\Component>
+     * Creates a task for the action's record (a deal) and its live contact, with the deal pre-selected; hidden when the deal has no live contact.
+     */
+    public static function makeForDeal(string $name = 'addTask'): Action
+    {
+        return Action::make($name)
+            ->label('Add Task')
+            ->icon(Heroicon::OutlinedPlus)
+            ->color('gray')
+            ->modalHeading('Quick Task')
+            ->modalSubmitActionLabel('Create Task')
+            ->authorize(AbilityCheck::for('create', Task::class))
+            ->visible(fn (?Deal $record): bool => $record?->contact !== null)
+            ->fillForm(fn (Deal $record): array => [
+                ...self::defaultFormData(),
+                'contact_id' => $record->contact->getKey(),
+                'contact_name' => filled($record->contact->name) ? $record->contact->name : $record->contact->email,
+                'deal_id' => $record->getKey(),
+            ])
+            ->schema(self::getLockedContactSchema())
+            ->action(fn (array $data): Task => self::createTask($data));
+    }
+
+    /**
+     * The values a quick task form starts with, because fillForm() replaces the field defaults.
+     *
+     * @return array{due_at: Carbon, type: TaskType}
+     */
+    private static function defaultFormData(): array
+    {
+        return [
+            'due_at' => now()->addDays(3),
+            'type' => TaskType::FollowUp,
+        ];
+    }
+
+    /**
+     * @return array<int, Component>
      */
     private static function getBaseSchema(): array
     {
@@ -116,7 +162,7 @@ class QuickTaskAction
     }
 
     /**
-     * @return array<int, \Filament\Schemas\Components\Component>
+     * @return array<int, Component>
      */
     private static function getLockedContactSchema(): array
     {
@@ -161,6 +207,7 @@ class QuickTaskAction
         $task = Task::create([
             'organization_id' => Filament::getTenant()?->id,
             'created_by' => Auth::id(),
+            'owner_id' => Auth::id(),
             'title' => $data['title'],
             'due_at' => $data['due_at'] ?? null,
             'contact_id' => $data['contact_id'] ?? null,
@@ -209,15 +256,8 @@ class QuickTaskAction
                 TextInput::make('value')
                     ->numeric()
                     ->minValue(0)
+                    ->maxValue(MoneyLimit::MAX)
                     ->nullable(),
-                Select::make('currency')
-                    ->options([
-                        'USD' => 'USD',
-                        'EUR' => 'EUR',
-                        'GBP' => 'GBP',
-                    ])
-                    ->default('USD')
-                    ->required(),
                 Textarea::make('notes')
                     ->rows(3)
                     ->nullable(),
@@ -226,13 +266,13 @@ class QuickTaskAction
                 return Deal::create([
                     'organization_id' => Filament::getTenant()?->id,
                     'contact_id' => $get('contact_id') ?: null,
+                    'company_id' => DealCompany::defaultIdFor($get('contact_id')),
                     'title' => $data['title'],
-                    'stage' => $data['stage'],
+                    ...DealStageMover::attributesFor($data['stage']),
                     'value' => $data['value'] ?? null,
-                    'currency' => $data['currency'],
                     'notes' => $data['notes'] ?? null,
-                    'status' => DealStatus::Open,
                     'created_by' => Auth::id(),
+                    'owner_id' => Auth::id(),
                 ])->getKey();
             })
             ->rules([

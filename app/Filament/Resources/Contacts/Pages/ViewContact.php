@@ -5,14 +5,17 @@ namespace App\Filament\Resources\Contacts\Pages;
 use App\Enums\ActivityOutcome;
 use App\Enums\ActivityType;
 use App\Enums\DealStage;
-use App\Enums\DealStatus;
 use App\Filament\Actions\QuickTaskAction;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Contacts\Widgets\ContactActivityFeed;
 use App\Filament\Resources\Contacts\Widgets\ContactDetailsWidget;
+use App\Filament\Support\AbilityCheck;
 use App\Models\Activity;
 use App\Models\CustomField;
 use App\Models\Deal;
+use App\Services\Deals\DealCompany;
+use App\Services\Deals\DealStageMover;
+use App\Support\MoneyLimit;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Facades\Filament;
@@ -60,6 +63,7 @@ class ViewContact extends Page
             QuickTaskAction::makeForContact($this->getRecord()),
 
             Action::make('logActivity')
+                ->authorize(AbilityCheck::for('create', Activity::class))
                 ->label('Log Activity')
                 ->icon(Heroicon::OutlinedPencilSquare)
                 ->color('primary')
@@ -125,15 +129,8 @@ class ViewContact extends Page
                             TextInput::make('value')
                                 ->numeric()
                                 ->minValue(0)
+                                ->maxValue(MoneyLimit::MAX)
                                 ->nullable(),
-                            Select::make('currency')
-                                ->options([
-                                    'USD' => 'USD',
-                                    'EUR' => 'EUR',
-                                    'GBP' => 'GBP',
-                                ])
-                                ->default('USD')
-                                ->required(),
                             Textarea::make('deal_notes')
                                 ->rows(3)
                                 ->nullable(),
@@ -142,13 +139,13 @@ class ViewContact extends Page
                             return Deal::create([
                                 'organization_id' => Filament::getTenant()?->id,
                                 'contact_id' => $this->getRecord()->getKey(),
+                                'company_id' => DealCompany::defaultIdFor($this->getRecord()->getKey()),
                                 'title' => $data['title'],
-                                'stage' => $data['stage'],
+                                ...DealStageMover::attributesFor($data['stage']),
                                 'value' => $data['value'] ?? null,
-                                'currency' => $data['currency'],
                                 'notes' => $data['deal_notes'] ?? null,
-                                'status' => DealStatus::Open,
                                 'created_by' => auth()->id(),
+                                'owner_id' => auth()->id(),
                             ])->getKey();
                         }),
                 ])
@@ -176,20 +173,21 @@ class ViewContact extends Page
                 ->modalCancelActionLabel('Close')
                 ->schema(function (): array {
                     $record = $this->getRecord();
-                    $fields = $record->customFieldDefinitions();
+                    $fields = $record->customFieldDefinitions()
+                        ->filter(fn (CustomField $field): bool => $field->formatValue($record->customFieldValue($field->key)) !== null);
 
                     if ($fields->isEmpty()) {
                         return [
                             TextEntry::make('empty')
                                 ->hiddenLabel()
-                                ->state('No custom fields defined for this organization.'),
+                                ->state('This contact has no custom field values.'),
                         ];
                     }
 
                     return $fields
                         ->map(fn (CustomField $field): TextEntry => TextEntry::make("custom_field_{$field->key}")
                             ->label($field->name)
-                            ->state($field->formatValue($record->customFieldValue($field->key)) ?? '—'))
+                            ->state($field->formatValue($record->customFieldValue($field->key))))
                         ->all();
                 }),
 

@@ -4,6 +4,7 @@ use App\Enums\OrganizationRole;
 use App\Models\Organization;
 use App\Models\User;
 use App\Policies\OrganizationPolicy;
+use Illuminate\Support\Facades\DB;
 
 // TSK-2026-0016 AC-001: View members list as admin
 test('organization has correct members after creation', function () {
@@ -74,7 +75,7 @@ test('ownership can be transferred atomically', function () {
     $newOwner = User::factory()->create();
     $org->members()->attach($newOwner, ['role' => OrganizationRole::Admin->value]);
 
-    \Illuminate\Support\Facades\DB::transaction(function () use ($org, $owner, $newOwner) {
+    DB::transaction(function () use ($org, $owner, $newOwner) {
         $org->members()->updateExistingPivot($owner->id, [
             'role' => OrganizationRole::Admin->value,
         ]);

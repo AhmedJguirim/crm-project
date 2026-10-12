@@ -6,6 +6,8 @@ use App\Enums\TaskStatus;
 use App\Models\Organization;
 use App\Models\Task;
 use App\Notifications\TaskDailyDigestNotification;
+use App\Services\Tasks\TaskRecipients;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Console\Command;
 
 class SendTaskDailyDigestCommand extends Command
@@ -15,7 +17,7 @@ class SendTaskDailyDigestCommand extends Command
      *
      * @var string
      */
-    protected $signature = 'tasks:send-digest';
+    protected $signature = 'tasks:send-digest {--all : Handle every organization, whatever the hour is in its timezone}';
 
     /**
      * The console command description.
@@ -35,36 +37,52 @@ class SendTaskDailyDigestCommand extends Command
             return self::SUCCESS;
         }
 
-        $organizations = Organization::query()->with('members')->get();
+        $hour = (int) config('tasks.notifications.daily_digest_time', '08:00');
 
         /** @var Organization $organization */
-        foreach ($organizations as $organization) {
-            $overdueTasks = Task::query()
-                ->where('organization_id', $organization->getKey())
-                ->where('status', TaskStatus::Pending)
-                ->whereNotNull('due_at')
-                ->where('due_at', '<', now())
-                ->orderBy('due_at')
-                ->get();
-
-            $dueTodayTasks = Task::query()
-                ->where('organization_id', $organization->getKey())
-                ->where('status', TaskStatus::Pending)
-                ->whereDate('due_at', now()->toDateString())
-                ->orderBy('due_at')
-                ->get();
-
-            if ($overdueTasks->isEmpty() && $dueTodayTasks->isEmpty()) {
+        foreach (Organization::query()->with('members')->get() as $organization) {
+            if (! $this->option('all') && ! $organization->isLocalHour($hour)) {
                 continue;
             }
 
-            foreach ($organization->members as $member) {
-                $member->notify(new TaskDailyDigestNotification($organization, $overdueTasks, $dueTodayTasks));
-            }
+            app(TenantContext::class)->run($organization->getKey(), fn () => $this->sendDigest($organization));
         }
 
         $this->info('Task daily digest sent successfully.');
 
         return self::SUCCESS;
+    }
+
+    private function sendDigest(Organization $organization): void
+    {
+        $overdueTasks = Task::query()
+            ->where('status', TaskStatus::Pending)
+            ->whereNotNull('due_at')
+            ->where('due_at', '<', now())
+            ->orderBy('due_at')
+            ->get();
+
+        $today = $organization->localNow();
+
+        $dueTodayTasks = Task::query()
+            ->where('status', TaskStatus::Pending)
+            ->whereBetween('due_at', [$today->startOfDay()->utc(), $today->endOfDay()->utc()])
+            ->orderBy('due_at')
+            ->get();
+
+        if ($overdueTasks->isEmpty() && $dueTodayTasks->isEmpty()) {
+            return;
+        }
+
+        foreach ($organization->members as $member) {
+            $overdue = $overdueTasks->filter(fn (Task $task): bool => TaskRecipients::includes($task, $member, $organization->members))->values();
+            $dueToday = $dueTodayTasks->filter(fn (Task $task): bool => TaskRecipients::includes($task, $member, $organization->members))->values();
+
+            if ($overdue->isEmpty() && $dueToday->isEmpty()) {
+                continue;
+            }
+
+            $member->notify(new TaskDailyDigestNotification($organization, $overdue, $dueToday));
+        }
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Contacts\Widgets;
 
+use App\Support\LocalTime;
 use Filament\Widgets\Widget;
 use Illuminate\Database\Eloquent\Model;
 use Livewire\Attributes\On;
@@ -59,7 +60,7 @@ class ContactActivityTimeline extends Widget
                 'type' => $activity->type->value,
                 'type_label' => $activity->type->getLabel(),
                 'occurred_at' => $activity->occurred_at->toIso8601String(),
-                'occurred_at_formatted' => $activity->occurred_at->format('M j, Y \a\t g:i A'),
+                'occurred_at_formatted' => LocalTime::format($activity->occurred_at, 'M j, Y \a\t g:i A'),
                 'duration_minutes' => $activity->duration_minutes,
                 'subject' => $activity->subject,
                 'notes' => $activity->notes,

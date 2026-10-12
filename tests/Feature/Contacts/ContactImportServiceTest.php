@@ -5,10 +5,14 @@ use App\Models\CustomField;
 use App\Models\Tag;
 use App\Models\User;
 use App\Services\ContactImportService;
+use Filament\Facades\Filament;
+use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {
     $this->user = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
     $this->org = $this->user->personalOrganization();
+    $this->actingAs($this->user);
+    Filament::setTenant($this->org);
     $this->service = new ContactImportService($this->org->id);
 });
 
@@ -403,8 +407,149 @@ test('parseDate accepts d-m-Y format', function () {
     expect($result)->not->toBeFalse();
 });
 
-test('parseDate rejects invalid format', function () {
-    $result = $this->service->parseDate('2024-01-15');
+test('parseDate accepts the ISO format and a time', function (string $input) {
+    expect($this->service->parseDate($input))->not->toBeFalse();
+})->with(['2024-01-15', '15-01-2024 10:30:00']);
 
-    expect($result)->toBeFalse();
+test('parseDate rejects invalid formats and impossible dates', function (string $input) {
+    expect($this->service->parseDate($input))->toBeFalse();
+})->with(['15/01/2024', '2024-02-31', '31-02-2024', 'tomorrow', '2024-1-5']);
+
+test('row matching a soft-deleted contact is reported instead of crashing', function () {
+    $trashed = Contact::factory()->create(['organization_id' => $this->org->id, 'email' => 'gone@example.com']);
+    $trashed->delete();
+
+    $result = $this->service->processRow([
+        'name' => 'Gone Again',
+        'email' => 'gone@example.com',
+        'phone' => '',
+        'tags' => '',
+    ], []);
+
+    expect($result['success'])->toBeFalse()
+        ->and($result['error'])->toContain('Restore it from the trash');
+    expect(Contact::withTrashed()->where('email', 'gone@example.com')->count())->toBe(1);
+});
+
+// Separators and formats told to users
+test('tags are split on the separator shown in the template', function () {
+    $this->service->processRow(['name' => 'Jane', 'email' => 'jane@example.com', 'tags' => 'VIP;Newsletter'], []);
+
+    expect(Contact::where('email', 'jane@example.com')->first()->tags()->pluck('name')->sort()->values()->all())->toBe(['Newsletter', 'VIP']);
+});
+
+test('a date field stores every accepted format as an ISO date', function (string $input) {
+    $field = CustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'Birthday', 'type' => 'date', 'unique' => false, 'order' => 1]);
+
+    $result = $this->service->processRow(['name' => 'Test', 'email' => 'test@example.com', 'Birthday' => $input], [$field->name => $field]);
+
+    expect($result['success'])->toBeTrue()
+        ->and(Contact::where('email', 'test@example.com')->first()->custom_field_values[$field->key])->toBe('2024-01-15');
+})->with(['15-01-2024', '15-01-2024 10:30:00', '2024-01-15']);
+
+test('a date field rejects other formats and impossible dates', function (string $input) {
+    $field = CustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'Birthday', 'type' => 'date', 'unique' => false, 'order' => 1]);
+
+    $result = $this->service->processRow(['name' => 'Test', 'email' => 'test@example.com', 'Birthday' => $input], [$field->name => $field]);
+
+    expect($result['success'])->toBeFalse()
+        ->and($result['error'])->toContain('Invalid value for field')
+        ->and(Contact::where('email', 'test@example.com')->exists())->toBeFalse();
+})->with(['15/01/2024', '2024-02-31', '31-02-2024', 'tomorrow']);
+
+test('a phone field rejects a value without digits and keeps a valid one', function () {
+    $field = CustomField::factory()->create(['organization_id' => $this->org->id, 'name' => 'Mobile', 'type' => 'phone', 'unique' => false, 'order' => 1]);
+
+    $rejected = $this->service->processRow(['name' => 'Test', 'email' => 'test@example.com', 'Mobile' => 'example value'], [$field->name => $field]);
+    $accepted = $this->service->processRow(['name' => 'Test', 'email' => 'other@example.com', 'Mobile' => '+33 6 12 34 56 78'], [$field->name => $field]);
+
+    expect($rejected['success'])->toBeFalse()
+        ->and($rejected['error'])->toContain('Invalid value for field')
+        ->and($accepted['success'])->toBeTrue()
+        ->and(Contact::where('email', 'other@example.com')->first()->custom_field_values[$field->key])->toBe('+33612345678');
+});
+
+// Multi-select cells with empty parts
+test('a multi-select cell is stored as a list whatever its empty parts', function (string $cell, array $expected) {
+    $field = CustomField::factory()->multiselect()->create(['organization_id' => $this->org->id, 'name' => 'Tech Stack', 'unique' => false, 'order' => 1, 'options' => [
+        ['label' => 'laravel', 'value' => 'laravel'], ['label' => 'react', 'value' => 'react'], ['label' => 'vue', 'value' => 'vue'],
+    ]]);
+
+    $result = $this->service->processRow(['name' => 'Test', 'email' => 'test@example.com', 'Tech Stack' => $cell], [$field->name => $field]);
+
+    $stored = DB::table('contacts')->where('email', 'test@example.com')->value('custom_field_values');
+
+    expect($result['success'])->toBeTrue()
+        ->and(json_decode($stored, true)[$field->key])->toBe($expected)
+        ->and($stored)->toContain('"'.$field->key.'": [');
+})->with([
+    'plain' => ['laravel;react', ['laravel', 'react']],
+    'empty part in the middle' => ['laravel;;react', ['laravel', 'react']],
+    'leading separator' => [';laravel', ['laravel']],
+    'trailing separator' => ['laravel;', ['laravel']],
+    'spaces' => [' laravel ; react ', ['laravel', 'react']],
+]);
+
+test('a multi-select cell with only separators stores nothing and does not fail', function () {
+    $field = CustomField::factory()->multiselect()->create(['organization_id' => $this->org->id, 'name' => 'Tech Stack', 'unique' => false, 'order' => 1]);
+
+    $result = $this->service->processRow(['name' => 'Test', 'email' => 'test@example.com', 'Tech Stack' => ';;'], [$field->name => $field]);
+
+    expect($result['success'])->toBeTrue()
+        ->and(Contact::where('email', 'test@example.com')->first()->custom_field_values)->not->toHaveKey($field->key);
+});
+
+test('a multi-select option whose value is zero is kept', function () {
+    $field = CustomField::factory()->multiselect()->create(['organization_id' => $this->org->id, 'name' => 'Tech Stack', 'unique' => false, 'order' => 1, 'options' => [
+        ['label' => 'Zero', 'value' => '0'], ['label' => 'laravel', 'value' => 'laravel'],
+    ]]);
+
+    $this->service->processRow(['name' => 'Test', 'email' => 'test@example.com', 'Tech Stack' => '0;laravel'], [$field->name => $field]);
+
+    expect(Contact::where('email', 'test@example.com')->first()->custom_field_values[$field->key])->toBe(['0', 'laravel']);
+});
+
+// Values longer than their column
+test('a name, a phone or a tag name over 255 characters fails the row with a shortened value', function (string $column, string $letter) {
+    $row = ['name' => 'Long', 'email' => 'long@example.test', 'phone' => '', 'tags' => ''];
+    $row[$column === 'tags' ? 'tags' : $column] = $column === 'tags' ? 'Newtag;'.str_repeat($letter, 300) : str_repeat($letter, 300);
+
+    $result = $this->service->processRow($row, []);
+
+    expect($result)->toBe(['success' => false, 'error' => "Invalid value for field '{$column}': ".str_repeat($letter, 50).'...'])
+        ->and(Contact::where('email', 'long@example.test')->exists())->toBeFalse();
+})->with([
+    'name' => ['name', 'n'],
+    'phone' => ['phone', '1'],
+    'tag name' => ['tags', 't'],
+]);
+
+test('a failed tag cell creates no tag at all', function () {
+    $this->service->processRow(['name' => 'Tags', 'email' => 'tags@example.test', 'tags' => 'Newtag;'.str_repeat('t', 300)], []);
+
+    expect(Tag::withTrashed()->count())->toBe(0);
+});
+
+test('a name, a phone and a tag name of exactly 255 characters are accepted, one more is not', function () {
+    $result = $this->service->processRow([
+        'name' => str_repeat('é', 255),
+        'email' => 'limit@example.test',
+        'phone' => str_repeat('1', 255),
+        'tags' => str_repeat('t', 255),
+    ], []);
+
+    $contact = Contact::where('email', 'limit@example.test')->first();
+
+    expect($result['success'])->toBeTrue()
+        ->and($contact->name)->toBe(str_repeat('é', 255))
+        ->and($contact->phone)->toBe(str_repeat('1', 255))
+        ->and(Tag::where('name', str_repeat('t', 255))->exists())->toBeTrue()
+        ->and($this->service->processRow(['name' => str_repeat('n', 256), 'email' => 'over@example.test'], [])['success'])->toBeFalse();
+});
+
+test('an email over 254 characters is still an invalid email', function () {
+    $email = str_repeat('a', 300).'@example.test';
+
+    expect($this->service->processRow(['name' => 'Long Email', 'email' => $email], []))
+        ->toBe(['success' => false, 'error' => "Invalid email: {$email}"]);
 });

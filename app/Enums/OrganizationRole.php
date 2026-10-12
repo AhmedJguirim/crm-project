@@ -29,6 +29,24 @@ enum OrganizationRole: string
         };
     }
 
+    /** Every role can see every CRM page and record of the organization. */
+    public function canView(): bool
+    {
+        return true;
+    }
+
+    /** Create and update contacts, companies, deals, tasks, activities, tags and invoices, and edit segment drafts. */
+    public function canEdit(): bool
+    {
+        return in_array($this, [self::Owner, self::Admin, self::Member], true);
+    }
+
+    /** Delete and restore, import contacts, publish segments, manage custom fields and company types. */
+    public function canManage(): bool
+    {
+        return in_array($this, [self::Owner, self::Admin], true);
+    }
+
     public function canManageMembers(): bool
     {
         return in_array($this, [self::Owner, self::Admin]);

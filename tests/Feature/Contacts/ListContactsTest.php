@@ -1,14 +1,22 @@
 <?php
 
 use App\Enums\ContactStatus;
+use App\Enums\ImportMode;
 use App\Enums\LeadSource;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
+use App\Jobs\ProcessContactImportJob;
 use App\Models\Contact;
 use App\Models\Tag;
 use App\Models\User;
+use App\Services\ContactImportFileReader;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Radio;
+use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -49,11 +57,111 @@ test('empty state is shown when no contacts exist', function () {
         ->assertCountTableRecords(0);
 });
 
-test('header actions exist: create, importCsv, downloadTemplate', function () {
+test('header actions exist: create, importContacts, downloadTemplate', function () {
     Livewire::test(ListContacts::class)
         ->assertActionExists('create')
-        ->assertActionExists('importCsv')
+        ->assertActionExists('importContacts')
         ->assertActionExists('downloadTemplate');
+});
+
+test('the import action is labelled "Import Excel" and replaces importCsv', function () {
+    Livewire::test(ListContacts::class)
+        ->assertActionHasLabel('importContacts', 'Import Excel')
+        ->assertActionDoesNotExist('importCsv');
+});
+
+test('accepted uploads queue the import', function (string $name, string $mimeType) {
+    Storage::fake('local');
+    Queue::fake();
+
+    Livewire::test(ListContacts::class)
+        ->callAction('importContacts', ['file' => UploadedFile::fake()->create($name, 10, $mimeType)])
+        ->assertNotified('Import queued');
+
+    Queue::assertPushed(ProcessContactImportJob::class, 1);
+})->with([
+    'csv' => ['contacts.csv', 'text/csv'],
+    'xlsx' => ['contacts.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+]);
+
+test('the import modal asks what the import should do, with create only by default', function () {
+    Livewire::test(ListContacts::class)
+        ->mountAction('importContacts')
+        ->assertSchemaComponentExists('mode', 'mountedActionSchema0', function (Radio $field): bool {
+            return $field->getLabel() === 'What should the import do?'
+                && array_keys($field->getOptions()) === ['create', 'update', 'create_and_update']
+                && $field->isRequired()
+                && $field->getDefaultState() === ImportMode::CreateOnly;
+        });
+});
+
+test('the chosen mode reaches the import job', function (?string $mode, ImportMode $expected) {
+    Storage::fake('local');
+    Queue::fake();
+
+    Livewire::test(ListContacts::class)
+        ->callAction('importContacts', ['file' => UploadedFile::fake()->create('contacts.csv', 10, 'text/csv'), ...($mode === null ? [] : ['mode' => $mode])])
+        ->assertNotified('Import queued');
+
+    Queue::assertPushed(ProcessContactImportJob::class, fn (ProcessContactImportJob $job): bool => (fn (): ImportMode => $this->mode)->call($job) === $expected);
+})->with([
+    'update' => ['update', ImportMode::UpdateOnly],
+    'create and update' => ['create_and_update', ImportMode::CreateAndUpdate],
+    'create' => ['create', ImportMode::CreateOnly],
+    'none given' => [null, ImportMode::CreateOnly],
+]);
+
+test('a file over the limit is refused with a human message', function () {
+    Storage::fake('local');
+    Queue::fake();
+
+    $page = Livewire::test(ListContacts::class)
+        ->callAction('importContacts', ['file' => UploadedFile::fake()->create('big.csv', ContactImportFileReader::MAX_UPLOAD_KILOBYTES + 1000, 'text/csv')])
+        ->assertHasActionErrors(['file']);
+
+    $messages = collect($page->errors()->all());
+
+    expect($messages->first())->toBe('This file is too large: the maximum is 10 MB. Tip: save it as .xlsx, which is much smaller than CSV.')
+        ->and($messages->implode(' '))->not->toContain('mountedActions');
+    Queue::assertNotPushed(ProcessContactImportJob::class);
+});
+
+test('a file just under the limit is accepted', function () {
+    Storage::fake('local');
+    Queue::fake();
+
+    Livewire::test(ListContacts::class)
+        ->callAction('importContacts', ['file' => UploadedFile::fake()->create('ok.csv', ContactImportFileReader::MAX_UPLOAD_KILOBYTES - 100, 'text/csv')])
+        ->assertHasNoActionErrors();
+
+    Queue::assertPushed(ProcessContactImportJob::class, 1);
+});
+
+test('the import limits are consistent and shown to the user', function () {
+    $livewireMaximum = collect(config('livewire.temporary_file_upload.rules'))
+        ->first(fn (string $rule): bool => str_starts_with($rule, 'max:'));
+
+    Livewire::test(ListContacts::class)
+        ->mountAction('importContacts')
+        ->assertSchemaComponentExists('file', 'mountedActionSchema0', function (FileUpload $field): bool {
+            $helperText = collect($field->getChildComponents($field::BELOW_CONTENT_SCHEMA_KEY))->map(fn ($component): string => (string) $component->getContent())->implode(' ');
+
+            return $field->getMaxSize() === ContactImportFileReader::MAX_UPLOAD_KILOBYTES && str_contains($helperText, '10 MB');
+        });
+
+    expect((int) substr($livewireMaximum, 4))->toBeGreaterThan(ContactImportFileReader::MAX_UPLOAD_KILOBYTES)
+        ->and(trans('validation.uploaded'))->not->toContain(':attribute');
+});
+
+test('an .xls upload is refused', function () {
+    Storage::fake('local');
+    Queue::fake();
+
+    Livewire::test(ListContacts::class)
+        ->callAction('importContacts', ['file' => UploadedFile::fake()->create('contacts.xls', 10, 'application/vnd.ms-excel')])
+        ->assertNotified('Unsupported file type');
+
+    Queue::assertNotPushed(ProcessContactImportJob::class);
 });
 
 // Search

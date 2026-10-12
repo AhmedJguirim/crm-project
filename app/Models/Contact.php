@@ -5,11 +5,14 @@ namespace App\Models;
 use App\Enums\ContactStatus;
 use App\Enums\LeadSource;
 use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\EnforcesUniqueCustomFieldValues;
 use App\Models\Concerns\HasCustomFieldValues;
+use App\Models\Concerns\PreventsForceDeletion;
 use App\Observers\ContactObserver;
 use Database\Factories\ContactFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -21,11 +24,13 @@ use Illuminate\Support\Collection;
 class Contact extends Model
 {
     use BelongsToOrganization;
+    use EnforcesUniqueCustomFieldValues;
     use HasCustomFieldValues;
 
     /** @use HasFactory<ContactFactory> */
     use HasFactory;
 
+    use PreventsForceDeletion;
     use SoftDeletes;
 
     protected $fillable = [
@@ -46,6 +51,16 @@ class Contact extends Model
         ];
     }
 
+    /**
+     * Emails are stored trimmed and in lowercase, so letter case can't create duplicate contacts.
+     */
+    protected function email(): Attribute
+    {
+        return Attribute::make(
+            set: fn (?string $value): ?string => $value === null ? null : mb_strtolower(trim($value)),
+        );
+    }
+
     public function scopeActiveClients(Builder $query): Builder
     {
         return $query->where('status', ContactStatus::ActiveClient->value);
@@ -56,6 +71,7 @@ class Contact extends Model
     {
         return CustomField::query()
             ->withoutGlobalScopes()
+            ->withoutTrashed()
             ->where('organization_id', $this->organization_id)
             ->orderBy('order')
             ->get();
@@ -84,5 +100,10 @@ class Contact extends Model
     public function invoices(): HasMany
     {
         return $this->hasMany(Invoice::class);
+    }
+
+    public function segments(): BelongsToMany
+    {
+        return $this->belongsToMany(Segment::class)->withTimestamps();
     }
 }

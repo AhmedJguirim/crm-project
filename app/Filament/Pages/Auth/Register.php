@@ -7,7 +7,9 @@ use App\Models\OrganizationInvite;
 use App\Models\User;
 use Filament\Auth\Http\Responses\Contracts\RegistrationResponse;
 use Filament\Auth\Pages\Register as BaseRegister;
+use Filament\Forms\Components\Hidden;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Schema;
 
 class Register extends BaseRegister
 {
@@ -25,6 +27,23 @@ class Register extends BaseRegister
                 'email' => $inviteEmail,
             ]);
         }
+    }
+
+    /**
+     * The base form, plus a hidden field the browser fills with its timezone for the personal organization.
+     */
+    public function form(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                $this->getNameFormComponent(),
+                $this->getEmailFormComponent(),
+                $this->getPasswordFormComponent(),
+                $this->getPasswordConfirmationFormComponent(),
+                Hidden::make('timezone')
+                    ->dehydrated(false)
+                    ->extraAttributes(['x-init' => "\$el.value = Intl.DateTimeFormat().resolvedOptions().timeZone; \$el.dispatchEvent(new Event('input', { bubbles: true }))"]),
+            ]);
     }
 
     /**
@@ -51,7 +70,7 @@ class Register extends BaseRegister
         /** @var User $user */
         $user = $this->form->getModelInstance();
 
-        $user->createPersonalOrganization();
+        $user->createPersonalOrganization($this->data['timezone'] ?? null);
 
         // Check if this registration was triggered by an invitation link
         $this->acceptPendingInviteIfExists($user);

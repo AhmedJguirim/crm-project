@@ -2,7 +2,9 @@
 
 namespace App\Notifications;
 
+use App\Jobs\Middleware\WithTenantContext;
 use App\Models\Organization;
+use App\Support\LocalTime;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -18,6 +20,16 @@ class TaskDailyDigestNotification extends Notification implements ShouldQueue
         public Collection $overdueTasks,
         public Collection $dueTodayTasks,
     ) {}
+
+    /**
+     * Runs the delivery in the organization's context, so what the mail or the database payload loads is scoped to it.
+     *
+     * @return array<int, object>
+     */
+    public function middleware(object $notifiable, string $channel): array
+    {
+        return [new WithTenantContext($this->organization->getKey())];
+    }
 
     /**
      * Get the notification's delivery channels.
@@ -41,11 +53,11 @@ class TaskDailyDigestNotification extends Notification implements ShouldQueue
             ->line('Due today tasks: '.$this->dueTodayTasks->count());
 
         foreach ($this->overdueTasks->take(5) as $task) {
-            $mail->line('- OVERDUE: '.$task->title.' ('.$task->due_at?->format('M j, Y g:i A').')');
+            $mail->line('- OVERDUE: '.$task->title.' ('.LocalTime::format($task->due_at, 'M j, Y g:i A', Organization::validTimezoneOrUtc($this->organization->timezone)).')');
         }
 
         foreach ($this->dueTodayTasks->take(5) as $task) {
-            $mail->line('- TODAY: '.$task->title.' ('.$task->due_at?->format('M j, Y g:i A').')');
+            $mail->line('- TODAY: '.$task->title.' ('.LocalTime::format($task->due_at, 'M j, Y g:i A', Organization::validTimezoneOrUtc($this->organization->timezone)).')');
         }
 
         return $mail->action('Open Tasks', url('/admin/'.$this->organization->slug.'/tasks'));

@@ -5,6 +5,7 @@
 @source '../../../../resources/views/filament/**/*';
 @source '../../../../resources/views/livewire/**/*';
 @source '../../../../vendor/relaticle/flowforge/resources/views/**/*.blade.php';
+@source '../../../../resources/views/vendor/**/*.blade.php';
 
 @theme {
     --color-primary-50: #eff6ff;

@@ -4,28 +4,37 @@ namespace App\Filament\Resources\Tasks\Tables;
 
 use App\Enums\TaskStatus;
 use App\Filament\Resources\Contacts\ContactResource;
+use App\Filament\Support\NullsLastSort;
 use App\Models\Task;
+use App\Services\Owners\OwnerOptions;
+use Carbon\CarbonInterface;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
+use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
+use Filament\Support\Facades\FilamentTimezone;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 
 class TasksTable
 {
     public static function configure(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('owner.organizations'))
             ->columns([
                 TextColumn::make('title')
                     ->searchable()
@@ -41,6 +50,11 @@ class TasksTable
                         : null)
                     ->openUrlInNewTab(),
 
+                TextColumn::make('owner_id')
+                    ->label('Assigned to')
+                    ->state(fn (Task $record): ?string => $record->ownerLabel())
+                    ->placeholder('Unassigned'),
+
                 TextColumn::make('due_at')
                     ->label('Due Date')
                     ->dateTime('M j, Y g:i A')
@@ -53,7 +67,7 @@ class TasksTable
 
                         return $record->status === TaskStatus::Done ? 'success' : 'gray';
                     })
-                    ->sortable(),
+                    ->sortable(query: NullsLastSort::column('due_at')),
 
                 TextColumn::make('type')
                     ->badge()
@@ -83,6 +97,11 @@ class TasksTable
                 SelectFilter::make('status')
                     ->options(TaskStatus::class)
                     ->default(TaskStatus::Pending->value),
+
+                SelectFilter::make('owner_id')
+                    ->label('Assigned to')
+                    ->options(fn (): array => OwnerOptions::forFilter(Task::class))
+                    ->searchable(),
             ])
             ->defaultSort(function (Builder $query): Builder {
                 return $query
@@ -92,31 +111,35 @@ class TasksTable
             ->recordActions([
                 ActionGroup::make([
                     Action::make('snooze1Day')
+                        ->authorize('update')
                         ->label('+1 day')
                         ->action(function (Task $record): void {
                             self::snoozeTask($record, 1, 'Task snoozed for 1 day');
                         }),
 
                     Action::make('snooze3Days')
+                        ->authorize('update')
                         ->label('+3 days')
                         ->action(function (Task $record): void {
                             self::snoozeTask($record, 3, 'Task snoozed for 3 days');
                         }),
 
                     Action::make('snooze1Week')
+                        ->authorize('update')
                         ->label('+1 week')
                         ->action(function (Task $record): void {
                             self::snoozeTask($record, 7, 'Task snoozed for 1 week');
                         }),
 
                     Action::make('snoozeCustom')
+                        ->authorize('update')
                         ->label('Custom')
                         ->schema([
                             DateTimePicker::make('due_at')
                                 ->label('New Due Date')
                                 ->required()
                                 ->native(false)
-                                ->minDate(now()),
+                                ->minDate(fn (): CarbonInterface => now()->setTimezone(FilamentTimezone::get())),
                         ])
                         ->action(function (Task $record, array $data): void {
                             $record->update([
@@ -135,6 +158,7 @@ class TasksTable
                     ->visible(fn (Task $record): bool => $record->status !== TaskStatus::Done),
 
                 Action::make('markDone')
+                    ->authorize('update')
                     ->label('Mark Done')
                     ->icon(Heroicon::OutlinedCheck)
                     ->color('success')
@@ -161,7 +185,39 @@ class TasksTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    BulkAction::make('assignTasks')
+                        ->authorize('updateAny')
+                        ->authorizeIndividualRecords('update')
+                        ->label('Assign to')
+                        ->icon(Heroicon::OutlinedUserCircle)
+                        ->modalHeading('Assign tasks')
+                        ->modalSubmitActionLabel('Assign')
+                        ->schema([
+                            Select::make('owner_id')
+                                ->label('Assigned to')
+                                ->options(fn (): array => OwnerOptions::forForm(null))
+                                ->in(fn (): array => array_keys(OwnerOptions::forForm(null)))
+                                ->searchable()
+                                ->placeholder('Unassigned'),
+                        ])
+                        ->action(function (Collection $records, array $data): void {
+                            $ownerId = filled($data['owner_id'] ?? null) ? (int) $data['owner_id'] : null;
+
+                            $records->each(fn (Task $task) => $task->update(['owner_id' => $ownerId]));
+
+                            $count = $records->count();
+                            $noun = Str::plural('task', $count);
+
+                            Notification::make()
+                                ->title($ownerId === null
+                                    ? "Unassigned {$count} {$noun}"
+                                    : "Assigned {$count} {$noun} to ".OwnerOptions::forForm(null)[$ownerId])
+                                ->success()
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
+                    DeleteBulkAction::make()->authorizeIndividualRecords(),
                 ]),
             ])
             ->emptyStateHeading('No tasks yet')

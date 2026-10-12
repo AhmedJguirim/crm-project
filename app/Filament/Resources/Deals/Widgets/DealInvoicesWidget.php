@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Deals\Widgets;
 
 use App\Models\Invoice;
+use Filament\Facades\Filament;
 use Filament\Widgets\Widget;
 use Illuminate\Database\Eloquent\Model;
 
@@ -23,6 +24,7 @@ class DealInvoicesWidget extends Widget
 
         return [
             'invoices' => $invoices,
+            'currency' => Filament::getTenant()?->currencyCode() ?? 'USD',
         ];
     }
 }

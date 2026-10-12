@@ -2,14 +2,22 @@
 
 namespace Database\Seeders;
 
+use App\Data\Segments\SegmentConditionData;
+use App\Data\Segments\SegmentRuleData;
 use App\Enums\ActivityOutcome;
 use App\Enums\ActivityType;
+use App\Enums\CompanyIndustry;
+use App\Enums\ContactAttribute;
 use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\InvoiceStatus;
+use App\Enums\OrganizationRole;
+use App\Enums\SegmentConditionType;
+use App\Enums\SegmentOperator;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
+use App\Jobs\SyncSegmentMembership;
 use App\Models\Activity;
 use App\Models\Address;
 use App\Models\Company;
@@ -20,11 +28,16 @@ use App\Models\CustomField;
 use App\Models\Deal;
 use App\Models\Invoice;
 use App\Models\Organization;
+use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\Deals\DealCompany;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Str;
+use RuntimeException;
 
 class ItConsultingSeeder extends Seeder
 {
@@ -46,6 +59,99 @@ class ItConsultingSeeder extends Seeder
 
         $org = $user->personalOrganization() ?? $user->createPersonalOrganization();
 
+        app(TenantContext::class)->run($org->getKey(), fn () => $this->seedOrganization($user, $org));
+
+        $this->seedRoleUsers($org);
+        $this->seedSecondOrganization($user);
+    }
+
+    /**
+     * One user per role in the demo organization, to try what each role can do (all with the password of the test
+     * user).
+     */
+    private function seedRoleUsers(Organization $organization): void
+    {
+        foreach ([
+            'admin@example.com' => ['Demo Admin', OrganizationRole::Admin],
+            'member@example.com' => ['Demo Member', OrganizationRole::Member],
+            'viewer@example.com' => ['Demo Viewer', OrganizationRole::Viewer],
+        ] as $email => [$name, $role]) {
+            $user = User::firstOrCreate(
+                ['email' => $email],
+                [
+                    'name' => $name,
+                    'password' => Hash::make('password'),
+                    'email_verified_at' => now(),
+                    'onboarding_completed' => true,
+                ]
+            );
+
+            $organization->members()->syncWithoutDetaching([$user->id => ['role' => $role->value]]);
+        }
+    }
+
+    /**
+     * A second organization for manual cross-organization checks. It's owned by another user (`other@example.com`), and
+     * the test user is a plain member, so the tenant switcher can be tried without logging out. Its data looks like the
+     * first organization's (a "VIP" tag and segment), so anything leaking across organizations is easy to spot.
+     */
+    private function seedSecondOrganization(User $testUser): void
+    {
+        $owner = User::firstOrCreate(
+            ['email' => 'other@example.com'],
+            [
+                'name' => 'Other User',
+                'password' => Hash::make('password'),
+                'email_verified_at' => now(),
+                'onboarding_completed' => true,
+            ]
+        );
+
+        $organization = Organization::firstOrCreate(
+            ['slug' => 'globex-demo'],
+            ['name' => 'Globex Demo', 'personal_team' => false, 'created_by' => $owner->id],
+        );
+
+        $organization->members()->syncWithoutDetaching([
+            $owner->id => ['role' => OrganizationRole::Owner->value],
+            $testUser->id => ['role' => OrganizationRole::Member->value],
+        ]);
+
+        app(TenantContext::class)->run($organization->getKey(), function () use ($organization): void {
+            $vip = Tag::firstOrCreate(['organization_id' => $organization->id, 'name' => 'VIP'], ['color' => '#8b5cf6']);
+
+            $contacts = [
+                ['name' => 'Globex Alice', 'email' => 'alice@globex.test', 'tags' => [$vip->id]],
+                ['name' => 'Globex Bob', 'email' => 'bob@globex.test', 'tags' => [$vip->id]],
+                ['name' => 'Globex Carol', 'email' => 'carol@globex.test', 'tags' => []],
+            ];
+
+            foreach ($contacts as $data) {
+                Contact::firstOrCreate(
+                    ['organization_id' => $organization->id, 'email' => $data['email']],
+                    ['name' => $data['name']],
+                )->tags()->sync($data['tags']);
+            }
+
+            $segment = Segment::firstOrCreate(
+                ['organization_id' => $organization->id, 'name' => 'VIP'],
+                [
+                    'rules' => [(new SegmentRuleData((string) Str::ulid(), 'VIP tag', [
+                        SegmentConditionData::make(SegmentConditionType::Tags, null, SegmentOperator::HasAnyOf, ['values' => [$vip->id]]),
+                    ]))->toArray()],
+                    'is_published' => true,
+                ],
+            );
+
+            SyncSegmentMembership::dispatchSync($segment->id);
+        });
+    }
+
+    /**
+     * Seeds the organization's data inside its tenant context, so every tenant model query is scoped to it.
+     */
+    private function seedOrganization(User $user, Organization $org): void
+    {
         // ── Tags ──────────────────────────────────────────────────────────────
         $tagsData = [
             ['name' => 'Client',     'color' => '#22c55e'],
@@ -72,29 +178,29 @@ class ItConsultingSeeder extends Seeder
         $jobTitle = $this->field($org->id, 'Job Title', 'text', null, 1);
         $linkedin = $this->field($org->id, 'LinkedIn', 'url', null, 2);
         $contractType = $this->field($org->id, 'Contract Type', 'select', [
-            ['label' => 'Retainer',         'value' => 'retainer'],
-            ['label' => 'Project-Based',    'value' => 'project'],
-            ['label' => 'Time & Materials', 'value' => 'time_materials'],
-            ['label' => 'Fixed Price',      'value' => 'fixed_price'],
+            ['label' => 'Retainer'],
+            ['label' => 'Project-Based'],
+            ['label' => 'Time & Materials'],
+            ['label' => 'Fixed Price'],
         ], 3);
         $techStack = $this->field($org->id, 'Tech Stack', 'multiselect', [
-            ['label' => 'PHP / Laravel',        'value' => 'laravel'],
-            ['label' => 'JavaScript / Node.js', 'value' => 'nodejs'],
-            ['label' => 'React',                'value' => 'react'],
-            ['label' => 'Vue.js',               'value' => 'vue'],
-            ['label' => 'Python',               'value' => 'python'],
-            ['label' => 'AWS',                  'value' => 'aws'],
-            ['label' => 'Azure',                'value' => 'azure'],
-            ['label' => 'Docker / Kubernetes',  'value' => 'docker'],
-            ['label' => 'PostgreSQL',           'value' => 'postgresql'],
+            ['label' => 'PHP / Laravel'],
+            ['label' => 'JavaScript / Node.js'],
+            ['label' => 'React'],
+            ['label' => 'Vue.js'],
+            ['label' => 'Python'],
+            ['label' => 'AWS'],
+            ['label' => 'Azure'],
+            ['label' => 'Docker / Kubernetes'],
+            ['label' => 'PostgreSQL'],
         ], 4);
         $hourlyRate = $this->field($org->id, 'Hourly Rate (€)', 'number', null, 5);
         $contractStart = $this->field($org->id, 'Contract Start', 'date', null, 6);
         $contractEnd = $this->field($org->id, 'Contract End', 'date', null, 7);
         $ndaStatus = $this->field($org->id, 'NDA Status', 'select', [
-            ['label' => 'Signed',       'value' => 'signed'],
-            ['label' => 'Pending',      'value' => 'pending'],
-            ['label' => 'Not Required', 'value' => 'not_required'],
+            ['label' => 'Signed'],
+            ['label' => 'Pending'],
+            ['label' => 'Not Required'],
         ], 8);
         $notes = $this->field($org->id, 'Internal Notes', 'textarea', null, 9);
 
@@ -109,12 +215,12 @@ class ItConsultingSeeder extends Seeder
                 'cf' => [
                     $jobTitle->key => 'CTO',
                     $linkedin->key => 'https://linkedin.com/in/marcuschen',
-                    $contractType->key => 'retainer',
-                    $techStack->key => ['laravel', 'aws', 'docker'],
+                    $contractType->key => $this->optionValue($contractType, 'Retainer'),
+                    $techStack->key => $this->optionValues($techStack, ['PHP / Laravel', 'AWS', 'Docker / Kubernetes']),
                     $hourlyRate->key => 150,
                     $contractStart->key => '2025-01-15',
                     $contractEnd->key => '2025-12-31',
-                    $ndaStatus->key => 'signed',
+                    $ndaStatus->key => $this->optionValue($ndaStatus, 'Signed'),
                     $notes->key => 'Key account. Prefers morning calls. Annual review in December.',
                 ],
             ],
@@ -127,12 +233,12 @@ class ItConsultingSeeder extends Seeder
                 'cf' => [
                     $jobTitle->key => 'Head of Infrastructure',
                     $linkedin->key => 'https://linkedin.com/in/sarahjohansson',
-                    $contractType->key => 'time_materials',
-                    $techStack->key => ['aws', 'docker', 'python'],
+                    $contractType->key => $this->optionValue($contractType, 'Time & Materials'),
+                    $techStack->key => $this->optionValues($techStack, ['AWS', 'Docker / Kubernetes', 'Python']),
                     $hourlyRate->key => 135,
                     $contractStart->key => '2024-09-01',
                     $contractEnd->key => '2026-03-31',
-                    $ndaStatus->key => 'signed',
+                    $ndaStatus->key => $this->optionValue($ndaStatus, 'Signed'),
                     $notes->key => 'Monthly invoicing. AWS cost optimisation ongoing.',
                 ],
             ],
@@ -145,10 +251,10 @@ class ItConsultingSeeder extends Seeder
                 'cf' => [
                     $jobTitle->key => 'VP Engineering',
                     $linkedin->key => 'https://linkedin.com/in/damienleroy',
-                    $contractType->key => 'project',
-                    $techStack->key => ['react', 'nodejs', 'postgresql'],
+                    $contractType->key => $this->optionValue($contractType, 'Project-Based'),
+                    $techStack->key => $this->optionValues($techStack, ['React', 'JavaScript / Node.js', 'PostgreSQL']),
                     $hourlyRate->key => 120,
-                    $ndaStatus->key => 'pending',
+                    $ndaStatus->key => $this->optionValue($ndaStatus, 'Pending'),
                     $notes->key => 'Intro call done. Awaiting NDA before sending proposal.',
                 ],
             ],
@@ -161,12 +267,12 @@ class ItConsultingSeeder extends Seeder
                 'cf' => [
                     $jobTitle->key => 'CISO',
                     $linkedin->key => 'https://linkedin.com/in/priyanair',
-                    $contractType->key => 'retainer',
-                    $techStack->key => ['aws', 'azure'],
+                    $contractType->key => $this->optionValue($contractType, 'Retainer'),
+                    $techStack->key => $this->optionValues($techStack, ['AWS', 'Azure']),
                     $hourlyRate->key => 200,
                     $contractStart->key => '2024-03-01',
                     $contractEnd->key => '2026-02-28',
-                    $ndaStatus->key => 'signed',
+                    $ndaStatus->key => $this->optionValue($ndaStatus, 'Signed'),
                     $notes->key => 'Security audit retainer. Quarterly report deliverable.',
                 ],
             ],
@@ -178,10 +284,10 @@ class ItConsultingSeeder extends Seeder
                 'companies' => ['DevStudio Berlin'],
                 'cf' => [
                     $jobTitle->key => 'Lead Developer',
-                    $contractType->key => 'fixed_price',
-                    $techStack->key => ['vue', 'laravel', 'postgresql'],
+                    $contractType->key => $this->optionValue($contractType, 'Fixed Price'),
+                    $techStack->key => $this->optionValues($techStack, ['Vue.js', 'PHP / Laravel', 'PostgreSQL']),
                     $hourlyRate->key => 110,
-                    $ndaStatus->key => 'not_required',
+                    $ndaStatus->key => $this->optionValue($ndaStatus, 'Not Required'),
                     $notes->key => 'Referred by Marcus Chen. Looking for a long-term partner.',
                 ],
             ],
@@ -194,9 +300,9 @@ class ItConsultingSeeder extends Seeder
                 'cf' => [
                     $jobTitle->key => 'Digital Transformation Director',
                     $linkedin->key => 'https://linkedin.com/in/amaradiallo',
-                    $contractType->key => 'project',
-                    $techStack->key => ['azure', 'python'],
-                    $ndaStatus->key => 'pending',
+                    $contractType->key => $this->optionValue($contractType, 'Project-Based'),
+                    $techStack->key => $this->optionValues($techStack, ['Azure', 'Python']),
+                    $ndaStatus->key => $this->optionValue($ndaStatus, 'Pending'),
                     $notes->key => 'Large digital transformation project. Budget TBD.',
                 ],
             ],
@@ -208,11 +314,11 @@ class ItConsultingSeeder extends Seeder
                 'companies' => ['StackOps'],
                 'cf' => [
                     $jobTitle->key => 'Platform Engineer',
-                    $contractType->key => 'time_materials',
-                    $techStack->key => ['docker', 'aws', 'python'],
+                    $contractType->key => $this->optionValue($contractType, 'Time & Materials'),
+                    $techStack->key => $this->optionValues($techStack, ['Docker / Kubernetes', 'AWS', 'Python']),
                     $hourlyRate->key => 130,
                     $contractStart->key => '2025-03-01',
-                    $ndaStatus->key => 'signed',
+                    $ndaStatus->key => $this->optionValue($ndaStatus, 'Signed'),
                 ],
             ],
             [
@@ -224,10 +330,10 @@ class ItConsultingSeeder extends Seeder
                 'cf' => [
                     $jobTitle->key => 'Senior Backend Developer',
                     $linkedin->key => 'https://linkedin.com/in/nadiapetrova',
-                    $contractType->key => 'project',
-                    $techStack->key => ['laravel', 'postgresql', 'react'],
+                    $contractType->key => $this->optionValue($contractType, 'Project-Based'),
+                    $techStack->key => $this->optionValues($techStack, ['PHP / Laravel', 'PostgreSQL', 'React']),
                     $hourlyRate->key => 95,
-                    $ndaStatus->key => 'not_required',
+                    $ndaStatus->key => $this->optionValue($ndaStatus, 'Not Required'),
                     $notes->key => 'Interested in a 3-month Laravel API project.',
                 ],
             ],
@@ -239,9 +345,9 @@ class ItConsultingSeeder extends Seeder
                 'companies' => ['CyberNode Africa'],
                 'cf' => [
                     $jobTitle->key => 'Product Manager',
-                    $contractType->key => 'project',
-                    $techStack->key => ['nodejs', 'react'],
-                    $ndaStatus->key => 'not_required',
+                    $contractType->key => $this->optionValue($contractType, 'Project-Based'),
+                    $techStack->key => $this->optionValues($techStack, ['JavaScript / Node.js', 'React']),
+                    $ndaStatus->key => $this->optionValue($ndaStatus, 'Not Required'),
                     $notes->key => 'Initial contact at WebSummit. Follow up Q2 2026.',
                 ],
             ],
@@ -254,9 +360,9 @@ class ItConsultingSeeder extends Seeder
                 'cf' => [
                     $jobTitle->key => 'Design Director',
                     $linkedin->key => 'https://linkedin.com/in/elenavasquez',
-                    $contractType->key => 'project',
-                    $techStack->key => ['vue', 'react'],
-                    $ndaStatus->key => 'signed',
+                    $contractType->key => $this->optionValue($contractType, 'Project-Based'),
+                    $techStack->key => $this->optionValues($techStack, ['Vue.js', 'React']),
+                    $ndaStatus->key => $this->optionValue($ndaStatus, 'Signed'),
                     $notes->key => 'Subcontractor for front-end. Strong Vue.js skills.',
                 ],
             ],
@@ -268,10 +374,10 @@ class ItConsultingSeeder extends Seeder
                 'companies' => ['DataLab Portugal'],
                 'cf' => [
                     $jobTitle->key => 'Data Engineer',
-                    $contractType->key => 'time_materials',
-                    $techStack->key => ['python', 'postgresql', 'aws'],
+                    $contractType->key => $this->optionValue($contractType, 'Time & Materials'),
+                    $techStack->key => $this->optionValues($techStack, ['Python', 'PostgreSQL', 'AWS']),
                     $hourlyRate->key => 100,
-                    $ndaStatus->key => 'pending',
+                    $ndaStatus->key => $this->optionValue($ndaStatus, 'Pending'),
                 ],
             ],
             [
@@ -283,10 +389,10 @@ class ItConsultingSeeder extends Seeder
                 'cf' => [
                     $jobTitle->key => 'IT Director',
                     $linkedin->key => 'https://linkedin.com/in/yasminrashid',
-                    $contractType->key => 'retainer',
-                    $techStack->key => ['azure', 'docker'],
+                    $contractType->key => $this->optionValue($contractType, 'Retainer'),
+                    $techStack->key => $this->optionValues($techStack, ['Azure', 'Docker / Kubernetes']),
                     $hourlyRate->key => 175,
-                    $ndaStatus->key => 'pending',
+                    $ndaStatus->key => $this->optionValue($ndaStatus, 'Pending'),
                     $notes->key => 'Referred by Priya Nair. High-value opportunity.',
                 ],
             ],
@@ -298,10 +404,10 @@ class ItConsultingSeeder extends Seeder
                 'companies' => ['StackOps', 'PixelCraft Studio'],
                 'cf' => [
                     $jobTitle->key => 'DevOps Consultant',
-                    $contractType->key => 'time_materials',
-                    $techStack->key => ['docker', 'aws', 'python'],
+                    $contractType->key => $this->optionValue($contractType, 'Time & Materials'),
+                    $techStack->key => $this->optionValues($techStack, ['Docker / Kubernetes', 'AWS', 'Python']),
                     $hourlyRate->key => 115,
-                    $ndaStatus->key => 'signed',
+                    $ndaStatus->key => $this->optionValue($ndaStatus, 'Signed'),
                     $notes->key => 'Available for overflow work. Max 2 days/week.',
                 ],
             ],
@@ -313,12 +419,12 @@ class ItConsultingSeeder extends Seeder
                 'companies' => ['Nordic Security AB'],
                 'cf' => [
                     $jobTitle->key => 'Security Analyst',
-                    $contractType->key => 'project',
-                    $techStack->key => ['python', 'aws'],
+                    $contractType->key => $this->optionValue($contractType, 'Project-Based'),
+                    $techStack->key => $this->optionValues($techStack, ['Python', 'AWS']),
                     $hourlyRate->key => 145,
                     $contractStart->key => '2025-06-01',
                     $contractEnd->key => '2025-11-30',
-                    $ndaStatus->key => 'signed',
+                    $ndaStatus->key => $this->optionValue($ndaStatus, 'Signed'),
                     $notes->key => 'Pen testing engagement. Deliverable: report + remediation plan.',
                 ],
             ],
@@ -331,7 +437,7 @@ class ItConsultingSeeder extends Seeder
                 'cf' => [
                     $jobTitle->key => 'Engineering Manager',
                     $linkedin->key => 'https://linkedin.com/in/remybertrand',
-                    $ndaStatus->key => 'not_required',
+                    $ndaStatus->key => $this->optionValue($ndaStatus, 'Not Required'),
                     $notes->key => 'Met at Paris JS conference. No immediate need.',
                 ],
             ],
@@ -422,12 +528,12 @@ class ItConsultingSeeder extends Seeder
 
         // ── Deals ────────────────────────────────────────────────────────────
         $dealsData = [
-            ['title' => 'TechCorp Infra Expansion', 'email' => 'marcus.chen@techcorp.io', 'stage' => DealStage::Negotiating, 'status' => DealStatus::Open, 'value' => 85000, 'currency' => 'USD', 'expected_close_date' => now()->addDays(9)->toDateString(), 'notes' => 'Final legal review before signature.'],
-            ['title' => 'Cloudbase Cost Optimization Retainer', 'email' => 'sarah.johansson@cloudbase.dev', 'stage' => DealStage::ProposalSent, 'status' => DealStatus::Open, 'value' => 42000, 'currency' => 'EUR', 'expected_close_date' => now()->addDays(5)->toDateString(), 'notes' => 'Proposal sent, waiting for finance sign-off.'],
-            ['title' => 'HexaSys React Platform Migration', 'email' => 'damien.leroy@hexasys.fr', 'stage' => DealStage::Discovery, 'status' => DealStatus::Open, 'value' => 65000, 'currency' => 'EUR', 'expected_close_date' => now()->addDays(18)->toDateString(), 'notes' => 'Technical workshops scheduled next week.'],
-            ['title' => 'SecurePeak Annual Security Program', 'email' => 'priya.nair@securepeak.com', 'stage' => DealStage::Won, 'status' => DealStatus::Won, 'value' => 120000, 'currency' => 'USD', 'expected_close_date' => now()->subDays(12)->toDateString(), 'won_at' => now()->subDays(10), 'notes' => 'Contract signed and onboarded.'],
-            ['title' => 'InnoTech Transformation Advisory', 'email' => 'amara.diallo@innotech-sa.com', 'stage' => DealStage::Lead, 'status' => DealStatus::Open, 'value' => 30000, 'currency' => 'EUR', 'expected_close_date' => now()->addDays(24)->toDateString(), 'notes' => 'Initial qualification in progress.'],
-            ['title' => 'NordicSec Pen Testing Extension', 'email' => 'ingrid.svensson@nordicsec.com', 'stage' => DealStage::Lost, 'status' => DealStatus::Lost, 'value' => 38000, 'currency' => 'USD', 'expected_close_date' => now()->subDays(20)->toDateString(), 'lost_at' => now()->subDays(18), 'notes' => 'Budget reallocated to internal team.'],
+            ['title' => 'TechCorp Infra Expansion', 'email' => 'marcus.chen@techcorp.io', 'stage' => DealStage::Negotiating, 'status' => DealStatus::Open, 'value' => 85000, 'expected_close_date' => now()->addDays(9)->toDateString(), 'notes' => 'Final legal review before signature.'],
+            ['title' => 'Cloudbase Cost Optimization Retainer', 'email' => 'sarah.johansson@cloudbase.dev', 'stage' => DealStage::ProposalSent, 'status' => DealStatus::Open, 'value' => 42000, 'expected_close_date' => now()->addDays(5)->toDateString(), 'notes' => 'Proposal sent, waiting for finance sign-off.'],
+            ['title' => 'HexaSys React Platform Migration', 'email' => 'damien.leroy@hexasys.fr', 'stage' => DealStage::Discovery, 'status' => DealStatus::Open, 'value' => 65000, 'expected_close_date' => now()->addDays(18)->toDateString(), 'notes' => 'Technical workshops scheduled next week.'],
+            ['title' => 'SecurePeak Annual Security Program', 'email' => 'priya.nair@securepeak.com', 'stage' => DealStage::Won, 'status' => DealStatus::Won, 'value' => 120000, 'expected_close_date' => now()->subDays(12)->toDateString(), 'won_at' => now()->subDays(10), 'notes' => 'Contract signed and onboarded.'],
+            ['title' => 'InnoTech Transformation Advisory', 'email' => 'amara.diallo@innotech-sa.com', 'stage' => DealStage::Lead, 'status' => DealStatus::Open, 'no_owner' => true, 'value' => 30000, 'expected_close_date' => now()->addDays(24)->toDateString(), 'notes' => 'Initial qualification in progress.'],
+            ['title' => 'NordicSec Pen Testing Extension', 'email' => 'ingrid.svensson@nordicsec.com', 'stage' => DealStage::Lost, 'status' => DealStatus::Lost, 'value' => 38000, 'expected_close_date' => now()->subDays(20)->toDateString(), 'lost_at' => now()->subDays(18), 'notes' => 'Budget reallocated to internal team.'],
         ];
 
         foreach ($dealsData as $dealData) {
@@ -444,27 +550,28 @@ class ItConsultingSeeder extends Seeder
                 ],
                 [
                     'contact_id' => $contact->id,
+                    'company_id' => DealCompany::defaultIdFor($contact->id),
                     'stage' => $dealData['stage'],
                     'status' => $dealData['status'],
                     'value' => $dealData['value'],
-                    'currency' => $dealData['currency'],
                     'expected_close_date' => $dealData['expected_close_date'],
                     'notes' => $dealData['notes'],
                     'won_at' => $dealData['won_at'] ?? null,
                     'lost_at' => $dealData['lost_at'] ?? null,
                     'created_by' => $user->id,
+                    'owner_id' => ($dealData['no_owner'] ?? false) ? null : $user->id,
                 ]
             );
         }
 
         // ── Invoices ─────────────────────────────────────────────────────────
         $invoicesData = [
-            ['invoice_number' => 'INV-2026-001', 'email' => 'marcus.chen@techcorp.io', 'deal_title' => 'TechCorp Infra Expansion', 'amount' => 24000, 'currency' => 'USD', 'status' => InvoiceStatus::Paid, 'issued_at' => now()->subDays(20)->toDateString(), 'due_at' => now()->subDays(5)->toDateString(), 'paid_at' => now()->subDays(6)->toDateString(), 'notes' => 'Phase 1 infrastructure migration milestone.'],
-            ['invoice_number' => 'INV-2026-002', 'email' => 'sarah.johansson@cloudbase.dev', 'deal_title' => 'Cloudbase Cost Optimization Retainer', 'amount' => 7800, 'currency' => 'EUR', 'status' => InvoiceStatus::Sent, 'issued_at' => now()->subDays(9)->toDateString(), 'due_at' => now()->addDays(7)->toDateString(), 'notes' => 'Monthly retainer February.'],
-            ['invoice_number' => 'INV-2026-003', 'email' => 'damien.leroy@hexasys.fr', 'deal_title' => 'HexaSys React Platform Migration', 'amount' => 5600, 'currency' => 'EUR', 'status' => InvoiceStatus::Partial, 'issued_at' => now()->subDays(18)->toDateString(), 'due_at' => now()->subDays(2)->toDateString(), 'paid_at' => now()->subDays(1)->toDateString(), 'notes' => 'Deposit received, awaiting final transfer.'],
-            ['invoice_number' => 'INV-2026-004', 'email' => 'ingrid.svensson@nordicsec.com', 'deal_title' => 'NordicSec Pen Testing Extension', 'amount' => 9200, 'currency' => 'USD', 'status' => InvoiceStatus::Overdue, 'issued_at' => now()->subDays(26)->toDateString(), 'due_at' => now()->subDays(8)->toDateString(), 'notes' => 'Reminder sent twice.'],
-            ['invoice_number' => 'INV-2026-005', 'email' => 'priya.nair@securepeak.com', 'deal_title' => 'SecurePeak Annual Security Program', 'amount' => 31000, 'currency' => 'USD', 'status' => InvoiceStatus::Paid, 'issued_at' => now()->subDays(40)->toDateString(), 'due_at' => now()->subDays(25)->toDateString(), 'paid_at' => now()->subDays(24)->toDateString(), 'notes' => 'Annual security program Q1 billing.'],
-            ['invoice_number' => 'INV-2026-006', 'email' => 'amara.diallo@innotech-sa.com', 'deal_title' => null, 'amount' => 3500, 'currency' => 'EUR', 'status' => InvoiceStatus::Draft, 'issued_at' => now()->toDateString(), 'due_at' => now()->addDays(14)->toDateString(), 'notes' => 'Draft invoice for discovery workshops.'],
+            ['invoice_number' => 'INV-2026-001', 'email' => 'marcus.chen@techcorp.io', 'deal_title' => 'TechCorp Infra Expansion', 'amount' => 24000, 'status' => InvoiceStatus::Paid, 'issued_at' => now()->subDays(20)->toDateString(), 'due_at' => now()->subDays(5)->toDateString(), 'paid_at' => now()->subDays(6)->toDateString(), 'notes' => 'Phase 1 infrastructure migration milestone.'],
+            ['invoice_number' => 'INV-2026-002', 'email' => 'sarah.johansson@cloudbase.dev', 'deal_title' => 'Cloudbase Cost Optimization Retainer', 'amount' => 7800, 'status' => InvoiceStatus::Sent, 'issued_at' => now()->subDays(9)->toDateString(), 'due_at' => now()->addDays(7)->toDateString(), 'notes' => 'Monthly retainer February.'],
+            ['invoice_number' => 'INV-2026-003', 'email' => 'damien.leroy@hexasys.fr', 'deal_title' => 'HexaSys React Platform Migration', 'amount' => 5600, 'status' => InvoiceStatus::Partial, 'issued_at' => now()->subDays(18)->toDateString(), 'due_at' => now()->subDays(2)->toDateString(), 'paid_at' => now()->subDays(1)->toDateString(), 'notes' => 'Deposit received, awaiting final transfer.'],
+            ['invoice_number' => 'INV-2026-004', 'email' => 'ingrid.svensson@nordicsec.com', 'deal_title' => 'NordicSec Pen Testing Extension', 'amount' => 9200, 'status' => InvoiceStatus::Overdue, 'issued_at' => now()->subDays(26)->toDateString(), 'due_at' => now()->subDays(8)->toDateString(), 'notes' => 'Reminder sent twice.'],
+            ['invoice_number' => 'INV-2026-005', 'email' => 'priya.nair@securepeak.com', 'deal_title' => 'SecurePeak Annual Security Program', 'amount' => 31000, 'status' => InvoiceStatus::Paid, 'issued_at' => now()->subDays(40)->toDateString(), 'due_at' => now()->subDays(25)->toDateString(), 'paid_at' => now()->subDays(24)->toDateString(), 'notes' => 'Annual security program Q1 billing.'],
+            ['invoice_number' => 'INV-2026-006', 'email' => 'amara.diallo@innotech-sa.com', 'deal_title' => null, 'amount' => 3500, 'status' => InvoiceStatus::Draft, 'issued_at' => now()->toDateString(), 'due_at' => now()->addDays(14)->toDateString(), 'notes' => 'Draft invoice for discovery workshops.'],
         ];
 
         foreach ($invoicesData as $invoiceData) {
@@ -492,7 +599,6 @@ class ItConsultingSeeder extends Seeder
                     'contact_id' => $contact->id,
                     'deal_id' => $deal?->id,
                     'amount' => $invoiceData['amount'],
-                    'currency' => $invoiceData['currency'],
                     'status' => $invoiceData['status'],
                     'issued_at' => $invoiceData['issued_at'],
                     'due_at' => $invoiceData['due_at'],
@@ -508,7 +614,7 @@ class ItConsultingSeeder extends Seeder
             ['title' => 'Call Sarah for proposal approval', 'email' => 'sarah.johansson@cloudbase.dev', 'type' => TaskType::Call, 'priority' => TaskPriority::Medium, 'status' => TaskStatus::Pending, 'due_at' => now()->addDays(2), 'notes' => 'Confirm timeline and procurement process.'],
             ['title' => 'Prepare HexaSys discovery workshop agenda', 'email' => 'damien.leroy@hexasys.fr', 'type' => TaskType::Meeting, 'priority' => TaskPriority::High, 'status' => TaskStatus::Pending, 'due_at' => now()->addDays(3), 'notes' => 'Share architecture questionnaire in advance.'],
             ['title' => 'Send SecurePeak kickoff summary', 'email' => 'priya.nair@securepeak.com', 'type' => TaskType::Email, 'priority' => TaskPriority::Low, 'status' => TaskStatus::Done, 'due_at' => now()->subDays(2), 'completed_at' => now()->subDay(), 'notes' => 'Kickoff notes and next milestones sent.'],
-            ['title' => 'Invoice StackOps sprint support', 'email' => 'tom.whitfield@stackops.io', 'type' => TaskType::Invoice, 'priority' => TaskPriority::Medium, 'status' => TaskStatus::Pending, 'due_at' => now()->addDays(5), 'notes' => 'Prepare invoice for February sprint support.'],
+            ['title' => 'Invoice StackOps sprint support', 'email' => 'tom.whitfield@stackops.io', 'type' => TaskType::Invoice, 'priority' => TaskPriority::Medium, 'status' => TaskStatus::Pending, 'due_at' => now()->addDays(5), 'notes' => 'Prepare invoice for February sprint support.', 'no_owner' => true],
             ['title' => 'Follow up with Yasmin on budget confirmation', 'email' => 'yasmin.alrashid@cloudshift.ae', 'type' => TaskType::FollowUp, 'priority' => TaskPriority::High, 'status' => TaskStatus::Pending, 'due_at' => now()->addDays(4), 'notes' => 'Clarify budget owner and procurement steps.'],
         ];
 
@@ -527,6 +633,7 @@ class ItConsultingSeeder extends Seeder
                 [
                     'contact_id' => $contact->id,
                     'created_by' => $user->id,
+                    'owner_id' => ($taskData['no_owner'] ?? false) ? null : $user->id,
                     'type' => $taskData['type'],
                     'priority' => $taskData['priority'],
                     'status' => $taskData['status'],
@@ -536,6 +643,72 @@ class ItConsultingSeeder extends Seeder
                 ]
             );
         }
+
+        // ── Segments ─────────────────────────────────────────────────────────
+        $this->seedSegments($org, $tags, $linkedin, $techStack, $hourlyRate);
+    }
+
+    /**
+     * One segment per kind of condition, plus the scheduled (hourly and daily) ones and a draft, so manual tests can
+     * rely on them after `migrate:fresh --seed`. Published segments are synced right away.
+     *
+     * @param  array<string, Tag>  $tags
+     */
+    private function seedSegments(Organization $org, array $tags, CustomField $linkedin, CustomField $techStack, CustomField $hourlyRate): void
+    {
+        $agency = CompanyType::query()->where('name', 'Agency')->firstOrFail();
+        $condition = fn (SegmentConditionType $type, ?string $field, SegmentOperator $operator, array $value = []): SegmentConditionData => SegmentConditionData::make($type, $field, $operator, $value);
+        $rule = fn (string $name, SegmentConditionData ...$conditions): array => (new SegmentRuleData((string) Str::ulid(), $name, $conditions))->toArray();
+
+        $segments = [
+            'VIP' => [
+                $rule('VIP tag', $condition(SegmentConditionType::Tags, null, SegmentOperator::HasAnyOf, ['values' => [$tags['VIP']->id]])),
+                $rule(
+                    'Security managers on LinkedIn',
+                    $condition(SegmentConditionType::Tags, null, SegmentOperator::HasAllOf, ['values' => [$tags['Management']->id, $tags['Security']->id]]),
+                    $condition(SegmentConditionType::CustomField, $linkedin->key, SegmentOperator::IsNotBlank),
+                ),
+            ],
+            'Laravel developers' => [
+                $rule('Tech Stack has Laravel', $condition(SegmentConditionType::CustomField, $techStack->key, SegmentOperator::ContainsAnyOf, ['values' => $this->optionValues($techStack, ['PHP / Laravel'])])),
+            ],
+            'Open deals' => [
+                $rule('Has an open deal', $condition(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_statuses' => [DealStatus::Open->value]])),
+            ],
+            'Won customers' => [
+                $rule('Has a won deal', $condition(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_stages' => [DealStage::Won->value]])),
+            ],
+            'Agency contacts' => [
+                $rule('Works at an agency', $condition(SegmentConditionType::Company, null, SegmentOperator::CompanyTypeIsAnyOf, ['values' => [$agency->id]])),
+            ],
+            'Never contacted' => [
+                $rule('No activity logged', $condition(SegmentConditionType::Activity, null, SegmentOperator::HasNotHadActivity)),
+            ],
+            'Gone quiet (hourly)' => [
+                $rule('Last activity over 30 days ago', $condition(SegmentConditionType::Activity, null, SegmentOperator::LastActivityMoreThanDaysAgo, ['days' => 30])),
+            ],
+            'Added recently (daily)' => [
+                $rule('Created in the last 30 days', $condition(SegmentConditionType::Attribute, ContactAttribute::CreatedAt->value, SegmentOperator::WithinLastDays, ['days' => 30])),
+            ],
+        ];
+
+        foreach ($segments as $name => $rules) {
+            $segment = Segment::query()->firstOrCreate(
+                ['organization_id' => $org->id, 'name' => $name],
+                ['rules' => $rules, 'is_published' => true],
+            );
+
+            SyncSegmentMembership::dispatchSync($segment->id);
+        }
+
+        Segment::query()->firstOrCreate(
+            ['organization_id' => $org->id, 'name' => 'High rate (draft)'],
+            [
+                'rules' => [],
+                'draft_rules' => [$rule('Hourly rate above 120', $condition(SegmentConditionType::CustomField, $hourlyRate->key, SegmentOperator::GreaterThan, ['value' => 120]))],
+                'is_published' => false,
+            ],
+        );
     }
 
     /** @return array<string, Company> */
@@ -546,55 +719,36 @@ class ItConsultingSeeder extends Seeder
         $startup = CompanyType::firstOrCreate(['organization_id' => $org->id, 'name' => 'Startup']);
         $agency = CompanyType::firstOrCreate(['organization_id' => $org->id, 'name' => 'Agency']);
 
-        $industryOptions = [
-            ['label' => 'Software',          'value' => 'software'],
-            ['label' => 'Finance',           'value' => 'finance'],
-            ['label' => 'Cybersecurity',     'value' => 'cybersecurity'],
-            ['label' => 'Cloud & Hosting',   'value' => 'cloud'],
-            ['label' => 'Consulting',        'value' => 'consulting'],
-        ];
-
-        foreach ([$enterprise, $sme] as $type) {
-            $this->companyField($type, 'Industry', 'select', $industryOptions, 1);
-            $this->companyField($type, 'Employees', 'number', null, 2);
-            $this->companyField($type, 'Website', 'url', null, 3);
-        }
-
-        $this->companyField($enterprise, 'VAT Number', 'text', null, 4, unique: true);
-        $this->companyField($enterprise, 'Annual Revenue (€)', 'number', null, 5);
-
-        $this->companyField($startup, 'Funding Stage', 'select', [
-            ['label' => 'Pre-seed', 'value' => 'pre_seed'],
-            ['label' => 'Seed',     'value' => 'seed'],
-            ['label' => 'Series A', 'value' => 'series_a'],
-            ['label' => 'Series B', 'value' => 'series_b'],
-        ], 1);
-        $this->companyField($startup, 'Founded', 'date', null, 2);
-        $this->companyField($startup, 'Website', 'url', null, 3);
-
-        $this->companyField($agency, 'Specialties', 'multiselect', [
-            ['label' => 'Web',     'value' => 'web'],
-            ['label' => 'Mobile',  'value' => 'mobile'],
-            ['label' => 'Design',  'value' => 'design'],
-            ['label' => 'DevOps',  'value' => 'devops'],
-        ], 1);
-        $this->companyField($agency, 'Website', 'url', null, 2);
+        $this->companyField($org, 'VAT Number', 'text', null, 1, unique: true);
+        $this->companyField($org, 'Funding Stage', 'select', [
+            ['label' => 'Pre-seed'],
+            ['label' => 'Seed'],
+            ['label' => 'Series A'],
+            ['label' => 'Series B'],
+        ], 2);
+        $this->companyField($org, 'Founded', 'date', null, 3);
+        $this->companyField($org, 'Specialties', 'multiselect', [
+            ['label' => 'Web'],
+            ['label' => 'Mobile'],
+            ['label' => 'Design'],
+            ['label' => 'DevOps'],
+        ], 4);
 
         $companiesData = [
-            ['name' => 'TechCorp Solutions', 'type' => $enterprise, 'address' => ['France', 'Paris', '12 Rue de Rivoli', '75001'], 'cf' => ['industry' => 'software', 'employees' => 1200, 'website' => 'https://techcorp.io', 'vat_number' => 'FR40303265045', 'annual_revenue_eur' => 180000000], 'notes' => 'Key account since 2023.'],
-            ['name' => 'Cloudbase Nordic', 'type' => $sme, 'address' => ['Sweden', 'Stockholm', 'Drottninggatan 45', '111 21'], 'cf' => ['industry' => 'cloud', 'employees' => 85, 'website' => 'https://cloudbase.dev']],
-            ['name' => 'HexaSys', 'type' => $sme, 'address' => ['France', 'Lyon', '8 Quai Saint-Antoine', '69002'], 'cf' => ['industry' => 'software', 'employees' => 140]],
-            ['name' => 'SecurePeak Ltd', 'type' => $enterprise, 'address' => ['United Kingdom', 'London', '30 St Mary Axe', 'EC3A 8BF'], 'cf' => ['industry' => 'cybersecurity', 'employees' => 950, 'website' => 'https://securepeak.com', 'vat_number' => 'GB123456789']],
-            ['name' => 'DevStudio Berlin', 'type' => $agency, 'address' => ['Germany', 'Berlin', 'Torstraße 110', '10119'], 'cf' => ['specialties' => ['web', 'design'], 'website' => 'https://devstudio.de']],
-            ['name' => 'InnoTech SA', 'type' => $enterprise, 'address' => ['Senegal', 'Dakar', 'Avenue Léopold Sédar Senghor', '10200'], 'cf' => ['industry' => 'finance', 'employees' => 2300, 'vat_number' => 'SN0045821'], 'notes' => 'Azure migration opportunity, decision expected Q2.'],
-            ['name' => 'StackOps', 'type' => $startup, 'address' => ['Ireland', 'Dublin', '1 Grand Canal Square', 'D02 P820'], 'cf' => ['funding_stage' => 'series_a', 'founded' => '2021-03-01', 'website' => 'https://stackops.io']],
-            ['name' => 'SoftBridge Europe', 'type' => $sme, 'address' => ['Bulgaria', 'Sofia', 'Vitosha Blvd 89', '1463'], 'cf' => ['industry' => 'consulting', 'employees' => 60]],
-            ['name' => 'CyberNode Africa', 'type' => $startup, 'address' => ['Nigeria', 'Lagos', '14 Admiralty Way', '106104'], 'cf' => ['funding_stage' => 'seed', 'founded' => '2023-01-15']],
-            ['name' => 'PixelCraft Studio', 'type' => $agency, 'address' => ['Spain', 'Barcelona', 'Carrer de Pallars 193', '08005'], 'cf' => ['specialties' => ['design', 'mobile'], 'website' => 'https://pixelcraft.studio']],
-            ['name' => 'DataLab Portugal', 'type' => $startup, 'address' => ['Portugal', 'Lisbon', 'Rua Augusta 27', '1100-048'], 'cf' => ['funding_stage' => 'pre_seed', 'founded' => '2024-06-01']],
-            ['name' => 'CloudShift MENA', 'type' => $enterprise, 'address' => ['United Arab Emirates', 'Dubai', 'Sheikh Zayed Road', null], 'cf' => ['industry' => 'cloud', 'employees' => 700, 'vat_number' => 'AE100234567800003']],
-            ['name' => 'Nordic Security AB', 'type' => $sme, 'address' => ['Sweden', 'Stockholm', 'Kungsgatan 12', '111 43'], 'cf' => ['industry' => 'cybersecurity', 'employees' => 45]],
-            ['name' => 'WebScale Paris', 'type' => $agency, 'address' => ['France', 'Paris', '55 Rue du Faubourg Saint-Honoré', '75008'], 'cf' => ['specialties' => ['web', 'devops']]],
+            ['name' => 'TechCorp Solutions', 'industry' => CompanyIndustry::Software, 'employees' => 1200, 'annual_revenue' => 180000000, 'phone' => '+33 1 23 45 67 89', 'website' => 'https://techcorp.io', 'type' => $enterprise, 'address' => ['France', 'Paris', '12 Rue de Rivoli', '75001'], 'cf' => ['vat_number' => 'FR40303265045'], 'notes' => 'Key account since 2023.'],
+            ['name' => 'Cloudbase Nordic', 'industry' => CompanyIndustry::CloudHosting, 'employees' => 85, 'phone' => '+46 8 123 456 78', 'website' => 'https://cloudbase.dev', 'type' => $sme, 'address' => ['Sweden', 'Stockholm', 'Drottninggatan 45', '111 21'], 'cf' => []],
+            ['name' => 'HexaSys', 'industry' => CompanyIndustry::Software, 'employees' => 140, 'type' => $sme, 'address' => ['France', 'Lyon', '8 Quai Saint-Antoine', '69002'], 'cf' => []],
+            ['name' => 'SecurePeak Ltd', 'industry' => CompanyIndustry::Cybersecurity, 'employees' => 950, 'website' => 'https://securepeak.com', 'type' => $enterprise, 'address' => ['United Kingdom', 'London', '30 St Mary Axe', 'EC3A 8BF'], 'cf' => ['vat_number' => 'GB123456789']],
+            ['name' => 'DevStudio Berlin', 'website' => 'https://devstudio.de', 'type' => $agency, 'address' => ['Germany', 'Berlin', 'Torstraße 110', '10119'], 'cf' => ['specialties' => ['Web', 'Design']]],
+            ['name' => 'InnoTech SA', 'industry' => CompanyIndustry::FinanceBanking, 'employees' => 2300, 'type' => $enterprise, 'address' => ['Senegal', 'Dakar', 'Avenue Léopold Sédar Senghor', '10200'], 'cf' => ['vat_number' => 'SN0045821'], 'notes' => 'Azure migration opportunity, decision expected Q2.'],
+            ['name' => 'StackOps', 'phone' => '+353 1 234 5678', 'website' => 'https://stackops.io', 'type' => $startup, 'address' => ['Ireland', 'Dublin', '1 Grand Canal Square', 'D02 P820'], 'cf' => ['funding_stage' => 'Series A', 'founded' => '2021-03-01']],
+            ['name' => 'SoftBridge Europe', 'industry' => CompanyIndustry::Consulting, 'employees' => 60, 'type' => $sme, 'address' => ['Bulgaria', 'Sofia', 'Vitosha Blvd 89', '1463'], 'cf' => []],
+            ['name' => 'CyberNode Africa', 'type' => $startup, 'address' => ['Nigeria', 'Lagos', '14 Admiralty Way', '106104'], 'cf' => ['funding_stage' => 'Seed', 'founded' => '2023-01-15']],
+            ['name' => 'PixelCraft Studio', 'website' => 'https://pixelcraft.studio', 'type' => $agency, 'address' => ['Spain', 'Barcelona', 'Carrer de Pallars 193', '08005'], 'cf' => ['specialties' => ['Design', 'Mobile']]],
+            ['name' => 'DataLab Portugal', 'type' => $startup, 'address' => ['Portugal', 'Lisbon', 'Rua Augusta 27', '1100-048'], 'cf' => ['funding_stage' => 'Pre-seed', 'founded' => '2024-06-01']],
+            ['name' => 'CloudShift MENA', 'industry' => CompanyIndustry::CloudHosting, 'employees' => 700, 'type' => $enterprise, 'address' => ['United Arab Emirates', 'Dubai', 'Sheikh Zayed Road', null], 'cf' => ['vat_number' => 'AE100234567800003']],
+            ['name' => 'Nordic Security AB', 'industry' => CompanyIndustry::Cybersecurity, 'employees' => 45, 'type' => $sme, 'address' => ['Sweden', 'Stockholm', 'Kungsgatan 12', '111 43'], 'cf' => []],
+            ['name' => 'WebScale Paris', 'type' => $agency, 'address' => ['France', 'Paris', '55 Rue du Faubourg Saint-Honoré', '75008'], 'cf' => ['specialties' => ['Web', 'DevOps']]],
         ];
 
         $companies = [];
@@ -618,8 +772,13 @@ class ItConsultingSeeder extends Seeder
                     'company_type_id' => $data['type']->id,
                     'address_id' => $address->id,
                     'name' => $data['name'],
+                    'website' => $data['website'] ?? null,
+                    'phone' => $data['phone'] ?? null,
+                    'industry' => $data['industry'] ?? null,
+                    'employees' => $data['employees'] ?? null,
+                    'annual_revenue' => $data['annual_revenue'] ?? null,
                     'notes' => $data['notes'] ?? null,
-                    'custom_field_values' => $data['cf'],
+                    'custom_field_values' => $this->keyCompanyValues($org, $data['cf']),
                 ]);
             }
 
@@ -629,12 +788,43 @@ class ItConsultingSeeder extends Seeder
         return $companies;
     }
 
-    private function companyField(CompanyType $type, string $name, string $fieldType, ?array $options, int $order, bool $unique = false): CompanyCustomField
+    /**
+     * @param  array<string, mixed>  $values  values keyed by the slugified field name; select options are given by label
+     * @return array<string, mixed> values keyed by the fields' generated keys
+     *
+     * @throws RuntimeException when a value has no custom field of that name on the company type
+     */
+    private function keyCompanyValues(Organization $organization, array $values): array
+    {
+        $fieldsBySlug = CompanyCustomField::query()
+            ->where('organization_id', $organization->id)
+            ->get()
+            ->keyBy(fn (CompanyCustomField $field): string => Str::slug($field->name, '_'));
+
+        return collect($values)
+            ->mapWithKeys(function (mixed $value, string $slug) use ($fieldsBySlug): array {
+                $field = $fieldsBySlug->get($slug);
+
+                if ($field === null) {
+                    throw new RuntimeException("The seeder has a value for [{$slug}], but the organization has no company field with that name.");
+                }
+
+                $value = match ($field->type) {
+                    'select' => $this->optionValue($field, $value),
+                    'multiselect' => $this->optionValues($field, $value),
+                    default => $value,
+                };
+
+                return [$field->key => $value];
+            })
+            ->all();
+    }
+
+    private function companyField(Organization $organization, string $name, string $fieldType, ?array $options, int $order, bool $unique = false): CompanyCustomField
     {
         return CompanyCustomField::firstOrCreate(
-            ['company_type_id' => $type->id, 'name' => $name],
+            ['organization_id' => $organization->id, 'name' => $name],
             [
-                'organization_id' => $type->organization_id,
                 'type' => $fieldType,
                 'options' => $options,
                 'unique' => $unique,
@@ -654,5 +844,32 @@ class ItConsultingSeeder extends Seeder
                 'order' => $order,
             ]
         );
+    }
+
+    /**
+     * Options are declared by label and get their stored values from the model, like in the app: the seed refers to
+     * them by label.
+     *
+     * @param  array<int, string>  $labels
+     * @return array<int, string>
+     *
+     * @throws RuntimeException when a label is not an option of the field
+     */
+    private function optionValues(CustomField|CompanyCustomField $field, array $labels): array
+    {
+        $valuesByLabel = collect($field->options ?? [])->pluck('value', 'label');
+
+        return array_map(function (string $label) use ($field, $valuesByLabel): string {
+            if (! $valuesByLabel->has($label)) {
+                throw new RuntimeException("The seeder refers to the option [{$label}], but custom field [{$field->name}] has no option with that label.");
+            }
+
+            return $valuesByLabel[$label];
+        }, $labels);
+    }
+
+    private function optionValue(CustomField|CompanyCustomField $field, string $label): string
+    {
+        return $this->optionValues($field, [$label])[0];
     }
 }
