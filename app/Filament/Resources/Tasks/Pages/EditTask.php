@@ -58,6 +58,8 @@ class EditTask extends EditRecord
                             'due_at' => $data['due_at'],
                         ]);
 
+                        $this->refreshFormData(['due_at']);
+
                         Notification::make()
                             ->title('Task rescheduled successfully')
                             ->success()
@@ -81,6 +83,8 @@ class EditTask extends EditRecord
                         'completed_at' => now(),
                     ]);
 
+                    $this->refreshFormData(['status']);
+
                     Notification::make()
                         ->title('Task marked as done')
                         ->success()
@@ -103,6 +107,8 @@ class EditTask extends EditRecord
         $record->update([
             'due_at' => $baseDueDate->addDays($days),
         ]);
+
+        $this->refreshFormData(['due_at']);
 
         Notification::make()
             ->title($message)
