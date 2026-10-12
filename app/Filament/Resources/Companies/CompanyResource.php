@@ -6,6 +6,7 @@ use App\Filament\Resources\Companies\Pages\CreateCompany;
 use App\Filament\Resources\Companies\Pages\EditCompany;
 use App\Filament\Resources\Companies\Pages\ListCompanies;
 use App\Filament\Resources\Companies\RelationManagers\ContactsRelationManager;
+use App\Filament\Resources\Companies\RelationManagers\DealsRelationManager;
 use App\Filament\Resources\Companies\Schemas\CompanyForm;
 use App\Filament\Resources\Companies\Tables\CompaniesTable;
 use App\Models\Company;
@@ -62,6 +63,7 @@ class CompanyResource extends Resource
     {
         return [
             ContactsRelationManager::class,
+            DealsRelationManager::class,
         ];
     }
 
