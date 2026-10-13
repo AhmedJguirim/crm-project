@@ -6,6 +6,8 @@ use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Filament\Resources\Companies\CompanyResource;
 use App\Filament\Resources\Contacts\ContactResource;
+use App\Filament\Support\Filters\OptionSelectFilter;
+use App\Filament\Support\Filters\RecordKeySelectFilter;
 use App\Filament\Support\NullsLastSort;
 use App\Filament\Support\RecordKeyField;
 use App\Models\Deal;
@@ -21,7 +23,6 @@ use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -83,26 +84,26 @@ class DealsTable
                     ->sortable(),
             ])
             ->filters([
-                SelectFilter::make('stage')
+                OptionSelectFilter::make('stage')
                     ->options(DealStage::class)
                     ->multiple(),
 
-                SelectFilter::make('status')
+                OptionSelectFilter::make('status')
                     ->options(DealStatus::class),
 
-                SelectFilter::make('contact_id')
+                RecordKeySelectFilter::make('contact_id')
                     ->label('Contact')
                     ->relationship('contact', 'name')
                     ->searchable()
                     ->preload(),
 
-                SelectFilter::make('company_id')
+                RecordKeySelectFilter::make('company_id')
                     ->label('Company')
                     ->relationship('company', 'name')
                     ->searchable()
                     ->preload(),
 
-                SelectFilter::make('owner_id')
+                RecordKeySelectFilter::make('owner_id')
                     ->label('Deal owner')
                     ->options(fn (): array => OwnerOptions::forFilter(Deal::class))
                     ->searchable(),

@@ -82,7 +82,7 @@ describe('an admin', function () {
 
     it('applies the type filter, the industry filter and the search', function () {
         Livewire::test(ListCompanies::class)
-            ->filterTable('company_type_id', [$this->client->id])
+            ->filterTable('company_type_id', $this->client->id)
             ->callAction('exportCompanies', ['format' => ExportFormat::Xlsx->value]);
 
         expect(($this->pushedJob)()[0]['ids'])->toBe([$this->ann->id, $this->cid->id]);

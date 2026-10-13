@@ -5,6 +5,8 @@ namespace App\Filament\Resources\Tasks\Tables;
 use App\Enums\TaskStatus;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Tasks\Schemas\TaskForm;
+use App\Filament\Support\Filters\OptionSelectFilter;
+use App\Filament\Support\Filters\RecordKeySelectFilter;
 use App\Filament\Support\NullsLastSort;
 use App\Filament\Support\RecordKeyField;
 use App\Models\Task;
@@ -23,7 +25,6 @@ use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -94,11 +95,11 @@ class TasksTable
                     ->query(fn (Builder $query): Builder => $query
                         ->dueThisWeek()),
 
-                SelectFilter::make('status')
+                OptionSelectFilter::make('status')
                     ->options(TaskStatus::class)
                     ->default(TaskStatus::Pending->value),
 
-                SelectFilter::make('owner_id')
+                RecordKeySelectFilter::make('owner_id')
                     ->label('Assigned to')
                     ->options(fn (): array => OwnerOptions::forFilter(Task::class))
                     ->searchable(),

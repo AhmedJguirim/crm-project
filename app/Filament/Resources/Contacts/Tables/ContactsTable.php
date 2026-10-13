@@ -9,6 +9,8 @@ use App\Enums\LeadSource;
 use App\Filament\Actions\ExportContactsAction;
 use App\Filament\Actions\QuickTaskAction;
 use App\Filament\Support\AbilityCheck;
+use App\Filament\Support\Filters\OptionSelectFilter;
+use App\Filament\Support\Filters\RecordKeySelectFilter;
 use App\Filament\Support\NullsLastSort;
 use App\Filament\Support\RecordKeyField;
 use App\Jobs\ResyncContactSegments;
@@ -37,7 +39,6 @@ use Filament\Notifications\Notification;
 use Filament\Support\Colors\Color;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -89,21 +90,21 @@ class ContactsTable
                     ->toggleable(),
             ])
             ->filters([
-                SelectFilter::make('status')
+                OptionSelectFilter::make('status')
                     ->options(ContactStatus::class)
                     ->multiple(),
 
-                SelectFilter::make('lead_source')
+                OptionSelectFilter::make('lead_source')
                     ->label('Lead Source')
                     ->options(LeadSource::class)
                     ->multiple(),
 
-                SelectFilter::make('tags')
+                RecordKeySelectFilter::make('tags')
                     ->relationship('tags', 'name')
                     ->multiple()
                     ->preload(),
 
-                SelectFilter::make('segments')
+                RecordKeySelectFilter::make('segments')
                     ->relationship('segments', 'name', fn (Builder $query): Builder => $query->where('is_published', true))
                     ->multiple()
                     ->preload(),

@@ -4,12 +4,12 @@ namespace App\Filament\Resources\Companies\RelationManagers;
 
 use App\Enums\DealStatus;
 use App\Filament\Resources\Deals\DealResource;
+use App\Filament\Support\Filters\OptionSelectFilter;
 use App\Filament\Support\NullsLastSort;
 use App\Models\Deal;
 use Filament\Facades\Filament;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
@@ -77,7 +77,7 @@ class DealsRelationManager extends RelationManager
                 ->orderByRaw('deals.expected_close_date asc nulls last')
                 ->orderByDesc('deals.created_at'))
             ->filters([
-                SelectFilter::make('status')
+                OptionSelectFilter::make('status')
                     ->options(DealStatus::class),
             ])
             ->recordUrl(fn (Deal $record): string => DealResource::getUrl('view', ['record' => $record]))

@@ -5,6 +5,8 @@ namespace App\Filament\Resources\Invoices\Tables;
 use App\Enums\InvoiceStatus;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Deals\DealResource;
+use App\Filament\Support\Filters\OptionSelectFilter;
+use App\Filament\Support\Filters\RecordKeySelectFilter;
 use App\Models\Invoice;
 use App\Support\LocalTime;
 use Filament\Actions\Action;
@@ -17,7 +19,6 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -82,11 +83,11 @@ class InvoicesTable
                     ->toggleable(),
             ])
             ->filters([
-                SelectFilter::make('status')
+                OptionSelectFilter::make('status')
                     ->options(InvoiceStatus::class)
                     ->multiple(),
 
-                SelectFilter::make('contact_id')
+                RecordKeySelectFilter::make('contact_id')
                     ->label('Contact')
                     ->relationship('contact', 'name')
                     ->searchable()
@@ -100,8 +101,8 @@ class InvoicesTable
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         return $query
-                            ->when($data['from'] ?? null, fn (Builder $builder, $date): Builder => $builder->whereDate('issued_at', '>=', $date))
-                            ->when($data['until'] ?? null, fn (Builder $builder, $date): Builder => $builder->whereDate('issued_at', '<=', $date));
+                            ->when(self::filterDate($data['from'] ?? null), fn (Builder $builder, $date): Builder => $builder->whereDate('issued_at', '>=', $date))
+                            ->when(self::filterDate($data['until'] ?? null), fn (Builder $builder, $date): Builder => $builder->whereDate('issued_at', '<=', $date));
                     }),
 
                 Filter::make('overdue')
@@ -141,5 +142,17 @@ class InvoicesTable
             ->defaultSort('due_at')
             ->emptyStateHeading('No invoices yet')
             ->emptyStateDescription('Create your first invoice from a deal or start from scratch.');
+    }
+
+    /**
+     * A forged filter value is only used when it is a real `Y-m-d` date (BUG-32).
+     */
+    private static function filterDate(mixed $value): ?string
+    {
+        if (! is_string($value) || preg_match('/^\d{4}-\d{2}-\d{2}\z/', $value) !== 1) {
+            return null;
+        }
+
+        return checkdate((int) substr($value, 5, 2), (int) substr($value, 8, 2), (int) substr($value, 0, 4)) ? $value : null;
     }
 }

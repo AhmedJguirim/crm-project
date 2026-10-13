@@ -9,6 +9,8 @@ use App\Filament\Actions\QuickTaskAction;
 use App\Filament\Resources\Deals\DealResource;
 use App\Filament\Resources\Deals\Schemas\DealDrawerInfolist;
 use App\Filament\Resources\Deals\Schemas\DealForm;
+use App\Filament\Support\Filters\OptionSelectFilter;
+use App\Filament\Support\Filters\RecordKeySelectFilter;
 use App\Models\Deal;
 use App\Services\Deals\DealStageMover;
 use App\Support\NotificationText;
@@ -24,7 +26,6 @@ use Filament\Support\Enums\FontWeight;
 use Filament\Support\Enums\TextSize;
 use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
-use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
@@ -55,10 +56,10 @@ class DealPipeline extends BoardResourcePage
             ->columns($this->getStageColumns())
             ->searchable(['title'])
             ->filters([
-                SelectFilter::make('status')
+                OptionSelectFilter::make('status')
                     ->options(DealStatus::class),
 
-                SelectFilter::make('contact_id')
+                RecordKeySelectFilter::make('contact_id')
                     ->label('Contact')
                     ->relationship('contact', 'name')
                     ->searchable()

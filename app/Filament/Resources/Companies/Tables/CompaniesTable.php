@@ -4,6 +4,8 @@ namespace App\Filament\Resources\Companies\Tables;
 
 use App\Enums\CompanyIndustry;
 use App\Filament\Actions\ExportCompaniesAction;
+use App\Filament\Support\Filters\OptionSelectFilter;
+use App\Filament\Support\Filters\RecordKeySelectFilter;
 use App\Filament\Support\NullsLastSort;
 use App\Filament\Support\SegmentUsageGuard;
 use App\Models\Company;
@@ -15,7 +17,6 @@ use Filament\Actions\RestoreAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -94,12 +95,12 @@ class CompaniesTable
             ])
             ->defaultSort('name')
             ->filters([
-                SelectFilter::make('company_type_id')
+                RecordKeySelectFilter::make('company_type_id')
                     ->label('Type')
                     ->relationship('companyType', 'name')
                     ->preload(),
 
-                SelectFilter::make('industry')
+                OptionSelectFilter::make('industry')
                     ->options(CompanyIndustry::class)
                     ->multiple(),
 
