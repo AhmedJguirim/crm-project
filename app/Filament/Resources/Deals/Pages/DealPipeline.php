@@ -142,6 +142,15 @@ class DealPipeline extends BoardResourcePage
     }
 
     /**
+     * Reloads the drawer's deal and renders the whole page, because Filament otherwise re-renders only the modals while the drawer stays open, leaving the board stale.
+     */
+    protected function refreshDrawerDealAndBoard(Action $action): void
+    {
+        $this->refreshDrawerDeal($action);
+        $this->forceRender();
+    }
+
+    /**
      * Moves the open deal to another stage through moveCard(), unless it was moved by someone else since the form opened.
      */
     protected function moveStageAction(): Action
@@ -189,7 +198,7 @@ class DealPipeline extends BoardResourcePage
                     ->success()
                     ->send();
             })
-            ->after(fn (Action $action) => $this->refreshDrawerDeal($action));
+            ->after(fn (Action $action) => $this->refreshDrawerDealAndBoard($action));
     }
 
     /**
@@ -214,7 +223,7 @@ class DealPipeline extends BoardResourcePage
                     ->success()
                     ->send();
             })
-            ->after(fn (Action $action) => $this->refreshDrawerDeal($action));
+            ->after(fn (Action $action) => $this->refreshDrawerDealAndBoard($action));
     }
 
     /**

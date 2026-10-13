@@ -19,6 +19,7 @@ use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Number;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 
@@ -76,6 +77,53 @@ beforeEach(function () {
         ]);
     };
 
+    $this->cardElement = function (Testable $component, Deal $deal): ?DOMElement {
+        $dom = new DOMDocument;
+        @$dom->loadHTML('<?xml encoding="UTF-8">'.$component->html(), LIBXML_NOERROR);
+
+        foreach ($dom->getElementsByTagName('*') as $element) {
+            if ($element->getAttribute('data-card-id') === (string) $deal->id) {
+                return $element;
+            }
+        }
+
+        return null;
+    };
+
+    $this->cardColumn = function (Testable $component, Deal $deal): ?string {
+        $element = ($this->cardElement)($component, $deal)?->parentNode;
+
+        while ($element instanceof DOMElement) {
+            if ($element->hasAttribute('data-column-id')) {
+                return $element->getAttribute('data-column-id');
+            }
+
+            $element = $element->parentNode;
+        }
+
+        return null;
+    };
+
+    $this->cardText = fn (Testable $component, Deal $deal): ?string => ($this->cardElement)($component, $deal)?->textContent;
+
+    $this->drawerText = function (Testable $component): string {
+        $dom = new DOMDocument;
+        @$dom->loadHTML('<?xml encoding="UTF-8">'.$component->html(), LIBXML_NOERROR);
+
+        $cards = [];
+
+        foreach ($dom->getElementsByTagName('*') as $element) {
+            if ($element->hasAttribute('data-card-id')) {
+                $cards[] = $element;
+            }
+        }
+
+        foreach ($cards as $card) {
+            $card->parentNode?->removeChild($card);
+        }
+
+        return trim(preg_replace('/\s+/', ' ', $dom->textContent));
+    };
 });
 
 afterEach(function () {
@@ -134,9 +182,10 @@ test('move stage moves the card to the bottom of the column and updates the draw
     expect($board->getBoardRecords('won')->pluck('id'))->toContain($deal->id)
         ->and($board->getBoardRecords('lead')->pluck('id'))->not->toContain($deal->id);
 
-    $component->assertSet('mountedActions.0.name', 'openDeal')
-        ->assertMountedActionModalSee(['Won']);
-    expect(count($component->instance()->mountedActions))->toBe(1);
+    $component->assertSet('mountedActions.0.name', 'openDeal');
+    expect(count($component->instance()->mountedActions))->toBe(1)
+        ->and($component->instance()->getMountedAction()->getRecord()->stage)->toBe(DealStage::Won)
+        ->and(($this->drawerText)($component))->toContain('Expected close')->toContain('Won');
 
     $component->assertNotified('Deal moved to Won');
 });
@@ -279,8 +328,12 @@ test('edit from the drawer saves through the deal form and the stage rule', func
         ->fillForm(['value' => 2000, 'stage' => DealStage::Lost])
         ->call('callMountedAction')
         ->assertHasNoFormErrors()
-        ->assertNotified('Saved')
-        ->assertMountedActionModalSee(['€2,000.00', 'Lost']);
+        ->assertNotified('Saved');
+
+    expect((string) $component->instance()->getMountedAction()->getRecord()->value)->toBe('2000.00')
+        ->and($component->instance()->getMountedAction()->getRecord()->stage)->toBe(DealStage::Lost)
+        ->and(($this->drawerText)($component))->toContain('Expected close')->toContain(Number::currency(2000, 'EUR'))->toContain('Lost')
+        ->and($component->html())->not->toContain('€1,234.50');
 
     $deal = $this->deal->fresh();
 
@@ -426,4 +479,58 @@ test('the drawer task form refuses a forged contact or deal of another organizat
         ->assertHasFormErrors(['deal_id']);
 
     expect(Task::query()->withoutGlobalScopes()->whereIn('title', ['Forged contact', 'Forged deal'])->count())->toBe(0);
+});
+
+test('move stage re-renders the card in its new column while the drawer stays open', function () {
+    $component = ($this->openDrawer)();
+
+    expect(($this->cardColumn)($component, $this->deal))->toBe(DealStage::Lead->value);
+
+    ($this->mountChild)($component, 'moveStage')
+        ->fillForm(['stage' => DealStage::Discovery])
+        ->call('callMountedAction')
+        ->assertNotified('Deal moved to Discovery')
+        ->assertSet('mountedActions.0.name', 'openDeal');
+
+    expect(($this->cardColumn)($component, $this->deal))->toBe(DealStage::Discovery->value)
+        ->and(count($component->instance()->mountedActions))->toBe(1)
+        ->and(($this->drawerText)($component))->toContain('Expected close')->toContain('Discovery');
+});
+
+test('edit re-renders the card with its new values while the drawer stays open', function () {
+    $component = ($this->openDrawer)();
+
+    expect(($this->cardText)($component, $this->deal))->toContain('€1,234.50');
+
+    ($this->mountChild)($component, 'editDeal')
+        ->fillForm(['value' => 32000, 'stage' => DealStage::ProposalSent])
+        ->call('callMountedAction')
+        ->assertNotified('Saved')
+        ->assertSet('mountedActions.0.name', 'openDeal');
+
+    expect(($this->cardColumn)($component, $this->deal))->toBe(DealStage::ProposalSent->value)
+        ->and(($this->cardText)($component, $this->deal))->toContain(Number::currency(32000, 'EUR'))
+        ->and(($this->cardText)($component, $this->deal))->not->toContain('€1,234.50')
+        ->and(count($component->instance()->mountedActions))->toBe(1)
+        ->and(($this->drawerText)($component))->toContain('Expected close')->toContain('Proposal Sent');
+});
+
+test('a stale move re-renders the board with the deal where it really is', function () {
+    $component = ($this->mountChild)(($this->openDrawer)(), 'moveStage');
+
+    expect(($this->cardColumn)($component, $this->deal))->toBe(DealStage::Lead->value);
+
+    DealStageMover::move($this->deal->fresh(), DealStage::Negotiating);
+
+    $component->fillForm(['stage' => DealStage::Discovery])
+        ->call('callMountedAction')
+        ->assertNotified(
+            Notification::make()
+                ->warning()
+                ->title('This deal was moved meanwhile')
+                ->body('It is now in Negotiating. Nothing was changed.')
+        );
+
+    expect(($this->cardColumn)($component, $this->deal))->toBe(DealStage::Negotiating->value)
+        ->and($this->deal->fresh()->stage)->toBe(DealStage::Negotiating);
 });
