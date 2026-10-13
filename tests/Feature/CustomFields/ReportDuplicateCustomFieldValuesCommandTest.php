@@ -55,6 +55,16 @@ it('tells the owner about duplicates in contact and company fields', function ()
         ->and($notifications[0]->data['body'])->not->toContain('555');
 });
 
+it('counts the distinct duplicated values, not the rows', function () {
+    foreach (['C-9', 'C-9', 'C-9', 'C-7', 'C-7', 'C-7', 'C-7', 'C-1'] as $value) {
+        ($this->insertContact)($this->acme, [$this->customerNumber->key => $value]);
+    }
+
+    Artisan::call('custom-fields:report-duplicates');
+
+    expect(($this->notificationsOf)($this->acmeOwner)[0]->data['body'])->toContain('Customer number: 2 values used more than once');
+});
+
 it('sends nothing when there are no duplicates', function () {
     ($this->insertContact)($this->acme, [$this->customerNumber->key => 'C-1']);
     ($this->insertContact)($this->acme, [$this->customerNumber->key => 'C-2']);

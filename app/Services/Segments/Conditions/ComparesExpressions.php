@@ -13,7 +13,7 @@ use InvalidArgumentException;
  *
  * Negative operators include contacts with a blank value, so "is X" plus "is not X" covers every contact.
  *
- * The compilers that use `applyDateOperator()` declare a `$timezone` property: "today" starts at midnight there.
+ * `applyDateOperator()` takes the organization's timezone: "today" starts at midnight there.
  */
 trait ComparesExpressions
 {
@@ -62,10 +62,10 @@ trait ComparesExpressions
         $query->whereRaw("{$expression} {$comparison} CAST(? AS numeric)", [(string) $condition->value('value')]);
     }
 
-    protected function applyDateOperator(Builder $query, SegmentConditionData $condition, string $expression, string $blankSql): void
+    protected function applyDateOperator(Builder $query, SegmentConditionData $condition, string $expression, string $blankSql, string $timezone): void
     {
         $date = fn (string $key): ?string => SegmentFieldCatalog::parseDate($condition->value($key))?->toDateString();
-        $today = now($this->timezone)->startOfDay();
+        $today = now($timezone)->startOfDay();
 
         match ($condition->operator) {
             SegmentOperator::Before => $query->whereRaw("{$expression} < CAST(? AS date)", [$date('value')]),

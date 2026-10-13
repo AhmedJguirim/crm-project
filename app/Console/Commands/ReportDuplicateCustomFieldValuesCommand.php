@@ -12,6 +12,7 @@ use App\Support\Tenancy\TenantContext;
 use Filament\Notifications\Notification;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 class ReportDuplicateCustomFieldValuesCommand extends Command
 {
@@ -89,14 +90,14 @@ class ReportDuplicateCustomFieldValuesCommand extends Command
      */
     private function duplicateLine(string $fieldName, Builder $records, string $key): ?string
     {
-        $count = $records
+        $duplicates = $records
             ->selectRaw('custom_field_values->>? as used_value', [$key])
             ->whereRaw("coalesce(custom_field_values->>?, '') not in ('', '[]')", [$key])
             ->groupBy('used_value')
             ->havingRaw('count(*) > 1')
-            ->toBase()
-            ->get()
-            ->count();
+            ->toBase();
+
+        $count = DB::query()->fromSub($duplicates, 'duplicate_values')->count();
 
         return $count === 0 ? null : "{$fieldName}: {$count} values used more than once";
     }

@@ -19,7 +19,7 @@ class AttributeConditionCompiler implements SegmentConditionCompiler
         $column = $query->getQuery()->getGrammar()->wrap($query->qualifyColumn($attribute->value));
 
         match ($kind) {
-            SegmentFieldKind::Date => $this->applyDateOperator($query, $condition, $this->localDate($column), "{$column} IS NULL"),
+            SegmentFieldKind::Date => $this->applyDateOperator($query, $condition, $this->localDate($column), "{$column} IS NULL", $this->timezone),
             SegmentFieldKind::Select => $this->applySelectOperator($query, $condition, $column, "{$column} IS NULL"),
             default => $this->applyTextOperator($query, $condition, $column, "({$column} IS NULL OR {$column} = '')"),
         };

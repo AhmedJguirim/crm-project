@@ -44,6 +44,7 @@ class CustomFieldConditionCompiler implements SegmentConditionCompiler
                 $condition,
                 "(CASE WHEN {$text} ~ '^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])' THEN CAST(substring({$text} from 1 for 10) AS date) END)",
                 $scalarBlank,
+                $this->timezone,
             ),
             SegmentFieldKind::Select => $this->applySelectOperator($query, $condition, $text, $scalarBlank),
             SegmentFieldKind::MultiSelect => $this->applyMultiSelectOperator($query, $condition, $json),
