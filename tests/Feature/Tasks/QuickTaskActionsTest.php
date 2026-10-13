@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\OrganizationRole;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
@@ -294,3 +295,78 @@ test('locked contact quick task forms create a task from a title alone', functio
         ->and($task->status)->toBe(TaskStatus::Pending)
         ->and($task->contact_id)->toBe($contact->id);
 })->with('locked contact quick task entry points');
+
+test('the deal page quick task starts with the contact, the deal and the defaults', function () {
+    [$contact, $deal] = lockedContactQuickTaskFixture($this);
+
+    $hasDeal = function (array $state) use ($contact, $deal): array {
+        expect((int) $state['contact_id'])->toBe($contact->id)
+            ->and($state['contact_name'])->toBe('Jane Doe')
+            ->and((int) $state['deal_id'])->toBe($deal->id)
+            ->and($state['type'])->toBeIn([TaskType::FollowUp, TaskType::FollowUp->value])
+            ->and(Carbon::parse($state['due_at'])->toDateTimeString())->toBe('2026-10-12 12:00:00');
+
+        return [];
+    };
+
+    Livewire::test(ViewDeal::class, ['record' => $deal->id])
+        ->mountAction('quickTask')
+        ->assertActionDataSet($hasDeal);
+});
+
+test('the deal page quick task creates a task linked to the deal', function () {
+    [$contact, $deal] = lockedContactQuickTaskFixture($this);
+
+    Livewire::test(ViewDeal::class, ['record' => $deal->id])
+        ->mountAction('quickTask')
+        ->fillForm(['title' => 'Call back'])
+        ->callMountedAction()
+        ->assertHasNoErrors()
+        ->assertNotified('Task created successfully');
+
+    $tasks = Task::query()->where('title', 'Call back')->get();
+
+    expect($tasks)->toHaveCount(1)
+        ->and($tasks->first()->contact_id)->toBe($contact->id)
+        ->and($tasks->first()->deal_id)->toBe($deal->id)
+        ->and($tasks->first()->status)->toBe(TaskStatus::Pending)
+        ->and($tasks->first()->due_at->toDateTimeString())->toBe('2026-10-12 12:00:00')
+        ->and($tasks->first()->owner_id)->toBe($this->user->id);
+});
+
+test('the deal page quick task keeps its label and colour', function () {
+    [, $deal] = lockedContactQuickTaskFixture($this);
+
+    $action = Livewire::test(ViewDeal::class, ['record' => $deal->id])->instance()->getAction('quickTask');
+
+    expect($action->getLabel())->toBe('Quick Task')
+        ->and($action->getColor())->toBe('primary');
+});
+
+test('the deal page quick task is hidden for a deal without a live contact', function (string $case) {
+    [$contact] = lockedContactQuickTaskFixture($this);
+
+    $solo = Deal::factory()->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $case === 'no contact' ? null : $contact->id,
+        'created_by' => $this->user->id,
+        'title' => 'Solo',
+    ]);
+
+    if ($case === 'trashed contact') {
+        $contact->delete();
+    }
+
+    Livewire::test(ViewDeal::class, ['record' => $solo->id])->assertActionHidden('quickTask');
+})->with(['no contact', 'trashed contact']);
+
+test('a viewer does not see the deal page quick task', function () {
+    [, $deal] = lockedContactQuickTaskFixture($this);
+
+    $viewer = User::factory()->onboardingCompleted()->create();
+    $this->org->members()->attach($viewer, ['role' => OrganizationRole::Viewer->value]);
+    $this->actingAs($viewer);
+    Filament::setTenant($this->org);
+
+    Livewire::test(ViewDeal::class, ['record' => $deal->id])->assertActionHidden('quickTask');
+});

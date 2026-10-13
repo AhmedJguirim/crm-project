@@ -78,9 +78,9 @@ class ViewDeal extends Page
         $isOpen = fn (): bool => $this->getRecord()->status === DealStatus::Open;
 
         return [
-            ...($this->getRecord()->contact
-                ? [QuickTaskAction::makeForContact($this->getRecord()->contact)]
-                : []),
+            QuickTaskAction::makeForDeal('quickTask')
+                ->label('Quick Task')
+                ->color('primary'),
 
             LogDealActivityAction::make(),
 
