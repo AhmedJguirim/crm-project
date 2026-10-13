@@ -25,7 +25,7 @@ class CompaniesTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['companyTypeWithTrashed', 'address']))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['companyTypeWithTrashed', 'address'])->withCount('contacts'))
             ->columns([
                 TextColumn::make('name')
                     ->searchable()
@@ -72,7 +72,6 @@ class CompaniesTable
 
                 TextColumn::make('contacts_count')
                     ->label('Contacts')
-                    ->counts('contacts')
                     ->sortable(),
 
                 TextColumn::make('address.city')

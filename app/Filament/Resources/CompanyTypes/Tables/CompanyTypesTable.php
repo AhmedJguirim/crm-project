@@ -9,12 +9,14 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class CompanyTypesTable
 {
     public static function configure(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->withCount('companies'))
             ->columns([
                 TextColumn::make('name')
                     ->searchable()
@@ -22,7 +24,6 @@ class CompanyTypesTable
 
                 TextColumn::make('companies_count')
                     ->label('Companies')
-                    ->counts('companies')
                     ->sortable(),
 
                 TextColumn::make('created_at')
