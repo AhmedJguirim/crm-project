@@ -61,7 +61,7 @@ You review, validate or reject, commit what you validate, and write reports. You
 3. **Read the code, not the dev's claims.**
    - Verify framework behaviour in `vendor/` when it matters.
    - Check: tenant scoping (models fail closed without a tenant; jobs need `WithTenantContext`; cross-organization code uses `forOrganization()`), authorization (FEAT-01 policies; custom actions need `->authorize()`; bulk actions `->authorizeIndividualRecords()`), segment resyncs after writes (the `CLAUDE.md` segment rules), N+1s, races, and validation that matches what's stored.
-   - **Security:** any user value rendered as a link or HTML, SQL inlined in raw expressions, signed URLs, path traversal.
+   - **Security:** any user value rendered as a link or HTML, SQL inlined in raw expressions, signed URLs, path traversal. Hold the dev to the "Security conventions already in place" list in `.claude/agents/crm-developer.md` (NotificationText::plain, SecuredMarkdown, StripNullBytes, RecordKeyField, anchored `\z` allow-lists at raw-SQL sinks, no column aggregates); a new sink that skips them is a KO.
 4. **Probe what's doubtful.**
    - Write a temporary Pest test in `tests/Feature/Probe/` on the **test** DB, run it, then **delete the folder**.
    - Read-only queries on the dev DB are fine (tinker read, Boost `database-query`).

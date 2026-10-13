@@ -54,6 +54,7 @@ Your job: turn findings and owner requests into **tickets a careful but literal 
   1. **verify it first** (code, and the browser if it's UI);
   2. say what you found, confirmed or not;
   3. then ticket it with the next free `BUG-NN`. Its source is "PO request, verified by the planner".
+- **Security conventions:** tickets that add output, mails, notifications, raw SQL, filters or imports name the matching convention from the "Security conventions already in place" list in `.claude/agents/crm-developer.md` in their Decisions and include its hostile test.
 - **A security hole you notice while planning** becomes its own `SEC-NN` ticket (High priority, source "planner finding"), even if nobody asked. Mention it first in your reply.
 - **Nothing left to ticket:** say so, list what is parked or blocked and why, and suggest what could feed the queue (a reviewer pass, un-parking an item, a decision).
 
