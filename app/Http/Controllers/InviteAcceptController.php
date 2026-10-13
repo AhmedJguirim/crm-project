@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\InviteStatus;
 use App\Models\OrganizationInvite;
 use App\Models\User;
+use App\Support\NotificationText;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
 use Illuminate\Http\RedirectResponse;
@@ -103,8 +104,8 @@ class InviteAcceptController extends Controller
         // Send a Filament notification so it appears in the UI
         Notification::make()
             ->success()
-            ->title("Welcome to {$invite->organization->name}!")
-            ->body("You've joined as {$invite->role->label()}.")
+            ->title(NotificationText::plain("Welcome to {$invite->organization->name}!"))
+            ->body(NotificationText::plain("You've joined as {$invite->role->label()}."))
             ->send();
     }
 
@@ -117,7 +118,7 @@ class InviteAcceptController extends Controller
         Notification::make()
             ->danger()
             ->title('Invitation Error')
-            ->body($message)
+            ->body(NotificationText::plain($message))
             ->send();
 
         // Flash notification to session so it survives the redirect

@@ -10,6 +10,7 @@ use App\Models\Organization;
 use App\Models\OrganizationInvite;
 use App\Models\OrganizationUser;
 use App\Models\User;
+use App\Support\NotificationText;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Select;
@@ -104,7 +105,7 @@ class OrganizationMembers extends Page implements HasTable
                         Notification::make()
                             ->success()
                             ->title('Role updated')
-                            ->body("{$record->user->name}'s role has been changed to ".OrganizationRole::from($data['role'])->label().'.')
+                            ->body(NotificationText::plain("{$record->user->name}'s role has been changed to ".OrganizationRole::from($data['role'])->label().'.'))
                             ->send();
                     })
 
@@ -132,7 +133,7 @@ class OrganizationMembers extends Page implements HasTable
                         Notification::make()
                             ->success()
                             ->title('Member removed')
-                            ->body("{$record->user->name} has been removed from the organization.")
+                            ->body(NotificationText::plain("{$record->user->name} has been removed from the organization."))
                             ->send();
                     })
 
@@ -231,7 +232,7 @@ class OrganizationMembers extends Page implements HasTable
                         Notification::make()
                             ->success()
                             ->title('Invitation sent')
-                            ->body("An invitation has been sent to {$email}.")
+                            ->body(NotificationText::plain("An invitation has been sent to {$email}."))
                             ->send();
                     }),
 
@@ -278,7 +279,7 @@ class OrganizationMembers extends Page implements HasTable
                         Notification::make()
                             ->success()
                             ->title('Ownership transferred')
-                            ->body("Ownership has been transferred to {$newOwner->name}.")
+                            ->body(NotificationText::plain("Ownership has been transferred to {$newOwner->name}."))
                             ->send();
                     })
                     ->visible(function () use ($organization): bool {

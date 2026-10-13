@@ -4,6 +4,7 @@ namespace App\Filament\Resources\CompanyTypes\Actions;
 
 use App\Filament\Support\SegmentUsageGuard;
 use App\Models\CompanyType;
+use App\Support\NotificationText;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\RestoreAction;
@@ -49,7 +50,7 @@ class CompanyTypeDeletionActions
                     return;
                 }
 
-                Notification::make()->danger()->title(self::nameTakenMessage($record))->send();
+                Notification::make()->danger()->title(NotificationText::plain(self::nameTakenMessage($record)))->send();
 
                 $action->halt();
             });

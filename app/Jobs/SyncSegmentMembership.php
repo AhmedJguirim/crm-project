@@ -7,6 +7,7 @@ use App\Filament\Resources\Segments\SegmentResource;
 use App\Jobs\Middleware\WithTenantContext;
 use App\Models\Segment;
 use App\Models\User;
+use App\Support\NotificationText;
 use Carbon\CarbonInterface;
 use DateTimeInterface;
 use Filament\Actions\Action;
@@ -174,7 +175,7 @@ class SyncSegmentMembership implements ShouldBeUniqueUntilProcessing, ShouldQueu
         Notification::make()
             ->success()
             ->title('Segment setup complete')
-            ->body("'{$segment->name}' now has {$count} ".str('contact')->plural($count).'.')
+            ->body(NotificationText::plain("'{$segment->name}' now has {$count} ".str('contact')->plural($count).'.'))
             ->actions([
                 Action::make('view')
                     ->label('View segment')

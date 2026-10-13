@@ -3,6 +3,7 @@
 namespace App\Filament\Support\CustomFields;
 
 use App\Exceptions\DuplicateCustomFieldValueException;
+use App\Support\NotificationText;
 use Closure;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Model;
@@ -24,7 +25,7 @@ trait HandlesDuplicateCustomFieldValues
             Notification::make()
                 ->danger()
                 ->title('Not saved')
-                ->body($exception->getMessage())
+                ->body(NotificationText::plain($exception->getMessage()))
                 ->send();
 
             $this->halt();

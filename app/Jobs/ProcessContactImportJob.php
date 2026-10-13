@@ -11,6 +11,7 @@ use App\Models\User;
 use App\Services\ContactImportFileReader;
 use App\Services\ContactImportService;
 use App\Support\CsvDialect;
+use App\Support\NotificationText;
 use DateTimeInterface;
 use Filament\Notifications\Notification;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -181,7 +182,7 @@ class ProcessContactImportJob implements ShouldQueue
                 : Notification::make()->warning()->title('Import complete, some columns were ignored');
 
             $notification
-                ->body(implode("\n\n", array_filter([$this->countsLine($importedCount, 0, $service), ...$companyLines, $ignoredLine])))
+                ->body(NotificationText::plain(implode("\n\n", array_filter([$this->countsLine($importedCount, 0, $service), ...$companyLines, $ignoredLine]))))
                 ->sendToDatabase($user);
 
             return;
@@ -197,7 +198,7 @@ class ProcessContactImportJob implements ShouldQueue
         Notification::make()
             ->warning()
             ->title('Import complete with errors')
-            ->body(implode("\n\n", array_filter([$this->countsLine($importedCount, $failedCount, $service), ...$companyLines, $ignoredLine, $errorSummary])))
+            ->body(NotificationText::plain(implode("\n\n", array_filter([$this->countsLine($importedCount, $failedCount, $service), ...$companyLines, $ignoredLine, $errorSummary]))))
             ->actions([$this->failedRowsAction($failedCsvPath)])
             ->sendToDatabase($user);
     }
@@ -258,7 +259,7 @@ class ProcessContactImportJob implements ShouldQueue
             Notification::make()
                 ->danger()
                 ->title('Import failed')
-                ->body($exception->userMessage ?? "We couldn't read this file. Upload a CSV or an Excel (.xlsx) file whose first sheet starts with a header row.")
+                ->body(NotificationText::plain($exception->userMessage ?? "We couldn't read this file. Upload a CSV or an Excel (.xlsx) file whose first sheet starts with a header row."))
                 ->sendToDatabase($user);
 
             return;
@@ -269,11 +270,11 @@ class ProcessContactImportJob implements ShouldQueue
         $notification = Notification::make()
             ->warning()
             ->title('Import stopped partway')
-            ->body(implode("\n\n", array_filter([
+            ->body(NotificationText::plain(implode("\n\n", array_filter([
                 $this->countsLine($importedCount, $failedCount, $service).". The file could not be read after row {$lastRowRead}, so the rest of it was not imported. The contacts above were kept; import the remaining rows in a new file.",
                 ...$this->companyLines($service),
                 $this->ignoredColumnsLine($ignoredColumns),
-            ])));
+            ]))));
 
         if ($failedRows !== [] && $headers !== null) {
             $notification->actions([$this->failedRowsAction($this->storeFailedRowsCsv($headers, $failedRows, $dialect))]);
@@ -301,9 +302,9 @@ class ProcessContactImportJob implements ShouldQueue
         Notification::make()
             ->danger()
             ->title('Import failed')
-            ->body($this->mode === ImportMode::CreateOnly
+            ->body(NotificationText::plain($this->mode === ImportMode::CreateOnly
                 ? 'Something went wrong while importing your file. Contacts already imported were kept; you can upload the file again, existing contacts will be reported as already existing.'
-                : 'Something went wrong while importing your file. Rows already imported or updated were kept; you can upload the file again.')
+                : 'Something went wrong while importing your file. Rows already imported or updated were kept; you can upload the file again.'))
             ->sendToDatabase($user);
     }
 

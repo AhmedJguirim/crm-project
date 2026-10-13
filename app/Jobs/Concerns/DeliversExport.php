@@ -5,6 +5,7 @@ namespace App\Jobs\Concerns;
 use App\Enums\ExportFormat;
 use App\Jobs\Middleware\WithTenantContext;
 use App\Models\User;
+use App\Support\NotificationText;
 use App\Support\TemporaryFile;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
@@ -85,7 +86,7 @@ trait DeliversExport
         Notification::make()
             ->success()
             ->title('Export ready')
-            ->body(Number::format($count).' '.Str::plural($this->exportNoun(), $count))
+            ->body(NotificationText::plain(Number::format($count).' '.Str::plural($this->exportNoun(), $count)))
             ->actions([
                 Action::make('download')
                     ->label('Download')

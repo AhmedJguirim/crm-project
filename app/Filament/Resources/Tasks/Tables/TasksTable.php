@@ -10,6 +10,7 @@ use App\Filament\Support\RecordKeyField;
 use App\Models\Task;
 use App\Services\Owners\OwnerOptions;
 use App\Support\LocalTime;
+use App\Support\NotificationText;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkAction;
@@ -202,9 +203,9 @@ class TasksTable
                             $noun = Str::plural('task', $count);
 
                             Notification::make()
-                                ->title($ownerId === null
+                                ->title(NotificationText::plain($ownerId === null
                                     ? "Unassigned {$count} {$noun}"
-                                    : "Assigned {$count} {$noun} to ".OwnerOptions::forForm(null)[$ownerId])
+                                    : "Assigned {$count} {$noun} to ".OwnerOptions::forForm(null)[$ownerId]))
                                 ->success()
                                 ->send();
                         })
@@ -229,7 +230,7 @@ class TasksTable
         ]);
 
         Notification::make()
-            ->title($message)
+            ->title(NotificationText::plain($message))
             ->success()
             ->send();
     }

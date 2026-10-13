@@ -7,6 +7,7 @@ use App\Models\CompanyCustomField;
 use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\Organization;
+use App\Support\NotificationText;
 use App\Support\Tenancy\TenantContext;
 use Filament\Notifications\Notification;
 use Illuminate\Console\Command;
@@ -54,7 +55,7 @@ class ReportDuplicateCustomFieldValuesCommand extends Command
             Notification::make()
                 ->warning()
                 ->title('Duplicate values in unique fields')
-                ->body(implode("\n", $lines))
+                ->body(NotificationText::plain(implode("\n", $lines)))
                 ->sendToDatabase($organization->owner);
         });
 

@@ -19,6 +19,7 @@ use App\Models\Tag;
 use App\Services\Deals\DealCompany;
 use App\Services\Deals\DealStageMover;
 use App\Support\MoneyLimit;
+use App\Support\NotificationText;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
@@ -209,7 +210,7 @@ class ContactsTable
                             ]));
 
                             Notification::make()
-                                ->title("Updated {$records->count()} contacts")
+                                ->title(NotificationText::plain("Updated {$records->count()} contacts"))
                                 ->success()
                                 ->send();
                         })
@@ -235,7 +236,7 @@ class ContactsTable
                             ResyncContactSegments::dispatchForContacts(Filament::getTenant()?->id, $records->modelKeys());
 
                             Notification::make()
-                                ->title("Tagged {$records->count()} contacts")
+                                ->title(NotificationText::plain("Tagged {$records->count()} contacts"))
                                 ->success()
                                 ->send();
                         })

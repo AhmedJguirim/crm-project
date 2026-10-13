@@ -5,6 +5,7 @@ namespace App\Filament\Support\CustomFields;
 use App\Models\CompanyCustomField;
 use App\Models\CustomField;
 use App\Support\CustomFields\OptionUsage;
+use App\Support\NotificationText;
 use Closure;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Hidden;
@@ -150,7 +151,7 @@ class CustomFieldDefinitionFields
 
                 Notification::make()
                     ->success()
-                    ->title('Added '.$added.' '.Str::plural('option', $added).($skipped > 0 ? " ({$skipped} already existed)." : '.'))
+                    ->title(NotificationText::plain('Added '.$added.' '.Str::plural('option', $added).($skipped > 0 ? " ({$skipped} already existed)." : '.')))
                     ->send();
             });
     }

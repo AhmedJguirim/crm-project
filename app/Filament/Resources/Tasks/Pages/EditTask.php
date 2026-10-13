@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Tasks\Pages;
 use App\Enums\TaskStatus;
 use App\Filament\Resources\Tasks\Schemas\TaskForm;
 use App\Filament\Resources\Tasks\TaskResource;
+use App\Support\NotificationText;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
@@ -103,7 +104,7 @@ class EditTask extends EditRecord
         $this->refreshFormData(['due_at']);
 
         Notification::make()
-            ->title($message)
+            ->title(NotificationText::plain($message))
             ->success()
             ->send();
     }

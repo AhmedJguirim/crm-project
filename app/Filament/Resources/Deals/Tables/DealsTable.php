@@ -10,6 +10,7 @@ use App\Filament\Support\NullsLastSort;
 use App\Filament\Support\RecordKeyField;
 use App\Models\Deal;
 use App\Services\Owners\OwnerOptions;
+use App\Support\NotificationText;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -140,9 +141,9 @@ class DealsTable
                             $noun = Str::plural('deal', $count);
 
                             Notification::make()
-                                ->title($ownerId === null
+                                ->title(NotificationText::plain($ownerId === null
                                     ? "Removed the owner of {$count} {$noun}"
-                                    : "Assigned {$count} {$noun} to ".OwnerOptions::forForm(null)[$ownerId])
+                                    : "Assigned {$count} {$noun} to ".OwnerOptions::forForm(null)[$ownerId]))
                                 ->success()
                                 ->send();
                         })

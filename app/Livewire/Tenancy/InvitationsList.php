@@ -5,6 +5,7 @@ namespace App\Livewire\Tenancy;
 use App\Enums\InviteStatus;
 use App\Mail\OrganizationInvitationMail;
 use App\Models\OrganizationInvite;
+use App\Support\NotificationText;
 use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
@@ -57,7 +58,7 @@ class InvitationsList extends Component implements HasActions, HasSchemas, HasTa
                         Notification::make()
                             ->success()
                             ->title('Invitation revoked')
-                            ->body("The invitation to {$invite->email} has been revoked.")
+                            ->body(NotificationText::plain("The invitation to {$invite->email} has been revoked."))
                             ->send();
                         $this->resetTable();
                     }),
@@ -74,7 +75,7 @@ class InvitationsList extends Component implements HasActions, HasSchemas, HasTa
                         Notification::make()
                             ->success()
                             ->title('Invitation resent')
-                            ->body("A new invitation email has been sent to {$invite->email}.")
+                            ->body(NotificationText::plain("A new invitation email has been sent to {$invite->email}."))
                             ->send();
 
                         $this->resetTable();

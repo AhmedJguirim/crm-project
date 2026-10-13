@@ -14,6 +14,7 @@ use App\Filament\Widgets\RevenueOverviewWidget;
 use App\Models\Organization;
 use App\Models\OrganizationInvite;
 use App\Models\User;
+use App\Support\NotificationText;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\TextInput;
@@ -98,7 +99,7 @@ class AdminPanelProvider extends PanelProvider
 
                         Notification::make()
                             ->success()
-                            ->title('You have left '.$organization->name)
+                            ->title(NotificationText::plain('You have left '.$organization->name))
                             ->send();
 
                         // Redirect to the user's personal organization

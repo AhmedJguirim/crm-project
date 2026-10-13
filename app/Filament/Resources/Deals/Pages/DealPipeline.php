@@ -11,6 +11,7 @@ use App\Filament\Resources\Deals\Schemas\DealDrawerInfolist;
 use App\Filament\Resources\Deals\Schemas\DealForm;
 use App\Models\Deal;
 use App\Services\Deals\DealStageMover;
+use App\Support\NotificationText;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Facades\Filament;
@@ -180,7 +181,7 @@ class DealPipeline extends BoardResourcePage
                 if ($record->stage->value !== $data['from_stage']) {
                     Notification::make()
                         ->title('This deal was moved meanwhile')
-                        ->body("It is now in {$record->stage->getLabel()}. Nothing was changed.")
+                        ->body(NotificationText::plain("It is now in {$record->stage->getLabel()}. Nothing was changed."))
                         ->warning()
                         ->send();
 
@@ -194,7 +195,7 @@ class DealPipeline extends BoardResourcePage
                 $this->moveCard((string) $record->getKey(), $target->value);
 
                 Notification::make()
-                    ->title("Deal moved to {$target->getLabel()}")
+                    ->title(NotificationText::plain("Deal moved to {$target->getLabel()}"))
                     ->success()
                     ->send();
             })
