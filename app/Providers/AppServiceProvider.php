@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Filament\Http\Responses\LogoutResponse;
+use App\Mail\SecuredMarkdown;
 use App\Models\Organization;
 use App\Policies\SegmentPolicy;
 use App\Services\Segments\SegmentUsageIndex;
@@ -10,6 +11,7 @@ use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
 use Filament\Support\Facades\FilamentTimezone;
+use Illuminate\Mail\Markdown;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
@@ -32,7 +34,21 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(SegmentUsageIndex::class);
         $this->app->scoped(SegmentPolicy::class);
 
+        $this->registerMailMarkdown();
         $this->registerTypeScriptTransformer();
+    }
+
+    /**
+     * User text (organization, user and task names) is interpolated into Markdown mails; the secured renderer keeps it
+     * from turning into links or images. It keeps the theme, paths and extensions configured for the framework renderer.
+     */
+    protected function registerMailMarkdown(): void
+    {
+        $this->app->extend(Markdown::class, fn (Markdown $markdown, $app): Markdown => new SecuredMarkdown($app->make('view'), [
+            'theme' => $app->make('config')->get('mail.markdown.theme', 'default'),
+            'paths' => $app->make('config')->get('mail.markdown.paths', []),
+            'extensions' => $app->make('config')->get('mail.markdown.extensions', []),
+        ]));
     }
 
     /**
