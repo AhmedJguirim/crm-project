@@ -178,3 +178,12 @@ it('reads a formula with a stored result as that result', function () {
     expect($sheet)->toContain('<f>1+1</f>')
         ->and(readImportFile($path))->toBe([['name', '2']]);
 });
+
+it('removes NUL bytes from csv cells', function (string $content) {
+    $rows = readImportFile(storeImportFile('nul.csv', $content));
+
+    expect($rows)->toBe([['name', 'email'], ['AnnLee', 'ann@example.com']]);
+})->with([
+    'comma' => ["name,email\nAnn\0Lee,ann@example.com\n"],
+    'semicolon' => ["name;email\nAnn\0Lee;ann@example.com\n"],
+]);

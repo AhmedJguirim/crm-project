@@ -144,13 +144,13 @@ class ContactImportFileReader
     {
         return match (true) {
             $value === null => '',
-            is_string($value) => trim($value),
+            is_string($value) => trim(str_replace("\0", '', $value)),
             is_bool($value) => $value ? '1' : '0',
             is_int($value) => (string) $value,
             is_float($value) => $this->normalizeFloat($value),
             $value instanceof DateTimeInterface => $value->format('d-m-Y'),
             $value instanceof DateInterval => $value->format('%H:%I:%S'),
-            default => trim((string) $value),
+            default => trim(str_replace("\0", '', (string) $value)),
         };
     }
 

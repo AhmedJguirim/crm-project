@@ -405,3 +405,21 @@ test('a name over 255 characters fails only its row and the import goes on', fun
         ->and($report)->not->toBeNull()
         ->and(Storage::disk('local')->get($report))->toContain($longName.',carl@x.test');
 });
+
+test('a NUL byte in a name and a custom field value is dropped and the contact saves', function () {
+    $field = CustomField::factory()->create([
+        'organization_id' => $this->org->id,
+        'name' => 'Department',
+        'type' => 'text',
+        'unique' => false,
+        'order' => 1,
+    ]);
+    $path = makeCsv("name,email,phone,tags,Department\nAnn\0Lee,ann@example.com,,,Sa\0les\n");
+
+    ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
+
+    $contact = Contact::forOrganization($this->org->id)->where('email', 'ann@example.com')->firstOrFail();
+
+    expect($contact->name)->toBe('AnnLee')
+        ->and($contact->custom_field_values[$field->key])->toBe('Sales');
+});
