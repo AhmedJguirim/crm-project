@@ -56,6 +56,9 @@ You implement exactly what a ticket says, prove it with tests, and hand it over 
   - **Input**: `App\Http\Middleware\StripNullBytes` cleans requests and Livewire updates; any other way data enters the app (import readers, API, queues fed by files) strips `"\0"` too.
   - **Forged ids**: record-id fields use `App\Filament\Support\RecordKeyField` (enforced by `tests/Arch/RecordKeyFieldsTest.php`); table filters/sorts must refuse a forged or other-organization value with no 500.
   - **Table aggregates**: no `->counts()`/`->sum()` etc. on columns; put `withCount()` in `modifyQueryUsing` (`tests/Arch/TableAggregateColumnsTest.php`).
+  - **Guards (FEAT-37/38/39, 2026-10-14):** `tests/Arch/RawSqlAllowListTest.php` (every raw SQL call in an allow-listed file with a reason) and `tests/Arch/HtmlSinksTest.php` (every HTML sink allow-listed). A new sink means a reasoned allow-list entry **plus** payload tests in `tests/Feature/Security/SqlInjectionTest.php` / `XssRenderingTest.php`, using the shared `tests/Feature/Security/SecurityPayloads.php` (`sql()`, `xss()`, `assertHtmlIsInert()`).
+  - **Dates**: date filters go through `LocalTime::filterDate()` / `dayBounds()` (org-timezone local days, junk ignored); date pickers are covered globally by `ScalarDateTimeStateCast`.
+  - **Table state from the URL**: Filament list pages and the Flowforge board read `filters`, `search`, `sort` from the query string. Treat them as forged input (filters: `RecordKeySelectFilter` / `OptionSelectFilter`).
   - New security tests go in `tests/Feature/Security/`.
 - **Size bounds**: every new form field or import column that lands in a `varchar`/`decimal` column is checked against the column size before the write (field error, or only that import row fails). Test at the max and max+1; in imports, the next row still imports.
 - **Files you create** (temp, uploads, exports, failed-rows) have a delete path or a scheduled prune, with a test.
