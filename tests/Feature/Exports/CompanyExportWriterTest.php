@@ -66,13 +66,13 @@ beforeEach(function () {
 });
 
 it('names the columns like the import, then contacts, then the custom fields', function () {
-    expect(($this->writer)()->headers())->toBe(['id', 'name', 'website', 'type', 'phone', 'industry', 'employees', 'annual revenue', 'street', 'city', 'zip', 'country', 'notes', 'contacts', 'Funding', 'Specialties', 'Founded', 'Headcount band']);
+    expect(($this->writer)()->headers())->toBe(['id', 'name', 'website', 'type', 'phone', 'industry', 'employees', 'annual revenue', 'street', 'city', 'zip', 'country', 'notes', 'owner', 'contacts', 'Funding', 'Specialties', 'Founded', 'Headcount band']);
 });
 
 it('writes the cells of a company as numbers in an xlsx', function () {
     expect(($this->writer)()->row(($this->load)($this->acme), ExportFormat::Xlsx))->toBe([
         $this->acme->id, 'Acme Corp', 'https://www.acme.com', 'Client', '+33 1 23 45 67 89', 'Software', 120, 1500000.5,
-        '1 Main St', 'Lyon', '69001', 'France', "Line 1\nLine 2", 2, 'Series A', 'PHP;Vue', '04-05-2019', 2.5,
+        '1 Main St', 'Lyon', '69001', 'France', "Line 1\nLine 2", '', 2, 'Series A', 'PHP;Vue', '04-05-2019', 2.5,
     ]);
 });
 
@@ -83,8 +83,8 @@ it('writes the numbers as text in a csv', function () {
         ->and($row[1])->toBe('Acme Corp')
         ->and($row[6])->toBe('120')
         ->and($row[7])->toBe('1500000.5')
-        ->and($row[13])->toBe(2)
-        ->and($row[17])->toBe('2.5');
+        ->and($row[14])->toBe(2)
+        ->and($row[18])->toBe('2.5');
 });
 
 it('writes a whole annual revenue without decimals in a csv', function () {
@@ -98,7 +98,7 @@ it('writes empty cells for a company with little data', function () {
 
     $row = ($this->writer)()->row(($this->load)($bare), ExportFormat::Xlsx);
 
-    expect($row)->toBe([$bare->id, 'Bare', '', '', '', '', '', '', '', '', '', '', '', 0, '', '', '', '']);
+    expect($row)->toBe([$bare->id, 'Bare', '', '', '', '', '', '', '', '', '', '', '', '', 0, '', '', '', '']);
 });
 
 it('keeps the plain name of a deleted type', function () {

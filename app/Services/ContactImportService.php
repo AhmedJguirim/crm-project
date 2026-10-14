@@ -18,6 +18,7 @@ use App\Models\Tag;
 use App\Services\Companies\CompanyMatch;
 use App\Services\Companies\CompanyMatcher;
 use App\Services\Imports\ImportCellParser;
+use App\Services\Owners\ImportOwnerResolver;
 use App\Support\CsvDialect;
 use DateTimeInterface;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -34,7 +35,7 @@ class ContactImportService
      * The columns of an import file that are not custom fields: what the import reads, in template order. Add a column
      * here before the import reads it.
      */
-    public const BASE_COLUMNS = ['name', 'email', 'phone', 'tags', 'status', 'lead source', 'company', 'company website', ...self::COMPANY_DETAIL_COLUMNS];
+    public const BASE_COLUMNS = ['name', 'email', 'phone', 'tags', 'status', 'lead source', 'company', 'company website', ...self::COMPANY_DETAIL_COLUMNS, ImportOwnerResolver::COLUMN];
 
     /**
      * The columns that fill a company the row creates (the others name the company). The company custom fields add
@@ -86,11 +87,15 @@ class ContactImportService
         private readonly int $organizationId,
         ?CsvDialect $dialect = null,
         private readonly ImportMode $mode = ImportMode::CreateOnly,
+        ?int $importerId = null,
     ) {
         $this->parser = new ImportCellParser($organizationId, $dialect);
+        $this->owners = new ImportOwnerResolver($organizationId, $importerId);
     }
 
     private ImportCellParser $parser;
+
+    private ImportOwnerResolver $owners;
 
     private ?CompanyMatcher $companyMatcher = null;
 
@@ -375,6 +380,12 @@ class ContactImportService
             }
         }
 
+        $owner = $this->owners->forNewRecord($row);
+
+        if ($owner['error'] !== null) {
+            return ['success' => false, 'error' => $owner['error']];
+        }
+
         // handle custom fields
         $customFieldValues = [];
         foreach ($customFieldsByName as $fieldName => $field) {
@@ -430,13 +441,13 @@ class ContactImportService
         $tagIds = $this->resolveTagIds($row['tags'] ?? '');
 
         try {
-            $createdCompany = DB::transaction(function () use ($companyMatch, $companyDetails, $row, $email, $name, $phone, $status, $leadSource, $customFieldValues, $tagIds): ?Company {
-                $createdCompany = $companyMatch?->isNotFound() ? $this->createCompany($companyMatch, trim($row['company website'] ?? ''), $companyDetails) : null;
+            $createdCompany = DB::transaction(function () use ($companyMatch, $companyDetails, $row, $email, $name, $phone, $status, $leadSource, $customFieldValues, $tagIds, $owner): ?Company {
+                $createdCompany = $companyMatch?->isNotFound() ? $this->createCompany($companyMatch, trim($row['company website'] ?? ''), $companyDetails, $owner['owner_id']) : null;
                 $company = $createdCompany ?? $companyMatch?->company;
 
                 $contact = Contact::withoutEvents(fn (): Contact => Contact::withTrashed()->createOrFirst(
                     ['organization_id' => $this->organizationId, 'email' => $email],
-                    ['name' => $name, 'phone' => $phone, 'status' => $status, 'lead_source' => $leadSource, 'custom_field_values' => $customFieldValues],
+                    ['name' => $name, 'phone' => $phone, 'status' => $status, 'lead_source' => $leadSource, 'owner_id' => $owner['owner_id'], 'custom_field_values' => $customFieldValues],
                 ));
 
                 if (! $contact->wasRecentlyCreated) {
@@ -577,6 +588,12 @@ class ContactImportService
             return $this->failure($base['error']);
         }
 
+        $owner = $this->owners->forExistingRecord($contact, $row);
+
+        if ($owner['error'] !== null) {
+            return $this->failure($owner['error']);
+        }
+
         $custom = $this->updatedCustomFieldValues($contact, $row, $customFieldsByName);
 
         if ($custom['error'] !== null) {
@@ -599,7 +616,7 @@ class ContactImportService
             }
         }
 
-        $attributes = $base['attributes'];
+        $attributes = [...$base['attributes'], ...$owner['attributes']];
 
         if ($custom['values'] !== ($contact->custom_field_values ?? [])) {
             $attributes['custom_field_values'] = $custom['values'];
@@ -616,7 +633,7 @@ class ContactImportService
 
         try {
             $createdCompany = DB::transaction(function () use ($contact, $attributes, $companyMatch, $companyDetails, $row, $tagIds): ?Company {
-                $createdCompany = $companyMatch?->isNotFound() ? $this->createCompany($companyMatch, trim($row['company website'] ?? ''), $companyDetails) : null;
+                $createdCompany = $companyMatch?->isNotFound() ? $this->createCompany($companyMatch, trim($row['company website'] ?? ''), $companyDetails, array_key_exists('owner_id', $attributes) ? $attributes['owner_id'] : $contact->owner_id) : null;
                 $company = $createdCompany ?? $companyMatch?->company;
 
                 Contact::withoutEvents(fn (): bool => $contact->fill($attributes)->save());
@@ -841,7 +858,7 @@ class ContactImportService
     /**
      * @param  array{attributes: array<string, mixed>, address: ?array<string, string>, error: ?string}  $details
      */
-    private function createCompany(CompanyMatch $match, string $website, array $details): Company
+    private function createCompany(CompanyMatch $match, string $website, array $details, ?int $ownerId): Company
     {
         $address = $details['address'] === null
             ? null
@@ -853,6 +870,7 @@ class ContactImportService
                 'name' => $match->name ?? $match->domain,
                 'website' => $website,
                 'address_id' => $address?->getKey(),
+                'owner_id' => $ownerId,
                 ...$details['attributes'],
             ]);
         } catch (DuplicateCustomFieldValueException $exception) {

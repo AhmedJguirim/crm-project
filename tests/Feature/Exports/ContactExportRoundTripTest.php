@@ -13,6 +13,7 @@ use Filament\Facades\Filament;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Spatie\SimpleExcel\SimpleExcelReader;
 
 /**
  * What the import has to give back for a contact: the stored fields, the tag names, the companies and the custom field values.
@@ -29,6 +30,7 @@ function roundTripSnapshot(Contact $contact): array
         'lead_source' => $contact->lead_source,
         'tags' => $contact->tags()->pluck('name')->sort()->values()->all(),
         'companies' => $contact->companies()->pluck('name')->sort()->values()->all(),
+        'owner_id' => $contact->owner_id,
         'custom_field_values' => collect($contact->custom_field_values)->sortKeys()->all(),
     ];
 }
@@ -43,10 +45,11 @@ beforeEach(function () {
     $this->actingAs($this->user);
     Filament::setTenant($this->org);
 
-    $this->exportAll = function (): string {
+    $this->exportAll = function (string $format = 'xlsx'): string {
+        Storage::disk('local')->deleteDirectory('exports');
         $ids = Contact::forOrganization($this->org->id)->orderBy('id')->pluck('id')->all();
 
-        ExportContactsJob::dispatchSync($ids, $this->org->id, $this->user->id, 'xlsx', 'contacts-2026-10-06.xlsx');
+        ExportContactsJob::dispatchSync($ids, $this->org->id, $this->user->id, $format, "contacts-2026-10-06.{$format}");
 
         return Storage::disk('local')->get(Storage::disk('local')->files('exports')[0]);
     };
@@ -61,17 +64,17 @@ beforeEach(function () {
         });
     };
 
-    $this->importFile = function (string $contents): DatabaseNotification {
-        Storage::disk('local')->put('contact-imports/round-trip.xlsx', $contents);
+    $this->importFile = function (string $contents, string $extension = 'xlsx'): DatabaseNotification {
+        Storage::disk('local')->put("contact-imports/round-trip.{$extension}", $contents);
         DatabaseNotification::query()->delete();
 
-        ProcessContactImportJob::dispatchSync('contact-imports/round-trip.xlsx', $this->org->id, $this->user->id);
+        ProcessContactImportJob::dispatchSync("contact-imports/round-trip.{$extension}", $this->org->id, $this->user->id);
 
         return DatabaseNotification::where('notifiable_id', $this->user->id)->sole();
     };
 });
 
-it('recreates a deleted contact from the exported file, and refuses the others as existing', function () {
+it('recreates a deleted contact from the exported file, and refuses the others as existing', function (string $format) {
     $contact = Contact::forOrganization($this->org->id)
         ->whereNotNull('phone')
         ->whereHas('tags')
@@ -85,18 +88,57 @@ it('recreates a deleted contact from the exported file, and refuses the others a
     $contact->update(['status' => ContactStatus::ActiveClient, 'lead_source' => LeadSource::Referral]);
     $before = roundTripSnapshot($contact->fresh());
     $total = Contact::forOrganization($this->org->id)->count();
-    $file = ($this->exportAll)();
+    $file = ($this->exportAll)($format);
+
+    expect($before['owner_id'])->toBe($this->user->id);
 
     ($this->removeFromDatabase)($contact);
     expect(Contact::forOrganization($this->org->id)->count())->toBe($total - 1);
 
-    $notification = ($this->importFile)($file);
+    $notification = ($this->importFile)($file, $format);
     $after = roundTripSnapshot(Contact::forOrganization($this->org->id)->where('email', $contact->email)->sole());
 
     expect($notification->data['body'])->toContain('Imported: 1 | Failed: '.($total - 1))
         ->and($notification->data['body'])->toContain('already exists.')
         ->and($after)->toEqual($before);
-});
+})->with(['xlsx', 'csv']);
+
+it('gives back an unowned contact as unowned, and fails the same rows again from the failed rows file', function (string $format) {
+    $owned = Contact::forOrganization($this->org->id)->where('owner_id', $this->user->id)->orderBy('id')->firstOrFail();
+    $unowned = Contact::forOrganization($this->org->id)->where('email', 'amara.diallo@innotech-sa.com')->firstOrFail();
+    $owned->update(['status' => ContactStatus::ActiveClient, 'lead_source' => LeadSource::Referral]);
+    $unowned->update(['status' => ContactStatus::Lead, 'lead_source' => LeadSource::Referral]);
+    $before = [roundTripSnapshot($owned), roundTripSnapshot($unowned)];
+    $total = Contact::forOrganization($this->org->id)->count();
+    $file = ($this->exportAll)($format);
+
+    ($this->removeFromDatabase)($owned);
+    ($this->removeFromDatabase)($unowned);
+
+    $notification = ($this->importFile)($file, $format);
+    $after = [
+        roundTripSnapshot(Contact::forOrganization($this->org->id)->where('email', $owned->email)->sole()),
+        roundTripSnapshot(Contact::forOrganization($this->org->id)->where('email', $unowned->email)->sole()),
+    ];
+
+    expect($before[1]['owner_id'])->toBeNull()
+        ->and($notification->data['body'])->toContain('Imported: 2 | Failed: '.($total - 2))
+        ->and($after)->toEqual($before);
+
+    $failedFiles = fn (): array => collect(Storage::disk('local')->files('contact-imports'))->filter(fn (string $path): bool => str_contains($path, 'failed-'))->values()->all();
+    $errors = fn (string $path): array => SimpleExcelReader::create(Storage::disk('local')->path($path), 'csv')->getRows()->map(fn (array $row): array => [$row['email'], $row['_error']])->sortBy(0)->values()->all();
+    [$firstFailed] = $failedFiles();
+    $firstErrors = $errors($firstFailed);
+    $failedContents = Storage::disk('local')->get($firstFailed);
+    Storage::disk('local')->delete($firstFailed);
+
+    $second = ($this->importFile)($failedContents, 'csv');
+    [$secondFailed] = $failedFiles();
+
+    expect($second->data['body'])->toContain('Imported: 0 | Failed: '.($total - 2))
+        ->and($errors($secondFailed))->toBe($firstErrors)
+        ->and($firstErrors)->toHaveCount($total - 2);
+})->with(['xlsx', 'csv']);
 
 it('gives back a contact whose name starts with an equals sign', function () {
     $contact = Contact::forOrganization($this->org->id)->whereNotNull('phone')->orderBy('id')->firstOrFail();

@@ -91,7 +91,7 @@ class ProcessCompanyImportJob implements ShouldQueue
         $tmpPath = $this->copyToTemporaryFile($extension, 'company-import-');
 
         $dialect = $reader->dialect($tmpPath, $extension);
-        $service = new CompanyImportService($this->organizationId, $dialect, $this->mode);
+        $service = new CompanyImportService($this->organizationId, $dialect, $this->mode, $this->userId);
 
         $headers = null;
         $canonicalHeaders = null;

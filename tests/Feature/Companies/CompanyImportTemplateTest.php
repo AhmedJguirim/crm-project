@@ -93,7 +93,7 @@ it('lists the import columns then the active custom fields, in order', function 
     ($this->companyField)('text', 'Gone', 3)->delete();
 
     expect(CompanyImportTemplate::forOrganization($this->org->id)->headers())
-        ->toBe(['name', 'website', 'type', 'phone', 'industry', 'employees', 'annual revenue', 'street', 'city', 'zip', 'country', 'notes', 'First', 'Second']);
+        ->toBe(['name', 'website', 'type', 'phone', 'industry', 'employees', 'annual revenue', 'street', 'city', 'zip', 'country', 'notes', 'owner', 'First', 'Second']);
 });
 
 it('has typed cells and the example row of the ticket', function () {
@@ -106,10 +106,10 @@ it('has typed cells and the example row of the ticket', function () {
 
     unlink($path);
 
-    expect(array_slice($rows[1], 0, 12))->toBe(['Acme Corp', 'acme.com', 'SME', '+1 555 0100', 'Software', 50, 1000000, '1 Main St', 'Springfield', '12345', 'United States', 'Key account'])
-        ->and($rows[1][12])->toBeInstanceOf(DateTimeInterface::class)
-        ->and($rows[1][12]->format('d-m H:i:s'))->toBe('15-01 00:00:00')
-        ->and($rows[1][13])->toBe(42)
+    expect(array_slice($rows[1], 0, 13))->toBe(['Acme Corp', 'acme.com', 'SME', '+1 555 0100', 'Software', 50, 1000000, '1 Main St', 'Springfield', '12345', 'United States', 'Key account', ''])
+        ->and($rows[1][13])->toBeInstanceOf(DateTimeInterface::class)
+        ->and($rows[1][13]->format('d-m H:i:s'))->toBe('15-01 00:00:00')
+        ->and($rows[1][14])->toBe(42)
         ->and($type->name)->toBe('SME');
 });
 
@@ -149,14 +149,16 @@ it('formats the text and date columns, including the empty rows below the exampl
         'employees, last empty row' => $format('F1002'),
         'annual revenue, last empty row' => $format('G1002'),
         'notes, last empty row' => $format('L1002'),
-        'founded, last empty row' => $format('M1002'),
-        'budget, last empty row' => $format('N1002'),
+        'owner, last empty row' => $format('M1002'),
+        'founded, last empty row' => $format('N1002'),
+        'budget, last empty row' => $format('O1002'),
     ])->toBe([
         'name, last empty row' => 49,
         'phone, example row' => 49,
         'employees, last empty row' => 'no style',
         'annual revenue, last empty row' => 'no style',
         'notes, last empty row' => 49,
+        'owner, last empty row' => 49,
         'founded, last empty row' => 'dd-mm-yyyy',
         'budget, last empty row' => 'no style',
     ]);

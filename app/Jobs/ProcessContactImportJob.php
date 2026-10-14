@@ -90,7 +90,7 @@ class ProcessContactImportJob implements ShouldQueue
         $tmpPath = $this->copyToTemporaryFile($extension, 'contact-import-');
 
         $dialect = $reader->dialect($tmpPath, $extension);
-        $service = new ContactImportService($this->organizationId, $dialect, $this->mode);
+        $service = new ContactImportService($this->organizationId, $dialect, $this->mode, $this->userId);
 
         $customFieldsByName = $service->customFields()->keyBy('name')->all();
 

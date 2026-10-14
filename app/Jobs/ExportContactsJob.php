@@ -71,7 +71,7 @@ class ExportContactsJob implements ShouldQueue
             yield Contact::query()
                 ->forOrganization($this->organizationId)
                 ->withTrashed()
-                ->with(['tags', 'companies'])
+                ->with(['tags', 'companies', 'owner'])
                 ->whereIn('id', $ids)
                 ->get()
                 ->sortBy(fn (Contact $contact): int => $positions[$contact->getKey()])

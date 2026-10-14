@@ -198,5 +198,5 @@ describe('the template', function () {
 });
 
 it('reserves every base column', function () {
-    expect(ContactImportService::RESERVED_COLUMNS)->toBe(['name', 'email', 'phone', 'tags', 'status', 'lead source', 'company', 'company website', 'company type', 'company phone', 'company industry', 'company employees', 'company annual revenue', 'company street', 'company city', 'company zip', 'company country']);
+    expect(ContactImportService::RESERVED_COLUMNS)->toBe(['name', 'email', 'phone', 'tags', 'status', 'lead source', 'company', 'company website', 'company type', 'company phone', 'company industry', 'company employees', 'company annual revenue', 'company street', 'company city', 'company zip', 'company country', 'owner']);
 });

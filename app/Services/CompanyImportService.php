@@ -11,6 +11,7 @@ use App\Models\CompanyCustomField;
 use App\Models\CompanyType;
 use App\Services\Companies\CompanyMatcher;
 use App\Services\Imports\ImportCellParser;
+use App\Services\Owners\ImportOwnerResolver;
 use App\Support\CsvDialect;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -25,7 +26,10 @@ class CompanyImportService
      * The columns of a companies file that are not custom fields, in template order. A company custom field is
      * matched by its plain name.
      */
-    public const COLUMNS = ['name', 'website', 'type', 'phone', 'industry', 'employees', 'annual revenue', 'street', 'city', 'zip', 'country', 'notes'];
+    public const COLUMNS = ['name', 'website', ...self::DETAIL_COLUMNS, ImportOwnerResolver::COLUMN];
+
+    /** The columns that fill the details of a company: the cells after its name and website, without the owner. */
+    private const DETAIL_COLUMNS = ['type', 'phone', 'industry', 'employees', 'annual revenue', 'street', 'city', 'zip', 'country', 'notes'];
 
     /** The record id column of an exported file; read by the update modes of the import. */
     public const ID_COLUMN = ContactImportService::ID_COLUMN;
@@ -41,6 +45,8 @@ class CompanyImportService
     private readonly ImportCellParser $parser;
 
     private readonly CompanyMatcher $matcher;
+
+    private readonly ImportOwnerResolver $owners;
 
     private int $updatedCompaniesCount = 0;
 
@@ -60,8 +66,10 @@ class CompanyImportService
         private readonly int $organizationId,
         ?CsvDialect $dialect = null,
         private readonly ImportMode $mode = ImportMode::CreateOnly,
+        ?int $importerId = null,
     ) {
         $this->parser = new ImportCellParser($organizationId, $dialect);
+        $this->owners = new ImportOwnerResolver($organizationId, $importerId);
         $this->matcher = CompanyMatcher::forOrganization($organizationId);
     }
 
@@ -227,6 +235,12 @@ class CompanyImportService
      */
     private function insertCompany(array $row, string $name, string $website): array
     {
+        $owner = $this->owners->forNewRecord($row);
+
+        if ($owner['error'] !== null) {
+            return $this->failure($owner['error']);
+        }
+
         $details = $this->detailsFromRow($row);
 
         if ($details['error'] !== null) {
@@ -234,7 +248,7 @@ class CompanyImportService
         }
 
         try {
-            $company = DB::transaction(function () use ($name, $website, $details): Company {
+            $company = DB::transaction(function () use ($name, $website, $details, $owner): Company {
                 $address = $details['address'] === null
                     ? null
                     : Address::create(['organization_id' => $this->organizationId, ...$details['address']]);
@@ -244,6 +258,7 @@ class CompanyImportService
                     'name' => $name,
                     'website' => $website,
                     'address_id' => $address?->getKey(),
+                    'owner_id' => $owner['owner_id'],
                     ...$details['attributes'],
                 ]);
             });
@@ -412,7 +427,7 @@ class CompanyImportService
         $attributes = $key['attributes'];
         $address = [];
 
-        foreach (array_slice(self::COLUMNS, 2) as $column) {
+        foreach (self::DETAIL_COLUMNS as $column) {
             $raw = trim($row[$column] ?? '');
 
             if ($raw === '') {
@@ -435,6 +450,14 @@ class CompanyImportService
                 default => $address[$column] = $value,
             };
         }
+
+        $owner = $this->owners->forExistingRecord($company, $row);
+
+        if ($owner['error'] !== null) {
+            return $this->valuesError($owner['error']);
+        }
+
+        $attributes = [...$attributes, ...$owner['attributes']];
 
         $custom = $this->updatedCustomFieldValues($company, $row);
 
@@ -574,7 +597,7 @@ class CompanyImportService
         $attributes = ['custom_field_values' => []];
         $address = [];
 
-        foreach (array_slice(self::COLUMNS, 2) as $column) {
+        foreach (self::DETAIL_COLUMNS as $column) {
             $raw = trim($row[$column] ?? '');
 
             if ($raw === '') {

@@ -473,6 +473,57 @@ describe('imports', function () {
         }
     })->with(['xlsx', 'European CSV']);
 
+    test('a contact import fails only the rows whose owner cell is a payload', function () {
+        Storage::fake('local');
+        $this->segment->delete();
+        $payloads = array_map(fn (array $payload): string => $payload[0], array_values(SecurityPayloads::sql()));
+        $rows = [['name', 'email', 'owner']];
+
+        foreach ($payloads as $index => $payload) {
+            $rows[] = ['Row '.$index, "owner{$index}@import.test", $payload];
+        }
+
+        $rows[] = ['Good Row', 'good@import.test', $this->owner->email];
+        $path = makeXlsx($rows);
+        $before = DB::table('contacts')->count();
+
+        $sql = SecurityPayloads::queriesDuring(fn () => ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->owner->id));
+
+        expect(DB::table('contacts')->count())->toBe($before + 1)
+            ->and(Contact::forOrganization($this->org->id)->where('email', 'good@import.test')->value('owner_id'))->toBe($this->owner->id);
+
+        foreach ($payloads as $payload) {
+            SecurityPayloads::assertSqlIsClean($sql, $payload);
+        }
+    });
+
+    test('a company import fails only the rows whose owner cell is a payload', function () {
+        Storage::fake('local');
+        $this->segment->delete();
+        $payloads = array_map(fn (array $payload): string => $payload[0], array_values(SecurityPayloads::sql()));
+        $path = 'company-imports/owner-payloads-'.uniqid().'.xlsx';
+        Storage::disk('local')->makeDirectory('company-imports');
+        $writer = SimpleExcelWriter::create(Storage::disk('local')->path($path))->noHeaderRow();
+        $writer->addRow(['name', 'owner']);
+
+        foreach ($payloads as $index => $payload) {
+            $writer->addRow(['Payload Co '.$index, $payload]);
+        }
+
+        $writer->addRow(['Good Co', $this->owner->email]);
+        $writer->close();
+        $before = DB::table('companies')->count();
+
+        $sql = SecurityPayloads::queriesDuring(fn () => ProcessCompanyImportJob::dispatchSync($path, $this->org->id, $this->owner->id));
+
+        expect(DB::table('companies')->count())->toBe($before + 1)
+            ->and(Company::forOrganization($this->org->id)->where('name', 'Good Co')->value('owner_id'))->toBe($this->owner->id);
+
+        foreach ($payloads as $payload) {
+            SecurityPayloads::assertSqlIsClean($sql, $payload);
+        }
+    });
+
     test('a company import stores payloads as typed', function () {
         Storage::fake('local');
         $payloads = array_map(fn (array $payload): string => $payload[0], array_values(SecurityPayloads::sql()));

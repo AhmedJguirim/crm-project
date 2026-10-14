@@ -8,6 +8,7 @@ use App\Models\Contact;
 use App\Models\CustomField;
 use App\Services\Exports\ExportCells;
 use App\Services\Exports\ExportFileWriter;
+use App\Services\Owners\ImportOwnerResolver;
 use Illuminate\Support\Collection;
 
 /**
@@ -25,7 +26,7 @@ use Illuminate\Support\Collection;
 class ContactExportWriter
 {
     /** The columns that are not custom fields. `id` is the record id; `all companies` is for people and the import ignores it. */
-    public const COLUMNS = ['id', 'name', 'email', 'phone', 'status', 'lead source', 'tags', 'company', 'company website', 'all companies'];
+    public const COLUMNS = ['id', 'name', 'email', 'phone', 'status', 'lead source', 'tags', 'company', 'company website', 'all companies', ImportOwnerResolver::COLUMN];
 
     /**
      * @param  Collection<int, CustomField>  $customFields  The active custom fields, in column order.
@@ -50,7 +51,7 @@ class ContactExportWriter
     }
 
     /**
-     * The cells of one contact, in the order of `headers()`. The contact needs its `tags` and `companies` loaded.
+     * The cells of one contact, in the order of `headers()`. The contact needs its `tags`, `companies` and `owner` loaded.
      *
      * @return array<int, string|int|float>
      */
@@ -71,6 +72,7 @@ class ContactExportWriter
             (string) $companies->first()?->name,
             (string) $companies->first()?->website,
             $companies->count() >= 2 ? $companies->pluck('name')->implode('; ') : '',
+            (string) $contact->owner?->email,
             ...$this->customFields
                 ->map(fn (CustomField $field): string|int|float => ExportCells::customField($contact, $field, $format))
                 ->all(),
@@ -80,7 +82,7 @@ class ContactExportWriter
     /**
      * Writes the header and the contacts of every chunk to the file; the type comes from its extension.
      *
-     * @param  iterable<int, iterable<int, Contact>>  $chunks  Contacts with their `tags` and `companies` loaded.
+     * @param  iterable<int, iterable<int, Contact>>  $chunks  Contacts with their `tags`, `companies` and `owner` loaded.
      * @return int The number of contacts written.
      */
     public function write(string $path, ExportFormat $format, iterable $chunks): int

@@ -143,7 +143,7 @@ describe('reserved company field names', function () {
 
         expect($page->errors()->get('data.name'))->toBe(['This name is used by the import. Choose another name.'])
             ->and(CompanyCustomField::forOrganization($this->org->id)->count())->toBe(0);
-    })->with([' Website ', 'NAME', 'Annual Revenue', 'zip', 'Notes', '_row_number', '_ERROR', 'type', 'contacts', ' Contacts ', 'CONTACTS', 'id', ' ID ']);
+    })->with([' Website ', 'NAME', 'Annual Revenue', 'zip', 'Notes', '_row_number', '_ERROR', 'type', 'contacts', ' Contacts ', 'CONTACTS', 'id', ' ID ', ' Owner ', 'OWNER']);
 
     it('accept a name that only starts with the word contacts', function () {
         Livewire::test(CreateCompanyCustomField::class)

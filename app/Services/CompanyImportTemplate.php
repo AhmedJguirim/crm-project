@@ -70,6 +70,7 @@ class CompanyImportTemplate
             '12345',
             'United States',
             'Key account',
+            '',
             ...$this->customFields()->map(fn (CompanyCustomField $field): string|int|float|DateTimeInterface => $this->exampleCellValue($field))->all(),
         ];
     }

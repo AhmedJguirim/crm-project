@@ -35,8 +35,8 @@ class CompanyExportWriter
     }
 
     /**
-     * The cells of one company, in the order of `headers()`. The company needs its `address` and
-     * `companyTypeWithTrashed` relations and its `contacts_count` loaded.
+     * The cells of one company, in the order of `headers()`. The company needs its `address`,
+     * `companyTypeWithTrashed` and `owner` relations and its `contacts_count` loaded.
      *
      * @return array<int, string|int|float>
      */
@@ -56,6 +56,7 @@ class CompanyExportWriter
             (string) $company->address?->zip,
             (string) $company->address?->country,
             (string) $company->notes,
+            (string) $company->owner?->email,
             (int) $company->contacts_count,
             ...$this->customFields
                 ->map(fn (CompanyCustomField $field): string|int|float => ExportCells::customField($company, $field, $format))

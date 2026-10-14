@@ -71,7 +71,7 @@ class ExportCompaniesJob implements ShouldQueue
             yield Company::query()
                 ->forOrganization($this->organizationId)
                 ->withTrashed()
-                ->with(['address', 'companyTypeWithTrashed'])
+                ->with(['address', 'companyTypeWithTrashed', 'owner'])
                 ->withCount('contacts')
                 ->whereIn('id', $ids)
                 ->get()

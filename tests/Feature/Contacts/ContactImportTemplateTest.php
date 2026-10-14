@@ -142,7 +142,7 @@ describe('template file', function () {
 
         expect($rows)->toHaveCount(2)
             ->and(count($rows[1]))->toBe(count($rows[0]))
-            ->and($rows[0][17])->toBe('Say "hi", please');
+            ->and($rows[0][18])->toBe('Say "hi", please');
     });
 
     it('follows the import column order and leaves out trashed fields', function () {
@@ -150,7 +150,7 @@ describe('template file', function () {
         templateField($this->org->id, 'text', 'First', 1);
         templateField($this->org->id, 'text', 'Gone', 3)->delete();
 
-        expect(ContactImportTemplate::forOrganization($this->org->id)->headers())->toBe(['name', 'email', 'phone', 'tags', 'status', 'lead source', 'company', 'company website', 'company type', 'company phone', 'company industry', 'company employees', 'company annual revenue', 'company street', 'company city', 'company zip', 'company country', 'First', 'Second'])
+        expect(ContactImportTemplate::forOrganization($this->org->id)->headers())->toBe(['name', 'email', 'phone', 'tags', 'status', 'lead source', 'company', 'company website', 'company type', 'company phone', 'company industry', 'company employees', 'company annual revenue', 'company street', 'company city', 'company zip', 'company country', 'owner', 'First', 'Second'])
             ->and(ContactImportTemplate::forOrganization($this->org->id)->exampleRow()[3])->toBe('VIP;Newsletter');
     });
 
@@ -170,12 +170,12 @@ describe('template file', function () {
             ->and($rows[1][5])->toBe('Referral')
             ->and($rows[1][6])->toBe('Acme Corp')
             ->and($rows[1][7])->toBe('acme.com')
-            ->and(array_slice($rows[1], 8, 9))->toBe(['', '+1 555 0100', 'Software', 50, 1000000, '1 Main St', 'Springfield', '12345', 'United States'])
-            ->and($rows[1][17])->toBeInstanceOf(DateTimeInterface::class)
-            ->and($rows[1][17]->format('d-m'))->toBe('15-01')
-            ->and($rows[1][17]->format('Y H:i:s'))->toBe(now()->year.' 00:00:00')
-            ->and($rows[1][18])->toBe(42)
-            ->and($rows[1][19])->toBe('+33612345678');
+            ->and(array_slice($rows[1], 8, 10))->toBe(['', '+1 555 0100', 'Software', 50, 1000000, '1 Main St', 'Springfield', '12345', 'United States', ''])
+            ->and($rows[1][18])->toBeInstanceOf(DateTimeInterface::class)
+            ->and($rows[1][18]->format('d-m'))->toBe('15-01')
+            ->and($rows[1][18]->format('Y H:i:s'))->toBe(now()->year.' 00:00:00')
+            ->and($rows[1][19])->toBe(42)
+            ->and($rows[1][20])->toBe('+33612345678');
     });
 
     it('formats the text and date columns, including the empty rows below the example', function () {
@@ -190,7 +190,8 @@ describe('template file', function () {
             'company website, last empty row' => templateCellNumberFormat($path, 'G1002'),
             'employees, last empty row' => templateCellNumberFormat($path, 'L1002'),
             'company country, last empty row' => templateCellNumberFormat($path, 'Q1002'),
-            'start, last empty row' => templateCellNumberFormat($path, 'R1002'),
+            'owner, last empty row' => templateCellNumberFormat($path, 'R1002'),
+            'start, last empty row' => templateCellNumberFormat($path, 'S1002'),
         ];
 
         unlink($path);
@@ -202,6 +203,7 @@ describe('template file', function () {
             'company website, last empty row' => 49,
             'employees, last empty row' => 'no style',
             'company country, last empty row' => 49,
+            'owner, last empty row' => 49,
             'start, last empty row' => 'dd-mm-yyyy',
         ]);
     });

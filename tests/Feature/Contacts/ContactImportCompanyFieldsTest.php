@@ -333,7 +333,7 @@ describe('the template', function () {
         CompanyType::factory()->create(['organization_id' => $this->org->id, 'name' => 'Agency']);
         $template = ContactImportTemplate::forOrganization($this->org->id);
 
-        expect(array_slice($template->headers(), 17))->toBe(['company: VAT Number', 'company: Founded'])
+        expect(array_slice($template->headers(), 18))->toBe(['company: VAT Number', 'company: Founded'])
             ->and($template->exampleRow()[8])->toBe('Agency');
     });
 

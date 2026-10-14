@@ -77,6 +77,7 @@ class ContactImportTemplate
             'Springfield',
             '12345',
             'United States',
+            '',
             ...$this->customFields()->map(fn (CustomField $field): string|int|float|DateTimeInterface => $this->exampleCellValue($field))->all(),
             ...$this->companyCustomFields()->map(fn (CompanyCustomField $field): string|int|float|DateTimeInterface => $this->exampleCellValue($field))->all(),
         ];
