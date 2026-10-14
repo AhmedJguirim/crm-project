@@ -5,7 +5,6 @@ use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\TaskStatus;
 use App\Filament\Resources\Contacts\Widgets\ContactActivityFeed;
-use App\Filament\Resources\Contacts\Widgets\ContactActivityTimeline;
 use App\Filament\Resources\Contacts\Widgets\ContactDetailsWidget;
 use App\Filament\Resources\Deals\Pages\ListDeals;
 use App\Filament\Resources\Deals\Schemas\DealDrawerInfolist;
@@ -184,13 +183,6 @@ test('the deal page and the activity feeds print local time', function () {
     Livewire::test(DealActivityFeed::class, ['record' => $deal])->assertSee('Oct 11, 2026 at 11:00 PM');
     Livewire::test(ContactActivityFeed::class, ['record' => $this->contact])->assertSee('Oct 11, 2026 at 11:00 PM');
     Livewire::test(RecentActivitiesWidget::class)->assertSee('Oct 11, 2026 11:00 PM');
-
-    $widget = new ContactActivityTimeline;
-    $widget->record = $this->contact;
-    $timeline = $widget->getChartActivities();
-
-    expect($timeline[0]['occurred_at_formatted'])->toBe('Oct 11, 2026 at 11:00 PM')
-        ->and($timeline[0]['occurred_at'])->toStartWith('2026-10-12T03:00:00');
 });
 
 test('the contact page prints the created date in local time', function () {

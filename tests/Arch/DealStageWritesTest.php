@@ -40,7 +40,7 @@ function dealStageWriteHits(): array
 {
     $hits = [];
 
-    foreach ((new Finder)->files()->in(app_path())->name('*.php') as $file) {
+    foreach ((new Finder)->files()->in(dirname(__DIR__, 2).'/app')->name('*.php') as $file) {
         $relative = str_replace('\\', '/', $file->getRelativePathname());
 
         foreach (explode("\n", $file->getContents()) as $index => $line) {
