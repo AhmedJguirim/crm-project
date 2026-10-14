@@ -5,13 +5,20 @@ namespace App\Services\Segments\Conditions;
 use App\Data\Segments\SegmentConditionData;
 use App\Enums\ContactAttribute;
 use App\Enums\SegmentFieldKind;
+use App\Models\Organization;
 use Illuminate\Database\Eloquent\Builder;
+use InvalidArgumentException;
 
 class AttributeConditionCompiler implements SegmentConditionCompiler
 {
     use ComparesExpressions;
 
-    public function __construct(private readonly string $timezone) {}
+    public function __construct(private readonly string $timezone)
+    {
+        if (! in_array($timezone, Organization::timezoneIdentifiers(), true)) {
+            throw new InvalidArgumentException('Invalid organization timezone.');
+        }
+    }
 
     public function apply(Builder $query, SegmentConditionData $condition, SegmentFieldKind $kind): void
     {
@@ -27,7 +34,7 @@ class AttributeConditionCompiler implements SegmentConditionCompiler
 
     /**
      * The date of a timestamp column in the organization's timezone. The column holds UTC. The timezone is inlined
-     * because the expression is reused by several `whereRaw` calls with their own bindings; the catalog has already
+     * because the expression is reused by several `whereRaw` calls with their own bindings; the constructor has already
      * checked it is an IANA identifier.
      */
     private function localDate(string $column): string

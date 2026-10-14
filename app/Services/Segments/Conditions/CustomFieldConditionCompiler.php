@@ -23,7 +23,7 @@ class CustomFieldConditionCompiler implements SegmentConditionCompiler
     {
         $key = (string) $condition->field;
 
-        if (! preg_match('/^[A-Za-z0-9_]+$/', $key)) {
+        if (preg_match('/^[A-Za-z0-9_]+\z/', $key) !== 1) {
             throw new InvalidArgumentException("Invalid custom field key [{$key}].");
         }
 
