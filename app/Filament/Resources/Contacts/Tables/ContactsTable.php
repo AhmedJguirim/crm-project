@@ -6,6 +6,7 @@ use App\Enums\ActivityType;
 use App\Enums\ContactStatus;
 use App\Enums\DealStage;
 use App\Enums\LeadSource;
+use App\Filament\Actions\AssignOwnerBulkAction;
 use App\Filament\Actions\ExportContactsAction;
 use App\Filament\Actions\QuickTaskAction;
 use App\Filament\Support\AbilityCheck;
@@ -20,6 +21,7 @@ use App\Models\Deal;
 use App\Models\Tag;
 use App\Services\Deals\DealCompany;
 use App\Services\Deals\DealStageMover;
+use App\Services\Owners\OwnerOptions;
 use App\Support\MoneyLimit;
 use App\Support\NotificationText;
 use Filament\Actions\Action;
@@ -49,6 +51,7 @@ class ContactsTable
     public static function configure(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('owner.organizations'))
             ->columns([
                 TextColumn::make('name')
                     ->searchable()
@@ -84,6 +87,12 @@ class ContactsTable
                     ->separator(',')
                     ->toggleable(),
 
+                TextColumn::make('owner_id')
+                    ->label('Contact owner')
+                    ->state(fn (Contact $record): ?string => $record->ownerLabel())
+                    ->placeholder('No owner')
+                    ->toggleable(),
+
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -108,6 +117,11 @@ class ContactsTable
                     ->relationship('segments', 'name', fn (Builder $query): Builder => $query->where('is_published', true))
                     ->multiple()
                     ->preload(),
+
+                RecordKeySelectFilter::make('owner_id')
+                    ->label('Contact owner')
+                    ->options(fn (): array => OwnerOptions::forFilter(Contact::class))
+                    ->searchable(),
 
                 TrashedFilter::make(),
             ])
@@ -242,6 +256,8 @@ class ContactsTable
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
+
+                    AssignOwnerBulkAction::make('contact', 'Contact owner'),
 
                     ExportContactsAction::forSelection(),
 

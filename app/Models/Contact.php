@@ -7,6 +7,7 @@ use App\Enums\LeadSource;
 use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\EnforcesUniqueCustomFieldValues;
 use App\Models\Concerns\HasCustomFieldValues;
+use App\Models\Concerns\HasOwner;
 use App\Models\Concerns\PreventsForceDeletion;
 use App\Observers\ContactObserver;
 use Database\Factories\ContactFactory;
@@ -30,6 +31,7 @@ class Contact extends Model
     /** @use HasFactory<ContactFactory> */
     use HasFactory;
 
+    use HasOwner;
     use PreventsForceDeletion;
     use SoftDeletes;
 
@@ -40,6 +42,7 @@ class Contact extends Model
         'status',
         'phone',
         'lead_source',
+        'owner_id',
         'custom_field_values',
     ];
 

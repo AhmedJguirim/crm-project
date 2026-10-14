@@ -17,6 +17,9 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Radio;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Schemas\Components\Tabs\Tab;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Number;
 
@@ -25,6 +28,18 @@ class ListContacts extends ListRecords
     use SanitizesTableSearch;
 
     protected static string $resource = ContactResource::class;
+
+    /**
+     * @return array<string, Tab>
+     */
+    public function getTabs(): array
+    {
+        return [
+            'all' => Tab::make('All contacts'),
+            'mine' => Tab::make('My contacts')
+                ->modifyQueryUsing(fn (Builder $query): Builder => $query->where('owner_id', Auth::id())),
+        ];
+    }
 
     protected function getHeaderActions(): array
     {

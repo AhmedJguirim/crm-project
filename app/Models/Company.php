@@ -6,6 +6,7 @@ use App\Enums\CompanyIndustry;
 use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\EnforcesUniqueCustomFieldValues;
 use App\Models\Concerns\HasCustomFieldValues;
+use App\Models\Concerns\HasOwner;
 use App\Models\Concerns\PreventsDeletionWhileUsedInSegments;
 use App\Models\Concerns\PreventsForceDeletion;
 use App\Observers\CompanyObserver;
@@ -31,6 +32,7 @@ class Company extends Model
     /** @use HasFactory<CompanyFactory> */
     use HasFactory;
 
+    use HasOwner;
     use PreventsDeletionWhileUsedInSegments;
     use PreventsForceDeletion;
     use SoftDeletes;
@@ -46,6 +48,7 @@ class Company extends Model
         'employees',
         'annual_revenue',
         'notes',
+        'owner_id',
         'custom_field_values',
     ];
 

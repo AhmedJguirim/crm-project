@@ -10,6 +10,7 @@ use App\Filament\Support\RecordKeyField;
 use App\Models\Company;
 use App\Models\CompanyCustomField;
 use App\Models\CompanyType;
+use App\Services\Owners\OwnerOptions;
 use Closure;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
@@ -21,6 +22,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 
 class CompanyForm
 {
@@ -49,6 +51,15 @@ class CompanyForm
                             ->createOptionForm([
                                 CompanyTypeForm::nameInput(),
                             ]),
+
+                        RecordKeyField::select('owner_id')
+                            ->label('Company owner')
+                            ->options(fn (?Company $record): array => OwnerOptions::forForm($record))
+                            ->in(fn (?Company $record): array => array_keys(OwnerOptions::forForm($record)))
+                            ->default(fn (): ?int => Auth::id())
+                            ->searchable()
+                            ->nullable()
+                            ->placeholder('No owner'),
 
                         Select::make('industry')
                             ->options(CompanyIndustry::class)

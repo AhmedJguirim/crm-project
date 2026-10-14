@@ -41,6 +41,13 @@
                 </dd>
             </div>
 
+            <div>
+                <dt class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Contact owner</dt>
+                <dd class="mt-1 text-sm text-gray-700 dark:text-gray-300">
+                    {{ $record->ownerLabel() ?? 'No owner' }}
+                </dd>
+            </div>
+
             @if($record->tags->isNotEmpty())
                 <div>
                     <dt class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Tags</dt>

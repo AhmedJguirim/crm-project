@@ -8,11 +8,13 @@ use App\Filament\Support\CustomFields\CustomFieldValuesSection;
 use App\Filament\Support\RecordKeyField;
 use App\Models\Contact;
 use App\Models\CustomField;
+use App\Services\Owners\OwnerOptions;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 
 class ContactForm
 {
@@ -46,6 +48,15 @@ class ContactForm
                     ->label('Lead Source')
                     ->options(LeadSource::class)
                     ->placeholder('Select source...'),
+
+                RecordKeyField::select('owner_id')
+                    ->label('Contact owner')
+                    ->options(fn (?Contact $record): array => OwnerOptions::forForm($record))
+                    ->in(fn (?Contact $record): array => array_keys(OwnerOptions::forForm($record)))
+                    ->default(fn (): ?int => Auth::id())
+                    ->searchable()
+                    ->nullable()
+                    ->placeholder('No owner'),
 
                 RecordKeyField::multiSelect('tags')
                     ->relationship(

@@ -408,3 +408,19 @@ test('it consulting seeder assigns the demo tasks to test@example.com except one
     expect($owners['Invoice StackOps sprint support'])->toBeNull()
         ->and($owners->except('Invoice StackOps sprint support')->unique()->values()->all())->toBe([$user->id]);
 });
+
+test('it consulting seeder assigns the demo contacts and companies to test@example.com except two', function () {
+    $this->seed(ItConsultingSeeder::class);
+
+    $user = User::query()->where('email', 'test@example.com')->firstOrFail();
+    $this->actingAs($user);
+    Filament::setTenant($user->personalOrganization());
+
+    $contactOwners = Contact::query()->pluck('owner_id', 'email');
+    $companyOwners = Company::query()->pluck('owner_id', 'name');
+
+    expect($contactOwners['amara.diallo@innotech-sa.com'])->toBeNull()
+        ->and($contactOwners->except('amara.diallo@innotech-sa.com')->unique()->values()->all())->toBe([$user->id])
+        ->and($companyOwners['InnoTech SA'])->toBeNull()
+        ->and($companyOwners->except('InnoTech SA')->unique()->values()->all())->toBe([$user->id]);
+});

@@ -2,6 +2,8 @@
 
 namespace App\Services\Owners;
 
+use App\Models\Company;
+use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Task;
 use App\Models\User;
@@ -10,11 +12,11 @@ use Filament\Facades\Filament;
 final class OwnerOptions
 {
     /**
-     * The users a deal or task can be given to: the current members of the organization, plus the record's own owner when they are no longer a member.
+     * The users a deal, task, contact or company can be given to: the current members of the organization, plus the record's own owner when they are no longer a member.
      *
      * @return array<int, string>
      */
-    public static function forForm(Deal|Task|null $record): array
+    public static function forForm(Deal|Task|Contact|Company|null $record): array
     {
         $options = self::members();
 
@@ -26,9 +28,9 @@ final class OwnerOptions
     }
 
     /**
-     * The users a table of deals or tasks can be filtered by: the current members, plus every former member who still owns a record of the organization.
+     * The users a table of deals, tasks, contacts or companies can be filtered by: the current members, plus every former member who still owns a record of the organization.
      *
-     * @param  class-string<Deal|Task>  $modelClass
+     * @param  class-string<Deal|Task|Contact|Company>  $modelClass
      * @return array<int, string>
      */
     public static function forFilter(string $modelClass): array

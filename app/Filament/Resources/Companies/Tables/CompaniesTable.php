@@ -3,12 +3,14 @@
 namespace App\Filament\Resources\Companies\Tables;
 
 use App\Enums\CompanyIndustry;
+use App\Filament\Actions\AssignOwnerBulkAction;
 use App\Filament\Actions\ExportCompaniesAction;
 use App\Filament\Support\Filters\OptionSelectFilter;
 use App\Filament\Support\Filters\RecordKeySelectFilter;
 use App\Filament\Support\NullsLastSort;
 use App\Filament\Support\SegmentUsageGuard;
 use App\Models\Company;
+use App\Services\Owners\OwnerOptions;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -26,7 +28,7 @@ class CompaniesTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['companyTypeWithTrashed', 'address'])->withCount('contacts'))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['companyTypeWithTrashed', 'address', 'owner.organizations'])->withCount('contacts'))
             ->columns([
                 TextColumn::make('name')
                     ->searchable()
@@ -75,6 +77,12 @@ class CompaniesTable
                     ->label('Contacts')
                     ->sortable(),
 
+                TextColumn::make('owner_id')
+                    ->label('Company owner')
+                    ->state(fn (Company $record): ?string => $record->ownerLabel())
+                    ->placeholder('No owner')
+                    ->toggleable(),
+
                 TextColumn::make('address.city')
                     ->label('City')
                     ->placeholder('—')
@@ -104,6 +112,11 @@ class CompaniesTable
                     ->options(CompanyIndustry::class)
                     ->multiple(),
 
+                RecordKeySelectFilter::make('owner_id')
+                    ->label('Company owner')
+                    ->options(fn (): array => OwnerOptions::forFilter(Company::class))
+                    ->searchable(),
+
                 TrashedFilter::make(),
             ])
             ->recordActions([
@@ -113,6 +126,7 @@ class CompaniesTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
+                    AssignOwnerBulkAction::make('company', 'Company owner'),
                     ExportCompaniesAction::forSelection(),
                     SegmentUsageGuard::protectBulkDelete(DeleteBulkAction::make()->authorizeIndividualRecords()),
                     RestoreBulkAction::make()->authorizeIndividualRecords(),

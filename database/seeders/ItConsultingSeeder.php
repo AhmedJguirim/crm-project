@@ -453,6 +453,7 @@ class ItConsultingSeeder extends Seeder
                 'name' => $data['name'],
                 'email' => $data['email'],
                 'phone' => $data['phone'],
+                'owner_id' => $data['email'] === 'amara.diallo@innotech-sa.com' ? null : $user->id,
                 'custom_field_values' => $data['cf'],
             ]);
 
@@ -464,7 +465,7 @@ class ItConsultingSeeder extends Seeder
         }
 
         // ── Companies ────────────────────────────────────────────────────────
-        $companies = $this->seedCompanies($org);
+        $companies = $this->seedCompanies($org, $user);
 
         foreach ($contactsData as $data) {
             $contact = Contact::where('organization_id', $org->id)->where('email', $data['email'])->first();
@@ -712,7 +713,7 @@ class ItConsultingSeeder extends Seeder
     }
 
     /** @return array<string, Company> */
-    private function seedCompanies(Organization $org): array
+    private function seedCompanies(Organization $org, User $owner): array
     {
         $enterprise = CompanyType::firstOrCreate(['organization_id' => $org->id, 'name' => 'Enterprise']);
         $sme = CompanyType::firstOrCreate(['organization_id' => $org->id, 'name' => 'SME']);
@@ -778,6 +779,7 @@ class ItConsultingSeeder extends Seeder
                     'employees' => $data['employees'] ?? null,
                     'annual_revenue' => $data['annual_revenue'] ?? null,
                     'notes' => $data['notes'] ?? null,
+                    'owner_id' => $data['name'] === 'InnoTech SA' ? null : $owner->id,
                     'custom_field_values' => $this->keyCompanyValues($org, $data['cf']),
                 ]);
             }
