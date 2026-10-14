@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Deals\Pages;
 
 use App\Filament\Resources\Deals\DealResource;
+use App\Filament\Support\Concerns\SanitizesTableSearch;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
@@ -13,6 +14,8 @@ use Illuminate\Support\Facades\Auth;
 
 class ListDeals extends ListRecords
 {
+    use SanitizesTableSearch;
+
     protected static string $resource = DealResource::class;
 
     /**

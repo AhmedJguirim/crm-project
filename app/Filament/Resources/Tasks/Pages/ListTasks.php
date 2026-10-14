@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Tasks\Pages;
 
 use App\Filament\Resources\Tasks\TaskResource;
+use App\Filament\Support\Concerns\SanitizesTableSearch;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\Tabs\Tab;
@@ -11,6 +12,8 @@ use Illuminate\Support\Facades\Auth;
 
 class ListTasks extends ListRecords
 {
+    use SanitizesTableSearch;
+
     protected static string $resource = TaskResource::class;
 
     /**

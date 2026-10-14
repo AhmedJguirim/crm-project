@@ -2,23 +2,41 @@
 
 use App\Enums\DealStage;
 use App\Enums\InvoiceStatus;
+use App\Filament\Pages\Tenancy\OrganizationMembers;
+use App\Filament\Resources\Companies\CompanyResource;
+use App\Filament\Resources\Companies\Pages\EditCompany;
 use App\Filament\Resources\Companies\Pages\ListCompanies;
+use App\Filament\Resources\Companies\RelationManagers\ContactsRelationManager as CompanyContactsRelationManager;
+use App\Filament\Resources\Companies\RelationManagers\DealsRelationManager;
+use App\Filament\Resources\CompanyCustomFields\CompanyCustomFieldResource;
 use App\Filament\Resources\CompanyCustomFields\Pages\ListCompanyCustomFields;
+use App\Filament\Resources\CompanyTypes\CompanyTypeResource;
 use App\Filament\Resources\CompanyTypes\Pages\ManageCompanyTypes;
+use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
+use App\Filament\Resources\CustomFields\CustomFieldResource;
 use App\Filament\Resources\CustomFields\Pages\ListCustomFields;
+use App\Filament\Resources\Deals\DealResource;
 use App\Filament\Resources\Deals\Pages\DealPipeline;
 use App\Filament\Resources\Deals\Pages\ListDeals;
 use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Filament\Resources\Invoices\Pages\ListInvoices;
 use App\Filament\Resources\Segments\Pages\ListSegments;
+use App\Filament\Resources\Segments\Pages\ViewSegment;
+use App\Filament\Resources\Segments\RelationManagers\ContactsRelationManager as SegmentContactsRelationManager;
+use App\Filament\Resources\Segments\SegmentResource;
 use App\Filament\Resources\Tags\Pages\ListTags;
+use App\Filament\Resources\Tags\TagResource;
 use App\Filament\Resources\Tasks\Pages\ListTasks;
+use App\Filament\Resources\Tasks\TaskResource;
 use App\Filament\Support\Filters\OptionSelectFilter;
 use App\Filament\Support\Filters\RecordKeySelectFilter;
+use App\Livewire\Tenancy\InvitationsList;
+use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Invoice;
+use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\User;
 use Filament\Facades\Filament;
@@ -285,4 +303,124 @@ test('a valid date from the URL still filters', function () {
         ->test(ListInvoices::class)
         ->assertCanSeeTableRecords([$march])
         ->assertCanNotSeeTableRecords([$january]);
+});
+
+dataset('forgedSearchUrls', [
+    'contacts' => [ContactResource::class, 'index'],
+    'companies' => [CompanyResource::class, 'index'],
+    'deals' => [DealResource::class, 'index'],
+    'pipeline' => [DealResource::class, 'pipeline'],
+    'invoices' => [InvoiceResource::class, 'index'],
+    'tasks' => [TaskResource::class, 'index'],
+    'segments' => [SegmentResource::class, 'index'],
+    'tags' => [TagResource::class, 'index'],
+    'contact fields' => [CustomFieldResource::class, 'index'],
+    'company fields' => [CompanyCustomFieldResource::class, 'index'],
+    'company types' => [CompanyTypeResource::class, 'index'],
+]);
+
+dataset('forgedSearchRelationManagers', [
+    'company contacts' => [CompanyContactsRelationManager::class, 'company', EditCompany::class],
+    'company deals' => [DealsRelationManager::class, 'company', EditCompany::class],
+    'segment contacts' => [SegmentContactsRelationManager::class, 'segment', ViewSegment::class],
+]);
+
+test('an array search in the URL is a 200 on every list and the board', function (string $resource, string $page, string $query) {
+    $this->get($resource::getUrl($page, tenant: $this->org).'?'.$query)->assertOk();
+})->with('forgedSearchUrls')->with([
+    'list' => ['search[]=x'],
+    'map' => ['search[a][b]=1'],
+]);
+
+test('an array sort in the URL is a 200', function () {
+    $this->get(ContactResource::getUrl('index', tenant: $this->org).'?sort[]=x')->assertOk();
+});
+
+test('an array search from the URL becomes an empty search', function (string $page) {
+    foreach ([['x'], ['a' => ['b' => '1']]] as $junk) {
+        $component = Livewire::withQueryParams(['search' => $junk])->test($page)->assertSuccessful();
+
+        expect($component->get('tableSearch'))->toBe('');
+    }
+})->with('forgedFilterPages');
+
+test('an array search set by an update becomes an empty search', function (string $page) {
+    $component = Livewire::test($page)->set('tableSearch', ['x'])->assertSuccessful();
+
+    expect($component->get('tableSearch'))->toBe('');
+
+    $component->set('tableSearch', ['a' => ['b' => '1']])->assertSuccessful();
+
+    expect($component->get('tableSearch'))->toBe('');
+})->with('forgedFilterPages');
+
+test('the members page and the invitations list ignore an array search', function (string $component) {
+    $tested = Livewire::test($component)->set('tableSearch', ['x'])->assertSuccessful();
+
+    expect($tested->get('tableSearch'))->toBe('');
+})->with([
+    'members' => [OrganizationMembers::class],
+    'invitations' => [InvitationsList::class],
+]);
+
+test('the contacts list ignores a forged search and still lists everyone', function () {
+    Livewire::test(ListContacts::class)
+        ->set('tableSearch', ['Ann'])
+        ->assertCanSeeTableRecords([$this->ann, $this->bob]);
+});
+
+test('a scalar search still works', function () {
+    $component = Livewire::test(ListContacts::class)
+        ->set('tableSearch', 'Ann')
+        ->assertCanSeeTableRecords([$this->ann])
+        ->assertCanNotSeeTableRecords([$this->bob]);
+
+    expect($component->get('tableSearch'))->toBe('Ann');
+
+    $component->set('tableSearch', 123);
+
+    expect($component->get('tableSearch'))->toBe('123');
+
+    Livewire::withQueryParams(['search' => 'Bob'])->test(ListContacts::class)
+        ->assertCanSeeTableRecords([$this->bob])
+        ->assertCanNotSeeTableRecords([$this->ann]);
+});
+
+test('a relation manager ignores an array search', function (string $manager, string $owner, string $page) {
+    $company = Company::factory()->create(['organization_id' => $this->org->id, 'name' => 'Acme']);
+    $this->ann->companies()->attach($company->id);
+    $this->annDeal->update(['company_id' => $company->id]);
+    $segment = Segment::factory()->published()->create(['organization_id' => $this->org->id, 'name' => 'Everyone']);
+    $segment->contacts()->attach($this->ann->id);
+
+    $component = Livewire::test($manager, ['ownerRecord' => $owner === 'company' ? $company : $segment, 'pageClass' => $page])
+        ->set('tableSearch', ['x'])
+        ->assertSuccessful();
+
+    expect($component->get('tableSearch'))->toBe('');
+})->with('forgedSearchRelationManagers');
+
+test('typed table state keeps the 419 of Livewire for an array update', function (string $page, string $property) {
+    config(['app.debug' => false]);
+
+    Livewire::test($page)->set($property, ['x'])->assertStatus(419);
+})->with([
+    'sort of the contacts' => [ListContacts::class, 'tableSort'],
+    'sort of the board' => [DealPipeline::class, 'tableSort'],
+    'tab of the deals' => [ListDeals::class, 'activeTab'],
+]);
+
+test('the typed state of a relation manager keeps the 419 of Livewire', function () {
+    config(['app.debug' => false]);
+    $company = Company::factory()->create(['organization_id' => $this->org->id, 'name' => 'Acme']);
+
+    Livewire::test(CompanyContactsRelationManager::class, ['ownerRecord' => $company, 'pageClass' => EditCompany::class])
+        ->set('tableSort', ['x'])
+        ->assertStatus(419);
+});
+
+test('a nested column search is harmless', function () {
+    Livewire::test(ListContacts::class)
+        ->set('tableColumnSearches', ['name' => ['a' => ['b' => 'c']]])
+        ->assertSuccessful();
 });

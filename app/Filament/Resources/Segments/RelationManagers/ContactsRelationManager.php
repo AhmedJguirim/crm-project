@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Segments\RelationManagers;
 
 use App\Filament\Resources\Contacts\ContactResource;
+use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Models\Contact;
 use Filament\Actions\Action;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -16,6 +17,8 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class ContactsRelationManager extends RelationManager
 {
+    use SanitizesTableSearch;
+
     protected static string $relationship = 'contacts';
 
     protected static ?string $title = 'Members';

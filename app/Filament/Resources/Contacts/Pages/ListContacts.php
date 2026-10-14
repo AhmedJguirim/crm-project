@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Contacts\Pages;
 use App\Enums\ImportMode;
 use App\Filament\Actions\ExportContactsAction;
 use App\Filament\Resources\Contacts\ContactResource;
+use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Jobs\ProcessContactImportJob;
 use App\Services\ContactImportFileReader;
 use App\Services\ContactImportService;
@@ -21,6 +22,8 @@ use Illuminate\Support\Number;
 
 class ListContacts extends ListRecords
 {
+    use SanitizesTableSearch;
+
     protected static string $resource = ContactResource::class;
 
     protected function getHeaderActions(): array

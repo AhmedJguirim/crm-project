@@ -4,6 +4,7 @@ namespace App\Filament\Pages\Tenancy;
 
 use App\Enums\InviteStatus;
 use App\Enums\OrganizationRole;
+use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Filament\Support\RecordKeyField;
 use App\Mail\OrganizationInvitationMail;
 use App\Models\Organization;
@@ -28,6 +29,7 @@ use UnitEnum;
 class OrganizationMembers extends Page implements HasTable
 {
     use InteractsWithTable;
+    use SanitizesTableSearch;
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-user-group';
 

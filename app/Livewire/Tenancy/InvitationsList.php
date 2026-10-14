@@ -3,6 +3,7 @@
 namespace App\Livewire\Tenancy;
 
 use App\Enums\InviteStatus;
+use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Mail\OrganizationInvitationMail;
 use App\Models\OrganizationInvite;
 use App\Support\NotificationText;
@@ -27,6 +28,7 @@ class InvitationsList extends Component implements HasActions, HasSchemas, HasTa
     use InteractsWithActions;
     use InteractsWithSchemas;
     use InteractsWithTable;
+    use SanitizesTableSearch;
 
     public function table(Table $table): Table
     {
