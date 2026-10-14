@@ -331,9 +331,14 @@ class DealPipeline extends BoardResourcePage
     {
         return [
             CreateAction::make()
+                ->model(Deal::class)
                 ->authorize('create')
                 ->label('New Deal')
-                ->url(DealResource::getUrl('create')),
+                ->modalHeading('New deal')
+                ->createAnother(false)
+                ->schema(fn (Schema $schema): Schema => DealForm::configure($schema))
+                ->mutateDataUsing(fn (array $data): array => DealForm::mutateDataBeforeCreate($data))
+                ->successNotificationTitle('Deal created successfully'),
 
             Action::make('tableView')
                 ->label('Table View')

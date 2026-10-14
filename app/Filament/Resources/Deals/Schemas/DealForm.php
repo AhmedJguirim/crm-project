@@ -8,6 +8,7 @@ use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Services\Deals\DealCompany;
+use App\Services\Deals\DealStageMover;
 use App\Services\Owners\OwnerOptions;
 use App\Support\MoneyLimit;
 use Filament\Facades\Filament;
@@ -24,6 +25,20 @@ use Illuminate\Validation\Rule;
 
 class DealForm
 {
+    /**
+     * The attributes a deal is created with, from the create page and from the board: the current organization, the creator, and the status and won / lost dates the stage decides.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    public static function mutateDataBeforeCreate(array $data): array
+    {
+        $data['organization_id'] = Filament::getTenant()->id;
+        $data['created_by'] = Auth::id();
+
+        return [...$data, ...DealStageMover::attributesFor($data['stage'])];
+    }
+
     public static function configure(Schema $schema): Schema
     {
         return $schema
