@@ -19,6 +19,9 @@ use Illuminate\Support\Number;
 
 /**
  * Turns a segment condition into a readable sentence, e.g. "If the contact Email is from domain acme.com".
+ *
+ * Builds HTML by hand: every piece that comes from user data (names, labels, values) must go through `e()` (see
+ * `highlight()`); covered by `tests/Feature/Security/XssRenderingTest.php`.
  */
 class SegmentConditionDescriber
 {

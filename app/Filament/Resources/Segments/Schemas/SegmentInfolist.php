@@ -41,6 +41,10 @@ class SegmentInfolist
             ]);
     }
 
+    /**
+     * Builds HTML by hand: every piece that comes from user data (names, labels, values) must go through `e()` (see
+     * `highlight()`); covered by `tests/Feature/Security/XssRenderingTest.php`.
+     */
     private static function describeRules(Segment $record): HtmlString
     {
         $rules = $record->publishedRules();
