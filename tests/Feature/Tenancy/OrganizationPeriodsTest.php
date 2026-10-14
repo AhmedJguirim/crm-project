@@ -19,6 +19,7 @@ use App\Models\Invoice;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\Deals\DealStageMover;
+use App\Support\LocalTime;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
@@ -219,3 +220,37 @@ test('the periods of one organization do not leak to another', function () {
     Livewire::test(ListTasks::class)->filterTable('today')->assertCountTableRecords(0);
     expect(($this->stats)(DashboardTasksWidget::class)['Due this week'])->toBe('0');
 });
+
+test('a local day is bounded in UTC, DST included', function (string $date, string $timezone, string $start, string $end) {
+    [$from, $until] = LocalTime::dayBounds($date, $timezone);
+
+    expect($from->format('Y-m-d H:i:s.u'))->toBe($start)
+        ->and($until->format('Y-m-d H:i:s.u'))->toBe($end)
+        ->and($from->timezoneName)->toBe('UTC')
+        ->and($until->timezoneName)->toBe('UTC');
+})->with([
+    'utc' => ['2026-03-02', 'UTC', '2026-03-02 00:00:00.000000', '2026-03-02 23:59:59.999999'],
+    'tokyo' => ['2026-03-02', 'Asia/Tokyo', '2026-03-01 15:00:00.000000', '2026-03-02 14:59:59.999999'],
+    'kiritimati' => ['2026-03-02', 'Pacific/Kiritimati', '2026-03-01 10:00:00.000000', '2026-03-02 09:59:59.999999'],
+    'paris spring forward' => ['2026-03-29', 'Europe/Paris', '2026-03-28 23:00:00.000000', '2026-03-29 21:59:59.999999'],
+    'paris fall back' => ['2026-10-25', 'Europe/Paris', '2026-10-24 22:00:00.000000', '2026-10-25 22:59:59.999999'],
+]);
+
+test('a local day without a timezone uses the panel timezone', function () {
+    ($this->inZone)('Asia/Tokyo', '2026-03-04 03:00:00');
+
+    expect(LocalTime::dayBounds('2026-03-02')[0]->format('Y-m-d H:i:s'))->toBe('2026-03-01 15:00:00');
+});
+
+test('a filter date is only a real Y-m-d date', function (mixed $value, ?string $expected) {
+    expect(LocalTime::filterDate($value))->toBe($expected);
+})->with([
+    'a date' => ['2026-03-02', '2026-03-02'],
+    'a leap day' => ['2024-02-29', '2024-02-29'],
+    'not a leap day' => ['2026-02-29', null],
+    'no zero padding' => ['2026-3-2', null],
+    'trailing newline' => ["2026-03-02\n", null],
+    'an array' => [['2026-03-02'], null],
+    'null' => [null, null],
+    'an integer' => [20260302, null],
+]);

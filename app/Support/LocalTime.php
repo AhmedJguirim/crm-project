@@ -68,6 +68,31 @@ final class LocalTime
     }
 
     /**
+     * A filter value is only used when it is a real `Y-m-d` date (BUG-32); anything else, forged or partial, counts as empty.
+     */
+    public static function filterDate(mixed $value): ?string
+    {
+        if (! is_string($value) || preg_match('/^\d{4}-\d{2}-\d{2}\z/', $value) !== 1) {
+            return null;
+        }
+
+        return checkdate((int) substr($value, 5, 2), (int) substr($value, 8, 2), (int) substr($value, 0, 4)) ? $value : null;
+    }
+
+    /**
+     * The first and last moment of a local day (a `Y-m-d` date already checked by `filterDate()`) as UTC bounds for
+     * timestamp columns, DST included. The end is inclusive, like the periods of `period()`.
+     *
+     * @return array{0: CarbonImmutable, 1: CarbonImmutable}
+     */
+    public static function dayBounds(string $date, ?string $timezone = null): array
+    {
+        $start = CarbonImmutable::createFromFormat('!Y-m-d', $date, $timezone ?? FilamentTimezone::get());
+
+        return [$start->utc(), $start->endOfDay()->utc()];
+    }
+
+    /**
      * @param  'day'|'week'|'month'|'year'  $unit
      * @return array{0: CarbonImmutable, 1: CarbonImmutable}
      */

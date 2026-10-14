@@ -2,7 +2,9 @@
 
 namespace App\Filament\Resources\Contacts\Widgets;
 
+use App\Support\LocalTime;
 use Filament\Widgets\Widget;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Livewire\Attributes\On;
 use Livewire\WithPagination;
@@ -41,14 +43,14 @@ class ContactActivityFeed extends Widget
         $activities = $this->record
             ?->activities()
             ->with('user')
-            ->when($this->dateFrom, fn ($q) => $q->whereDate('occurred_at', '>=', $this->dateFrom))
-            ->when($this->dateTo, fn ($q) => $q->whereDate('occurred_at', '<=', $this->dateTo))
+            ->when(LocalTime::filterDate($this->dateFrom), fn (Builder $query, string $date): Builder => $query->where('occurred_at', '>=', LocalTime::dayBounds($date)[0]))
+            ->when(LocalTime::filterDate($this->dateTo), fn (Builder $query, string $date): Builder => $query->where('occurred_at', '<=', LocalTime::dayBounds($date)[1]))
             ->orderByDesc('occurred_at')
             ->paginate($this->perPage);
 
         return [
             'activities' => $activities ?? collect(),
-            'hasFilters' => filled($this->dateFrom) || filled($this->dateTo),
+            'hasFilters' => LocalTime::filterDate($this->dateFrom) !== null || LocalTime::filterDate($this->dateTo) !== null,
         ];
     }
 }

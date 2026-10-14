@@ -101,8 +101,8 @@ class InvoicesTable
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         return $query
-                            ->when(self::filterDate($data['from'] ?? null), fn (Builder $builder, $date): Builder => $builder->whereDate('issued_at', '>=', $date))
-                            ->when(self::filterDate($data['until'] ?? null), fn (Builder $builder, $date): Builder => $builder->whereDate('issued_at', '<=', $date));
+                            ->when(LocalTime::filterDate($data['from'] ?? null), fn (Builder $builder, $date): Builder => $builder->whereDate('issued_at', '>=', $date))
+                            ->when(LocalTime::filterDate($data['until'] ?? null), fn (Builder $builder, $date): Builder => $builder->whereDate('issued_at', '<=', $date));
                     }),
 
                 Filter::make('overdue')
@@ -142,17 +142,5 @@ class InvoicesTable
             ->defaultSort('due_at')
             ->emptyStateHeading('No invoices yet')
             ->emptyStateDescription('Create your first invoice from a deal or start from scratch.');
-    }
-
-    /**
-     * A forged filter value is only used when it is a real `Y-m-d` date (BUG-32).
-     */
-    private static function filterDate(mixed $value): ?string
-    {
-        if (! is_string($value) || preg_match('/^\d{4}-\d{2}-\d{2}\z/', $value) !== 1) {
-            return null;
-        }
-
-        return checkdate((int) substr($value, 5, 2), (int) substr($value, 8, 2), (int) substr($value, 0, 4)) ? $value : null;
     }
 }
