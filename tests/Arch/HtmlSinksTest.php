@@ -44,11 +44,11 @@ function htmlSinkPatterns(): array
 }
 
 /**
- * @return string the regular expression of a user value echoed inside an attribute that Livewire or Alpine evaluates as JavaScript
+ * @return string the regular expression of a user value echoed inside an attribute that Livewire or Alpine evaluates as JavaScript (`wire:*`, `x-*`, `@*`, `:*`), double- or single-quoted
  */
 function htmlSinkJsAttributePattern(): string
 {
-    return '/\s(?:wire:(?!key\b|model\b|model\.|target\b|loading\b|loading\.|ignore\b|navigate\b|transition\b|replace\b|dirty\b|offline\b)[\w.:-]+|x-[\w.:-]+|@[\w.:-]+)\s*=\s*"[^"]*\{\{/';
+    return '/\s(?:wire:(?!key\b|model\b|model\.|target\b|loading\b|loading\.|ignore\b|navigate\b|transition\b|replace\b|dirty\b|offline\b)[\w.:-]+|x-[\w.:-]+|@[\w.:-]+|:[\w.:-]+)\s*=\s*(?:"[^"]*|\'[^\']*)\{\{/';
 }
 
 /**
@@ -147,6 +147,12 @@ test('the HTML sink scanner finds a new sink', function (string $code, string $p
     'x-on click' => ['<button x-on:click="go(\'{{ $id }}\')">', 'js-attribute-echo', true],
     'at click' => ['<button @click="go(\'{{ $id }}\')">', 'js-attribute-echo', true],
     'x-data' => ['<div x-data="{ id: \'{{ $id }}\' }">', 'js-attribute-echo', true],
+    'alpine shorthand href' => ['<a :href="\'{{ $url }}\'">', 'js-attribute-echo', true],
+    'alpine shorthand class' => ['<div :class="{ active: \'{{ $v }}\' }">', 'js-attribute-echo', true],
+    'x-bind href' => ['<a x-bind:href="\'{{ $url }}\'">', 'js-attribute-echo', true],
+    'single-quoted x-data' => ['<div x-data=\'{ id: "{{ $id }}" }\'>', 'js-attribute-echo', true],
+    'single-quoted wire click' => ['<button wire:click=\'go("{{ $id }}")\'>', 'js-attribute-echo', true],
+    'single-quoted shorthand' => ['<span :title=\'"{{ $t }}"\'>', 'js-attribute-echo', true],
 ]);
 
 test('the HTML sink scanner reports the line and ignores safe code', function (string $code) {
@@ -156,6 +162,11 @@ test('the HTML sink scanner reports the line and ignores safe code', function (s
     'wire model' => ['<input wire:model="data.{{ $key }}">'],
     'plain attribute and echo' => ['<p class="{{ $class }}">{{ $name }}</p>'],
     'js helper' => ['<button wire:click="go(@js($id))">'],
+    'component prop' => ['<x-filament::badge :color="$record->status->getColor()">'],
+    'shorthand with js helper' => ['<a :href="@js($url)">'],
+    'single-quoted plain attribute' => ['<p class=\'{{ $class }}\'>'],
+    'single-quoted wire key' => ['<div wire:key=\'row-{{ $id }}\'>'],
+    'ternary in an echo' => ['<span>{{ $open ? \'yes\' : \'no\' }}</span>'],
     'toHtml' => ['$html->toHtml();'],
     'named markdown argument' => ["markdown: 'emails.organization-invitation',"],
 ]);

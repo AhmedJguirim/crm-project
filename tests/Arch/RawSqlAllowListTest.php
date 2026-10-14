@@ -85,11 +85,13 @@ function rawSqlAllowList(): array
 }
 
 /**
- * @return array<int, array{line: int, kind: string}> raw SQL calls of a PHP source, `constant` when the first argument is only string literals joined by dots, `dynamic` otherwise
+ * @return array<int, array{line: int, kind: string}> raw SQL calls of a PHP source, `constant` when the first argument is only string literals joined by dots, `dynamic` otherwise.
+ *                                                    Matched: the `*Raw` query methods, `raw` and `getPdo` on any receiver, `new Expression`, and the database calls (`select`, `statement`, `unprepared`, …)
+ *                                                    on the `DB` facade or straight after `connection(...)` / `getConnection()`. A connection held in a variable (`$connection->select(...)`) is not detected (REF-28).
  */
 function rawSqlHitsInCode(string $code): array
 {
-    $methods = ['whereRaw', 'orWhereRaw', 'selectRaw', 'orderByRaw', 'havingRaw', 'orHavingRaw', 'groupByRaw', 'fromRaw', 'joinRaw'];
+    $methods = ['raw', 'getPdo', 'whereRaw', 'orWhereRaw', 'selectRaw', 'orderByRaw', 'havingRaw', 'orHavingRaw', 'groupByRaw', 'fromRaw', 'joinRaw'];
     $databaseCalls = ['raw', 'select', 'selectOne', 'scalar', 'insert', 'update', 'delete', 'statement', 'affectingStatement', 'unprepared'];
     $tokens = PhpToken::tokenize($code);
     $count = count($tokens);
@@ -111,6 +113,26 @@ function rawSqlHitsInCode(string $code): array
         }
 
         return $index;
+    };
+
+    $callNameBeforeParenthesis = function (int $closeIndex) use ($tokens, $previous): ?string {
+        $depth = 0;
+
+        for ($index = $closeIndex; $index >= 0; $index--) {
+            $text = $tokens[$index]->text;
+
+            if ($text === ')') {
+                $depth++;
+            }
+
+            if ($text === '(' && --$depth === 0) {
+                $name = $tokens[$previous($index - 1)];
+
+                return $name->is(T_STRING) ? $name->text : null;
+            }
+        }
+
+        return null;
     };
 
     $kindOfArgument = function (int $open) use ($tokens, $count): string {
@@ -166,9 +188,14 @@ function rawSqlHitsInCode(string $code): array
             $candidate = $next($i + 1);
             $isDatabaseCall = false;
 
+            $before = $tokens[$previous($i - 1)];
+
             if ($token->is(T_DOUBLE_COLON)) {
-                $before = $tokens[$previous($i - 1)];
                 $isDatabaseCall = $before->text === 'DB' || str_ends_with($before->text, '\\DB');
+            }
+
+            if (! $token->is(T_DOUBLE_COLON) && $before->text === ')') {
+                $isDatabaseCall = in_array($callNameBeforeParenthesis($previous($i - 1)), ['connection', 'getConnection'], true);
             }
 
             if ($tokens[$candidate]->is(T_STRING)
@@ -254,6 +281,43 @@ test('the raw SQL allow-list has no stale entry', function () {
     expect($stale)->toBe([], 'Allow-list entries without a matching raw call (or without a reason): remove them.');
 });
 
+/**
+ * @return array<int, int> line numbers of the `use` statements that alias the DB facade
+ */
+function aliasedDatabaseFacadeLines(string $code): array
+{
+    $lines = [];
+
+    foreach (explode("\n", $code) as $index => $line) {
+        if (preg_match('/^\s*use\s[^;]*\bDB\s+as\s+\w+/', $line) === 1) {
+            $lines[] = $index + 1;
+        }
+    }
+
+    return $lines;
+}
+
+test('the DB facade is never aliased', function () {
+    $aliased = [];
+
+    foreach ((new Finder)->files()->in(dirname(__DIR__, 2).'/app')->name('*.php') as $file) {
+        foreach (aliasedDatabaseFacadeLines($file->getContents()) as $line) {
+            $aliased[] = 'app/'.str_replace('\\', '/', $file->getRelativePathname()).':'.$line;
+        }
+    }
+
+    expect($aliased)->toBe([], 'Do not alias the DB facade: the raw SQL scanner only recognises `DB::` (REF-28).'."\n".implode("\n", $aliased));
+});
+
+test('the alias scanner finds an aliased DB facade', function (string $code, array $lines) {
+    expect(aliasedDatabaseFacadeLines($code))->toBe($lines);
+})->with([
+    'plain alias' => ["<?php\nuse Illuminate\\Support\\Facades\\DB as Database;", [2]],
+    'group alias' => ["<?php\nuse Illuminate\\Support\\Facades\\{DB as Db, Log};", [2]],
+    'no alias' => ["<?php\nuse Illuminate\\Support\\Facades\\DB;", []],
+    'other class ending in DB' => ["<?php\nuse App\\Models\\DBLog as Log;", []],
+]);
+
 test('the raw SQL scanner classifies calls', function (string $code, array $kinds) {
     expect(array_column(rawSqlHitsInCode('<?php '.$code), 'kind'))->toBe($kinds);
 })->with([
@@ -273,6 +337,20 @@ test('the raw SQL scanner classifies calls', function (string $code, array $kind
     'nullsafe call' => ['$q?->whereRaw($x);', ['dynamic']],
     'multi-line call' => ["\$q->whereRaw(\n    'a = ?',\n    [\$v],\n);", ['constant']],
     'several calls' => ['$q->whereRaw(\'a\')->orWhereRaw($b);', ['constant', 'dynamic']],
+    'query raw' => ['$q->raw($sql);', ['dynamic']],
+    'query builder raw literal' => ['DB::query()->raw(\'1 = 1\');', ['constant']],
+    'nullsafe raw' => ['$q?->raw("a {$b}");', ['dynamic']],
+    'connection select' => ['DB::connection()->select($sql);', ['dynamic']],
+    'named connection statement' => ['DB::connection(\'pgsql\')->statement("DROP {$t}");', ['dynamic']],
+    'model connection literal' => ['$model->getConnection()->select(\'select 1\');', ['constant']],
+    'nullsafe connection' => ['$q?->getConnection()?->unprepared($sql);', ['dynamic']],
+    'connection with a call argument' => ['DB::connection(config(\'database.default\'))->select($sql);', ['dynamic']],
+    'facade pdo' => ['DB::getPdo();', ['dynamic']],
+    'connection pdo' => ['$q->getConnection()->getPdo()->exec($sql);', ['dynamic']],
+    'not detected: connection table' => ['DB::connection()->table(\'x\')->get();', []],
+    'not detected: driver name' => ['$q->getConnection()->getDriverName();', []],
+    'not detected: connection transaction' => ['DB::connection()->transaction(fn () => 1);', []],
+    'not detected: other call' => ['$this->contacts()->select(\'name\');', []],
     'not detected: where' => ['$q->where(\'name\', $x);', []],
     'not detected: select' => ['$q->select(\'name\');', []],
     'not detected: table' => ['DB::table(\'x\')->get();', []],
