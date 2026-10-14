@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Filament\Http\Responses\LogoutResponse;
+use App\Filament\Support\StateCasts\ScalarDateTimeStateCast;
 use App\Mail\SecuredMarkdown;
 use App\Models\Organization;
 use App\Policies\SegmentPolicy;
@@ -10,6 +11,7 @@ use App\Services\Segments\SegmentUsageIndex;
 use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
+use Filament\Schemas\Components\StateCasts\DateTimeStateCast;
 use Filament\Support\Facades\FilamentTimezone;
 use Illuminate\Mail\Markdown;
 use Illuminate\Support\Facades\Date;
@@ -36,6 +38,7 @@ class AppServiceProvider extends ServiceProvider
 
         $this->registerMailMarkdown();
         $this->registerTypeScriptTransformer();
+        $this->registerFilamentStateCasts();
     }
 
     /**
@@ -61,6 +64,14 @@ class AppServiceProvider extends ServiceProvider
         }
 
         $this->app->register(TypeScriptTransformerServiceProvider::class);
+    }
+
+    /**
+     * Every date picker reads its state through the forged-state-safe cast (BUG-43).
+     */
+    protected function registerFilamentStateCasts(): void
+    {
+        $this->app->bind(DateTimeStateCast::class, ScalarDateTimeStateCast::class);
     }
 
     /**

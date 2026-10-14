@@ -9,6 +9,7 @@ use App\Filament\Resources\Contacts\Pages\ListContacts;
 use App\Filament\Resources\CustomFields\Pages\ListCustomFields;
 use App\Filament\Resources\Deals\Pages\DealPipeline;
 use App\Filament\Resources\Deals\Pages\ListDeals;
+use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Filament\Resources\Invoices\Pages\ListInvoices;
 use App\Filament\Resources\Segments\Pages\ListSegments;
 use App\Filament\Resources\Tags\Pages\ListTags;
@@ -21,6 +22,8 @@ use App\Models\Invoice;
 use App\Models\Tag;
 use App\Models\User;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Field;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Livewire\Livewire;
@@ -204,6 +207,82 @@ test('the invoice date range ignores a non-date', function () {
         ->assertCanSeeTableRecords([$january, $march])
         ->set('tableFilters.issued_at_range.from', '2026-03-01')
         ->set('tableFilters.issued_at_range.until', null)
+        ->assertCanSeeTableRecords([$march])
+        ->assertCanNotSeeTableRecords([$january]);
+});
+
+dataset('forgedFilterPages', [
+    'ListDeals' => [ListDeals::class],
+    'DealPipeline' => [DealPipeline::class],
+    'ListInvoices' => [ListInvoices::class],
+    'ListTasks' => [ListTasks::class],
+    'ListContacts' => [ListContacts::class],
+    'ListCompanies' => [ListCompanies::class],
+    'ListSegments' => [ListSegments::class],
+    'ListTags' => [ListTags::class],
+    'ListCustomFields' => [ListCustomFields::class],
+    'ListCompanyCustomFields' => [ListCompanyCustomFields::class],
+    'ManageCompanyTypes' => [ManageCompanyTypes::class],
+]);
+
+test('the invoices list with an array date in the URL is a 200', function (string $query) {
+    $this->get(InvoiceResource::getUrl('index', tenant: $this->org).'?'.$query)->assertOk();
+})->with([
+    'array from' => ['filters[issued_at_range][from][]=abc'],
+    'map until' => ['filters[issued_at_range][until][a]=1'],
+    'nested from' => ['filters[issued_at_range][from][a][b]=1'],
+]);
+
+test('every filter field of every list survives array junk from the URL and from an update', function (string $page) {
+    $filters = Livewire::test($page)->assertSuccessful()->instance()->getTable()->getFilters();
+    $checked = 0;
+
+    foreach ($filters as $name => $filter) {
+        foreach ($filter->getSchemaComponents() as $field) {
+            if (! $field instanceof Field) {
+                continue;
+            }
+
+            $fieldName = $field->getName();
+
+            foreach ([['abc'], ['a' => '1'], [['x']]] as $junk) {
+                $booted = Livewire::withQueryParams(['filters' => [$name => [$fieldName => $junk]]])->test($page)->assertSuccessful();
+
+                if ($field instanceof DateTimePicker) {
+                    expect($booted->get("tableFilters.{$name}.{$fieldName}"))->toBeNull("{$page}: {$name}.{$fieldName} from the URL");
+                }
+
+                $component = Livewire::test($page);
+                expect(fn () => $component->set("tableFilters.{$name}.{$fieldName}", $junk))->not->toThrow(Throwable::class, "{$page}: {$name}.{$fieldName} from an update");
+                $component->assertSuccessful();
+                $checked++;
+            }
+        }
+
+        foreach (['abc', ['abc']] as $whole) {
+            Livewire::withQueryParams(['filters' => [$name => $whole]])->test($page)->assertSuccessful();
+        }
+    }
+
+    expect($checked)->toBeGreaterThan(0);
+})->with('forgedFilterPages');
+
+test('a valid date from the URL still filters', function () {
+    $january = Invoice::factory()->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $this->ann->id,
+        'status' => InvoiceStatus::Sent,
+        'issued_at' => '2026-01-10',
+    ]);
+    $march = Invoice::factory()->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $this->ann->id,
+        'status' => InvoiceStatus::Sent,
+        'issued_at' => '2026-03-10',
+    ]);
+
+    Livewire::withQueryParams(['filters' => ['issued_at_range' => ['from' => '2026-03-01']]])
+        ->test(ListInvoices::class)
         ->assertCanSeeTableRecords([$march])
         ->assertCanNotSeeTableRecords([$january]);
 });
