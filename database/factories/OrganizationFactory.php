@@ -15,13 +15,16 @@ class OrganizationFactory extends Factory
 {
     protected $model = Organization::class;
 
+    /**
+     * The slug is derived from the final name and gets a random suffix, so two factory organizations never collide on the unique slug index.
+     *
+     * @return array<string, mixed>
+     */
     public function definition(): array
     {
-        $name = fake()->company();
-
         return [
-            'name' => $name,
-            'slug' => Str::slug($name),
+            'name' => fake()->company(),
+            'slug' => fn (array $attributes): string => Str::slug($attributes['name']).'-'.Str::lower(Str::random(6)),
             'description' => fake()->optional()->sentence(),
             'personal_team' => false,
             'currency' => Currency::Usd,
