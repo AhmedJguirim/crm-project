@@ -8,6 +8,7 @@ use App\Mail\SecuredMarkdown;
 use App\Models\Organization;
 use App\Policies\SegmentPolicy;
 use App\Services\Segments\SegmentUsageIndex;
+use App\Support\Livewire\RefuseSubKeyUpdatesOfScalars;
 use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
@@ -19,6 +20,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use Spatie\LaravelTypeScriptTransformer\TypeScriptTransformerApplicationServiceProvider;
+
+use function Livewire\before;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -81,6 +84,15 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configureDefaults();
         $this->configurePanelTimezone();
+        $this->configureLivewireUpdateGuard();
+    }
+
+    /**
+     * Refuses a Livewire update below a scalar or null property with a 419 before Livewire applies it (BUG-45).
+     */
+    protected function configureLivewireUpdateGuard(): void
+    {
+        before('update', new RefuseSubKeyUpdatesOfScalars);
     }
 
     /**
