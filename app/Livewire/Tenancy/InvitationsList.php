@@ -8,10 +8,10 @@ use App\Mail\OrganizationInvitationMail;
 use App\Models\Organization;
 use App\Models\OrganizationInvite;
 use App\Support\NotificationText;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
-use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Concerns\InteractsWithSchemas;
 use Filament\Schemas\Contracts\HasSchemas;
@@ -92,7 +92,7 @@ class InvitationsList extends Component implements HasActions, HasSchemas, HasTa
     private function getPendingInvites(): Builder
     {
         /** @var Organization $organization */
-        $organization = Filament::getTenant();
+        $organization = CurrentOrganization::find();
 
         return $organization->invitations()
             ->whereIn('status', [InviteStatus::Pending->value])

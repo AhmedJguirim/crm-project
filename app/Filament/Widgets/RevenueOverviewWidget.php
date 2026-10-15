@@ -5,7 +5,7 @@ namespace App\Filament\Widgets;
 use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Models\Invoice;
 use App\Support\LocalTime;
-use Filament\Facades\Filament;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\View;
@@ -41,7 +41,7 @@ class RevenueOverviewWidget extends BaseWidget
 
     protected function getStats(): array
     {
-        $currency = Filament::getTenant()?->currencyCode() ?? 'USD';
+        $currency = CurrentOrganization::find()?->currencyCode() ?? 'USD';
 
         $paidThisMonth = (float) Invoice::query()
             ->paid()

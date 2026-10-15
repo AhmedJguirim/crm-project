@@ -6,11 +6,11 @@ use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Jobs\ResyncContactSegments;
 use App\Models\Contact;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Actions\AttachAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DetachAction;
 use Filament\Actions\DetachBulkAction;
-use Filament\Facades\Filament;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -52,7 +52,7 @@ class ContactsRelationManager extends RelationManager
                     ->multiple()
                     ->recordSelectSearchColumns(['name', 'email'])
                     ->recordSelectOptionsQuery(fn (Builder $query): Builder => $query
-                        ->where('contacts.organization_id', Filament::getTenant()?->getKey()))
+                        ->where('contacts.organization_id', CurrentOrganization::find()?->getKey()))
                     ->after(fn (array $data) => $this->resyncContacts(Arr::wrap($data['recordId']))),
             ])
             ->recordActions([

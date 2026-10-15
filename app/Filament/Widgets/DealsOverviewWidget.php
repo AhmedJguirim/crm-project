@@ -6,7 +6,7 @@ use App\Enums\DealStage;
 use App\Filament\Resources\Deals\DealResource;
 use App\Models\Deal;
 use App\Support\LocalTime;
-use Filament\Facades\Filament;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\View;
@@ -77,7 +77,7 @@ class DealsOverviewWidget extends BaseWidget
 
     protected function getStats(): array
     {
-        $currency = Filament::getTenant()?->currencyCode() ?? 'USD';
+        $currency = CurrentOrganization::find()?->currencyCode() ?? 'USD';
 
         $openAggregate = Deal::query()
             ->open()

@@ -10,8 +10,8 @@ use App\Filament\Resources\Segments\Schemas\SegmentForm;
 use App\Filament\Resources\Segments\Schemas\SegmentInfolist;
 use App\Filament\Resources\Segments\Tables\SegmentsTable;
 use App\Models\Segment;
+use App\Support\Tenancy\CurrentOrganization;
 use BackedEnum;
-use Filament\Facades\Filament;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -49,7 +49,7 @@ class SegmentResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->where('organization_id', Filament::getTenant()->id)
+            ->where('organization_id', CurrentOrganization::get()->id)
             ->withCount('contacts');
     }
 

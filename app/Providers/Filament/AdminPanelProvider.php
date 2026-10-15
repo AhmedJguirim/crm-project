@@ -15,6 +15,7 @@ use App\Models\Organization;
 use App\Models\OrganizationInvite;
 use App\Models\User;
 use App\Support\NotificationText;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\TextInput;
@@ -53,7 +54,7 @@ class AdminPanelProvider extends PanelProvider
             ->tenantMenuItems([
                 // Show the current organization as a disabled item at the top of the switcher
                 Action::make('currentOrganization')
-                    ->label(fn (): string => Filament::getTenant()?->name ?? '')
+                    ->label(fn (): string => CurrentOrganization::find()?->name ?? '')
                     ->icon('heroicon-m-check-circle')
                     ->color('primary')
                     ->disabled()
@@ -68,11 +69,11 @@ class AdminPanelProvider extends PanelProvider
                     ->schema(fn (): array => [
                         TextInput::make('confirmation')
                             ->label('Type the organization name to confirm')
-                            ->placeholder(Filament::getTenant()?->name)
+                            ->placeholder(CurrentOrganization::find()?->name)
                             ->required()
                             ->rules([
                                 fn () => function (string $attribute, $value, $fail) {
-                                    if ($value !== Filament::getTenant()?->name) {
+                                    if ($value !== CurrentOrganization::find()?->name) {
                                         $fail('The organization name does not match.');
                                     }
                                 },
@@ -80,11 +81,11 @@ class AdminPanelProvider extends PanelProvider
                             ->helperText('This action is irreversible. You will lose access to this organization.'),
                     ])
                     ->modalHeading('Leave Organization')
-                    ->modalDescription(fn (): string => 'Are you sure you want to leave "'.(Filament::getTenant()?->name ?? '').'"? You will lose access to all its resources.')
+                    ->modalDescription(fn (): string => 'Are you sure you want to leave "'.(CurrentOrganization::find()?->name ?? '').'"? You will lose access to all its resources.')
                     ->modalSubmitActionLabel('Leave')
                     ->action(function () {
                         /** @var Organization $organization */
-                        $organization = Filament::getTenant();
+                        $organization = CurrentOrganization::find();
                         /** @var User $user */
                         $user = auth()->user();
 
@@ -108,7 +109,7 @@ class AdminPanelProvider extends PanelProvider
                     })
                     ->visible(function (): bool {
                         /** @var Organization|null $organization */
-                        $organization = Filament::getTenant();
+                        $organization = CurrentOrganization::find();
 
                         if (! $organization) {
                             return false;

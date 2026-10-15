@@ -4,9 +4,9 @@ namespace App\Filament\Support\CustomFields;
 
 use App\Models\CompanyCustomField;
 use App\Models\CustomField;
+use App\Support\Tenancy\CurrentOrganization;
 use Closure;
 use Filament\Actions\Action;
-use Filament\Facades\Filament;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Field;
 use Filament\Forms\Components\Hidden;
@@ -209,7 +209,7 @@ class CustomFieldValuesSection
             }
 
             $isTaken = $valuesModel::query()
-                ->where('organization_id', Filament::getTenant()?->getKey())
+                ->where('organization_id', CurrentOrganization::find()?->getKey())
                 ->whereCustomFieldValue($field->key, $value)
                 ->when($record?->exists, fn ($query) => $query->whereKeyNot($record->getKey()))
                 ->exists();

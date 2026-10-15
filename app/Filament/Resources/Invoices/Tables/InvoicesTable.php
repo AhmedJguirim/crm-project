@@ -9,12 +9,12 @@ use App\Filament\Support\Filters\OptionSelectFilter;
 use App\Filament\Support\Filters\RecordKeySelectFilter;
 use App\Models\Invoice;
 use App\Support\LocalTime;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
-use Filament\Facades\Filament;
 use Filament\Forms\Components\DatePicker;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -58,7 +58,7 @@ class InvoicesTable
                         : null),
 
                 TextColumn::make('amount')
-                    ->money(fn (): string => Filament::getTenant()?->currencyCode() ?? 'USD')
+                    ->money(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD')
                     ->sortable(),
 
                 TextColumn::make('status')

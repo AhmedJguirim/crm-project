@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\Deals\Widgets;
 
 use App\Enums\DealStatus;
-use Filament\Facades\Filament;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Widgets\Widget;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Number;
@@ -19,7 +19,7 @@ class DealDetailsWidget extends Widget
     protected function getViewData(): array
     {
         $deal = $this->record;
-        $currency = Filament::getTenant()?->currencyCode() ?? 'USD';
+        $currency = CurrentOrganization::find()?->currencyCode() ?? 'USD';
 
         if (! $deal) {
             return [

@@ -9,7 +9,7 @@ use App\Models\Deal;
 use App\Models\Invoice;
 use App\Support\LocalTime;
 use App\Support\MoneyLimit;
-use Filament\Facades\Filament;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -31,7 +31,7 @@ class InvoiceForm
                     ->relationship(
                         'contact',
                         'name',
-                        fn ($query) => $query->where('organization_id', Filament::getTenant()?->id)
+                        fn ($query) => $query->where('organization_id', CurrentOrganization::find()?->id)
                     )
                     ->required()
                     ->searchable()
@@ -43,7 +43,7 @@ class InvoiceForm
                     })
                     ->rules([
                         fn () => Rule::exists(Contact::class, 'id')->where(
-                            fn ($query) => $query->where('organization_id', Filament::getTenant()?->id)
+                            fn ($query) => $query->where('organization_id', CurrentOrganization::find()?->id)
                         ),
                     ]),
 
@@ -54,7 +54,7 @@ class InvoiceForm
                     ->live()
                     ->options(function (Get $get): array {
                         $contactId = $get('contact_id');
-                        $currency = Filament::getTenant()?->currencyCode() ?? 'USD';
+                        $currency = CurrentOrganization::find()?->currencyCode() ?? 'USD';
 
                         if (! $contactId) {
                             return [];
@@ -100,7 +100,7 @@ class InvoiceForm
                         table: Invoice::class,
                         column: 'invoice_number',
                         modifyRuleUsing: fn (Unique $rule): Unique => $rule
-                            ->where('organization_id', Filament::getTenant()?->id)
+                            ->where('organization_id', CurrentOrganization::find()?->id)
                     ),
 
                 TextInput::make('amount')
@@ -109,7 +109,7 @@ class InvoiceForm
                     ->minValue(0)
                     ->maxValue(MoneyLimit::MAX)
                     ->step(0.01)
-                    ->prefix(fn (): string => Filament::getTenant()?->currencyCode() ?? 'USD'),
+                    ->prefix(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD'),
 
                 Select::make('payment_terms')
                     ->label('Payment Terms')
@@ -150,7 +150,7 @@ class InvoiceForm
                     ->maxValue(MoneyLimit::MAX)
                     ->step(0.01)
                     ->default(0)
-                    ->prefix(fn (): string => Filament::getTenant()?->currencyCode() ?? 'USD')
+                    ->prefix(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD')
                     ->helperText(fn (Get $get): ?string => self::balanceHelper($get))
                     ->hiddenOn('create'),
 
@@ -203,7 +203,7 @@ class InvoiceForm
         }
 
         if ($paid > 0) {
-            $currency = Filament::getTenant()?->currencyCode() ?? 'USD';
+            $currency = CurrentOrganization::find()?->currencyCode() ?? 'USD';
 
             return 'Balance remaining: '.number_format($balance, 2)." {$currency}";
         }

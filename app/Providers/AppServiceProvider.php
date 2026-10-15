@@ -9,9 +9,9 @@ use App\Models\Organization;
 use App\Policies\SegmentPolicy;
 use App\Services\Segments\SegmentUsageIndex;
 use App\Support\Livewire\RefuseSubKeyUpdatesOfScalars;
+use App\Support\Tenancy\CurrentOrganization;
 use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
-use Filament\Facades\Filament;
 use Filament\Schemas\Components\StateCasts\DateTimeStateCast;
 use Filament\Support\Facades\FilamentTimezone;
 use Illuminate\Mail\Markdown;
@@ -101,7 +101,7 @@ class AppServiceProvider extends ServiceProvider
      */
     protected function configurePanelTimezone(): void
     {
-        FilamentTimezone::set(fn (): ?string => ($tenant = Filament::getTenant()) instanceof Organization
+        FilamentTimezone::set(fn (): ?string => ($tenant = CurrentOrganization::find()) !== null
             ? Organization::validTimezoneOrUtc($tenant->timezone)
             : null);
     }

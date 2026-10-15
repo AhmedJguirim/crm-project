@@ -8,8 +8,8 @@ use App\Filament\Resources\Tags\Pages\ListTags;
 use App\Filament\Resources\Tags\Schemas\TagForm;
 use App\Filament\Resources\Tags\Tables\TagsTable;
 use App\Models\Tag;
+use App\Support\Tenancy\CurrentOrganization;
 use BackedEnum;
-use Filament\Facades\Filament;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -49,13 +49,13 @@ class TagResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->where('organization_id', Filament::getTenant()->id);
+            ->where('organization_id', CurrentOrganization::get()->id);
     }
 
     public static function getRecordRouteBindingEloquentQuery(): Builder
     {
         return parent::getRecordRouteBindingEloquentQuery()
-            ->where('organization_id', Filament::getTenant()->id)
+            ->where('organization_id', CurrentOrganization::get()->id)
             ->withoutGlobalScopes([
                 SoftDeletingScope::class,
             ]);

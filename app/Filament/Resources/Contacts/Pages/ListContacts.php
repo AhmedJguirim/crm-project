@@ -10,9 +10,9 @@ use App\Jobs\ProcessContactImportJob;
 use App\Services\ContactImportFileReader;
 use App\Services\ContactImportService;
 use App\Services\ContactImportTemplate;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
-use Filament\Facades\Filament;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Radio;
 use Filament\Notifications\Notification;
@@ -53,7 +53,7 @@ class ListContacts extends ListRecords
                 ->color('gray')
                 ->action(fn () => response()
                     ->download(
-                        ContactImportTemplate::forOrganization(Filament::getTenant()->id)->writeXlsx(),
+                        ContactImportTemplate::forOrganization(CurrentOrganization::get()->id)->writeXlsx(),
                         'contacts-import-template.xlsx',
                         ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
                     )
@@ -104,7 +104,7 @@ class ListContacts extends ListRecords
                         return;
                     }
 
-                    $orgId = Filament::getTenant()->id;
+                    $orgId = CurrentOrganization::get()->id;
                     $userId = auth()->id();
 
                     ProcessContactImportJob::dispatch($path, $orgId, $userId, ImportMode::fromState($data['mode'] ?? ImportMode::CreateOnly));

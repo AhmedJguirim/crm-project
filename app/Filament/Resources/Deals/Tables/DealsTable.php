@@ -13,12 +13,12 @@ use App\Filament\Support\RecordKeyField;
 use App\Models\Deal;
 use App\Services\Owners\OwnerOptions;
 use App\Support\NotificationText;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
-use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -60,7 +60,7 @@ class DealsTable
                     ->placeholder('No owner'),
 
                 TextColumn::make('value')
-                    ->money(fn (): string => Filament::getTenant()?->currencyCode() ?? 'USD')
+                    ->money(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD')
                     ->placeholder('—')
                     ->sortable(query: NullsLastSort::column('value')),
 

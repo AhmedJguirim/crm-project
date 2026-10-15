@@ -4,7 +4,7 @@ namespace App\Filament\Resources\CustomFields\Pages;
 
 use App\Filament\Resources\CustomFields\CustomFieldResource;
 use App\Models\CustomField;
-use Filament\Facades\Filament;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateCustomField extends CreateRecord
@@ -16,7 +16,7 @@ class CreateCustomField extends CreateRecord
         $position = $data['position'] ?? 'end';
         unset($data['position']);
 
-        $organizationId = Filament::getTenant()->id;
+        $organizationId = CurrentOrganization::get()->id;
 
         if ($position === 'beginning') {
             CustomField::where('organization_id', $organizationId)

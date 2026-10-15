@@ -15,7 +15,7 @@ use App\Services\Deals\DealStageMover;
 use App\Services\Owners\OwnerOptions;
 use App\Support\LocalTime;
 use App\Support\MoneyLimit;
-use Filament\Facades\Filament;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -64,14 +64,14 @@ class TaskForm
                     ->relationship(
                         'contact',
                         'name',
-                        fn ($query) => $query->where('organization_id', Filament::getTenant()?->id)
+                        fn ($query) => $query->where('organization_id', CurrentOrganization::find()?->id)
                     )
                     ->searchable()
                     ->preload()
                     ->nullable()
                     ->rules([
                         fn () => Rule::exists(Contact::class, 'id')->where(
-                            fn ($query) => $query->where('organization_id', Filament::getTenant()?->id)
+                            fn ($query) => $query->where('organization_id', CurrentOrganization::find()?->id)
                         ),
                     ])
                     ->live()
@@ -85,7 +85,7 @@ class TaskForm
                         name: 'deal',
                         titleAttribute: 'title',
                         modifyQueryUsing: fn ($query, Get $get) => $query
-                            ->where('organization_id', Filament::getTenant()?->id)
+                            ->where('organization_id', CurrentOrganization::find()?->id)
                             ->when(
                                 filled($get('contact_id')),
                                 fn ($builder) => $builder->where('contact_id', $get('contact_id')),
@@ -115,7 +115,7 @@ class TaskForm
                     ])
                     ->createOptionUsing(function (array $data, Get $get): int {
                         return Deal::create([
-                            'organization_id' => Filament::getTenant()?->id,
+                            'organization_id' => CurrentOrganization::find()?->id,
                             'contact_id' => $get('contact_id') ?: null,
                             'company_id' => DealCompany::defaultIdFor($get('contact_id')),
                             'title' => $data['title'],
@@ -129,7 +129,7 @@ class TaskForm
                     ->rules([
                         fn (Get $get) => Rule::exists(Deal::class, 'id')->where(
                             fn ($query) => $query
-                                ->where('organization_id', Filament::getTenant()?->id)
+                                ->where('organization_id', CurrentOrganization::find()?->id)
                                 ->where('contact_id', $get('contact_id'))
                         ),
                     ]),

@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\Tags\Schemas;
 
 use App\Models\Tag;
-use Filament\Facades\Filament;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Forms\Components\ColorPicker;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
@@ -18,7 +18,7 @@ class TagForm
                     ->required()
                     ->maxLength(255)
                     ->unique(Tag::class, 'name', ignoreRecord: true, modifyRuleUsing: function ($rule) {
-                        return $rule->where('organization_id', Filament::getTenant()->id);
+                        return $rule->where('organization_id', CurrentOrganization::get()->id);
                     })
                     ->validationMessages([
                         'unique' => 'A tag with this name already exists. It may be a deleted one: '

@@ -2,8 +2,6 @@
 
 namespace App\Support\Tenancy;
 
-use Filament\Facades\Filament;
-
 /**
  * Which organization the current code works for. The `BelongsToOrganization` scope filters by it, and returns no
  * rows when it is not set.
@@ -17,7 +15,7 @@ final class TenantContext
 
     public function id(): ?int
     {
-        return Filament::getTenant()?->getKey() ?? $this->organizationId;
+        return CurrentOrganization::find()?->getKey() ?? $this->organizationId;
     }
 
     /**

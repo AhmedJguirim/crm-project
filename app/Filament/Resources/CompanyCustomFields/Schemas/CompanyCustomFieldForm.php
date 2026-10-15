@@ -6,8 +6,8 @@ use App\Filament\Support\CustomFields\CustomFieldDefinitionFields;
 use App\Models\CompanyCustomField;
 use App\Services\CompanyExportWriter;
 use App\Services\CompanyImportService;
+use App\Support\Tenancy\CurrentOrganization;
 use Closure;
-use Filament\Facades\Filament;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -23,7 +23,7 @@ class CompanyCustomFieldForm
                     ->required()
                     ->maxLength(255)
                     ->unique(CompanyCustomField::class, 'name', ignoreRecord: true, modifyRuleUsing: function ($rule) {
-                        return $rule->where('organization_id', Filament::getTenant()->id);
+                        return $rule->where('organization_id', CurrentOrganization::get()->id);
                     })
                     ->rule(fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
                         $reserved = [...CompanyExportWriter::COLUMNS, ...CompanyImportService::FAILED_ROWS_META_COLUMNS];
@@ -51,7 +51,7 @@ class CompanyCustomFieldForm
                     ->label('Position')
                     ->options(function ($record) {
                         $fields = CompanyCustomField::query()
-                            ->where('organization_id', Filament::getTenant()->id)
+                            ->where('organization_id', CurrentOrganization::get()->id)
                             ->when($record, fn ($query) => $query->where('id', '!=', $record->id))
                             ->orderBy('order')
                             ->get();

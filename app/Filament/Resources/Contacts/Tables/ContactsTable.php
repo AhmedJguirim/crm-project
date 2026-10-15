@@ -24,6 +24,7 @@ use App\Services\Deals\DealStageMover;
 use App\Services\Owners\OwnerOptions;
 use App\Support\MoneyLimit;
 use App\Support\NotificationText;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
@@ -32,7 +33,6 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\RestoreAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Actions\ViewAction;
-use Filament\Facades\Filament;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -152,7 +152,7 @@ class ContactsTable
                         RecordKeyField::select('deal_id')
                             ->label('Deal')
                             ->options(fn (): array => Deal::query()
-                                ->where('organization_id', Filament::getTenant()?->id)
+                                ->where('organization_id', CurrentOrganization::find()?->id)
                                 ->where('contact_id', $record->getKey())
                                 ->orderBy('title')
                                 ->pluck('title', 'id')
@@ -179,7 +179,7 @@ class ContactsTable
                             ])
                             ->createOptionUsing(function (array $data) use ($record): int {
                                 return Deal::create([
-                                    'organization_id' => Filament::getTenant()?->id,
+                                    'organization_id' => CurrentOrganization::find()?->id,
                                     'contact_id' => $record->getKey(),
                                     'company_id' => DealCompany::defaultIdFor($record->getKey()),
                                     'title' => $data['title'],
@@ -240,7 +240,7 @@ class ContactsTable
                             Select::make('tags')
                                 ->multiple()
                                 ->options(fn (): array => Tag::query()
-                                    ->where('organization_id', Filament::getTenant()?->id)
+                                    ->where('organization_id', CurrentOrganization::find()?->id)
                                     ->pluck('name', 'id')
                                     ->all())
                                 ->required(),
@@ -248,7 +248,7 @@ class ContactsTable
                         ->action(function (Collection $records, array $data): void {
                             $records->each(fn (Contact $contact) => $contact->tags()->syncWithoutDetaching($data['tags']));
 
-                            ResyncContactSegments::dispatchForContacts(Filament::getTenant()?->id, $records->modelKeys());
+                            ResyncContactSegments::dispatchForContacts(CurrentOrganization::find()?->id, $records->modelKeys());
 
                             Notification::make()
                                 ->title(NotificationText::plain("Tagged {$records->count()} contacts"))

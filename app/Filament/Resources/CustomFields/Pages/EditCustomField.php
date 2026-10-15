@@ -5,7 +5,7 @@ namespace App\Filament\Resources\CustomFields\Pages;
 use App\Filament\Resources\CustomFields\CustomFieldResource;
 use App\Filament\Support\CustomFields\CustomFieldDefinitionActions;
 use App\Models\CustomField;
-use Filament\Facades\Filament;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Resources\Pages\EditRecord;
 
 class EditCustomField extends EditRecord
@@ -26,7 +26,7 @@ class EditCustomField extends EditRecord
         unset($data['position']);
 
         if ($position && $position !== 'end') {
-            $organizationId = Filament::getTenant()->id;
+            $organizationId = CurrentOrganization::get()->id;
             $currentOrder = $this->record->order;
 
             if ($position === 'beginning') {
@@ -68,7 +68,7 @@ class EditCustomField extends EditRecord
 
     protected function resequenceOrders(): void
     {
-        $fields = CustomField::where('organization_id', Filament::getTenant()->id)
+        $fields = CustomField::where('organization_id', CurrentOrganization::get()->id)
             ->orderBy('order')
             ->get();
 

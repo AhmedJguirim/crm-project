@@ -11,7 +11,7 @@ use App\Services\Deals\DealCompany;
 use App\Services\Deals\DealStageMover;
 use App\Services\Owners\OwnerOptions;
 use App\Support\MoneyLimit;
-use Filament\Facades\Filament;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -33,7 +33,7 @@ class DealForm
      */
     public static function mutateDataBeforeCreate(array $data): array
     {
-        $data['organization_id'] = Filament::getTenant()->id;
+        $data['organization_id'] = CurrentOrganization::get()->id;
         $data['created_by'] = Auth::id();
 
         return [...$data, ...DealStageMover::attributesFor($data['stage'])];
@@ -52,7 +52,7 @@ class DealForm
                     ->relationship(
                         'contact',
                         'name',
-                        fn ($query) => $query->where('organization_id', Filament::getTenant()?->id)
+                        fn ($query) => $query->where('organization_id', CurrentOrganization::find()?->id)
                     )
                     ->searchable()
                     ->preload()
@@ -65,7 +65,7 @@ class DealForm
                     })
                     ->rules([
                         fn () => Rule::exists(Contact::class, 'id')->where(
-                            fn ($query) => $query->where('organization_id', Filament::getTenant()?->id)
+                            fn ($query) => $query->where('organization_id', CurrentOrganization::find()?->id)
                         ),
                     ]),
 
@@ -74,7 +74,7 @@ class DealForm
                     ->relationship(
                         'company',
                         'name',
-                        fn (Builder $query): Builder => $query->where('companies.organization_id', Filament::getTenant()?->id)
+                        fn (Builder $query): Builder => $query->where('companies.organization_id', CurrentOrganization::find()?->id)
                     )
                     ->searchable()
                     ->preload()
@@ -86,7 +86,7 @@ class DealForm
                         'integer',
                         fn (?Deal $record) => Rule::exists(Company::class, 'id')->where(
                             fn ($query) => $query
-                                ->where('organization_id', Filament::getTenant()?->id)
+                                ->where('organization_id', CurrentOrganization::find()?->id)
                                 ->where(fn ($query) => $query->whereNull('deleted_at')->orWhere('id', $record?->company_id ?? 0))
                         ),
                     ]),

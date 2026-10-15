@@ -9,8 +9,8 @@ use App\Filament\Resources\Contacts\Pages\ViewContact;
 use App\Filament\Resources\Contacts\Schemas\ContactForm;
 use App\Filament\Resources\Contacts\Tables\ContactsTable;
 use App\Models\Contact;
+use App\Support\Tenancy\CurrentOrganization;
 use BackedEnum;
-use Filament\Facades\Filament;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
 use Filament\Schemas\Components\Section;
@@ -79,13 +79,13 @@ class ContactResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->where('organization_id', Filament::getTenant()->id);
+            ->where('organization_id', CurrentOrganization::get()->id);
     }
 
     public static function getRecordRouteBindingEloquentQuery(): Builder
     {
         return parent::getRecordRouteBindingEloquentQuery()
-            ->where('organization_id', Filament::getTenant()->id)
+            ->where('organization_id', CurrentOrganization::get()->id)
             ->withoutGlobalScopes([
                 SoftDeletingScope::class,
             ]);

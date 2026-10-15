@@ -5,7 +5,7 @@ namespace App\Filament\Pages\Tenancy;
 use App\Filament\Support\OrganizationCurrencySelect;
 use App\Filament\Support\OrganizationNameInput;
 use App\Filament\Support\OrganizationTimezoneSelect;
-use Filament\Facades\Filament;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Textarea;
 use Filament\Pages\Tenancy\EditTenantProfile;
@@ -22,7 +22,7 @@ class EditOrganization extends EditTenantProfile
     {
         return $schema
             ->schema([
-                OrganizationNameInput::make(Filament::getTenant()),
+                OrganizationNameInput::make(CurrentOrganization::find()),
 
                 Textarea::make('description')
                     ->maxLength(1000)

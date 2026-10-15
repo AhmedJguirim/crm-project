@@ -6,8 +6,8 @@ use App\Filament\Resources\CompanyTypes\Pages\ManageCompanyTypes;
 use App\Filament\Resources\CompanyTypes\Schemas\CompanyTypeForm;
 use App\Filament\Resources\CompanyTypes\Tables\CompanyTypesTable;
 use App\Models\CompanyType;
+use App\Support\Tenancy\CurrentOrganization;
 use BackedEnum;
-use Filament\Facades\Filament;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -54,13 +54,13 @@ class CompanyTypeResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->where('organization_id', Filament::getTenant()->id);
+            ->where('organization_id', CurrentOrganization::get()->id);
     }
 
     public static function getRecordRouteBindingEloquentQuery(): Builder
     {
         return parent::getRecordRouteBindingEloquentQuery()
-            ->where('organization_id', Filament::getTenant()->id)
+            ->where('organization_id', CurrentOrganization::get()->id)
             ->withoutGlobalScopes([
                 SoftDeletingScope::class,
             ]);

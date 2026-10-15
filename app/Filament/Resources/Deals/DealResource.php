@@ -11,8 +11,8 @@ use App\Filament\Resources\Deals\Schemas\DealForm;
 use App\Filament\Resources\Deals\Schemas\DealInfolist;
 use App\Filament\Resources\Deals\Tables\DealsTable;
 use App\Models\Deal;
+use App\Support\Tenancy\CurrentOrganization;
 use BackedEnum;
-use Filament\Facades\Filament;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -59,7 +59,7 @@ class DealResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->where('organization_id', Filament::getTenant()->id)
+            ->where('organization_id', CurrentOrganization::get()->id)
             ->with(['contact', 'creator']);
     }
 

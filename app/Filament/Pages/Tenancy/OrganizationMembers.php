@@ -12,8 +12,8 @@ use App\Models\OrganizationInvite;
 use App\Models\OrganizationUser;
 use App\Models\User;
 use App\Support\NotificationText;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Actions\Action;
-use Filament\Facades\Filament;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
@@ -44,7 +44,7 @@ class OrganizationMembers extends Page implements HasTable
     public static function canAccess(): bool
     {
         /** @var Organization|null $organization */
-        $organization = Filament::getTenant();
+        $organization = CurrentOrganization::find();
 
         if (! $organization) {
             return false;
@@ -63,7 +63,7 @@ class OrganizationMembers extends Page implements HasTable
     public function table(Table $table): Table
     {
         /** @var Organization $organization */
-        $organization = Filament::getTenant();
+        $organization = CurrentOrganization::find();
 
         return $table
             ->query(
@@ -301,7 +301,7 @@ class OrganizationMembers extends Page implements HasTable
     public function getPendingInvitesCount(): int
     {
         /** @var Organization $organization */
-        $organization = Filament::getTenant();
+        $organization = CurrentOrganization::find();
 
         return $organization->invitations()
             ->whereIn('status', [InviteStatus::Pending->value])

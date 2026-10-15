@@ -3,7 +3,7 @@
 namespace App\Filament\Actions\Concerns;
 
 use App\Enums\ExportFormat;
-use Filament\Facades\Filament;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 
@@ -49,7 +49,7 @@ trait QueuesExports
             return;
         }
 
-        $organization = Filament::getTenant();
+        $organization = CurrentOrganization::find();
 
         $jobClass::dispatch(
             $ids,

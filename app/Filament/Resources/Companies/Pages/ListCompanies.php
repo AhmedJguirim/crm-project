@@ -10,9 +10,9 @@ use App\Jobs\ProcessCompanyImportJob;
 use App\Services\CompanyImportTemplate;
 use App\Services\ContactImportFileReader;
 use App\Services\Imports\ImportCellParser;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
-use Filament\Facades\Filament;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Radio;
 use Filament\Notifications\Notification;
@@ -53,7 +53,7 @@ class ListCompanies extends ListRecords
                 ->color('gray')
                 ->action(fn () => response()
                     ->download(
-                        CompanyImportTemplate::forOrganization(Filament::getTenant()->id)->writeXlsx(),
+                        CompanyImportTemplate::forOrganization(CurrentOrganization::get()->id)->writeXlsx(),
                         'companies-import-template.xlsx',
                         ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
                     )
@@ -105,7 +105,7 @@ class ListCompanies extends ListRecords
                         return;
                     }
 
-                    ProcessCompanyImportJob::dispatch($path, Filament::getTenant()->id, auth()->id(), ImportMode::fromState($data['mode'] ?? ImportMode::CreateOnly));
+                    ProcessCompanyImportJob::dispatch($path, CurrentOrganization::get()->id, auth()->id(), ImportMode::fromState($data['mode'] ?? ImportMode::CreateOnly));
 
                     Notification::make()
                         ->success()

@@ -5,7 +5,7 @@ namespace App\Filament\Resources\Deals\Schemas;
 use App\Enums\TaskStatus;
 use App\Models\Deal;
 use App\Support\LocalTime;
-use Filament\Facades\Filament;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Schema;
@@ -32,7 +32,7 @@ class DealDrawerInfolist
                         TextEntry::make('value')
                             ->label('Value')
                             ->state(fn (?Deal $record): ?string => $record?->value !== null
-                                ? Number::currency((float) $record->value, Filament::getTenant()?->currencyCode() ?? 'USD')
+                                ? Number::currency((float) $record->value, CurrentOrganization::find()?->currencyCode() ?? 'USD')
                                 : null)
                             ->placeholder('—'),
 

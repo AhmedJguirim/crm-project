@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\Deals\Schemas;
 
-use Filament\Facades\Filament;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -24,7 +24,7 @@ class DealInfolist
                             ->placeholder('No contact'),
 
                         TextEntry::make('value')
-                            ->money(fn (): string => Filament::getTenant()?->currencyCode() ?? 'USD')
+                            ->money(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD')
                             ->placeholder('—'),
 
                         TextEntry::make('stage')

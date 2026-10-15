@@ -8,8 +8,8 @@ use App\Filament\Resources\CustomFields\Pages\ListCustomFields;
 use App\Filament\Resources\CustomFields\Schemas\CustomFieldForm;
 use App\Filament\Resources\CustomFields\Tables\CustomFieldsTable;
 use App\Models\CustomField;
+use App\Support\Tenancy\CurrentOrganization;
 use BackedEnum;
-use Filament\Facades\Filament;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -66,14 +66,14 @@ class CustomFieldResource extends Resource
     public static function getEloquentQuery(): Builder
     {
         return parent::getEloquentQuery()
-            ->where('organization_id', Filament::getTenant()->id)
+            ->where('organization_id', CurrentOrganization::get()->id)
             ->orderBy('order');
     }
 
     public static function getRecordRouteBindingEloquentQuery(): Builder
     {
         return parent::getRecordRouteBindingEloquentQuery()
-            ->where('organization_id', Filament::getTenant()->id)
+            ->where('organization_id', CurrentOrganization::get()->id)
             ->withoutGlobalScopes([
                 SoftDeletingScope::class,
             ]);

@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\Segments\Schemas;
 
 use App\Models\Segment;
-use Filament\Facades\Filament;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
 
@@ -23,7 +23,7 @@ class SegmentForm
             ->required()
             ->maxLength(255)
             ->unique(Segment::class, 'name', ignoreRecord: true, modifyRuleUsing: function ($rule) {
-                return $rule->where('organization_id', Filament::getTenant()->id);
+                return $rule->where('organization_id', CurrentOrganization::get()->id);
             });
     }
 }

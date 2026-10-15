@@ -15,6 +15,7 @@ use App\Filament\Support\Filters\RecordKeySelectFilter;
 use App\Models\Deal;
 use App\Services\Deals\DealStageMover;
 use App\Support\NotificationText;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Facades\Filament;
@@ -87,7 +88,7 @@ class DealPipeline extends BoardResourcePage
                         TextEntry::make('value')
                             ->hiddenLabel()
                             ->state(fn (Deal $record): ?string => $record->value !== null
-                                ? Number::currency((float) $record->value, Filament::getTenant()?->currencyCode() ?? 'USD')
+                                ? Number::currency((float) $record->value, CurrentOrganization::find()?->currencyCode() ?? 'USD')
                                 : null)
                             ->weight(FontWeight::Bold)
                             ->visible(fn (Deal $record): bool => $record->value !== null),
@@ -354,7 +355,7 @@ class DealPipeline extends BoardResourcePage
     public function getBoardQuery(): ?Builder
     {
         return Deal::query()
-            ->where('organization_id', Filament::getTenant()->id)
+            ->where('organization_id', CurrentOrganization::get()->id)
             ->with(['contact', 'company', 'creator']);
     }
 }

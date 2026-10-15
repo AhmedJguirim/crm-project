@@ -14,9 +14,9 @@ use App\Models\Task;
 use App\Services\Deals\DealCompany;
 use App\Services\Deals\DealStageMover;
 use App\Support\MoneyLimit;
+use App\Support\Tenancy\CurrentOrganization;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
-use Filament\Facades\Filament;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
@@ -136,7 +136,7 @@ class QuickTaskAction
             RecordKeyField::select('contact_id')
                 ->label('Contact')
                 ->options(fn (): array => Contact::query()
-                    ->where('organization_id', Filament::getTenant()?->id)
+                    ->where('organization_id', CurrentOrganization::find()?->id)
                     ->orderBy('name')
                     ->pluck('name', 'id')
                     ->all())
@@ -145,7 +145,7 @@ class QuickTaskAction
                 ->nullable()
                 ->rules([
                     fn () => Rule::exists(Contact::class, 'id')->where(
-                        fn ($query) => $query->where('organization_id', Filament::getTenant()?->id)
+                        fn ($query) => $query->where('organization_id', CurrentOrganization::find()?->id)
                     ),
                 ])
                 ->live()
@@ -187,7 +187,7 @@ class QuickTaskAction
                 ->required()
                 ->rules([
                     fn () => Rule::exists(Contact::class, 'id')->where(
-                        fn ($query) => $query->where('organization_id', Filament::getTenant()?->id)
+                        fn ($query) => $query->where('organization_id', CurrentOrganization::find()?->id)
                     ),
                 ]),
 
@@ -206,7 +206,7 @@ class QuickTaskAction
     private static function createTask(array $data): Task
     {
         $task = Task::create([
-            'organization_id' => Filament::getTenant()?->id,
+            'organization_id' => CurrentOrganization::find()?->id,
             'created_by' => Auth::id(),
             'owner_id' => Auth::id(),
             'title' => $data['title'],
@@ -232,7 +232,7 @@ class QuickTaskAction
             ->label('Deal')
             ->options(function (Get $get): array {
                 return Deal::query()
-                    ->where('organization_id', Filament::getTenant()?->id)
+                    ->where('organization_id', CurrentOrganization::find()?->id)
                     ->when(
                         filled($get('contact_id')),
                         fn ($query) => $query->where('contact_id', $get('contact_id')),
@@ -265,7 +265,7 @@ class QuickTaskAction
             ])
             ->createOptionUsing(function (array $data, Get $get): int {
                 return Deal::create([
-                    'organization_id' => Filament::getTenant()?->id,
+                    'organization_id' => CurrentOrganization::find()?->id,
                     'contact_id' => $get('contact_id') ?: null,
                     'company_id' => DealCompany::defaultIdFor($get('contact_id')),
                     'title' => $data['title'],
@@ -279,7 +279,7 @@ class QuickTaskAction
             ->rules([
                 fn (Get $get) => Rule::exists(Deal::class, 'id')->where(
                     fn ($query) => $query
-                        ->where('organization_id', Filament::getTenant()?->id)
+                        ->where('organization_id', CurrentOrganization::find()?->id)
                         ->where('contact_id', $get('contact_id'))
                 ),
             ]);

@@ -7,7 +7,7 @@ use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Task;
 use App\Models\User;
-use Filament\Facades\Filament;
+use App\Support\Tenancy\CurrentOrganization;
 
 final class OwnerOptions
 {
@@ -36,7 +36,7 @@ final class OwnerOptions
     public static function forFilter(string $modelClass): array
     {
         $options = self::members();
-        $organizationId = Filament::getTenant()?->getKey();
+        $organizationId = CurrentOrganization::find()?->getKey();
 
         $former = User::query()
             ->whereIn('id', $modelClass::query()->where('organization_id', $organizationId)->whereNotNull('owner_id')->select('owner_id'))
@@ -56,7 +56,7 @@ final class OwnerOptions
      */
     private static function members(): array
     {
-        return Filament::getTenant()?->members()
+        return CurrentOrganization::find()?->members()
             ->orderBy('users.name')
             ->pluck('users.name', 'users.id')
             ->all() ?? [];

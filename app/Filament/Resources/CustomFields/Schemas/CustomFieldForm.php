@@ -8,8 +8,8 @@ use App\Models\CustomField;
 use App\Services\ContactExportWriter;
 use App\Services\ContactImportService;
 use App\Services\Segments\SegmentUsage;
+use App\Support\Tenancy\CurrentOrganization;
 use Closure;
-use Filament\Facades\Filament;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -25,7 +25,7 @@ class CustomFieldForm
                     ->required()
                     ->maxLength(255)
                     ->unique(CustomField::class, 'name', ignoreRecord: true, modifyRuleUsing: function ($rule) {
-                        return $rule->where('organization_id', Filament::getTenant()->id);
+                        return $rule->where('organization_id', CurrentOrganization::get()->id);
                     })
                     ->rule(fn (): Closure => function (string $attribute, mixed $value, Closure $fail): void {
                         $reserved = [...ContactImportService::RESERVED_COLUMNS, ...ContactImportService::FAILED_ROWS_META_COLUMNS, ...ContactExportWriter::COLUMNS];
@@ -66,7 +66,7 @@ class CustomFieldForm
                 Select::make('position')
                     ->label('Position')
                     ->options(function ($record) {
-                        $fields = CustomField::where('organization_id', Filament::getTenant()->id)
+                        $fields = CustomField::where('organization_id', CurrentOrganization::get()->id)
                             ->when($record, fn ($query) => $query->where('id', '!=', $record->id))
                             ->orderBy('order')
                             ->get();

@@ -8,7 +8,7 @@ use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Filament\Support\Filters\OptionSelectFilter;
 use App\Filament\Support\NullsLastSort;
 use App\Models\Deal;
-use Filament\Facades\Filament;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -55,7 +55,7 @@ class DealsRelationManager extends RelationManager
                     ->sortable(),
 
                 TextColumn::make('value')
-                    ->money(fn (): string => Filament::getTenant()?->currencyCode() ?? 'USD')
+                    ->money(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD')
                     ->placeholder('—')
                     ->sortable(query: NullsLastSort::column('value')),
 

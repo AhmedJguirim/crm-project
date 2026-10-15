@@ -9,7 +9,7 @@ use App\Filament\Support\RecordKeyField;
 use App\Models\Contact;
 use App\Models\CustomField;
 use App\Services\Owners\OwnerOptions;
-use Filament\Facades\Filament;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
@@ -32,7 +32,7 @@ class ContactForm
                     ->maxLength(255)
                     ->mutateStateForValidationUsing(fn (?string $state): ?string => $state === null ? null : mb_strtolower(trim($state)))
                     ->unique(Contact::class, 'email', ignoreRecord: true, modifyRuleUsing: function ($rule) {
-                        return $rule->where('organization_id', Filament::getTenant()->id);
+                        return $rule->where('organization_id', CurrentOrganization::get()->id);
                     }),
 
                 Select::make('status')
@@ -62,7 +62,7 @@ class ContactForm
                     ->relationship(
                         'tags',
                         'name',
-                        fn ($query) => $query->where('tags.organization_id', Filament::getTenant()->id)
+                        fn ($query) => $query->where('tags.organization_id', CurrentOrganization::get()->id)
                     )
                     ->preload()
                     ->searchable(),

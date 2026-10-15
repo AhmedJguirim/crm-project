@@ -17,9 +17,9 @@ use App\Models\Deal;
 use App\Services\Deals\DealCompany;
 use App\Services\Deals\DealStageMover;
 use App\Support\MoneyLimit;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
-use Filament\Facades\Filament;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -111,7 +111,7 @@ class ViewContact extends Page
                     RecordKeyField::select('deal_id')
                         ->label('Deal')
                         ->options(fn (): array => Deal::query()
-                            ->where('organization_id', Filament::getTenant()?->id)
+                            ->where('organization_id', CurrentOrganization::find()?->id)
                             ->where('contact_id', $this->getRecord()->getKey())
                             ->orderBy('title')
                             ->pluck('title', 'id')
@@ -138,7 +138,7 @@ class ViewContact extends Page
                         ])
                         ->createOptionUsing(function (array $data): int {
                             return Deal::create([
-                                'organization_id' => Filament::getTenant()?->id,
+                                'organization_id' => CurrentOrganization::find()?->id,
                                 'contact_id' => $this->getRecord()->getKey(),
                                 'company_id' => DealCompany::defaultIdFor($this->getRecord()->getKey()),
                                 'title' => $data['title'],
