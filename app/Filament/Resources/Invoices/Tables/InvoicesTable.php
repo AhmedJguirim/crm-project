@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Invoices\Tables;
 
+use App\Enums\DealStatus;
 use App\Enums\InvoiceStatus;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Deals\DealResource;
@@ -49,7 +50,7 @@ class InvoicesTable
                             return '—';
                         }
 
-                        if ($record->deal->stage->value === 'lost') {
+                        if ($record->deal->status === DealStatus::Lost) {
                             return sprintf('%s (Lost)', $record->deal->title);
                         }
 

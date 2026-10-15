@@ -39,6 +39,7 @@ use App\Models\Invoice;
 use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\User;
+use App\Services\Deals\DefaultPipeline;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Field;
@@ -189,13 +190,25 @@ test('junk items in a multiple id filter are dropped and valid ones kept', funct
         ->assertCanNotSeeTableRecords([$this->bob]);
 });
 
-test('an unknown option is dropped and a known one kept', function () {
+test('an unknown stage id is dropped and a known one kept', function () {
+    $lead = DefaultPipeline::stageFor($this->org->id, DealStage::Lead);
+
     Livewire::test(ListDeals::class)
-        ->set('tableFilters.stage.values', [DealStage::Lead->value, 'bogus'])
+        ->set('tableFilters.pipeline_stage_id.values', [(string) $lead->id, 'bogus'])
         ->assertCanSeeTableRecords([$this->annDeal])
         ->assertCanNotSeeTableRecords([$this->bobDeal])
-        ->set('tableFilters.stage.values', DealStage::Lead->value)
+        ->set('tableFilters.pipeline_stage_id.values', (string) $lead->id)
         ->assertCanSeeTableRecords([$this->annDeal, $this->bobDeal]);
+});
+
+test('the stage id of another organization in the deals filter matches nothing', function () {
+    $foreign = DefaultPipeline::stageFor($this->gina->personalOrganization()->id, DealStage::Lead);
+
+    Livewire::test(ListDeals::class)
+        ->set('tableFilters.pipeline_stage_id.values', [(string) $foreign->id])
+        ->assertCanNotSeeTableRecords([$this->annDeal, $this->bobDeal]);
+
+    $this->get(DealResource::getUrl('index', tenant: $this->org).'?filters[pipeline_stage_id][values][0]='.$foreign->id)->assertOk();
 });
 
 test('the board ignores a junk contact id', function () {

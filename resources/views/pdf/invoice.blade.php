@@ -238,7 +238,7 @@
                     <div class="info-label">Related Deal</div>
                     <div class="info-value">
                         <strong>{{ $invoice->deal->title }}</strong><br>
-                        <span style="color: #6b7280;">{{ $invoice->deal->stage->getLabel() }}</span>
+                        <span style="color: #6b7280;">{{ $invoice->deal->pipelineStage?->name }}</span>
                     </div>
                 @endif
             </div>

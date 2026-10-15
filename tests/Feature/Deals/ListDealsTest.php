@@ -7,6 +7,7 @@ use App\Filament\Resources\Deals\Pages\ListDeals;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\User;
+use App\Services\Deals\DefaultPipeline;
 use Filament\Facades\Filament;
 use Illuminate\Support\Carbon;
 use Livewire\Livewire;
@@ -39,7 +40,7 @@ test('table view displays expected columns', function () {
         ->assertTableColumnExists('title')
         ->assertTableColumnExists('contact.name')
         ->assertTableColumnExists('value')
-        ->assertTableColumnExists('stage')
+        ->assertTableColumnExists('pipelineStage.name')
         ->assertTableColumnExists('status')
         ->assertTableColumnExists('expected_close_date')
         ->assertTableColumnExists('created_at');
@@ -66,7 +67,7 @@ test('table can be filtered by stage status contact and closing this week', func
     ]);
 
     Livewire::test(ListDeals::class)
-        ->filterTable('stage', [DealStage::Negotiating->value])
+        ->filterTable('pipeline_stage_id', [DefaultPipeline::stageFor($this->org->id, DealStage::Negotiating)->id])
         ->assertCountTableRecords(1);
 
     Livewire::test(ListDeals::class)

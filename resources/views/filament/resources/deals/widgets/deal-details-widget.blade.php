@@ -9,8 +9,8 @@
             </div>
 
             <div class="flex flex-wrap items-center gap-2">
-                <x-filament::badge :color="$record->stage->getColor()" :icon="$record->stage->getIcon()">
-                    {{ $record->stage->getLabel() }}
+                <x-filament::badge :color="$record->pipelineStage?->color ?? 'gray'">
+                    {{ $record->pipelineStage?->name }}
                 </x-filament::badge>
 
                 <x-filament::badge :color="$record->status->getColor()">

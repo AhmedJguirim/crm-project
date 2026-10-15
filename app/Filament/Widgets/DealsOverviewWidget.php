@@ -2,9 +2,10 @@
 
 namespace App\Filament\Widgets;
 
-use App\Enums\DealStage;
+use App\Enums\DealStatus;
 use App\Filament\Resources\Deals\DealResource;
 use App\Models\Deal;
+use App\Models\PipelineStage;
 use App\Support\LocalTime;
 use App\Support\Tenancy\CurrentOrganization;
 use Filament\Schemas\Components\Component;
@@ -42,17 +43,18 @@ class DealsOverviewWidget extends BaseWidget
     {
         $countsByStage = Deal::query()
             ->open()
-            ->selectRaw('stage, COUNT(*) as aggregate')
-            ->groupBy('stage')
-            ->pluck('aggregate', 'stage');
+            ->selectRaw('pipeline_stage_id, COUNT(*) as aggregate')
+            ->groupBy('pipeline_stage_id')
+            ->pluck('aggregate', 'pipeline_stage_id');
 
-        return collect(DealStage::cases())
-            ->mapWithKeys(function (DealStage $stage) use ($countsByStage): array {
-                $count = (int) ($countsByStage[$stage->value] ?? 0);
+        return PipelineStage::query()
+            ->where('type', DealStatus::Open)
+            ->orderBy('position')
+            ->pluck('name', 'id')
+            ->mapWithKeys(function (string $name, int $id) use ($countsByStage): array {
+                $count = (int) ($countsByStage[$id] ?? 0);
 
-                return $count > 0
-                    ? [$stage->getLabel() => $count]
-                    : [];
+                return $count > 0 ? [$name => $count] : [];
             })
             ->all();
     }

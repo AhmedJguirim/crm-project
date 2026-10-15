@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Deals\Schemas;
 
+use App\Models\Deal;
 use App\Support\Tenancy\CurrentOrganization;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Section;
@@ -27,8 +28,10 @@ class DealInfolist
                             ->money(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD')
                             ->placeholder('—'),
 
-                        TextEntry::make('stage')
-                            ->badge(),
+                        TextEntry::make('pipelineStage.name')
+                            ->label('Stage')
+                            ->badge()
+                            ->color(fn (?Deal $record): ?string => $record?->pipelineStage?->color),
 
                         TextEntry::make('status')
                             ->badge(),

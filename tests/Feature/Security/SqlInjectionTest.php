@@ -191,7 +191,7 @@ describe('table search, sort and filters', function () {
     test('a payload as the value of an id filter and of an option filter is ignored', function (string $payload) {
         $component = Livewire::test(ListDeals::class)
             ->set('tableFilters.contact_id.value', $payload)
-            ->set('tableFilters.stage.values', [$payload])
+            ->set('tableFilters.pipeline_stage_id.values', [$payload])
             ->assertCanSeeTableRecords([$this->deal, $this->otherDeal]);
 
         expect($component->instance()->getTable()->getActiveFiltersCount())->toBe(0);

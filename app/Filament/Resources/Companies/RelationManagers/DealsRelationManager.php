@@ -9,6 +9,7 @@ use App\Filament\Support\Filters\OptionSelectFilter;
 use App\Filament\Support\NullsLastSort;
 use App\Models\Company;
 use App\Models\Deal;
+use App\Models\PipelineStage;
 use App\Support\Tenancy\CurrentOrganization;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Columns\TextColumn;
@@ -41,16 +42,18 @@ class DealsRelationManager extends RelationManager
     {
         return $table
             ->recordTitleAttribute('title')
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['contact', 'owner.organizations']))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['contact', 'owner.organizations', 'pipelineStage']))
             ->columns([
                 TextColumn::make('title')
                     ->label('Title')
                     ->searchable()
                     ->sortable(),
 
-                TextColumn::make('stage')
+                TextColumn::make('pipelineStage.name')
+                    ->label('Stage')
                     ->badge()
-                    ->sortable(),
+                    ->color(fn (Deal $record): ?string => $record->pipelineStage?->color)
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => $query->orderBy(PipelineStage::query()->select('position')->whereColumn('pipeline_stages.id', 'deals.pipeline_stage_id'), $direction)),
 
                 TextColumn::make('status')
                     ->badge()

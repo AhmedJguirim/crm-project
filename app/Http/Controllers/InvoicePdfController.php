@@ -19,7 +19,7 @@ class InvoicePdfController
         );
 
         return app(TenantContext::class)->run($invoice->organization_id, function () use ($invoice): Response {
-            $invoice->load(['contact', 'deal', 'organization']);
+            $invoice->load(['contact', 'deal.pipelineStage', 'organization']);
 
             $pdf = Pdf::loadView('pdf.invoice', [
                 'invoice' => $invoice,

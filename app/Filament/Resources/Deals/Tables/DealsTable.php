@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Deals\Tables;
 
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Filament\Resources\Companies\CompanyResource;
 use App\Filament\Resources\Contacts\ContactResource;
@@ -11,6 +10,8 @@ use App\Filament\Support\Filters\RecordKeySelectFilter;
 use App\Filament\Support\NullsLastSort;
 use App\Filament\Support\RecordKeyField;
 use App\Models\Deal;
+use App\Models\PipelineStage;
+use App\Services\Deals\DefaultPipeline;
 use App\Services\Owners\OwnerOptions;
 use App\Support\NotificationText;
 use App\Support\Tenancy\CurrentOrganization;
@@ -33,7 +34,7 @@ class DealsTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['owner.organizations', 'companyWithTrashed']))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['owner.organizations', 'companyWithTrashed', 'pipelineStage']))
             ->columns([
                 TextColumn::make('title')
                     ->searchable()
@@ -64,9 +65,11 @@ class DealsTable
                     ->placeholder('—')
                     ->sortable(query: NullsLastSort::column('value')),
 
-                TextColumn::make('stage')
+                TextColumn::make('pipelineStage.name')
+                    ->label('Stage')
                     ->badge()
-                    ->sortable(),
+                    ->color(fn (Deal $record): ?string => $record->pipelineStage?->color)
+                    ->sortable(query: fn (Builder $query, string $direction): Builder => $query->orderBy(PipelineStage::query()->select('position')->whereColumn('pipeline_stages.id', 'deals.pipeline_stage_id'), $direction)),
 
                 TextColumn::make('status')
                     ->badge()
@@ -84,8 +87,9 @@ class DealsTable
                     ->sortable(),
             ])
             ->filters([
-                OptionSelectFilter::make('stage')
-                    ->options(DealStage::class)
+                RecordKeySelectFilter::make('pipeline_stage_id')
+                    ->label('Stage')
+                    ->options(fn (): array => DefaultPipeline::stageOptions(CurrentOrganization::get()->id))
                     ->multiple(),
 
                 OptionSelectFilter::make('status')

@@ -3,9 +3,12 @@
 use App\Data\Segments\SegmentConditionData;
 use App\Data\Segments\SegmentRuleData;
 use App\Enums\ContactAttribute;
+use App\Enums\DealStage;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentOperator;
+use App\Filament\Resources\Companies\Pages\EditCompany;
 use App\Filament\Resources\Companies\Pages\ListCompanies;
+use App\Filament\Resources\Companies\RelationManagers\DealsRelationManager;
 use App\Filament\Resources\CompanyTypes\Pages\ManageCompanyTypes;
 use App\Filament\Resources\Contacts\Pages\EditContact;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
@@ -22,6 +25,7 @@ use App\Filament\Resources\Segments\Pages\SegmentRuleEngine;
 use App\Filament\Resources\Segments\Pages\ViewSegment;
 use App\Filament\Resources\Tags\Pages\ListTags;
 use App\Filament\Resources\Tasks\Pages\ListTasks;
+use App\Filament\Widgets\DealsOverviewWidget;
 use App\Filament\Widgets\RecentActivitiesWidget;
 use App\Models\Activity;
 use App\Models\Company;
@@ -33,6 +37,7 @@ use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\Deals\DefaultPipeline;
 use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
 use Filament\Livewire\GlobalSearch;
@@ -119,6 +124,19 @@ describe('record pages', function () {
 
         SecurityPayloads::assertHtmlIsInert(Livewire::test(ViewDeal::class, ['record' => $deal->id])->assertSuccessful()->html(), $payload);
         SecurityPayloads::assertHtmlIsInert(Livewire::test(DealDetailsWidget::class, ['record' => $deal])->html(), $payload);
+    })->with(SecurityPayloads::xss());
+
+    test('a pipeline stage named as markup is shown as text in the deal list, tab, page and overview', function (string $payload) {
+        $company = ($this->companyNamed)('Acme Ltd');
+        $deal = ($this->dealFor)('Retainer', ($this->contactNamed)('Ann'), $company);
+        $stage = DefaultPipeline::stageFor($this->org->id, DealStage::Lead);
+        $deal->update(['pipeline_stage_id' => $stage->id]);
+        $stage->update(['name' => $payload]);
+
+        SecurityPayloads::assertHtmlIsInert(Livewire::test(ListDeals::class)->assertSuccessful()->html(), $payload);
+        SecurityPayloads::assertHtmlIsInert(Livewire::test(DealsRelationManager::class, ['ownerRecord' => $company, 'pageClass' => EditCompany::class])->html(), $payload);
+        SecurityPayloads::assertHtmlIsInert(Livewire::test(DealDetailsWidget::class, ['record' => $deal])->html(), $payload);
+        SecurityPayloads::assertHtmlIsInert(Livewire::test(DealsOverviewWidget::class)->html(), $payload);
     })->with(SecurityPayloads::xss());
 
     test('a segment page and its rule engine show names and values as text', function (string $payload) {

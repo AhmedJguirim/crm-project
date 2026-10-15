@@ -21,9 +21,10 @@ class DealDrawerInfolist
             ->components([
                 Grid::make(2)
                     ->schema([
-                        TextEntry::make('stage')
+                        TextEntry::make('pipelineStage.name')
                             ->label('Stage')
-                            ->badge(),
+                            ->badge()
+                            ->color(fn (?Deal $record): ?string => $record?->pipelineStage?->color),
 
                         TextEntry::make('status')
                             ->label('Status')
