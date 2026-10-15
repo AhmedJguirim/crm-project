@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Deals\Pages;
 
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Filament\Actions\LogDealActivityAction;
 use App\Filament\Actions\QuickTaskAction;
@@ -12,7 +11,9 @@ use App\Filament\Resources\Deals\Schemas\DealForm;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Filament\Support\Filters\OptionSelectFilter;
 use App\Filament\Support\Filters\RecordKeySelectFilter;
+use App\Filament\Support\RecordKeyField;
 use App\Models\Deal;
+use App\Models\PipelineStage;
 use App\Services\Deals\DealStageMover;
 use App\Services\Deals\DefaultPipeline;
 use App\Support\NotificationText;
@@ -20,8 +21,6 @@ use App\Support\Tenancy\CurrentOrganization;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Facades\Filament;
-use Filament\Forms\Components\Hidden;
-use Filament\Forms\Components\Select;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
@@ -56,7 +55,7 @@ class DealPipeline extends BoardResourcePage
         return $board
             ->query($this->getBoardQuery())
             ->recordTitleAttribute('title')
-            ->columnIdentifier('stage')
+            ->columnIdentifier('pipeline_stage_id')
             ->positionIdentifier('position')
             ->columns($this->getStageColumns())
             ->searchable(['title'])
@@ -170,38 +169,35 @@ class DealPipeline extends BoardResourcePage
             ->modalHeading('Move deal')
             ->modalSubmitActionLabel('Move')
             ->fillForm(fn (Deal $record): array => [
-                'stage' => $record->stage,
-                'from_stage' => $record->stage->value,
+                'pipeline_stage_id' => $record->pipeline_stage_id,
+                'from_pipeline_stage_id' => $record->pipeline_stage_id,
             ])
             ->schema([
-                Select::make('stage')
-                    ->label('Stage')
-                    ->options(DealStage::class)
-                    ->required(),
+                DealForm::stageSelect(),
 
-                Hidden::make('from_stage'),
+                RecordKeyField::hidden('from_pipeline_stage_id'),
             ])
             ->action(function (array $data, Deal $record): void {
-                $target = $data['stage'] instanceof DealStage ? $data['stage'] : DealStage::from($data['stage']);
-
-                if ($record->stage->value !== $data['from_stage']) {
+                if ((int) $record->pipeline_stage_id !== (int) $data['from_pipeline_stage_id']) {
                     Notification::make()
                         ->title('This deal was moved meanwhile')
-                        ->body(NotificationText::plain("It is now in {$record->stage->getLabel()}. Nothing was changed."))
+                        ->body(NotificationText::plain("It is now in {$record->pipelineStage->name}. Nothing was changed."))
                         ->warning()
                         ->send();
 
                     return;
                 }
 
-                if ($target === $record->stage) {
+                if ((int) $record->pipeline_stage_id === (int) $data['pipeline_stage_id']) {
                     return;
                 }
 
-                $this->moveCard((string) $record->getKey(), $target->value);
+                $target = DefaultPipeline::stageById($record->organization_id, $data['pipeline_stage_id']);
+
+                $this->moveCard((string) $record->getKey(), (string) $target->getKey());
 
                 Notification::make()
-                    ->title(NotificationText::plain("Deal moved to {$target->getLabel()}"))
+                    ->title(NotificationText::plain("Deal moved to {$target->name}"))
                     ->success()
                     ->send();
             })
@@ -293,7 +289,11 @@ class DealPipeline extends BoardResourcePage
         ?string $afterCardId = null,
         ?string $beforeCardId = null
     ): void {
-        $stage = DealStage::tryFrom($targetColumnId);
+        $stage = self::isDealKey($targetColumnId)
+            ? PipelineStage::forOrganization(CurrentOrganization::get()->id)
+                ->where('pipeline_id', DefaultPipeline::ensureFor(CurrentOrganization::get())->getKey())
+                ->find($targetColumnId)
+            : null;
 
         if (
             $stage === null
@@ -316,20 +316,18 @@ class DealPipeline extends BoardResourcePage
         DB::transaction(function () use ($deal, $stage, $cardId, $targetColumnId, $afterCardId, $beforeCardId): void {
             parent::moveCard($cardId, $targetColumnId, $afterCardId, $beforeCardId);
 
-            DealStageMover::move($deal->refresh(), DefaultPipeline::stageFor($deal->organization_id, $stage));
+            DealStageMover::move($deal->refresh(), $stage);
         });
     }
 
     /** @return array<int, Column> */
     protected function getStageColumns(): array
     {
-        return array_map(
-            fn (DealStage $stage): Column => Column::make($stage->value)
-                ->label($stage->getLabel() ?? $stage->value)
-                ->color($stage->getColor() ?? 'gray')
-                ->icon($stage->getIcon()),
-            DealStage::cases()
-        );
+        return DefaultPipeline::stagesOf(CurrentOrganization::get()->id)
+            ->map(fn (PipelineStage $stage): Column => Column::make((string) $stage->getKey())
+                ->label($stage->name)
+                ->color($stage->color))
+            ->all();
     }
 
     protected function getHeaderActions(): array
@@ -357,6 +355,6 @@ class DealPipeline extends BoardResourcePage
     {
         return Deal::query()
             ->where('organization_id', CurrentOrganization::get()->id)
-            ->with(['contact', 'company', 'creator']);
+            ->with(['contact', 'company', 'creator', 'pipelineStage']);
     }
 }

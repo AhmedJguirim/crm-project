@@ -38,6 +38,7 @@ use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\Deals\DefaultPipeline;
 use Filament\Actions\AttachAction;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
@@ -250,7 +251,7 @@ describe('deals and invoices', function () {
         ($this->actAs)(OrganizationRole::Viewer);
 
         Livewire::test(DealPipeline::class)
-            ->call('moveCard', (string) $this->deal->id, DealStage::Won->value)
+            ->call('moveCard', (string) $this->deal->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Won)->id)
             ->assertForbidden();
 
         expect($this->deal->fresh()->stage)->toBe(DealStage::Negotiating)
@@ -261,7 +262,7 @@ describe('deals and invoices', function () {
         ($this->actAs)(OrganizationRole::Member);
 
         Livewire::test(DealPipeline::class)
-            ->call('moveCard', (string) $this->deal->id, DealStage::Won->value);
+            ->call('moveCard', (string) $this->deal->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Won)->id);
 
         expect($this->deal->fresh()->stage)->toBe(DealStage::Won);
     });
@@ -271,7 +272,7 @@ describe('deals and invoices', function () {
         $other = Deal::factory()->create(['organization_id' => User::factory()->withPersonalOrganization()->create()->personalOrganization()->id, 'stage' => DealStage::Negotiating]);
 
         Livewire::test(DealPipeline::class)
-            ->call('moveCard', (string) $other->id, DealStage::Won->value);
+            ->call('moveCard', (string) $other->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Won)->id);
 
         expect($other->fresh()->stage)->toBe(DealStage::Negotiating);
     });

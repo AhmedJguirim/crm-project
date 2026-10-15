@@ -151,7 +151,7 @@ test('moving deal to won stage sets status to won and records won_at', function 
     ]);
 
     Livewire::test(DealPipeline::class)
-        ->call('moveCard', (string) $deal->id, DealStage::Won->value);
+        ->call('moveCard', (string) $deal->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Won)->id);
 
     $deal->refresh();
 
@@ -173,7 +173,7 @@ test('moving deal to lost stage sets status to lost and records lost_at', functi
     ]);
 
     Livewire::test(DealPipeline::class)
-        ->call('moveCard', (string) $deal->id, DealStage::Lost->value);
+        ->call('moveCard', (string) $deal->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Lost)->id);
 
     $deal->refresh();
 
@@ -195,7 +195,7 @@ test('moving deal from won back to open stage resets status and timestamps', fun
     ]);
 
     Livewire::test(DealPipeline::class)
-        ->call('moveCard', (string) $deal->id, DealStage::Negotiating->value);
+        ->call('moveCard', (string) $deal->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Negotiating)->id);
 
     $deal->refresh();
 
@@ -217,7 +217,7 @@ test('moving deal between open stages keeps status open', function () {
     ]);
 
     Livewire::test(DealPipeline::class)
-        ->call('moveCard', (string) $deal->id, DealStage::Discovery->value);
+        ->call('moveCard', (string) $deal->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Discovery)->id);
 
     $deal->refresh();
 

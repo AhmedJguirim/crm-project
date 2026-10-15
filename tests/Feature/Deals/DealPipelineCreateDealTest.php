@@ -107,7 +107,7 @@ test('creating a deal keeps me on the board and shows the card', function () {
         ->and($deal->won_at)->toBeNull()
         ->and($deal->lost_at)->toBeNull()
         ->and($deal->position)->toBeNull()
-        ->and(($this->cardColumn)($component, $deal))->toBe(DealStage::ProposalSent->value);
+        ->and(($this->cardColumn)($component, $deal))->toBe((string) ($this->stageId)(DealStage::ProposalSent));
 });
 
 test('the stage decides the status and the dates', function (DealStage $stage, DealStatus $status, bool $won) {
@@ -130,7 +130,7 @@ test('a new won card goes to the bottom of its column', function () {
         ->callAction('create', ['title' => 'Board won', 'pipeline_stage_id' => ($this->stageId)(DealStage::Won)])
         ->assertHasNoFormErrors();
 
-    expect($component->instance()->getBoard()->getBoardRecords('won')->pluck('title')->all())->toBe(['Old won', 'Board won']);
+    expect($component->instance()->getBoard()->getBoardRecords((string) ($this->stageId)(DealStage::Won))->pluck('title')->all())->toBe(['Old won', 'Board won']);
 });
 
 test('the contact segments are resynced', function () {

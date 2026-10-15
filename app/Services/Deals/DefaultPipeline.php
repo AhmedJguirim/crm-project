@@ -7,6 +7,7 @@ use App\Enums\DealStatus;
 use App\Models\Organization;
 use App\Models\Pipeline;
 use App\Models\PipelineStage;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use LogicException;
@@ -72,20 +73,29 @@ class DefaultPipeline
     }
 
     /**
-     * The stage ids of the organization's default pipeline by name, in pipeline order, for a select. It queries with an
-     * explicit organization id (never through the pipeline's relation: the tenant scope would answer for the wrong organization).
+     * The stages of the organization's default pipeline in pipeline order. It queries with an explicit organization id
+     * (never through the pipeline's relation: the tenant scope would answer for the wrong organization).
      *
-     * @return array<int, string>
+     * @return Collection<int, PipelineStage>
      */
-    public static function stageOptions(int $organizationId): array
+    public static function stagesOf(int $organizationId): Collection
     {
         $pipeline = self::ensureFor(Organization::query()->findOrFail($organizationId));
 
         return PipelineStage::forOrganization($organizationId)
             ->where('pipeline_id', $pipeline->getKey())
             ->orderBy('position')
-            ->pluck('name', 'id')
-            ->all();
+            ->get();
+    }
+
+    /**
+     * The stage ids of the organization's default pipeline by name, in pipeline order, for a select.
+     *
+     * @return array<int, string>
+     */
+    public static function stageOptions(int $organizationId): array
+    {
+        return self::stagesOf($organizationId)->pluck('name', 'id')->all();
     }
 
     /**

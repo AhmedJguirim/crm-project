@@ -146,7 +146,7 @@ test('reordering a won card inside the Won column keeps its won date', function 
     $deal = stageMoverDeal($this->user, DealStage::Won, wonAt: '2026-08-28 14:30:00');
 
     Livewire::test(DealPipeline::class)
-        ->call('moveCard', (string) $deal->id, DealStage::Won->value);
+        ->call('moveCard', (string) $deal->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Won)->id);
 
     $deal->refresh();
 
@@ -158,7 +158,7 @@ test('dragging a won card to Lost moves its date from won to lost', function () 
     $deal = stageMoverDeal($this->user, DealStage::Won, wonAt: '2026-08-28 14:30:00');
 
     Livewire::test(DealPipeline::class)
-        ->call('moveCard', (string) $deal->id, DealStage::Lost->value);
+        ->call('moveCard', (string) $deal->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Lost)->id);
 
     $deal->refresh();
 
@@ -182,7 +182,7 @@ test('the board writes the stage and the status in one transaction', function ()
 
     try {
         expect(fn () => Livewire::test(DealPipeline::class)
-            ->call('moveCard', (string) $deal->id, DealStage::Won->value))->toThrow(RuntimeException::class, 'Boom');
+            ->call('moveCard', (string) $deal->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Won)->id))->toThrow(RuntimeException::class, 'Boom');
     } finally {
         $armed = false;
     }

@@ -8,6 +8,7 @@ use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\Deals\DefaultPipeline;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Illuminate\Support\Carbon;
@@ -102,18 +103,29 @@ test('a child action mounted after the drawer still reads the record of a valid 
 
 test('moveCard with malformed input does nothing', function (string $cardId, string $column, ?string $after, ?string $before) {
     $cardId = $cardId === 'valid' ? (string) $this->deal->id : $cardId;
+    $column = match ($column) {
+        'wonId' => (string) DefaultPipeline::stageFor($this->org->id, DealStage::Won)->id,
+        'foreign' => (string) DefaultPipeline::stageFor(User::factory()->onboardingCompleted()->withPersonalOrganization()->create()->personalOrganization()->id, DealStage::Lead)->id,
+        default => $column,
+    };
     $original = $this->deal->fresh()->getAttributes();
 
     Livewire::test(DealPipeline::class)->call('moveCard', $cardId, $column, $after, $before);
 
     expect($this->deal->fresh()->getAttributes())->toBe($original);
 })->with([
-    'letters card' => ['abc', 'won', null, null],
-    'above bigint card' => ['99999999999999999999', 'won', null, null],
+    'letters card' => ['abc', 'wonId', null, null],
+    'above bigint card' => ['99999999999999999999', 'wonId', null, null],
     'forged column' => ['valid', 'archived', null, null],
-    'letters after' => ['valid', 'won', 'abc', null],
-    'sql before' => ['valid', 'won', null, '1 OR 1=1'],
-    'above bigint after' => ['valid', 'won', '9223372036854775808', null],
+    'the old enum column value' => ['valid', 'won', null, null],
+    'zero column' => ['valid', '0', null, null],
+    'negative column' => ['valid', '-1', null, null],
+    'above bigint column' => ['valid', '99999999999999999999', null, null],
+    'sql column' => ['valid', '1 OR 1=1', null, null],
+    'stage of another organization' => ['valid', 'foreign', null, null],
+    'letters after' => ['valid', 'wonId', 'abc', null],
+    'sql before' => ['valid', 'wonId', null, '1 OR 1=1'],
+    'above bigint after' => ['valid', 'wonId', '9223372036854775808', null],
 ]);
 
 test('moveCard still moves a card with valid neighbours', function () {
@@ -127,7 +139,7 @@ test('moveCard still moves a card with valid neighbours', function () {
     ]);
 
     Livewire::test(DealPipeline::class)
-        ->call('moveCard', (string) $this->deal->id, DealStage::Won->value, (string) $neighbour->id, null);
+        ->call('moveCard', (string) $this->deal->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Won)->id, (string) $neighbour->id, null);
 
     expect($this->deal->fresh()->stage)->toBe(DealStage::Won)
         ->and($this->deal->fresh()->status)->toBe(DealStatus::Won);

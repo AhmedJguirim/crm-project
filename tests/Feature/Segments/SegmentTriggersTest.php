@@ -19,6 +19,7 @@ use App\Models\Deal;
 use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\User;
+use App\Services\Deals\DefaultPipeline;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -154,7 +155,7 @@ it('puts a contact into a deal stage segment when its deal card is moved on the 
 
     expect($segment->contacts()->count())->toBe(0);
 
-    Livewire::test(DealPipeline::class)->call('moveCard', (string) $deal->id, DealStage::Won->value);
+    Livewire::test(DealPipeline::class)->call('moveCard', (string) $deal->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Won)->id);
 
     expect($deal->fresh()->stage)->toBe(DealStage::Won)
         ->and($deal->fresh()->status)->toBe(DealStatus::Won)
