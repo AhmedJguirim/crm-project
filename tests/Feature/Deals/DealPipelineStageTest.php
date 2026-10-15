@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Filament\Resources\Deals\Pages\CreateDeal;
 use App\Models\Deal;
@@ -15,6 +14,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -124,32 +124,31 @@ test('a deal given the pipeline stage of another organization is refused on crea
     ]))->toThrow(ModelNotFoundException::class);
 
     expect(fn () => $deal->update(['pipeline_stage_id' => $foreignLead->id]))->toThrow(ModelNotFoundException::class)
-        ->and($deal->fresh()->stage)->toBe(DealStage::Discovery)
         ->and(dealPipelineStageOf($deal)->name)->toBe('Discovery');
 });
 
-test('the legacy stage mirrors the pipeline stage on creation and on a move', function (DealStage $stage) {
-    $pipelineStage = DefaultPipeline::stageFor($this->acme->id, $stage);
-    $deal = Deal::query()->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id, 'title' => 'Mirrored', 'status' => DealStatus::Open, 'pipeline_stage_id' => $pipelineStage->id]);
+test('a deal created or moved by stage id keeps exactly that stage', function (string $name) {
+    $deal = Deal::query()->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id, 'title' => 'Kept', 'status' => DealStatus::Open, 'pipeline_stage_id' => pipelineStageNamed($this->acme, $name)->id]);
 
-    expect($deal->fresh()->stage)->toBe($stage);
+    expect($deal->fresh()->pipeline_stage_id)->toBe(pipelineStageNamed($this->acme, $name)->id);
 
-    $deal->update(['pipeline_stage_id' => DefaultPipeline::stageFor($this->acme->id, DealStage::Lead)->id]);
+    $deal->update(['pipeline_stage_id' => pipelineStageNamed($this->acme, 'Lead')->id]);
 
-    expect($deal->fresh()->stage)->toBe(DealStage::Lead);
-})->with(DealStage::cases());
+    expect($deal->fresh()->pipeline_stage_id)->toBe(pipelineStageNamed($this->acme, 'Lead')->id);
+})->with(['Lead', 'Discovery', 'Proposal Sent', 'Negotiating', 'Won', 'Lost']);
 
-test('a direct write of the legacy stage is reverted by the mirror', function () {
+test('a stage attribute is no longer stored', function () {
     $deal = Deal::factory()->inStage('Lead')->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id]);
     $before = $deal->fresh();
 
-    $deal->update(['stage' => DealStage::Won]);
+    $deal->update(['stage' => 'won']);
 
     $after = $deal->fresh();
 
-    expect($after->stage)->toBe(DealStage::Lead)
+    expect(Schema::hasColumn('deals', 'stage'))->toBeFalse()
         ->and($after->pipeline_stage_id)->toBe($before->pipeline_stage_id)
-        ->and($after->status)->toBe($before->status);
+        ->and($after->status)->toBe($before->status)
+        ->and($after->getAttributes())->not->toHaveKey('stage');
 });
 
 test('a deal created without a pipeline stage is refused by the database', function () {
@@ -158,16 +157,13 @@ test('a deal created without a pipeline stage is refused by the database', funct
         'created_by' => $this->owner->id,
         'title' => 'No stage',
         'status' => DealStatus::Open,
-        'stage' => DealStage::Lead,
     ])))->toThrow(QueryException::class, 'pipeline_stage_id');
 });
 
-test('legacyStageFor maps the six positions and refuses another', function () {
-    foreach (DealStage::cases() as $index => $stage) {
-        expect(DefaultPipeline::legacyStageFor(new PipelineStage(['position' => $index + 1])))->toBe($stage);
-    }
-
-    expect(fn () => DefaultPipeline::legacyStageFor(new PipelineStage(['position' => 7])))->toThrow(LogicException::class);
+test('the legacy stage helpers are gone', function () {
+    expect(method_exists(DefaultPipeline::class, 'stageFor'))->toBeFalse()
+        ->and(method_exists(DefaultPipeline::class, 'legacyStageFor'))->toBeFalse()
+        ->and(method_exists(Deal::class, 'scopeByStage'))->toBeFalse();
 });
 
 test('the stage lookups answer for the organization asked, in pipeline order', function () {

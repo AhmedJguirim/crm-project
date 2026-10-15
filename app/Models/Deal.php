@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\HasOwner;
@@ -31,7 +30,6 @@ class Deal extends Model
         'contact_id',
         'company_id',
         'title',
-        'stage',
         'pipeline_stage_id',
         'value',
         'expected_close_date',
@@ -47,7 +45,6 @@ class Deal extends Model
     protected function casts(): array
     {
         return [
-            'stage' => DealStage::class,
             'status' => DealStatus::class,
             'value' => 'decimal:2',
             'expected_close_date' => 'date',
@@ -152,11 +149,6 @@ class Deal extends Model
     public function scopeLost(Builder $query): Builder
     {
         return $query->where('status', DealStatus::Lost->value);
-    }
-
-    public function scopeByStage(Builder $query, DealStage $stage): Builder
-    {
-        return $query->where('stage', $stage->value);
     }
 
     public function scopeClosingThisWeek(Builder $query): Builder

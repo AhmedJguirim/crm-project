@@ -436,11 +436,23 @@ test('it consulting seeder gives every deal a pipeline stage of its organization
 
     expect($deals)->not->toBeEmpty();
 
+    $expectedStages = [
+        'TechCorp Infra Expansion' => 'Negotiating',
+        'Cloudbase Cost Optimization Retainer' => 'Proposal Sent',
+        'HexaSys React Platform Migration' => 'Discovery',
+        'SecurePeak Annual Security Program' => 'Won',
+        'InnoTech Transformation Advisory' => 'Lead',
+        'NordicSec Pen Testing Extension' => 'Lost',
+    ];
+
     foreach ($deals as $deal) {
         $stage = PipelineStage::query()->withoutGlobalScope('organization')->findOrFail($deal->pipeline_stage_id);
 
-        expect($stage->organization_id)->toBe($deal->organization_id)
-            ->and($stage->name)->toBe($deal->stage->getLabel());
+        expect($stage->organization_id)->toBe($deal->organization_id);
+    }
+
+    foreach ($expectedStages as $title => $name) {
+        expect(PipelineStage::query()->withoutGlobalScope('organization')->findOrFail($deals->firstWhere('title', $title)->pipeline_stage_id)->name)->toBe($name);
     }
 
     $stageNameOf = fn (string $title): string => PipelineStage::query()->withoutGlobalScope('organization')

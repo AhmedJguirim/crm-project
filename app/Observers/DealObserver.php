@@ -5,14 +5,14 @@ namespace App\Observers;
 use App\Jobs\ResyncContactSegments;
 use App\Models\Deal;
 use App\Models\PipelineStage;
-use App\Services\Deals\DefaultPipeline;
 use App\Support\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 class DealObserver
 {
     /**
      * Fills the organization from the tenant context first (the trait's own listener may run after this one), then
-     * mirrors the pipeline stage into the legacy `stage` column, overwriting any given one.
+     * refuses a pipeline stage of another organization.
      */
     public function creating(Deal $deal): void
     {
@@ -20,13 +20,13 @@ class DealObserver
             $deal->organization_id = $organizationId;
         }
 
-        $this->syncLegacyStage($deal);
+        $this->ensureStageOfOrganization($deal);
     }
 
     public function updating(Deal $deal): void
     {
-        if ($deal->isDirty(['stage', 'pipeline_stage_id'])) {
-            $this->syncLegacyStage($deal);
+        if ($deal->isDirty('pipeline_stage_id')) {
+            $this->ensureStageOfOrganization($deal);
         }
     }
 
@@ -41,18 +41,17 @@ class DealObserver
     }
 
     /**
-     * `pipeline_stage_id` is the source of truth: `deals.stage` (still read by the segment conditions until P2 slice 3)
-     * is always overwritten from it, so a write of `stage` alone is reverted. Skipped without an organization or a
-     * stage id (the NOT NULL constraints then refuse the row); a stage of another organization is not found.
+     * A deal can only be in a stage of its own organization's pipeline: another organization's stage id is not found.
+     * Skipped without an organization or a stage id (the NOT NULL constraints then refuse the row).
+     *
+     * @throws ModelNotFoundException
      */
-    private function syncLegacyStage(Deal $deal): void
+    private function ensureStageOfOrganization(Deal $deal): void
     {
         if (! $deal->organization_id || ! $deal->pipeline_stage_id) {
             return;
         }
 
-        $stage = PipelineStage::forOrganization($deal->organization_id)->findOrFail($deal->pipeline_stage_id);
-
-        $deal->stage = DefaultPipeline::legacyStageFor($stage);
+        PipelineStage::forOrganization($deal->organization_id)->findOrFail($deal->pipeline_stage_id);
     }
 }

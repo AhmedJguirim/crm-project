@@ -8,7 +8,6 @@ use App\Enums\ActivityOutcome;
 use App\Enums\ActivityType;
 use App\Enums\CompanyIndustry;
 use App\Enums\ContactAttribute;
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\InvoiceStatus;
 use App\Enums\OrganizationRole;
@@ -530,13 +529,15 @@ class ItConsultingSeeder extends Seeder
 
         // ── Deals ────────────────────────────────────────────────────────────
         $dealsData = [
-            ['title' => 'TechCorp Infra Expansion', 'email' => 'marcus.chen@techcorp.io', 'stage' => DealStage::Negotiating, 'status' => DealStatus::Open, 'value' => 85000, 'expected_close_date' => now()->addDays(9)->toDateString(), 'notes' => 'Final legal review before signature.'],
-            ['title' => 'Cloudbase Cost Optimization Retainer', 'email' => 'sarah.johansson@cloudbase.dev', 'stage' => DealStage::ProposalSent, 'status' => DealStatus::Open, 'value' => 42000, 'expected_close_date' => now()->addDays(5)->toDateString(), 'notes' => 'Proposal sent, waiting for finance sign-off.'],
-            ['title' => 'HexaSys React Platform Migration', 'email' => 'damien.leroy@hexasys.fr', 'stage' => DealStage::Discovery, 'status' => DealStatus::Open, 'value' => 65000, 'expected_close_date' => now()->addDays(18)->toDateString(), 'notes' => 'Technical workshops scheduled next week.'],
-            ['title' => 'SecurePeak Annual Security Program', 'email' => 'priya.nair@securepeak.com', 'stage' => DealStage::Won, 'status' => DealStatus::Won, 'value' => 120000, 'expected_close_date' => now()->subDays(12)->toDateString(), 'won_at' => now()->subDays(10), 'notes' => 'Contract signed and onboarded.'],
-            ['title' => 'InnoTech Transformation Advisory', 'email' => 'amara.diallo@innotech-sa.com', 'stage' => DealStage::Lead, 'status' => DealStatus::Open, 'no_owner' => true, 'value' => 30000, 'expected_close_date' => now()->addDays(24)->toDateString(), 'notes' => 'Initial qualification in progress.'],
-            ['title' => 'NordicSec Pen Testing Extension', 'email' => 'ingrid.svensson@nordicsec.com', 'stage' => DealStage::Lost, 'status' => DealStatus::Lost, 'value' => 38000, 'expected_close_date' => now()->subDays(20)->toDateString(), 'lost_at' => now()->subDays(18), 'notes' => 'Budget reallocated to internal team.'],
+            ['title' => 'TechCorp Infra Expansion', 'email' => 'marcus.chen@techcorp.io', 'stage' => 'Negotiating', 'status' => DealStatus::Open, 'value' => 85000, 'expected_close_date' => now()->addDays(9)->toDateString(), 'notes' => 'Final legal review before signature.'],
+            ['title' => 'Cloudbase Cost Optimization Retainer', 'email' => 'sarah.johansson@cloudbase.dev', 'stage' => 'Proposal Sent', 'status' => DealStatus::Open, 'value' => 42000, 'expected_close_date' => now()->addDays(5)->toDateString(), 'notes' => 'Proposal sent, waiting for finance sign-off.'],
+            ['title' => 'HexaSys React Platform Migration', 'email' => 'damien.leroy@hexasys.fr', 'stage' => 'Discovery', 'status' => DealStatus::Open, 'value' => 65000, 'expected_close_date' => now()->addDays(18)->toDateString(), 'notes' => 'Technical workshops scheduled next week.'],
+            ['title' => 'SecurePeak Annual Security Program', 'email' => 'priya.nair@securepeak.com', 'stage' => 'Won', 'status' => DealStatus::Won, 'value' => 120000, 'expected_close_date' => now()->subDays(12)->toDateString(), 'won_at' => now()->subDays(10), 'notes' => 'Contract signed and onboarded.'],
+            ['title' => 'InnoTech Transformation Advisory', 'email' => 'amara.diallo@innotech-sa.com', 'stage' => 'Lead', 'status' => DealStatus::Open, 'no_owner' => true, 'value' => 30000, 'expected_close_date' => now()->addDays(24)->toDateString(), 'notes' => 'Initial qualification in progress.'],
+            ['title' => 'NordicSec Pen Testing Extension', 'email' => 'ingrid.svensson@nordicsec.com', 'stage' => 'Lost', 'status' => DealStatus::Lost, 'value' => 38000, 'expected_close_date' => now()->subDays(20)->toDateString(), 'lost_at' => now()->subDays(18), 'notes' => 'Budget reallocated to internal team.'],
         ];
+
+        $stages = DefaultPipeline::stagesOf($org->id)->keyBy('name');
 
         foreach ($dealsData as $dealData) {
             $contact = $contacts[$dealData['email']] ?? null;
@@ -553,7 +554,7 @@ class ItConsultingSeeder extends Seeder
                 [
                     'contact_id' => $contact->id,
                     'company_id' => DealCompany::defaultIdFor($contact->id),
-                    'pipeline_stage_id' => DefaultPipeline::stageFor($org->id, $dealData['stage'])->getKey(),
+                    'pipeline_stage_id' => $stages[$dealData['stage']]->getKey(),
                     'status' => $dealData['status'],
                     'value' => $dealData['value'],
                     'expected_close_date' => $dealData['expected_close_date'],

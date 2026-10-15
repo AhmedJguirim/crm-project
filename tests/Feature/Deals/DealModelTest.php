@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Models\Contact;
 use App\Models\Deal;
@@ -21,14 +20,14 @@ afterEach(function () {
     Carbon::setTestNow();
 });
 
-test('deal casts stage and status to enums', function () {
+test('deal casts status to an enum and keeps its pipeline stage', function () {
     $deal = Deal::factory()->inStage('Discovery')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
         'status' => DealStatus::Open,
     ]);
 
-    expect($deal->fresh()->stage)->toBe(DealStage::Discovery)
+    expect($deal->fresh()->pipelineStage->name)->toBe('Discovery')
         ->and($deal->fresh()->status)->toBe(DealStatus::Open);
 });
 
@@ -89,7 +88,7 @@ test('status scopes return expected records', function () {
         ->and(Deal::lost()->pluck('id')->all())->toContain($lostDeal->id)->not->toContain($openDeal->id);
 });
 
-test('stage and closing this week scopes work correctly', function () {
+test('closing this week scope works correctly', function () {
     $negotiatingThisWeek = Deal::factory()->inStage('Negotiating')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
@@ -102,10 +101,7 @@ test('stage and closing this week scopes work correctly', function () {
         'expected_close_date' => Carbon::now()->addMonth(),
     ]);
 
-    expect(Deal::byStage(DealStage::Negotiating)->pluck('id')->all())
-        ->toContain($negotiatingThisWeek->id)
-        ->not->toContain($leadNextMonth->id)
-        ->and(Deal::closingThisWeek()->pluck('id')->all())
+    expect(Deal::closingThisWeek()->pluck('id')->all())
         ->toContain($negotiatingThisWeek->id)
         ->not->toContain($leadNextMonth->id);
 });

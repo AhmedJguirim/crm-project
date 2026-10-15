@@ -5,7 +5,6 @@ namespace Database\Factories;
 use App\Enums\DealStatus;
 use App\Models\Deal;
 use App\Models\Organization;
-use App\Models\PipelineStage;
 use App\Models\User;
 use App\Services\Deals\DefaultPipeline;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -30,9 +29,6 @@ class DealFactory extends Factory
             'pipeline_stage_id' => fn (array $attributes): ?int => $attributes['organization_id'] === null
                 ? null
                 : DefaultPipeline::stageOfType($attributes['organization_id'], DealStatus::Open)->getKey(),
-            'stage' => fn (array $attributes): mixed => $attributes['pipeline_stage_id'] === null
-                ? null
-                : DefaultPipeline::legacyStageFor(PipelineStage::forOrganization($attributes['organization_id'])->findOrFail($attributes['pipeline_stage_id'])),
             'value' => fake()->optional(0.8)->randomFloat(2, 500, 150000),
             'expected_close_date' => fake()->optional(0.75)->dateTimeBetween('-2 weeks', '+8 weeks'),
             'notes' => fake()->optional(0.6)->paragraph(),

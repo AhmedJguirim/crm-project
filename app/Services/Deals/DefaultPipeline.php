@@ -2,7 +2,6 @@
 
 namespace App\Services\Deals;
 
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Models\Organization;
 use App\Models\Pipeline;
@@ -10,7 +9,6 @@ use App\Models\PipelineStage;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
-use LogicException;
 
 /**
  * Gives an organization its sales pipeline: "Sales pipeline" with the six stages of the deals board (Lead, Discovery,
@@ -55,21 +53,6 @@ class DefaultPipeline
 
             return $pipeline;
         });
-    }
-
-    /**
-     * The stage of the organization's default pipeline at the position of the enum case (Lead 1 ... Lost 6), while the
-     * `stage` column is still the source of truth. It queries with an explicit organization id so that it works without
-     * a tenant and under another tenant.
-     */
-    public static function stageFor(int $organizationId, DealStage $stage): PipelineStage
-    {
-        $pipeline = self::ensureFor(Organization::query()->findOrFail($organizationId));
-
-        return PipelineStage::forOrganization($organizationId)
-            ->where('pipeline_id', $pipeline->getKey())
-            ->where('position', array_search($stage, DealStage::cases(), true) + 1)
-            ->firstOrFail();
     }
 
     /**
@@ -126,17 +109,5 @@ class DefaultPipeline
             ->where('type', $type)
             ->orderBy('position')
             ->firstOrFail();
-    }
-
-    /**
-     * The `deals.stage` value mirroring a pipeline stage (position 1 is Lead ... 6 is Lost): temporary, while the segment
-     * deal conditions still read the column (removed in P2 slice 3).
-     *
-     * @throws LogicException
-     */
-    public static function legacyStageFor(PipelineStage $stage): DealStage
-    {
-        return DealStage::cases()[$stage->position - 1]
-            ?? throw new LogicException("Pipeline stage {$stage->getKey()} has no legacy stage at position {$stage->position}.");
     }
 }
