@@ -68,10 +68,10 @@ class ContactExportWriter
             (string) $contact->phone,
             (string) $contact->status?->getLabel(),
             (string) $contact->lead_source?->getLabel(),
-            $contact->tags->pluck('name')->sortBy(fn (string $name): string => mb_strtolower($name))->implode(';'),
+            $contact->tags->pluck('name')->sortBy(fn (string $name): string => mb_strtolower($name))->implode(ContactImportService::MULTI_VALUE_JOINER),
             (string) $companies->first()?->name,
             (string) $companies->first()?->website,
-            $companies->count() >= 2 ? $companies->pluck('name')->implode('; ') : '',
+            $companies->count() >= 2 ? $companies->pluck('name')->implode(ContactImportService::MULTI_VALUE_JOINER) : '',
             (string) $contact->owner?->email,
             ...$this->customFields
                 ->map(fn (CustomField $field): string|int|float => ExportCells::customField($contact, $field, $format))

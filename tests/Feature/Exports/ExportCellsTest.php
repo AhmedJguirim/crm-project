@@ -36,13 +36,14 @@ it('writes the custom field of a contact the way a person reads it', function (s
 })->with([
     'select label' => ['select', [['label' => 'Gold', 'value' => 'gold']], 'gold', ExportFormat::Xlsx, 'Gold'],
     'select that is no longer an option' => ['select', [['label' => 'Gold', 'value' => 'gold']], 'retired', ExportFormat::Csv, 'retired'],
-    'multiselect labels' => ['multiselect', [['label' => 'PHP', 'value' => 'php'], ['label' => 'Vue', 'value' => 'vue']], ['php', 'vue'], ExportFormat::Xlsx, 'PHP;Vue'],
+    'multiselect labels' => ['multiselect', [['label' => 'PHP', 'value' => 'php'], ['label' => 'Vue', 'value' => 'vue']], ['php', 'vue'], ExportFormat::Xlsx, 'PHP; Vue'],
     'date' => ['date', null, '2026-03-16', ExportFormat::Xlsx, '16-03-2026'],
     'number in xlsx' => ['number', null, 25.5, ExportFormat::Xlsx, 25.5],
     'number in csv' => ['number', null, 25.5, ExportFormat::Csv, '25.5'],
     'whole number in csv' => ['number', null, 1500000, ExportFormat::Csv, '1500000'],
     'decimal string with zeros in csv' => ['number', null, '1500000.00', ExportFormat::Csv, '1500000'],
     'text' => ['text', null, 'hello', ExportFormat::Csv, 'hello'],
+    'array stored in a text field' => ['text', null, ['a', 'b'], ExportFormat::Csv, 'a; b'],
     'empty value' => ['text', null, null, ExportFormat::Xlsx, ''],
 ]);
 
@@ -58,7 +59,7 @@ it('writes the custom field of a company with the same code', function () {
         'custom_field_values' => [$field->key => ['cloud', 'security']],
     ]);
 
-    expect(ExportCells::customField($company->fresh(), $field, ExportFormat::Xlsx))->toBe('Cloud;Security');
+    expect(ExportCells::customField($company->fresh(), $field, ExportFormat::Xlsx))->toBe('Cloud; Security');
 });
 
 it('guards a CSV cell that a spreadsheet app would evaluate', function (string $value, string $safe) {

@@ -151,7 +151,7 @@ describe('template file', function () {
         templateField($this->org->id, 'text', 'Gone', 3)->delete();
 
         expect(ContactImportTemplate::forOrganization($this->org->id)->headers())->toBe(['name', 'email', 'phone', 'tags', 'status', 'lead source', 'company', 'company website', 'company type', 'company phone', 'company industry', 'company employees', 'company annual revenue', 'company street', 'company city', 'company zip', 'company country', 'owner', 'First', 'Second'])
-            ->and(ContactImportTemplate::forOrganization($this->org->id)->exampleRow()[3])->toBe('VIP;Newsletter');
+            ->and(ContactImportTemplate::forOrganization($this->org->id)->exampleRow()[3])->toBe('VIP; Newsletter');
     });
 
     it('has typed cells', function () {
@@ -165,7 +165,7 @@ describe('template file', function () {
         unlink($path);
 
         expect($rows[1][2])->toBe('+1234567890')
-            ->and($rows[1][3])->toBe('VIP;Newsletter')
+            ->and($rows[1][3])->toBe('VIP; Newsletter')
             ->and($rows[1][4])->toBe('Lead')
             ->and($rows[1][5])->toBe('Referral')
             ->and($rows[1][6])->toBe('Acme Corp')
@@ -252,7 +252,7 @@ describe('example values', function () {
             ['label' => 'a;b', 'value' => 'a;b'], ['label' => 'c', 'value' => 'c'], ['label' => 'd', 'value' => 'd'],
         ]]);
 
-        expect((new ContactImportService($this->org->id))->exampleValueFor($field))->toBe('c;d');
+        expect((new ContactImportService($this->org->id))->exampleValueFor($field))->toBe('c; d');
     });
 
     it('is empty for a select field without options', function () {

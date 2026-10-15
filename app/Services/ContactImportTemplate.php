@@ -63,7 +63,7 @@ class ContactImportTemplate
             'John Doe',
             'john@example.com',
             '+1234567890',
-            implode(ContactImportService::MULTI_VALUE_SEPARATOR, ['VIP', 'Newsletter']),
+            implode(ContactImportService::MULTI_VALUE_JOINER, ['VIP', 'Newsletter']),
             ContactStatus::Lead->getLabel(),
             LeadSource::Referral->getLabel(),
             'Acme Corp',

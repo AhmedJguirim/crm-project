@@ -31,6 +31,9 @@ class ContactImportService
     /** Separates several tags, or several values of a multi-select field, in one cell. */
     public const MULTI_VALUE_SEPARATOR = ImportCellParser::MULTI_VALUE_SEPARATOR;
 
+    /** What exports and templates write between values; the import splits on MULTI_VALUE_SEPARATOR and trims, so both read back the same. */
+    public const MULTI_VALUE_JOINER = ImportCellParser::MULTI_VALUE_JOINER;
+
     /**
      * The columns of an import file that are not custom fields: what the import reads, in template order. Add a column
      * here before the import reads it.

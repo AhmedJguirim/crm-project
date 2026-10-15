@@ -174,3 +174,44 @@ it('updates only the contact whose phone was changed in the exported file, in up
     expect(DatabaseNotification::where('notifiable_id', $this->user->id)->sole()->data['body'])->toStartWith('Created: 0 | Updated: '.count($before).' | Failed: 0')
         ->and($after)->toEqual($before);
 });
+
+it('changes nothing when its csv export, with joined tags and multi-select values, is imported back in update only', function () {
+    $snapshots = fn (): array => Contact::forOrganization($this->org->id)->orderBy('id')->get()->mapWithKeys(fn (Contact $contact): array => [$contact->id => roundTripSnapshot($contact)])->all();
+    $before = $snapshots();
+    $file = ($this->exportAll)('csv');
+    Storage::disk('local')->put('contact-imports/joined.csv', $file);
+    DatabaseNotification::query()->delete();
+
+    ProcessContactImportJob::dispatchSync('contact-imports/joined.csv', $this->org->id, $this->user->id, ImportMode::UpdateOnly);
+
+    expect(collect($before)->filter(fn (array $snapshot): bool => count($snapshot['tags']) >= 2)->isNotEmpty())->toBeTrue()
+        ->and(collect($before)->filter(fn (array $snapshot): bool => collect($snapshot['custom_field_values'])->contains(fn (mixed $value): bool => is_array($value) && count($value) >= 2))->isNotEmpty())->toBeTrue()
+        ->and($file)->toContain('; ')
+        ->and(DatabaseNotification::where('notifiable_id', $this->user->id)->sole()->data['body'])->toStartWith('Created: 0 | Updated: '.count($before).' | Failed: 0')
+        ->and($snapshots())->toEqual($before)
+        ->and(Contact::forOrganization($this->org->id)->count())->toBe(count($before));
+});
+
+it('changes nothing when its csv export, re-saved with a semicolon delimiter, is imported back in update only', function () {
+    $snapshots = fn (): array => Contact::forOrganization($this->org->id)->orderBy('id')->get()->mapWithKeys(fn (Contact $contact): array => [$contact->id => roundTripSnapshot($contact)])->all();
+    $before = $snapshots();
+    $source = fopen('php://temp', 'r+');
+    fwrite($source, substr(($this->exportAll)('csv'), 3));
+    rewind($source);
+    $european = fopen('php://temp', 'r+');
+
+    while (($row = fgetcsv($source, escape: '')) !== false) {
+        fputcsv($european, $row, ';', escape: '');
+    }
+
+    rewind($european);
+    $contents = stream_get_contents($european);
+    Storage::disk('local')->put('contact-imports/european.csv', $contents);
+    DatabaseNotification::query()->delete();
+
+    ProcessContactImportJob::dispatchSync('contact-imports/european.csv', $this->org->id, $this->user->id, ImportMode::UpdateOnly);
+
+    expect($contents)->toContain('; ')
+        ->and(DatabaseNotification::where('notifiable_id', $this->user->id)->sole()->data['body'])->toStartWith('Created: 0 | Updated: '.count($before).' | Failed: 0')
+        ->and($snapshots())->toEqual($before);
+});

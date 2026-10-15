@@ -80,10 +80,10 @@ class ExportCells
 
         return match ($field->type) {
             'select' => self::optionLabel($field, $value),
-            'multiselect' => collect((array) $value)->map(fn (mixed $part): string => self::optionLabel($field, $part))->implode(ContactImportService::MULTI_VALUE_SEPARATOR),
+            'multiselect' => collect((array) $value)->map(fn (mixed $part): string => self::optionLabel($field, $part))->implode(ContactImportService::MULTI_VALUE_JOINER),
             'date' => self::dateText($value),
             'number' => self::number($value, $format),
-            default => is_array($value) ? implode(ContactImportService::MULTI_VALUE_SEPARATOR, array_map('strval', $value)) : (string) $value,
+            default => is_array($value) ? implode(ContactImportService::MULTI_VALUE_JOINER, array_map('strval', $value)) : (string) $value,
         };
     }
 

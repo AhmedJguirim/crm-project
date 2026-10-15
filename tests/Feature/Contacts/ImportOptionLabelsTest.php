@@ -51,6 +51,6 @@ it('refuses unknown labels', function () {
 it('shows labels in the template examples', function () {
     $service = new ContactImportService($this->org->id);
 
-    expect($service->exampleValueFor($this->stack))->toBe('PHP / Laravel;AWS')
+    expect($service->exampleValueFor($this->stack))->toBe('PHP / Laravel; AWS')
         ->and($service->exampleValueFor($this->seniority))->toBe('Junior');
 });

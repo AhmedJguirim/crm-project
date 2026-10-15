@@ -9,6 +9,7 @@ use App\Models\CustomField;
 use App\Models\Tag;
 use App\Models\User;
 use App\Services\ContactExportWriter;
+use App\Services\ContactImportService;
 use App\Services\Imports\TextPreservingExcelReader;
 use Filament\Facades\Filament;
 use Spatie\SimpleExcel\SimpleExcelReader;
@@ -67,7 +68,7 @@ it('has the import columns, then the active custom fields by name', function () 
 });
 
 it('writes the values the way a person reads them', function () {
-    expect(($this->rowOf)($this->ann))->toBe([$this->ann->id, 'Ann', 'ann@x.test', '+33 1', 'Active Client', 'LinkedIn', 'Newsletter;VIP', 'Acme', 'acme.com', 'Acme; Zeta', '', 'Gold', 'PHP;Vue', '16-03-2026', '25.5']);
+    expect(($this->rowOf)($this->ann))->toBe([$this->ann->id, 'Ann', 'ann@x.test', '+33 1', 'Active Client', 'LinkedIn', 'Newsletter; VIP', 'Acme', 'acme.com', 'Acme; Zeta', '', 'Gold', 'PHP; Vue', '16-03-2026', '25.5']);
 });
 
 it('leaves blank what a contact does not have', function () {
@@ -91,7 +92,7 @@ it('leaves out the trashed companies and tags', function () {
 
     $row = ($this->rowOf)($this->ann);
 
-    expect($row[6])->not->toContain(';')
+    expect($row[6])->not->toContain(ContactImportService::MULTI_VALUE_JOINER)
         ->and($row[9])->toBe('');
 });
 
@@ -104,7 +105,7 @@ it('writes a value that is no longer an option as stored', function () {
     $row = ($this->rowOf)($this->ann);
 
     expect($row[11])->toBe('platinum')
-        ->and($row[12])->toBe('PHP;cobol');
+        ->and($row[12])->toBe('PHP; cobol');
 });
 
 it('writes numbers with a decimal point, no thousands separator and no trailing zero', function (mixed $stored, string $expected) {
@@ -236,4 +237,30 @@ it('prefixes every kind of csv cell: contact, company, custom field value and he
         ->and($rows[1][7])->toBe("'-cmd")
         ->and($rows[1][9])->toBe("'-cmd; =Acme")
         ->and($rows[1][15])->toBe("'@y");
+});
+
+it('quotes the tags and the multi-select values in the csv, so no field holds a bare semicolon', function () {
+    $path = tempnam(sys_get_temp_dir(), 'export-test').'.csv';
+
+    ($this->writer)()->write($path, ExportFormat::Csv, [[$this->ann->fresh(['tags', 'companies'])]]);
+    $contents = file_get_contents($path);
+    unlink($path);
+
+    $unquoted = preg_replace('/"(?:[^"]|"")*"/', '', $contents);
+
+    expect($contents)->toContain('"Newsletter; VIP"')
+        ->and($contents)->toContain('"PHP; Vue"')
+        ->and($contents)->toContain('"Acme; Zeta"')
+        ->and($unquoted)->not->toContain(';');
+});
+
+it('joins the tags and the multi-select values the same way in an xlsx', function () {
+    $path = tempnam(sys_get_temp_dir(), 'export-test').'.xlsx';
+
+    ($this->writer)()->write($path, ExportFormat::Xlsx, [[$this->ann->fresh(['tags', 'companies'])]]);
+    $rows = TextPreservingExcelReader::create($path, 'xlsx')->noHeaderRow()->getRows()->values()->all();
+    unlink($path);
+
+    expect($rows[1][6])->toBe('Newsletter; VIP')
+        ->and($rows[1][12])->toBe('PHP; Vue');
 });

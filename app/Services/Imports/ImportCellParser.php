@@ -19,6 +19,9 @@ class ImportCellParser
     /** Separates several tags, or several values of a multi-select field, in one cell. */
     public const MULTI_VALUE_SEPARATOR = ';';
 
+    /** What exports and templates write between values; the import splits on MULTI_VALUE_SEPARATOR and trims, so both read back the same. */
+    public const MULTI_VALUE_JOINER = '; ';
+
     /** The date format shown to users; ISO (`Y-m-d`) and a trailing time are accepted too. */
     public const DATE_FORMAT = 'd-m-Y';
 
@@ -218,7 +221,7 @@ class ImportCellParser
             'multiselect' => $optionLabels
                 ->reject(fn (string $label): bool => str_contains($label, self::MULTI_VALUE_SEPARATOR))
                 ->take(2)
-                ->implode(self::MULTI_VALUE_SEPARATOR),
+                ->implode(self::MULTI_VALUE_JOINER),
             default => 'Some text',
         };
     }

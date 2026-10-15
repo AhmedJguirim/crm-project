@@ -72,7 +72,7 @@ it('names the columns like the import, then contacts, then the custom fields', f
 it('writes the cells of a company as numbers in an xlsx', function () {
     expect(($this->writer)()->row(($this->load)($this->acme), ExportFormat::Xlsx))->toBe([
         $this->acme->id, 'Acme Corp', 'https://www.acme.com', 'Client', '+33 1 23 45 67 89', 'Software', 120, 1500000.5,
-        '1 Main St', 'Lyon', '69001', 'France', "Line 1\nLine 2", '', 2, 'Series A', 'PHP;Vue', '04-05-2019', 2.5,
+        '1 Main St', 'Lyon', '69001', 'France', "Line 1\nLine 2", '', 2, 'Series A', 'PHP; Vue', '04-05-2019', 2.5,
     ]);
 });
 
@@ -144,3 +144,16 @@ it('writes the header and the companies of every chunk to an xlsx and a csv', fu
         expect($contents)->toStartWith("\xEF\xBB\xBFid,name,website,type,phone,industry,employees,");
     }
 })->with([ExportFormat::Xlsx, ExportFormat::Csv]);
+
+it('quotes the multi-select values in the csv, so no field holds a bare semicolon', function () {
+    $path = tempnam(sys_get_temp_dir(), 'export-test').'.csv';
+
+    ($this->writer)()->write($path, ExportFormat::Csv, [[($this->load)($this->acme)]]);
+    $contents = file_get_contents($path);
+    unlink($path);
+
+    $unquoted = preg_replace('/"(?:[^"]|"")*"/', '', $contents);
+
+    expect($contents)->toContain('"PHP; Vue"')
+        ->and($unquoted)->not->toContain(';');
+});
