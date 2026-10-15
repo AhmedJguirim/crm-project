@@ -169,11 +169,13 @@ test('table can be searched by name', function () {
     $matching = Contact::factory()->create([
         'organization_id' => $this->org->id,
         'name' => 'Alice Smith',
+        'email' => 'alice.smith@example.test',
     ]);
 
     $other = Contact::factory()->create([
         'organization_id' => $this->org->id,
         'name' => 'Bob Jones',
+        'email' => 'bob.jones@example.test',
     ]);
 
     Livewire::test(ListContacts::class)

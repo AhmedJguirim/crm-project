@@ -53,8 +53,8 @@ beforeEach(function () {
     $this->actingAs($this->owner);
     Filament::setTenant($this->org);
 
-    $this->ann = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Ann Lee']);
-    $this->bob = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Bob Ray']);
+    $this->ann = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Ann Lee', 'email' => 'ann.lee@example.test']);
+    $this->bob = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Bob Ray', 'email' => 'bob.ray@example.test']);
 
     $this->annDeal = Deal::factory()->create([
         'organization_id' => $this->org->id,
