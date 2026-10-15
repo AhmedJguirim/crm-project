@@ -7,6 +7,9 @@ use App\Filament\Support\CustomFields\CustomFieldDefinitionActions;
 use App\Models\CompanyCustomField;
 use Filament\Resources\Pages\EditRecord;
 
+/**
+ * @method CompanyCustomField getRecord()
+ */
 class EditCompanyCustomField extends EditRecord
 {
     protected static string $resource = CompanyCustomFieldResource::class;
@@ -28,8 +31,8 @@ class EditCompanyCustomField extends EditRecord
             return $data;
         }
 
-        $siblings = CompanyCustomField::query()->where('organization_id', $this->record->organization_id);
-        $currentOrder = $this->record->order;
+        $siblings = CompanyCustomField::query()->where('organization_id', $this->getRecord()->organization_id);
+        $currentOrder = $this->getRecord()->order;
 
         $newOrder = $currentOrder;
 
@@ -64,7 +67,7 @@ class EditCompanyCustomField extends EditRecord
     protected function afterSave(): void
     {
         CompanyCustomField::query()
-            ->where('organization_id', $this->record->organization_id)
+            ->where('organization_id', $this->getRecord()->organization_id)
             ->orderBy('order')
             ->get()
             ->each(fn (CompanyCustomField $field, int $index) => $field->update(['order' => $index + 1]));

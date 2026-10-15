@@ -4,10 +4,12 @@ namespace App\Filament\Actions;
 
 use App\Filament\Actions\Concerns\QueuesExports;
 use App\Jobs\ExportCompaniesJob;
+use App\Models\Company;
 use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Contracts\HasTable;
+use Illuminate\Database\Eloquent\Collection as EloquentCollection;
 use Illuminate\Support\Collection;
 
 /**
@@ -48,6 +50,7 @@ class ExportCompaniesAction
             ->modalHeading('Export selected companies')
             ->schema([self::exportFormatField()])
             ->action(function (Collection $records, array $data): void {
+                /** @var EloquentCollection<int, Company> $records */
                 self::queueExport($records->modelKeys(), self::exportFormatOf($data), 'companies', ExportCompaniesJob::class);
             })
             ->deselectRecordsAfterCompletion();

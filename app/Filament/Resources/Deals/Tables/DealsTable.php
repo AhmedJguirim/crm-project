@@ -110,7 +110,10 @@ class DealsTable
 
                 Filter::make('closing_this_week')
                     ->label('Closing This Week')
-                    ->query(fn (Builder $query): Builder => $query->closingThisWeek()),
+                    ->query(function (Builder $query): Builder {
+                        /** @var Builder<Deal> $query */
+                        return $query->closingThisWeek();
+                    }),
             ])
             ->recordActions([
                 ViewAction::make(),

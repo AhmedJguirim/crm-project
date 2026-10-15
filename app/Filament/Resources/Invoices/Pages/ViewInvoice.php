@@ -4,12 +4,16 @@ namespace App\Filament\Resources\Invoices\Pages;
 
 use App\Enums\InvoiceStatus;
 use App\Filament\Resources\Invoices\InvoiceResource;
+use App\Models\Invoice;
 use App\Support\LocalTime;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Resources\Pages\ViewRecord;
 use Filament\Support\Icons\Heroicon;
 
+/**
+ * @method Invoice getRecord()
+ */
 class ViewInvoice extends ViewRecord
 {
     protected static string $resource = InvoiceResource::class;

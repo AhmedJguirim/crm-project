@@ -5,9 +5,13 @@ namespace App\Filament\Resources\Contacts\Pages;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Support\CustomFields\HandlesDuplicateCustomFieldValues;
 use App\Jobs\ResyncContactSegments;
+use App\Models\Contact;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @method Contact|null getRecord()
+ */
 class CreateContact extends CreateRecord
 {
     use HandlesDuplicateCustomFieldValues;

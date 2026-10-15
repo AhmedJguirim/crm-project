@@ -62,8 +62,8 @@ class RevenueOverviewWidget extends BaseWidget
             ->whereBetween('paid_at', LocalTime::periodDates('year'))
             ->sum('amount');
 
-        $overdueCount = (int) ($overdueAggregate?->invoices_count ?? 0);
-        $overdueValue = (float) ($overdueAggregate?->total_amount ?? 0);
+        $overdueCount = (int) ($overdueAggregate?->getAttribute('invoices_count') ?? 0);
+        $overdueValue = (float) ($overdueAggregate?->getAttribute('total_amount') ?? 0);
 
         return [
             Stat::make('Paid This Month', Number::currency($paidThisMonth, $currency))

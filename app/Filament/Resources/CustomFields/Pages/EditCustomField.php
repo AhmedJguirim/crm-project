@@ -8,6 +8,9 @@ use App\Models\CustomField;
 use App\Support\Tenancy\CurrentOrganization;
 use Filament\Resources\Pages\EditRecord;
 
+/**
+ * @method CustomField getRecord()
+ */
 class EditCustomField extends EditRecord
 {
     protected static string $resource = CustomFieldResource::class;
@@ -27,7 +30,7 @@ class EditCustomField extends EditRecord
 
         if ($position && $position !== 'end') {
             $organizationId = CurrentOrganization::get()->id;
-            $currentOrder = $this->record->order;
+            $currentOrder = $this->getRecord()->order;
 
             if ($position === 'beginning') {
                 $newOrder = 1;

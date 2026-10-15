@@ -90,11 +90,11 @@ class DealsOverviewWidget extends BaseWidget
             ->selectRaw('COUNT(*) as deals_count, COALESCE(SUM(value), 0) as total_value')
             ->first();
 
-        $openDealsCount = (int) ($openAggregate?->deals_count ?? 0);
-        $openPipelineValue = (float) ($openAggregate?->total_value ?? 0);
+        $openDealsCount = (int) ($openAggregate?->getAttribute('deals_count') ?? 0);
+        $openPipelineValue = (float) ($openAggregate?->getAttribute('total_value') ?? 0);
 
-        $wonDealsThisMonth = (int) ($wonThisMonthAggregate?->deals_count ?? 0);
-        $wonRevenueThisMonth = (float) ($wonThisMonthAggregate?->total_value ?? 0);
+        $wonDealsThisMonth = (int) ($wonThisMonthAggregate?->getAttribute('deals_count') ?? 0);
+        $wonRevenueThisMonth = (float) ($wonThisMonthAggregate?->getAttribute('total_value') ?? 0);
 
         return [
             Stat::make('Open Deals', (string) $openDealsCount)

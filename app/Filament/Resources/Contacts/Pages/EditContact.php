@@ -5,11 +5,15 @@ namespace App\Filament\Resources\Contacts\Pages;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Support\CustomFields\HandlesDuplicateCustomFieldValues;
 use App\Jobs\ResyncContactSegments;
+use App\Models\Contact;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\RestoreAction;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @method Contact getRecord()
+ */
 class EditContact extends EditRecord
 {
     use HandlesDuplicateCustomFieldValues;

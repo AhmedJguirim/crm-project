@@ -43,6 +43,7 @@ class CompanyCustomFieldResource extends Resource
             return null;
         }
 
+        /** @var CompanyCustomField $record */
         $name = $record->name;
 
         if (strlen($name) > 50) {

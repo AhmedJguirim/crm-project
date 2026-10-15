@@ -2,7 +2,9 @@
 
 namespace App\Filament\Support\CustomFields;
 
+use App\Models\Company;
 use App\Models\CompanyCustomField;
+use App\Models\Contact;
 use App\Models\CustomField;
 use App\Support\Tenancy\CurrentOrganization;
 use Closure;
@@ -75,6 +77,7 @@ class CustomFieldValuesSection
                     ->default([])
                     ->dehydrated(false)
                     ->afterStateHydrated(function (Hidden $component, ?Model $record): void {
+                        /** @var Contact|Company|null $record */
                         $component->state(array_keys(array_filter(
                             $record?->custom_field_values ?? [],
                             fn (mixed $value): bool => filled($value),
@@ -173,6 +176,7 @@ class CustomFieldValuesSection
      */
     protected static function optionsWithRemovedValues(CustomField|CompanyCustomField $field, ?Model $record): array
     {
+        /** @var Contact|Company|null $record */
         $options = $field->optionLabels();
 
         $removedValues = collect(Arr::wrap($record?->custom_field_values[$field->key] ?? null))
@@ -227,6 +231,7 @@ class CustomFieldValuesSection
      */
     public static function mergeWithStoredValues(?array $state, ?Model $record, array $definedKeys = []): array
     {
+        /** @var Contact|Company|null $record */
         $keptValues = array_diff_key($record?->custom_field_values ?? [], array_flip($definedKeys));
 
         return array_replace($keptValues, array_filter($state ?? [], fn (mixed $value): bool => filled($value)));

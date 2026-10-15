@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Companies\RelationManagers;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Jobs\ResyncContactSegments;
+use App\Models\Company;
 use App\Models\Contact;
 use App\Support\Tenancy\CurrentOrganization;
 use Filament\Actions\AttachAction;
@@ -19,6 +20,9 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 
+/**
+ * @method Company getOwnerRecord()
+ */
 class ContactsRelationManager extends RelationManager
 {
     use SanitizesTableSearch;

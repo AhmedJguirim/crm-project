@@ -73,3 +73,26 @@ test('mark as paid action sets status and paid date', function () {
     expect($invoice->status)->toBe(InvoiceStatus::Paid)
         ->and($invoice->paid_at)->not->toBeNull();
 });
+
+test('the overdue only filter keeps late invoices and hides the others', function () {
+    $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
+
+    $late = Invoice::factory()->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $contact->id,
+        'status' => InvoiceStatus::Sent,
+        'due_at' => now()->subDays(10),
+    ]);
+    $notDue = Invoice::factory()->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $contact->id,
+        'status' => InvoiceStatus::Sent,
+        'due_at' => now()->addDays(10),
+    ]);
+
+    Livewire::test(ListInvoices::class)
+        ->assertCanSeeTableRecords([$late, $notDue])
+        ->filterTable('overdue')
+        ->assertCanSeeTableRecords([$late])
+        ->assertCanNotSeeTableRecords([$notDue]);
+});

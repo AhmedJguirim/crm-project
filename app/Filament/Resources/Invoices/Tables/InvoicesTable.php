@@ -107,7 +107,10 @@ class InvoicesTable
 
                 Filter::make('overdue')
                     ->label('Overdue only')
-                    ->query(fn (Builder $query): Builder => $query->overdue()),
+                    ->query(function (Builder $query): Builder {
+                        /** @var Builder<Invoice> $query */
+                        return $query->overdue();
+                    }),
             ])
             ->recordActions([
                 Action::make('markAsPaid')

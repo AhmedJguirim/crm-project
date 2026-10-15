@@ -13,6 +13,7 @@ use App\Filament\Resources\Deals\Widgets\DealDetailsWidget;
 use App\Filament\Resources\Deals\Widgets\DealInvoicesWidget;
 use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Filament\Support\AbilityCheck;
+use App\Models\Deal;
 use App\Models\Invoice;
 use App\Services\Deals\DealStageMover;
 use Filament\Actions\Action;
@@ -23,6 +24,9 @@ use Filament\Resources\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Model;
 
+/**
+ * @method Deal getRecord()
+ */
 class ViewDeal extends Page
 {
     use InteractsWithRecord;

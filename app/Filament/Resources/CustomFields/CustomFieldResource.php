@@ -44,6 +44,7 @@ class CustomFieldResource extends Resource
             return null;
         }
 
+        /** @var CustomField $record */
         $name = $record->name;
 
         if (strlen($name) > 50) {

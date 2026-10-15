@@ -12,6 +12,7 @@ use App\Filament\Resources\Contacts\Widgets\ContactDetailsWidget;
 use App\Filament\Support\AbilityCheck;
 use App\Filament\Support\RecordKeyField;
 use App\Models\Activity;
+use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\Deal;
 use App\Services\Deals\DealCompany;
@@ -32,6 +33,9 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Support\Icons\Heroicon;
 
+/**
+ * @method Contact getRecord()
+ */
 class ViewContact extends Page
 {
     use InteractsWithRecord;

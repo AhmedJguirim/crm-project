@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Tasks\Pages;
 use App\Enums\TaskStatus;
 use App\Filament\Resources\Tasks\Schemas\TaskForm;
 use App\Filament\Resources\Tasks\TaskResource;
+use App\Models\Task;
 use App\Support\NotificationText;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -13,6 +14,9 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Support\Icons\Heroicon;
 
+/**
+ * @method Task getRecord()
+ */
 class EditTask extends EditRecord
 {
     protected static string $resource = TaskResource::class;

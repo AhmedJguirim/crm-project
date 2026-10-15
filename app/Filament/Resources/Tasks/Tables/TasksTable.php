@@ -84,7 +84,10 @@ class TasksTable
             ])
             ->filters([
                 Filter::make('overdue')
-                    ->query(fn (Builder $query): Builder => $query->overdue()),
+                    ->query(function (Builder $query): Builder {
+                        /** @var Builder<Task> $query */
+                        return $query->overdue();
+                    }),
 
                 Filter::make('today')
                     ->query(fn (Builder $query): Builder => $query
@@ -92,8 +95,10 @@ class TasksTable
                         ->where('status', TaskStatus::Pending)),
 
                 Filter::make('this_week')
-                    ->query(fn (Builder $query): Builder => $query
-                        ->dueThisWeek()),
+                    ->query(function (Builder $query): Builder {
+                        /** @var Builder<Task> $query */
+                        return $query->dueThisWeek();
+                    }),
 
                 OptionSelectFilter::make('status')
                     ->options(TaskStatus::class)

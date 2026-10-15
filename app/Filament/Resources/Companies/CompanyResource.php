@@ -37,6 +37,7 @@ class CompanyResource extends Resource
     /** @return array<string, string> */
     public static function getGlobalSearchResultDetails(Model $record): array
     {
+        /** @var Company $record */
         return array_filter([
             'Type' => $record->companyTypeLabel(),
             'Website' => $record->domain,

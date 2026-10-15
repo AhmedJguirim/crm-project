@@ -42,7 +42,7 @@ class ContactsRelationManager extends RelationManager
 
                 TextColumn::make('joined_at')
                     ->label('Joined at')
-                    ->state(fn (Contact $record) => $record->pivot?->created_at)
+                    ->state(fn (Contact $record) => $record->getAttribute('pivot')?->created_at)
                     ->dateTime()
                     ->sortable(query: fn (Builder $query, string $direction): Builder => $query->orderBy('contact_segment.created_at', $direction)),
             ])

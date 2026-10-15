@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Contacts\Widgets;
 
+use App\Models\Contact;
 use App\Support\LocalTime;
 use Filament\Widgets\Widget;
 use Illuminate\Database\Eloquent\Builder;
@@ -40,7 +41,10 @@ class ContactActivityFeed extends Widget
 
     protected function getViewData(): array
     {
-        $activities = $this->record
+        /** @var Contact|null $contact */
+        $contact = $this->record;
+
+        $activities = $contact
             ?->activities()
             ->with('user')
             ->when(LocalTime::filterDate($this->dateFrom), fn (Builder $query, string $date): Builder => $query->where('occurred_at', '>=', LocalTime::dayBounds($date)[0]))

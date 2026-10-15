@@ -7,6 +7,7 @@ use App\Filament\Resources\Deals\DealResource;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Filament\Support\Filters\OptionSelectFilter;
 use App\Filament\Support\NullsLastSort;
+use App\Models\Company;
 use App\Models\Deal;
 use App\Support\Tenancy\CurrentOrganization;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -30,6 +31,7 @@ class DealsRelationManager extends RelationManager
      */
     public static function getBadge(Model $ownerRecord, string $pageClass): ?string
     {
+        /** @var Company $ownerRecord */
         $count = $ownerRecord->deals()->count();
 
         return $count > 0 ? (string) $count : null;

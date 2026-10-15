@@ -190,3 +190,40 @@ test('the amounts of another organization do not leak into the overview', functi
         ->assertDontSee('9,000')
         ->assertDontSee('€');
 });
+
+function dealsOverviewStatValues(DealsOverviewWidget $widget): array
+{
+    $stats = (fn (): array => $this->getStats())->call($widget);
+
+    $values = [];
+
+    foreach ($stats as $stat) {
+        $values[$stat->getLabel()] = (string) $stat->getValue();
+    }
+
+    return $values;
+}
+
+test('the cards hold the counts of the open and of the won deals, not each other', function () {
+    foreach ([100, 200, 300] as $value) {
+        dealsOverviewOpenDeal($this, $value);
+    }
+
+    foreach ([5000, 7000] as $value) {
+        Deal::factory()->create([
+            'organization_id' => $this->org->id,
+            'created_by' => $this->user->id,
+            'status' => DealStatus::Won,
+            'stage' => DealStage::Won,
+            'value' => $value,
+            'won_at' => now(),
+        ]);
+    }
+
+    $values = dealsOverviewStatValues(Livewire::test(DealsOverviewWidget::class)->instance());
+
+    expect($values['Open Deals'])->toBe('3')
+        ->and($values['Won This Month'])->toBe('2')
+        ->and($values['Pipeline Value'])->toBe('$600.00')
+        ->and($values['Revenue Won This Month'])->toBe('$12,000.00');
+});
