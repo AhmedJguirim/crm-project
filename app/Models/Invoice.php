@@ -49,11 +49,17 @@ class Invoice extends Model
         ];
     }
 
+    /**
+     * @return BelongsTo<Contact, $this>
+     */
     public function contact(): BelongsTo
     {
         return $this->belongsTo(Contact::class);
     }
 
+    /**
+     * @return BelongsTo<Deal, $this>
+     */
     public function deal(): BelongsTo
     {
         return $this->belongsTo(Deal::class);

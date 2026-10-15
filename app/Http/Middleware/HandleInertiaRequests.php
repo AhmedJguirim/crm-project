@@ -64,7 +64,7 @@ class HandleInertiaRequests extends Middleware
             ->filter(fn (mixed $parameter): bool => $parameter instanceof Model)
             ->map(fn (Model $record): ?Organization => $record instanceof Organization
                 ? $record
-                : ($record->isRelation('organization') ? $record->organization : null))
+                : ($record->isRelation('organization') ? $record->getRelationValue('organization') : null))
             ->filter()
             ->first();
 

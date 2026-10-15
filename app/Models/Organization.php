@@ -83,11 +83,17 @@ class Organization extends Model
         return $now->hour === $now->setTime($hour, 0)->hour;
     }
 
+    /**
+     * @return BelongsTo<User, $this>
+     */
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
+    /**
+     * @return BelongsToMany<User, $this>
+     */
     public function members(): BelongsToMany
     {
         return $this->belongsToMany(User::class)
@@ -99,7 +105,7 @@ class Organization extends Model
     {
         $member = $this->members()->where('user_id', $user instanceof User ? $user->id : $user)->first();
 
-        return $member ? OrganizationRole::from($member->pivot->role) : null;
+        return $member ? OrganizationRole::from($member->pivot->getAttribute('role')) : null;
     }
 
     public function isOwner(User|int $user): bool
@@ -120,12 +126,19 @@ class Organization extends Model
         return $this->members()->where('user_id', $user->id)->exists();
     }
 
-    /** All invitations (any status) sent for this organization. */
+    /**
+     * All invitations (any status) sent for this organization.
+     *
+     * @return HasMany<OrganizationInvite, $this>
+     */
     public function invitations(): HasMany
     {
         return $this->hasMany(OrganizationInvite::class);
     }
 
+    /**
+     * @return HasMany<Deal, $this>
+     */
     public function deals(): HasMany
     {
         return $this->hasMany(Deal::class);
@@ -149,21 +162,33 @@ class Organization extends Model
         return $this->hasOne(Pipeline::class)->oldestOfMany();
     }
 
+    /**
+     * @return HasMany<Tag, $this>
+     */
     public function tags(): HasMany
     {
         return $this->hasMany(Tag::class);
     }
 
+    /**
+     * @return HasMany<Company, $this>
+     */
     public function companies(): HasMany
     {
         return $this->hasMany(Company::class);
     }
 
+    /**
+     * @return HasMany<CompanyType, $this>
+     */
     public function companyTypes(): HasMany
     {
         return $this->hasMany(CompanyType::class);
     }
 
+    /**
+     * @return HasMany<Segment, $this>
+     */
     public function segments(): HasMany
     {
         return $this->hasMany(Segment::class);

@@ -3,11 +3,12 @@
 namespace App\Services\Exports;
 
 use App\Enums\ExportFormat;
+use App\Models\Company;
 use App\Models\CompanyCustomField;
+use App\Models\Contact;
 use App\Models\CustomField;
 use App\Services\ContactImportService;
 use DateTime;
-use Illuminate\Database\Eloquent\Model;
 
 /**
  * The cell values the exports share: the CSV formula guard and the custom field values as a person reads them.
@@ -68,10 +69,8 @@ class ExportCells
 
     /**
      * The value of a custom field of a contact or a company, as a person reads it.
-     *
-     * @param  Model  $record  A model with the `HasCustomFieldValues` trait.
      */
-    public static function customField(Model $record, CustomField|CompanyCustomField $field, ExportFormat $format): string|int|float
+    public static function customField(Contact|Company $record, CustomField|CompanyCustomField $field, ExportFormat $format): string|int|float
     {
         $value = $record->customFieldValue($field->key);
 

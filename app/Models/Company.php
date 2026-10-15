@@ -172,16 +172,25 @@ class Company extends Model
             ->get();
     }
 
+    /**
+     * @return BelongsTo<Address, $this>
+     */
     public function address(): BelongsTo
     {
         return $this->belongsTo(Address::class);
     }
 
+    /**
+     * @return BelongsTo<CompanyType, $this>
+     */
     public function companyType(): BelongsTo
     {
         return $this->belongsTo(CompanyType::class);
     }
 
+    /**
+     * @return BelongsToMany<Contact, $this>
+     */
     public function contacts(): BelongsToMany
     {
         return $this->belongsToMany(Contact::class)->withTimestamps();

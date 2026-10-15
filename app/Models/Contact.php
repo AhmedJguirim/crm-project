@@ -82,31 +82,49 @@ class Contact extends Model
             ->get();
     }
 
+    /**
+     * @return BelongsToMany<Company, $this>
+     */
     public function companies(): BelongsToMany
     {
         return $this->belongsToMany(Company::class)->withTimestamps();
     }
 
+    /**
+     * @return BelongsToMany<Tag, $this>
+     */
     public function tags(): BelongsToMany
     {
         return $this->belongsToMany(Tag::class, 'contact_tag');
     }
 
+    /**
+     * @return HasMany<Activity, $this>
+     */
     public function activities(): HasMany
     {
         return $this->hasMany(Activity::class);
     }
 
+    /**
+     * @return HasMany<Deal, $this>
+     */
     public function deals(): HasMany
     {
         return $this->hasMany(Deal::class);
     }
 
+    /**
+     * @return HasMany<Invoice, $this>
+     */
     public function invoices(): HasMany
     {
         return $this->hasMany(Invoice::class);
     }
 
+    /**
+     * @return BelongsToMany<Segment, $this>
+     */
     public function segments(): BelongsToMany
     {
         return $this->belongsToMany(Segment::class)->withTimestamps();

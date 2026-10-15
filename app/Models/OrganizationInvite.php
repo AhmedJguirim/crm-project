@@ -38,13 +38,21 @@ class OrganizationInvite extends Model
     // Relationships
     // ──────────────────────────────────────────────
 
-    /** The organization this invite belongs to. */
+    /**
+     * The organization this invite belongs to.
+     *
+     * @return BelongsTo<Organization, $this>
+     */
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
     }
 
-    /** The user who sent this invitation. */
+    /**
+     * The user who sent this invitation.
+     *
+     * @return BelongsTo<User, $this>
+     */
     public function inviter(): BelongsTo
     {
         return $this->belongsTo(User::class, 'invited_by');

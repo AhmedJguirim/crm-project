@@ -4,7 +4,6 @@ namespace App\Models\Concerns;
 
 use App\Exceptions\CustomFieldTypeLockedException;
 use App\Support\Tenancy\TenantContext;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 
 /**
@@ -19,11 +18,11 @@ trait IsCustomField
 {
     public static function bootIsCustomField(): void
     {
-        static::saving(function (Model $field): void {
+        static::saving(function (self $field): void {
             $field->generateOptionValues();
         });
 
-        static::creating(function (Model $field): void {
+        static::creating(function (self $field): void {
             $field->organization_id ??= app(TenantContext::class)->id();
 
             if (blank($field->key)) {
@@ -31,7 +30,7 @@ trait IsCustomField
             }
         });
 
-        static::updating(function (Model $field): void {
+        static::updating(function (self $field): void {
             if ($field->isDirty('key')) {
                 $field->key = $field->getOriginal('key');
             }

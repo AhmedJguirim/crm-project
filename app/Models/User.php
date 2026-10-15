@@ -70,6 +70,9 @@ class User extends Authenticatable implements FilamentUser, HasTenants
         return true;
     }
 
+    /**
+     * @return BelongsToMany<Organization, $this>
+     */
     public function organizations(): BelongsToMany
     {
         return $this->belongsToMany(Organization::class)
@@ -111,6 +114,9 @@ class User extends Authenticatable implements FilamentUser, HasTenants
         return $this->roleIn($organizationId) !== null;
     }
 
+    /**
+     * @return HasMany<Deal, $this>
+     */
     public function createdDeals(): HasMany
     {
         return $this->hasMany(Deal::class, 'created_by');
