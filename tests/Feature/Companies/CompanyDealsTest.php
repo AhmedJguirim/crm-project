@@ -13,6 +13,7 @@ use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\User;
 use App\Services\Deals\DealStageMover;
+use App\Services\Deals\DefaultPipeline;
 use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\DB;
@@ -39,7 +40,7 @@ beforeEach(function () {
         'title' => $title,
         'expected_close_date' => $closeDate,
         'value' => $value,
-        ...DealStageMover::attributesFor($stage),
+        ...DealStageMover::attributesFor(DefaultPipeline::stageFor($this->org->id, $stage)),
     ]);
 
     $this->late = ($this->makeDeal)('Late renewal', $this->acme, DealStage::ProposalSent, '2026-10-05', '1200.00', $this->jane);

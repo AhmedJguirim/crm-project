@@ -32,6 +32,7 @@ class Deal extends Model
         'company_id',
         'title',
         'stage',
+        'pipeline_stage_id',
         'value',
         'expected_close_date',
         'notes',

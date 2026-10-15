@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Deals\Pages;
 
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Filament\Actions\LogDealActivityAction;
 use App\Filament\Actions\QuickTaskAction;
@@ -16,6 +15,7 @@ use App\Filament\Support\AbilityCheck;
 use App\Models\Deal;
 use App\Models\Invoice;
 use App\Services\Deals\DealStageMover;
+use App\Services\Deals\DefaultPipeline;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Notifications\Notification;
@@ -108,7 +108,7 @@ class ViewDeal extends Page
                 ->modalDescription('This will close the deal as Won and set the won date to now.')
                 ->modalSubmitActionLabel('Yes, mark as won')
                 ->action(function (): void {
-                    DealStageMover::move($this->getRecord(), DealStage::Won);
+                    DealStageMover::move($this->getRecord(), DefaultPipeline::stageOfType($this->getRecord()->organization_id, DealStatus::Won));
 
                     Notification::make()
                         ->title('Deal moved to Won')
@@ -129,7 +129,7 @@ class ViewDeal extends Page
                 ->modalDescription('This will close the deal as Lost and set the lost date to now.')
                 ->modalSubmitActionLabel('Yes, mark as lost')
                 ->action(function (): void {
-                    DealStageMover::move($this->getRecord(), DealStage::Lost);
+                    DealStageMover::move($this->getRecord(), DefaultPipeline::stageOfType($this->getRecord()->organization_id, DealStatus::Lost));
 
                     Notification::make()
                         ->title('Deal moved to Lost')

@@ -5,6 +5,7 @@ use App\Enums\DealStatus;
 use App\Filament\Resources\Deals\Pages\EditDeal;
 use App\Models\Deal;
 use App\Models\User;
+use App\Services\Deals\DefaultPipeline;
 use Filament\Facades\Filament;
 use Illuminate\Support\Carbon;
 use Livewire\Livewire;
@@ -84,7 +85,7 @@ test('changing the stage sets, moves or clears the closing dates', function (
     }, $wonBefore, $lostBefore);
 
     Livewire::test(EditDeal::class, ['record' => $deal->id])
-        ->fillForm(['stage' => $to])
+        ->fillForm(['pipeline_stage_id' => DefaultPipeline::stageFor($deal->organization_id, $to)->id])
         ->call('save')
         ->assertHasNoFormErrors();
 

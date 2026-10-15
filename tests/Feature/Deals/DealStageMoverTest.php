@@ -6,14 +6,17 @@ use App\Filament\Resources\Contacts\Pages\ListContacts;
 use App\Filament\Resources\Contacts\Pages\ViewContact;
 use App\Filament\Resources\Deals\Pages\CreateDeal;
 use App\Filament\Resources\Deals\Pages\DealPipeline;
+use App\Filament\Resources\Deals\Pages\EditDeal;
 use App\Filament\Resources\Deals\Pages\ViewDeal;
 use App\Filament\Resources\Tasks\Pages\CreateTask;
 use App\Jobs\ResyncContactSegments;
 use App\Models\Contact;
 use App\Models\Deal;
+use App\Models\PipelineStage;
 use App\Models\Segment;
 use App\Models\User;
 use App\Services\Deals\DealStageMover;
+use App\Services\Deals\DefaultPipeline;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Support\Carbon;
@@ -32,6 +35,11 @@ beforeEach(function () {
 afterEach(function () {
     Carbon::setTestNow();
 });
+
+function stageMoverStage(User $user, DealStage $stage): PipelineStage
+{
+    return DefaultPipeline::stageFor($user->personalOrganization()->id, $stage);
+}
 
 function stageMoverDeal(User $user, DealStage $stage, ?string $wonAt = null, ?string $lostAt = null, ?Contact $contact = null): Deal
 {
@@ -54,10 +62,11 @@ function stageMoverDeal(User $user, DealStage $stage, ?string $wonAt = null, ?st
 }
 
 test('attributesFor sets the status and the dates of a new deal from the stage', function (DealStage $stage, DealStatus $status, ?string $wonAt, ?string $lostAt) {
-    $attributes = DealStageMover::attributesFor($stage);
+    $pipelineStage = stageMoverStage($this->user, $stage);
+    $attributes = DealStageMover::attributesFor($pipelineStage);
 
-    expect(array_keys($attributes))->toBe(['stage', 'status', 'won_at', 'lost_at'])
-        ->and($attributes['stage'])->toBe($stage)
+    expect(array_keys($attributes))->toBe(['pipeline_stage_id', 'status', 'won_at', 'lost_at'])
+        ->and($attributes['pipeline_stage_id'])->toBe($pipelineStage->id)
         ->and($attributes['status'])->toBe($status)
         ->and($attributes['won_at']?->toDateTimeString())->toBe($wonAt)
         ->and($attributes['lost_at']?->toDateTimeString())->toBe($lostAt);
@@ -70,21 +79,17 @@ test('attributesFor sets the status and the dates of a new deal from the stage',
     'lost' => [DealStage::Lost, DealStatus::Lost, null, '2026-10-08 09:15:00'],
 ]);
 
-test('attributesFor accepts a stage given as a string', function () {
-    $attributes = DealStageMover::attributesFor('won');
+test('attributesFor takes the status from the type of the pipeline stage, not from its name', function () {
+    $renamed = stageMoverStage($this->user, DealStage::Won);
+    $renamed->update(['name' => 'Closed deal']);
 
-    expect($attributes['stage'])->toBe(DealStage::Won)
-        ->and($attributes['status'])->toBe(DealStatus::Won);
+    expect(DealStageMover::attributesFor($renamed->fresh())['status'])->toBe(DealStatus::Won);
 });
-
-test('attributesFor throws on an unknown stage', function () {
-    DealStageMover::attributesFor('closed');
-})->throws(ValueError::class);
 
 test('attributesFor keeps or resets the dates of an existing deal', function (DealStage $from, ?string $wonBefore, ?string $lostBefore, DealStage $to, DealStatus $status, ?string $wonAfter, ?string $lostAfter) {
     $deal = stageMoverDeal($this->user, $from, $wonBefore, $lostBefore);
 
-    $attributes = DealStageMover::attributesFor($to, $deal);
+    $attributes = DealStageMover::attributesFor(stageMoverStage($this->user, $to), $deal);
 
     expect($attributes['status'])->toBe($status)
         ->and($attributes['won_at']?->toDateTimeString())->toBe($wonAfter)
@@ -105,7 +110,7 @@ test('move saves the deal through model events', function () {
     $deal = stageMoverDeal($this->user, DealStage::Negotiating, contact: $contact);
     Queue::fake([ResyncContactSegments::class]);
 
-    $moved = DealStageMover::move($deal, DealStage::Won);
+    $moved = DealStageMover::move($deal, stageMoverStage($this->user, DealStage::Won));
 
     $stored = Deal::query()->findOrFail($deal->id);
 
@@ -120,13 +125,15 @@ test('move saves the deal through model events', function () {
 
 test('the create page sets the status and the dates from the stage', function (DealStage $stage, DealStatus $status, ?string $wonAt, ?string $lostAt) {
     Livewire::test(CreateDeal::class)
-        ->fillForm(['title' => 'Retainer', 'stage' => $stage])
+        ->fillForm(['title' => 'Retainer', 'pipeline_stage_id' => stageMoverStage($this->user, $stage)->id])
         ->call('create')
         ->assertHasNoFormErrors();
 
     $deal = Deal::query()->where('title', 'Retainer')->firstOrFail();
 
-    expect($deal->status)->toBe($status)
+    expect($deal->pipeline_stage_id)->toBe(stageMoverStage($this->user, $stage)->id)
+        ->and($deal->stage)->toBe($stage)
+        ->and($deal->status)->toBe($status)
         ->and($deal->won_at?->toDateTimeString())->toBe($wonAt)
         ->and($deal->lost_at?->toDateTimeString())->toBe($lostAt);
 })->with([
@@ -156,6 +163,7 @@ test('dragging a won card to Lost moves its date from won to lost', function () 
     $deal->refresh();
 
     expect($deal->stage)->toBe(DealStage::Lost)
+        ->and($deal->pipeline_stage_id)->toBe(stageMoverStage($this->user, DealStage::Lost)->id)
         ->and($deal->status)->toBe(DealStatus::Lost)
         ->and($deal->won_at)->toBeNull()
         ->and($deal->lost_at->toDateTimeString())->toBe('2026-10-08 09:15:00');
@@ -196,6 +204,7 @@ test('the deal page actions stamp the current time', function (string $action, D
     $deal->refresh();
 
     expect($deal->stage)->toBe($stage)
+        ->and($deal->pipeline_stage_id)->toBe(stageMoverStage($this->user, $stage)->id)
         ->and($deal->status)->toBe($status)
         ->and($deal->won_at?->toDateTimeString())->toBe($wonAt)
         ->and($deal->lost_at?->toDateTimeString())->toBe($lostAt);
@@ -233,7 +242,7 @@ test('every inline create deal form sets the creator as the deal owner', functio
     $page()
         ->callAction($actions(), data: [
             'title' => 'Inline deal',
-            'stage' => DealStage::Lead,
+            'pipeline_stage_id' => stageMoverStage($this->user, DealStage::Lead)->id,
         ])
         ->assertHasNoActionErrors();
 
@@ -249,13 +258,14 @@ test('every inline create deal form sets the status and the dates from the stage
     $page()
         ->callAction($actions(), data: [
             'title' => 'Inline deal',
-            'stage' => $stage,
+            'pipeline_stage_id' => stageMoverStage($this->user, $stage)->id,
         ])
         ->assertHasNoActionErrors();
 
     $deal = Deal::query()->where('title', 'Inline deal')->firstOrFail();
 
-    expect($deal->stage)->toBe($stage)
+    expect($deal->pipeline_stage_id)->toBe(stageMoverStage($this->user, $stage)->id)
+        ->and($deal->stage)->toBe($stage)
         ->and($deal->status)->toBe($status)
         ->and($deal->won_at?->toDateTimeString())->toBe($wonAt)
         ->and($deal->lost_at?->toDateTimeString())->toBe($lostAt);
@@ -264,3 +274,35 @@ test('every inline create deal form sets the status and the dates from the stage
     'won' => [DealStage::Won, DealStatus::Won, '2026-10-08 09:15:00', null],
     'lost' => [DealStage::Lost, DealStatus::Lost, null, '2026-10-08 09:15:00'],
 ]);
+
+test('the stage select defaults to the first open stage and lists the pipeline in order', function () {
+    $lead = stageMoverStage($this->user, DealStage::Lead);
+
+    Livewire::test(CreateDeal::class)
+        ->assertFormSet(['pipeline_stage_id' => $lead->id])
+        ->assertFormFieldExists('pipeline_stage_id', fn ($field): bool => array_values($field->getOptions()) === ['Lead', 'Discovery', 'Proposal Sent', 'Negotiating', 'Won', 'Lost']);
+});
+
+test('the create form refuses the stage id of another organization', function () {
+    $other = User::factory()->onboardingCompleted()->withPersonalOrganization()->create()->personalOrganization();
+    $foreignWon = DefaultPipeline::stageFor($other->id, DealStage::Won);
+
+    $page = Livewire::test(CreateDeal::class)
+        ->fillForm(['title' => 'Forged stage', 'pipeline_stage_id' => $foreignWon->id])
+        ->call('create');
+
+    expect($page->errors()->has('data.pipeline_stage_id'))->toBeTrue()
+        ->and(Deal::query()->where('title', 'Forged stage')->exists())->toBeFalse();
+});
+
+test('the edit form refuses the stage id of another organization and keeps the deal', function () {
+    $other = User::factory()->onboardingCompleted()->withPersonalOrganization()->create()->personalOrganization();
+    $deal = stageMoverDeal($this->user, DealStage::Lead);
+
+    $page = Livewire::test(EditDeal::class, ['record' => $deal->id])
+        ->fillForm(['pipeline_stage_id' => DefaultPipeline::stageFor($other->id, DealStage::Won)->id])
+        ->call('save');
+
+    expect($page->errors()->has('data.pipeline_stage_id'))->toBeTrue()
+        ->and($deal->fresh()->pipeline_stage_id)->toBe(stageMoverStage($this->user, DealStage::Lead)->id);
+});

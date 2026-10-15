@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\ActivityType;
-use App\Enums\DealStage;
 use App\Enums\TaskType;
 use App\Filament\Resources\Companies\Pages\CreateCompany;
 use App\Filament\Resources\Contacts\Pages\CreateContact;
@@ -51,7 +50,7 @@ dataset('forged record key forms', [
 
 test('a forged non-integer id renders, then is refused on save', function (string $page, string $field, mixed $value, string $errorKey) {
     $component = match ($page) {
-        'deal' => Livewire::test(CreateDeal::class)->fillForm(['title' => 'Forged', 'stage' => DealStage::Lead]),
+        'deal' => Livewire::test(CreateDeal::class)->fillForm(['title' => 'Forged']),
         'task' => Livewire::test(CreateTask::class)->fillForm(['title' => 'Forged', 'contact_id' => $field === 'deal_id' ? $this->jane->id : null]),
         'invoice' => Livewire::test(CreateInvoice::class)->fillForm(['amount' => 10, 'contact_id' => $field === 'deal_id' ? $this->jane->id : null]),
         'contact' => Livewire::test(CreateContact::class)->fillForm(['name' => 'Forged', 'email' => 'forged@example.com']),
@@ -76,7 +75,7 @@ test('a forged non-integer id renders, then is refused on save', function (strin
 
 test('a forged owner id on the deal form is refused by the options rule', function () {
     $component = Livewire::test(CreateDeal::class)
-        ->fillForm(['title' => 'Forged', 'stage' => DealStage::Lead])
+        ->fillForm(['title' => 'Forged'])
         ->set('data.owner_id', 'abc')
         ->assertOk()
         ->call('create');
@@ -241,7 +240,7 @@ test('an id the integer rule accepts but the state cast would drop is refused on
     $acme = Company::factory()->create(['organization_id' => $this->org->id, 'name' => 'Acme']);
 
     $component = Livewire::test(CreateDeal::class)
-        ->fillForm(['title' => 'Padded', 'stage' => DealStage::Lead])
+        ->fillForm(['title' => 'Padded'])
         ->set('data.company_id', $shape($acme->id))
         ->call('create');
 

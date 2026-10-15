@@ -19,6 +19,7 @@ use App\Models\Invoice;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\Deals\DealStageMover;
+use App\Services\Deals\DefaultPipeline;
 use App\Support\LocalTime;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Testing\TestAction;
@@ -53,7 +54,7 @@ beforeEach(function () {
         'created_by' => $this->alice->id,
         'title' => $title,
         'expected_close_date' => $closeDate,
-        ...DealStageMover::attributesFor($stage),
+        ...DealStageMover::attributesFor(DefaultPipeline::stageFor($this->org->id, $stage)),
     ]);
 
     $this->makeInvoice = fn (InvoiceStatus $status, string $dueAt, array $attributes = []): Invoice => Invoice::factory()->create([
@@ -176,8 +177,8 @@ test('the month widgets count the local month', function () {
     ($this->inZone)('Europe/Paris', '2026-10-31 23:30:00');
     Contact::factory()->create(['organization_id' => $this->org->id, 'created_at' => '2026-10-31 23:10:00']);
     Contact::factory()->create(['organization_id' => $this->org->id, 'created_at' => '2026-10-31 22:50:00']);
-    Deal::factory()->create(['organization_id' => $this->org->id, 'created_by' => $this->alice->id, 'value' => 300, ...DealStageMover::attributesFor(DealStage::Won), 'won_at' => '2026-10-31 23:10:00']);
-    Deal::factory()->create(['organization_id' => $this->org->id, 'created_by' => $this->alice->id, 'value' => 200, ...DealStageMover::attributesFor(DealStage::Won), 'won_at' => '2026-10-31 22:50:00']);
+    Deal::factory()->create(['organization_id' => $this->org->id, 'created_by' => $this->alice->id, 'value' => 300, ...DealStageMover::attributesFor(DefaultPipeline::stageFor($this->org->id, DealStage::Won)), 'won_at' => '2026-10-31 23:10:00']);
+    Deal::factory()->create(['organization_id' => $this->org->id, 'created_by' => $this->alice->id, 'value' => 200, ...DealStageMover::attributesFor(DefaultPipeline::stageFor($this->org->id, DealStage::Won)), 'won_at' => '2026-10-31 22:50:00']);
     ($this->makeInvoice)(InvoiceStatus::Paid, '2026-11-30', ['amount' => 100, 'amount_paid' => 100, 'paid_at' => '2026-11-01']);
     ($this->makeInvoice)(InvoiceStatus::Paid, '2026-11-30', ['amount' => 40, 'amount_paid' => 40, 'paid_at' => '2026-10-31']);
 

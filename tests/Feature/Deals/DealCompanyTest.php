@@ -111,7 +111,7 @@ test('choosing a contact fills an empty company and the deal is saved with it', 
     Livewire::test(CreateDeal::class)
         ->fillForm(['contact_id' => $this->jane->id])
         ->assertSchemaStateSet(['company_id' => $this->acme->id])
-        ->fillForm(['title' => 'Retainer', 'stage' => DealStage::Lead])
+        ->fillForm(['title' => 'Retainer'])
         ->call('create')
         ->assertHasNoFormErrors();
 
@@ -142,7 +142,7 @@ test('a company of another organization is refused', function () {
     $spy = Company::factory()->create(['organization_id' => $this->otherOrg->id, 'name' => 'Spy Inc']);
 
     Livewire::test(CreateDeal::class)
-        ->fillForm(['title' => 'Forged', 'stage' => DealStage::Lead, 'company_id' => $spy->id])
+        ->fillForm(['title' => 'Forged', 'company_id' => $spy->id])
         ->call('create')
         ->assertHasFormErrors(['company_id']);
 
@@ -151,7 +151,7 @@ test('a company of another organization is refused', function () {
 
 test('a forged company id that does not exist or is not a number is refused and the form still renders', function (mixed $value) {
     Livewire::test(CreateDeal::class)
-        ->fillForm(['title' => 'Forged', 'stage' => DealStage::Lead, 'company_id' => $value])
+        ->fillForm(['title' => 'Forged', 'company_id' => $value])
         ->call('create')
         ->assertHasFormErrors(['company_id']);
 
@@ -185,7 +185,7 @@ test('a deleted company cannot be picked on another deal', function () {
         ->assertHasFormErrors(['company_id']);
 
     Livewire::test(CreateDeal::class)
-        ->fillForm(['title' => 'New', 'stage' => DealStage::Lead, 'company_id' => $this->acme->id])
+        ->fillForm(['title' => 'New', 'company_id' => $this->acme->id])
         ->call('create')
         ->assertHasFormErrors(['company_id']);
 
@@ -240,8 +240,8 @@ dataset('company inline deal forms', [
 ]);
 
 test('an inline deal create takes the single company of its contact and leaves it empty for an ambiguous contact', function (Closure $page, Closure $actions) {
-    $page($this->jane)->callAction($actions($this->jane), data: ['title' => 'Inline', 'stage' => DealStage::Lead])->assertHasNoActionErrors();
-    $page($this->john)->callAction($actions($this->john), data: ['title' => 'Inline 2', 'stage' => DealStage::Lead])->assertHasNoActionErrors();
+    $page($this->jane)->callAction($actions($this->jane), data: ['title' => 'Inline'])->assertHasNoActionErrors();
+    $page($this->john)->callAction($actions($this->john), data: ['title' => 'Inline 2'])->assertHasNoActionErrors();
 
     expect(Deal::query()->where('title', 'Inline')->firstOrFail()->company_id)->toBe($this->acme->id)
         ->and(Deal::query()->where('title', 'Inline 2')->firstOrFail()->company_id)->toBeNull();
@@ -253,7 +253,7 @@ test('an inline deal created from a deal log activity takes the single company o
     Livewire::test(ViewDeal::class, ['record' => $deal->id])
         ->callAction(
             [TestAction::make('logActivity'), TestAction::make('createOption')->schemaComponent('deal_id')],
-            data: ['title' => 'Inline', 'stage' => DealStage::Lead],
+            data: ['title' => 'Inline'],
         )
         ->assertHasNoActionErrors();
 

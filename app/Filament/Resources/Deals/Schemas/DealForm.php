@@ -2,13 +2,14 @@
 
 namespace App\Filament\Resources\Deals\Schemas;
 
-use App\Enums\DealStage;
+use App\Enums\DealStatus;
 use App\Filament\Support\RecordKeyField;
 use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Services\Deals\DealCompany;
 use App\Services\Deals\DealStageMover;
+use App\Services\Deals\DefaultPipeline;
 use App\Services\Owners\OwnerOptions;
 use App\Support\MoneyLimit;
 use App\Support\Tenancy\CurrentOrganization;
@@ -36,7 +37,20 @@ class DealForm
         $data['organization_id'] = CurrentOrganization::get()->id;
         $data['created_by'] = Auth::id();
 
-        return [...$data, ...DealStageMover::attributesFor($data['stage'])];
+        return [...$data, ...DealStageMover::attributesFor(DefaultPipeline::stageById($data['organization_id'], $data['pipeline_stage_id']))];
+    }
+
+    /**
+     * The stage field of every deal form: the stages of the current organization's pipeline in order, "Lead" (the first open stage) by default.
+     */
+    public static function stageSelect(): Select
+    {
+        return RecordKeyField::select('pipeline_stage_id')
+            ->label('Stage')
+            ->options(fn (): array => DefaultPipeline::stageOptions(CurrentOrganization::get()->id))
+            ->in(fn (): array => array_keys(DefaultPipeline::stageOptions(CurrentOrganization::get()->id)))
+            ->default(fn (): int => DefaultPipeline::stageOfType(CurrentOrganization::get()->id, DealStatus::Open)->getKey())
+            ->required();
     }
 
     public static function configure(Schema $schema): Schema
@@ -100,10 +114,7 @@ class DealForm
                     ->nullable()
                     ->placeholder('No owner'),
 
-                Select::make('stage')
-                    ->options(DealStage::class)
-                    ->default(DealStage::Lead)
-                    ->required(),
+                static::stageSelect(),
 
                 TextInput::make('value')
                     ->numeric()

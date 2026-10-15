@@ -46,7 +46,7 @@ test('the deal forms have no currency field', function () {
 
 test('a deal is created from title, stage and value and carries no currency', function () {
     Livewire::test(CreateDeal::class)
-        ->fillForm(['title' => 'No currency', 'stage' => DealStage::Lead, 'value' => 1000])
+        ->fillForm(['title' => 'No currency', 'value' => 1000])
         ->call('create')
         ->assertHasNoFormErrors();
 

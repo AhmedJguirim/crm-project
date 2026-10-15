@@ -4,13 +4,14 @@ namespace App\Filament\Actions;
 
 use App\Enums\ActivityOutcome;
 use App\Enums\ActivityType;
-use App\Enums\DealStage;
+use App\Filament\Resources\Deals\Schemas\DealForm;
 use App\Filament\Support\AbilityCheck;
 use App\Filament\Support\RecordKeyField;
 use App\Models\Activity;
 use App\Models\Deal;
 use App\Services\Deals\DealCompany;
 use App\Services\Deals\DealStageMover;
+use App\Services\Deals\DefaultPipeline;
 use App\Support\MoneyLimit;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DateTimePicker;
@@ -135,10 +136,7 @@ final class LogDealActivityAction
                     TextInput::make('title')
                         ->required()
                         ->maxLength(255),
-                    Select::make('stage')
-                        ->options(DealStage::class)
-                        ->default(DealStage::Lead)
-                        ->required(),
+                    DealForm::stageSelect(),
                     TextInput::make('value')
                         ->numeric()
                         ->minValue(0)
@@ -154,7 +152,7 @@ final class LogDealActivityAction
                         'contact_id' => $deal->contact_id,
                         'company_id' => DealCompany::defaultIdFor($deal->contact_id),
                         'title' => $data['title'],
-                        ...DealStageMover::attributesFor($data['stage']),
+                        ...DealStageMover::attributesFor(DefaultPipeline::stageById($deal->organization_id, $data['pipeline_stage_id'])),
                         'value' => $data['value'] ?? null,
                         'notes' => $data['deal_notes'] ?? null,
                         'created_by' => auth()->id(),

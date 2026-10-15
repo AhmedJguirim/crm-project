@@ -33,6 +33,7 @@ use App\Models\Tag;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\Deals\DealCompany;
+use App\Services\Deals\DefaultPipeline;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -552,7 +553,7 @@ class ItConsultingSeeder extends Seeder
                 [
                     'contact_id' => $contact->id,
                     'company_id' => DealCompany::defaultIdFor($contact->id),
-                    'stage' => $dealData['stage'],
+                    'pipeline_stage_id' => DefaultPipeline::stageFor($org->id, $dealData['stage'])->getKey(),
                     'status' => $dealData['status'],
                     'value' => $dealData['value'],
                     'expected_close_date' => $dealData['expected_close_date'],

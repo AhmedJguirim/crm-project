@@ -2,10 +2,10 @@
 
 namespace App\Filament\Actions;
 
-use App\Enums\DealStage;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
+use App\Filament\Resources\Deals\Schemas\DealForm;
 use App\Filament\Support\AbilityCheck;
 use App\Filament\Support\RecordKeyField;
 use App\Models\Contact;
@@ -13,6 +13,7 @@ use App\Models\Deal;
 use App\Models\Task;
 use App\Services\Deals\DealCompany;
 use App\Services\Deals\DealStageMover;
+use App\Services\Deals\DefaultPipeline;
 use App\Support\MoneyLimit;
 use App\Support\Tenancy\CurrentOrganization;
 use Carbon\CarbonImmutable;
@@ -250,10 +251,7 @@ class QuickTaskAction
                 TextInput::make('title')
                     ->required()
                     ->maxLength(255),
-                Select::make('stage')
-                    ->options(DealStage::class)
-                    ->default(DealStage::Lead)
-                    ->required(),
+                DealForm::stageSelect(),
                 TextInput::make('value')
                     ->numeric()
                     ->minValue(0)
@@ -269,7 +267,7 @@ class QuickTaskAction
                     'contact_id' => $get('contact_id') ?: null,
                     'company_id' => DealCompany::defaultIdFor($get('contact_id')),
                     'title' => $data['title'],
-                    ...DealStageMover::attributesFor($data['stage']),
+                    ...DealStageMover::attributesFor(DefaultPipeline::stageById(CurrentOrganization::get()->id, $data['pipeline_stage_id'])),
                     'value' => $data['value'] ?? null,
                     'notes' => $data['notes'] ?? null,
                     'created_by' => Auth::id(),

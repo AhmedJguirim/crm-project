@@ -14,6 +14,7 @@ use App\Filament\Support\Filters\OptionSelectFilter;
 use App\Filament\Support\Filters\RecordKeySelectFilter;
 use App\Models\Deal;
 use App\Services\Deals\DealStageMover;
+use App\Services\Deals\DefaultPipeline;
 use App\Support\NotificationText;
 use App\Support\Tenancy\CurrentOrganization;
 use Filament\Actions\Action;
@@ -222,7 +223,7 @@ class DealPipeline extends BoardResourcePage
             ->fillForm(fn (Deal $record): array => $record->attributesToArray())
             ->schema(fn (Schema $schema, ?Deal $record): Schema => $record === null ? $schema->components([]) : DealForm::configure($schema))
             ->action(function (array $data, Deal $record): void {
-                $record->update([...$data, ...DealStageMover::attributesFor($data['stage'], $record)]);
+                $record->update([...$data, ...DealStageMover::attributesFor(DefaultPipeline::stageById($record->organization_id, $data['pipeline_stage_id']), $record)]);
 
                 Notification::make()
                     ->title('Saved')
@@ -315,7 +316,7 @@ class DealPipeline extends BoardResourcePage
         DB::transaction(function () use ($deal, $stage, $cardId, $targetColumnId, $afterCardId, $beforeCardId): void {
             parent::moveCard($cardId, $targetColumnId, $afterCardId, $beforeCardId);
 
-            DealStageMover::move($deal->refresh(), $stage);
+            DealStageMover::move($deal->refresh(), DefaultPipeline::stageFor($deal->organization_id, $stage));
         });
     }
 

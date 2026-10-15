@@ -123,7 +123,7 @@ test('the inline new deal belongs to the page deal contact and organization', fu
     Livewire::test(ViewDeal::class, ['record' => $this->deal->id])
         ->callAction(
             [TestAction::make('logActivity'), TestAction::make('createOption')->schemaComponent('deal_id')],
-            data: ['title' => 'Inline deal', 'stage' => DealStage::Lead],
+            data: ['title' => 'Inline deal'],
         )
         ->assertHasNoActionErrors();
 

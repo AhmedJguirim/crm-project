@@ -14,6 +14,7 @@ use App\Models\Deal;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\Deals\DealStageMover;
+use App\Services\Deals\DefaultPipeline;
 use App\Support\MoneyLimit;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
@@ -223,7 +224,7 @@ test('moving to the same stage writes nothing and sends no notification', functi
 test('a stale stage writes nothing and warns', function () {
     $component = ($this->mountChild)(($this->openDrawer)(), 'moveStage');
 
-    DealStageMover::move($this->deal->fresh(), DealStage::Discovery);
+    DealStageMover::move($this->deal->fresh(), DefaultPipeline::stageFor($this->deal->organization_id, DealStage::Discovery));
 
     $component->fillForm(['stage' => DealStage::Won])
         ->call('callMountedAction')
@@ -317,7 +318,7 @@ test('the deal page quick task is not changed by the new factory', function () {
 test('edit from the drawer saves through the deal form and the stage rule', function () {
     $hasPrefill = function (array $state): array {
         expect($state['title'])->toBe('Retainer')
-            ->and($state['stage'])->toBeIn([DealStage::Lead, DealStage::Lead->value])
+            ->and((int) $state['pipeline_stage_id'])->toBe(DefaultPipeline::stageFor($this->deal->organization_id, DealStage::Lead)->id)
             ->and((float) $state['value'])->toBe(1234.5);
 
         return [];
@@ -325,7 +326,7 @@ test('edit from the drawer saves through the deal form and the stage rule', func
 
     $component = ($this->mountChild)(($this->openDrawer)(), 'editDeal')
         ->assertActionDataSet($hasPrefill)
-        ->fillForm(['value' => 2000, 'stage' => DealStage::Lost])
+        ->fillForm(['value' => 2000, 'pipeline_stage_id' => DefaultPipeline::stageFor($this->deal->organization_id, DealStage::Lost)->id])
         ->call('callMountedAction')
         ->assertHasNoFormErrors()
         ->assertNotified('Saved');
@@ -503,7 +504,7 @@ test('edit re-renders the card with its new values while the drawer stays open',
     expect(($this->cardText)($component, $this->deal))->toContain('€1,234.50');
 
     ($this->mountChild)($component, 'editDeal')
-        ->fillForm(['value' => 32000, 'stage' => DealStage::ProposalSent])
+        ->fillForm(['value' => 32000, 'pipeline_stage_id' => DefaultPipeline::stageFor($this->deal->organization_id, DealStage::ProposalSent)->id])
         ->call('callMountedAction')
         ->assertNotified('Saved')
         ->assertSet('mountedActions.0.name', 'openDeal');
@@ -520,7 +521,7 @@ test('a stale move re-renders the board with the deal where it really is', funct
 
     expect(($this->cardColumn)($component, $this->deal))->toBe(DealStage::Lead->value);
 
-    DealStageMover::move($this->deal->fresh(), DealStage::Negotiating);
+    DealStageMover::move($this->deal->fresh(), DefaultPipeline::stageFor($this->deal->organization_id, DealStage::Negotiating));
 
     $component->fillForm(['stage' => DealStage::Discovery])
         ->call('callMountedAction')

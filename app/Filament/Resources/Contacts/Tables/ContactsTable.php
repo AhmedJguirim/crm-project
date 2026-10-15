@@ -4,11 +4,11 @@ namespace App\Filament\Resources\Contacts\Tables;
 
 use App\Enums\ActivityType;
 use App\Enums\ContactStatus;
-use App\Enums\DealStage;
 use App\Enums\LeadSource;
 use App\Filament\Actions\AssignOwnerBulkAction;
 use App\Filament\Actions\ExportContactsAction;
 use App\Filament\Actions\QuickTaskAction;
+use App\Filament\Resources\Deals\Schemas\DealForm;
 use App\Filament\Support\AbilityCheck;
 use App\Filament\Support\Filters\OptionSelectFilter;
 use App\Filament\Support\Filters\RecordKeySelectFilter;
@@ -21,6 +21,7 @@ use App\Models\Deal;
 use App\Models\Tag;
 use App\Services\Deals\DealCompany;
 use App\Services\Deals\DealStageMover;
+use App\Services\Deals\DefaultPipeline;
 use App\Services\Owners\OwnerOptions;
 use App\Support\MoneyLimit;
 use App\Support\NotificationText;
@@ -164,10 +165,7 @@ class ContactsTable
                                 TextInput::make('title')
                                     ->required()
                                     ->maxLength(255),
-                                Select::make('stage')
-                                    ->options(DealStage::class)
-                                    ->default(DealStage::Lead)
-                                    ->required(),
+                                DealForm::stageSelect(),
                                 TextInput::make('value')
                                     ->numeric()
                                     ->minValue(0)
@@ -183,7 +181,7 @@ class ContactsTable
                                     'contact_id' => $record->getKey(),
                                     'company_id' => DealCompany::defaultIdFor($record->getKey()),
                                     'title' => $data['title'],
-                                    ...DealStageMover::attributesFor($data['stage']),
+                                    ...DealStageMover::attributesFor(DefaultPipeline::stageById(CurrentOrganization::get()->id, $data['pipeline_stage_id'])),
                                     'value' => $data['value'] ?? null,
                                     'notes' => $data['notes'] ?? null,
                                     'created_by' => auth()->id(),

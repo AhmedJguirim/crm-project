@@ -9,6 +9,8 @@ use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Invoice;
 use App\Models\User;
+use App\Services\Deals\DealStageMover;
+use App\Services\Deals\DefaultPipeline;
 use Filament\Facades\Filament;
 use Illuminate\Support\Carbon;
 use Livewire\Features\SupportTesting\Testable;
@@ -83,7 +85,7 @@ describe('prefilling the form from the query string', function () {
     });
 
     test('a won deal pre-fills too', function () use ($openWith) {
-        $this->deal->update(['status' => DealStatus::Won, 'stage' => DealStage::Won, 'won_at' => now()]);
+        DealStageMover::move($this->deal, DefaultPipeline::stageOfType($this->deal->organization_id, DealStatus::Won));
 
         $openWith(['deal' => (string) $this->deal->id])
             ->assertFormSet(['deal_id' => $this->deal->id, 'amount' => '85000.00']);

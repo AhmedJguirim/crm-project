@@ -9,7 +9,9 @@ use App\Models\Pipeline;
 use App\Models\PipelineStage;
 use App\Models\User;
 use App\Services\Deals\DealStageMover;
+use App\Services\Deals\DefaultPipeline;
 use Filament\Facades\Filament;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
@@ -53,7 +55,7 @@ test('a deal created with a stage gets the pipeline stage at the same position',
 test('moving a deal moves its pipeline stage', function () {
     $deal = Deal::factory()->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id, 'stage' => DealStage::Lead]);
 
-    DealStageMover::move($deal, DealStage::Won);
+    DealStageMover::move($deal, DefaultPipeline::stageFor($this->acme->id, DealStage::Won));
 
     $pipelineStage = dealPipelineStageOf($deal);
 
@@ -75,7 +77,7 @@ test('a save that does not touch the stage keeps the pipeline stage', function (
 
 test('a deal created from the deal form gets its pipeline stage', function () {
     Livewire::test(CreateDeal::class)
-        ->fillForm(['title' => 'Form deal', 'stage' => DealStage::ProposalSent])
+        ->fillForm(['title' => 'Form deal', 'pipeline_stage_id' => DefaultPipeline::stageFor($this->acme->id, DealStage::ProposalSent)->id])
         ->call('create')
         ->assertHasNoFormErrors();
 
@@ -98,21 +100,75 @@ test('a deal of another organization gets that organization stage, even under an
         ->and($pipelineStage->name)->toBe('Negotiating');
 });
 
-test('a deal given a wrong pipeline stage on creation gets the one of its stage', function () {
+test('a deal given the pipeline stage of another organization is refused on creation and on update', function () {
     $other = User::factory()->onboardingCompleted()->withPersonalOrganization()->create()->personalOrganization();
-    $foreignStage = PipelineStage::forOrganization($other->id)->where('position', 6)->firstOrFail();
+    $foreignLead = DefaultPipeline::stageFor($other->id, DealStage::Lead);
+    $deal = Deal::factory()->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id, 'stage' => DealStage::Discovery]);
 
-    $deal = Deal::factory()->create([
+    expect(fn () => Deal::factory()->create([
         'organization_id' => $this->acme->id,
         'created_by' => $this->owner->id,
+        'pipeline_stage_id' => $foreignLead->id,
+    ]))->toThrow(ModelNotFoundException::class);
+
+    expect(fn () => $deal->update(['pipeline_stage_id' => $foreignLead->id]))->toThrow(ModelNotFoundException::class)
+        ->and($deal->fresh()->stage)->toBe(DealStage::Discovery)
+        ->and(dealPipelineStageOf($deal)->name)->toBe('Discovery');
+});
+
+test('the legacy stage mirrors the pipeline stage on creation and on a move', function (DealStage $stage) {
+    $pipelineStage = DefaultPipeline::stageFor($this->acme->id, $stage);
+    $deal = Deal::query()->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id, 'title' => 'Mirrored', 'status' => DealStatus::Open, 'pipeline_stage_id' => $pipelineStage->id]);
+
+    expect($deal->fresh()->stage)->toBe($stage);
+
+    $deal->update(['pipeline_stage_id' => DefaultPipeline::stageFor($this->acme->id, DealStage::Lead)->id]);
+
+    expect($deal->fresh()->stage)->toBe(DealStage::Lead);
+})->with(DealStage::cases());
+
+test('a direct write of the legacy stage is reverted by the mirror', function () {
+    $deal = Deal::factory()->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id, 'stage' => DealStage::Lead]);
+    $before = $deal->fresh();
+
+    $deal->update(['stage' => DealStage::Won]);
+
+    $after = $deal->fresh();
+
+    expect($after->stage)->toBe(DealStage::Lead)
+        ->and($after->pipeline_stage_id)->toBe($before->pipeline_stage_id)
+        ->and($after->status)->toBe($before->status);
+});
+
+test('a deal created without a pipeline stage is refused by the database', function () {
+    expect(fn () => DB::transaction(fn () => Deal::query()->create([
+        'organization_id' => $this->acme->id,
+        'created_by' => $this->owner->id,
+        'title' => 'No stage',
+        'status' => DealStatus::Open,
         'stage' => DealStage::Lead,
-        'pipeline_stage_id' => $foreignStage->id,
-    ]);
+    ])))->toThrow(QueryException::class, 'pipeline_stage_id');
+});
 
-    $pipelineStage = dealPipelineStageOf($deal);
+test('legacyStageFor maps the six positions and refuses another', function () {
+    foreach (DealStage::cases() as $index => $stage) {
+        expect(DefaultPipeline::legacyStageFor(new PipelineStage(['position' => $index + 1])))->toBe($stage);
+    }
 
-    expect($pipelineStage->organization_id)->toBe($this->acme->id)
-        ->and($pipelineStage->name)->toBe('Lead');
+    expect(fn () => DefaultPipeline::legacyStageFor(new PipelineStage(['position' => 7])))->toThrow(LogicException::class);
+});
+
+test('the stage lookups answer for the organization asked, in pipeline order', function () {
+    $other = User::factory()->onboardingCompleted()->withPersonalOrganization()->create()->personalOrganization();
+    $options = DefaultPipeline::stageOptions($this->acme->id);
+    $foreign = DefaultPipeline::stageFor($other->id, DealStage::Won);
+
+    expect(array_values($options))->toBe(['Lead', 'Discovery', 'Proposal Sent', 'Negotiating', 'Won', 'Lost'])
+        ->and(array_keys($options))->not->toContain($foreign->id)
+        ->and(DefaultPipeline::stageOfType($this->acme->id, DealStatus::Open)->name)->toBe('Lead')
+        ->and(DefaultPipeline::stageOfType($this->acme->id, DealStatus::Won)->name)->toBe('Won')
+        ->and(DefaultPipeline::stageOfType($this->acme->id, DealStatus::Lost)->name)->toBe('Lost')
+        ->and(fn () => DefaultPipeline::stageById($this->acme->id, $foreign->id))->toThrow(ModelNotFoundException::class);
 });
 
 test('an organization without a pipeline gets one when its first deal is created', function () {

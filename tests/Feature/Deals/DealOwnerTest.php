@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\DealStage;
 use App\Enums\OrganizationRole;
 use App\Filament\Resources\Deals\Pages\CreateDeal;
 use App\Filament\Resources\Deals\Pages\DealPipeline;
@@ -56,7 +55,7 @@ afterEach(function () {
 test('a new deal is owned by its creator by default', function () {
     Livewire::test(CreateDeal::class)
         ->assertSchemaStateSet(['owner_id' => $this->alice->id])
-        ->fillForm(['title' => 'Retainer', 'stage' => DealStage::Lead])
+        ->fillForm(['title' => 'Retainer'])
         ->call('create')
         ->assertHasNoFormErrors();
 
@@ -73,12 +72,12 @@ test('the owner options are the current members ordered by name', function () {
 
 test('a deal can be given to another member or to nobody', function () {
     Livewire::test(CreateDeal::class)
-        ->fillForm(['title' => "Bob's deal", 'stage' => DealStage::Lead, 'owner_id' => $this->bob->id])
+        ->fillForm(['title' => "Bob's deal", 'owner_id' => $this->bob->id])
         ->call('create')
         ->assertHasNoFormErrors();
 
     Livewire::test(CreateDeal::class)
-        ->fillForm(['title' => "Nobody's deal", 'stage' => DealStage::Lead, 'owner_id' => null])
+        ->fillForm(['title' => "Nobody's deal", 'owner_id' => null])
         ->call('create')
         ->assertHasNoFormErrors();
 
@@ -99,7 +98,7 @@ test('a forged owner outside the options is refused', function (string $forged) 
     };
 
     Livewire::test(CreateDeal::class)
-        ->fillForm(['title' => 'Forged', 'stage' => DealStage::Lead, 'owner_id' => $value])
+        ->fillForm(['title' => 'Forged', 'owner_id' => $value])
         ->call('create')
         ->assertHasFormErrors(['owner_id' => 'in']);
 

@@ -7,7 +7,9 @@ use App\Enums\DealStatus;
 use App\Models\Organization;
 use App\Models\Pipeline;
 use App\Models\PipelineStage;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
+use LogicException;
 
 /**
  * Gives an organization its sales pipeline: "Sales pipeline" with the six stages of the deals board (Lead, Discovery,
@@ -67,5 +69,64 @@ class DefaultPipeline
             ->where('pipeline_id', $pipeline->getKey())
             ->where('position', array_search($stage, DealStage::cases(), true) + 1)
             ->firstOrFail();
+    }
+
+    /**
+     * The stage ids of the organization's default pipeline by name, in pipeline order, for a select. It queries with an
+     * explicit organization id (never through the pipeline's relation: the tenant scope would answer for the wrong organization).
+     *
+     * @return array<int, string>
+     */
+    public static function stageOptions(int $organizationId): array
+    {
+        $pipeline = self::ensureFor(Organization::query()->findOrFail($organizationId));
+
+        return PipelineStage::forOrganization($organizationId)
+            ->where('pipeline_id', $pipeline->getKey())
+            ->orderBy('position')
+            ->pluck('name', 'id')
+            ->all();
+    }
+
+    /**
+     * A stage of the organization's default pipeline by id; another pipeline's or organization's id is not found.
+     *
+     * @throws ModelNotFoundException
+     */
+    public static function stageById(int $organizationId, mixed $stageId): PipelineStage
+    {
+        $pipeline = self::ensureFor(Organization::query()->findOrFail($organizationId));
+
+        return PipelineStage::forOrganization($organizationId)
+            ->where('pipeline_id', $pipeline->getKey())
+            ->findOrFail($stageId);
+    }
+
+    /**
+     * The first stage (lowest position) of the default pipeline with the type: Open is "Lead", Won is "Won", Lost is "Lost".
+     *
+     * @throws ModelNotFoundException
+     */
+    public static function stageOfType(int $organizationId, DealStatus $type): PipelineStage
+    {
+        $pipeline = self::ensureFor(Organization::query()->findOrFail($organizationId));
+
+        return PipelineStage::forOrganization($organizationId)
+            ->where('pipeline_id', $pipeline->getKey())
+            ->where('type', $type)
+            ->orderBy('position')
+            ->firstOrFail();
+    }
+
+    /**
+     * The `deals.stage` value mirroring a pipeline stage (position 1 is Lead ... 6 is Lost): temporary, while the segment
+     * deal conditions still read the column (removed in P2 slice 3).
+     *
+     * @throws LogicException
+     */
+    public static function legacyStageFor(PipelineStage $stage): DealStage
+    {
+        return DealStage::cases()[$stage->position - 1]
+            ?? throw new LogicException("Pipeline stage {$stage->getKey()} has no legacy stage at position {$stage->position}.");
     }
 }

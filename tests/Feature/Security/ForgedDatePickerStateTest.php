@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\DealStage;
 use App\Filament\Resources\Deals\Pages\CreateDeal;
 use App\Filament\Support\StateCasts\ScalarDateTimeStateCast;
 use App\Models\Deal;
@@ -69,7 +68,7 @@ test('an impossible date posted to a form date field is refused, never saved rol
     Filament::setTenant($user->personalOrganization());
 
     $page = Livewire::test(CreateDeal::class)
-        ->fillForm(['title' => 'Retainer', 'stage' => DealStage::Lead])
+        ->fillForm(['title' => 'Retainer'])
         ->set('data.expected_close_date', '2026-02-30')
         ->call('create');
 
@@ -83,7 +82,7 @@ test('a forged array in a form date field is still a validation error', function
     Filament::setTenant($user->personalOrganization());
 
     $page = Livewire::test(CreateDeal::class)
-        ->fillForm(['title' => 'Retainer', 'stage' => DealStage::Lead])
+        ->fillForm(['title' => 'Retainer'])
         ->set('data.expected_close_date', ['x'])
         ->call('create');
 
