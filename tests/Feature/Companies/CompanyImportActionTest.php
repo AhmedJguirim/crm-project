@@ -177,3 +177,32 @@ describe('reserved company field names', function () {
             ->assertHasNoFormErrors();
     });
 });
+
+it('refuses a csv with binary data with a message that says so', function () {
+    ($this->actAs)(OrganizationRole::Admin);
+
+    $page = Livewire::test(ListCompanies::class)
+        ->callAction('importCompanies', ['file' => UploadedFile::fake()->createWithContent('nul.csv', "name,email\nAcme,ann\0@x.test\n")->mimeType('application/octet-stream')])
+        ->assertHasActionErrors(['file']);
+
+    expect(collect($page->errors()->all())->first())->toBe('This file contains invalid characters (binary data). Re-save it as CSV UTF-8 or .xlsx.');
+    Queue::assertNotPushed(ProcessCompanyImportJob::class);
+});
+
+it('still accepts a normal csv and an xlsx and keeps the type message for a pdf', function () {
+    ($this->actAs)(OrganizationRole::Admin);
+
+    Livewire::test(ListCompanies::class)
+        ->callAction('importCompanies', ['file' => UploadedFile::fake()->create('c.csv', 10, 'text/csv')])
+        ->assertHasNoActionErrors();
+    Livewire::test(ListCompanies::class)
+        ->callAction('importCompanies', ['file' => UploadedFile::fake()->create('c.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')])
+        ->assertHasNoActionErrors();
+    Queue::assertPushed(ProcessCompanyImportJob::class, 2);
+
+    $page = Livewire::test(ListCompanies::class)
+        ->callAction('importCompanies', ['file' => UploadedFile::fake()->create('c.pdf', 10, 'application/pdf')])
+        ->assertHasActionErrors(['file']);
+
+    expect(collect($page->errors()->all())->first())->toStartWith('The file field must be a file of type:');
+});

@@ -10,6 +10,7 @@ use App\Jobs\ProcessCompanyImportJob;
 use App\Services\CompanyImportTemplate;
 use App\Services\ContactImportFileReader;
 use App\Services\Imports\ImportCellParser;
+use App\Services\Imports\ImportFileIsNotBinary;
 use App\Support\Tenancy\CurrentOrganization;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
@@ -76,6 +77,7 @@ class ListCompanies extends ListRecords
                     FileUpload::make('file')
                         ->label('File')
                         ->helperText('CSV or Excel (.xlsx). Comma- or semicolon-separated CSV files are accepted. The first row must contain the column headers — use the Excel template for the expected columns. Separate several multi-select values with "'.ImportCellParser::MULTI_VALUE_SEPARATOR.'". Write dates as dd-mm-yyyy (or yyyy-mm-dd). A company that already exists is not updated in "Create only" mode. Up to '.$maximumSize.'.')
+                        ->rule(new ImportFileIsNotBinary)
                         ->acceptedFileTypes([
                             'text/csv',
                             'application/csv',

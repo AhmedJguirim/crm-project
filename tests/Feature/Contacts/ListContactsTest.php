@@ -326,3 +326,45 @@ test('bulk delete only removes selected contacts', function () {
 
     expect(Contact::find($toKeep->id))->not->toBeNull();
 });
+
+test('a csv with binary data is refused with a message that says so, and nothing is queued', function () {
+    Storage::fake('local');
+    Queue::fake();
+
+    $page = Livewire::test(ListContacts::class)
+        ->callAction('importContacts', ['file' => UploadedFile::fake()->createWithContent('nul.csv', "name,email\nAnn Lee,ann\0@x.test\n")->mimeType('application/octet-stream')])
+        ->assertHasActionErrors(['file']);
+
+    expect(collect($page->errors()->all())->first())->toBe('This file contains invalid characters (binary data). Re-save it as CSV UTF-8 or .xlsx.');
+    Queue::assertNotPushed(ProcessContactImportJob::class);
+});
+
+test('a normal csv, an Excel-typed csv and an xlsx are still accepted', function () {
+    Storage::fake('local');
+    Queue::fake();
+
+    Livewire::test(ListContacts::class)
+        ->callAction('importContacts', ['file' => UploadedFile::fake()->create('contacts.csv', 10, 'text/csv')])
+        ->assertHasNoActionErrors();
+    Livewire::test(ListContacts::class)
+        ->callAction('importContacts', ['file' => UploadedFile::fake()->create('contacts.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')])
+        ->assertHasNoActionErrors();
+
+    Livewire::test(ListContacts::class)
+        ->callAction('importContacts', ['file' => UploadedFile::fake()->create('excel-export.csv', 10, 'application/vnd.ms-excel')])
+        ->assertHasNoActionErrors();
+
+    Queue::assertPushed(ProcessContactImportJob::class, 3);
+});
+
+test('a pdf keeps the file type message', function () {
+    Storage::fake('local');
+    Queue::fake();
+
+    $page = Livewire::test(ListContacts::class)
+        ->callAction('importContacts', ['file' => UploadedFile::fake()->create('c.pdf', 10, 'application/pdf')])
+        ->assertHasActionErrors(['file']);
+
+    expect(collect($page->errors()->all())->first())->toStartWith('The file field must be a file of type:');
+    Queue::assertNotPushed(ProcessContactImportJob::class);
+});

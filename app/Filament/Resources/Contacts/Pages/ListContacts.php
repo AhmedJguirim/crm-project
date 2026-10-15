@@ -10,6 +10,7 @@ use App\Jobs\ProcessContactImportJob;
 use App\Services\ContactImportFileReader;
 use App\Services\ContactImportService;
 use App\Services\ContactImportTemplate;
+use App\Services\Imports\ImportFileIsNotBinary;
 use App\Support\Tenancy\CurrentOrganization;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
@@ -75,6 +76,7 @@ class ListContacts extends ListRecords
                     FileUpload::make('file')
                         ->label('File')
                         ->helperText('CSV or Excel (.xlsx). Comma- or semicolon-separated CSV files are accepted. The first row must contain the column headers — use the Excel template for the expected columns. Separate several tags or multi-select values with "'.ContactImportService::MULTI_VALUE_SEPARATOR.'". Write dates as dd-mm-yyyy (or yyyy-mm-dd). Up to '.$maximumSize.'.')
+                        ->rule(new ImportFileIsNotBinary)
                         ->acceptedFileTypes([
                             'text/csv',
                             'application/csv',
