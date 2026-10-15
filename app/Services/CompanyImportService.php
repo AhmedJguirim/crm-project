@@ -68,7 +68,7 @@ class CompanyImportService
         private readonly ImportMode $mode = ImportMode::CreateOnly,
         ?int $importerId = null,
     ) {
-        $this->parser = new ImportCellParser($organizationId, $dialect);
+        $this->parser = new ImportCellParser($dialect);
         $this->owners = new ImportOwnerResolver($organizationId, $importerId);
         $this->matcher = CompanyMatcher::forOrganization($organizationId);
     }

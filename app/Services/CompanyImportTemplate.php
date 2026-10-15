@@ -37,7 +37,7 @@ class CompanyImportTemplate
     public function __construct(int $organizationId)
     {
         $this->importService = new CompanyImportService($organizationId);
-        $this->parser = new ImportCellParser($organizationId);
+        $this->parser = new ImportCellParser;
     }
 
     public static function forOrganization(int $organizationId): self
@@ -132,7 +132,7 @@ class CompanyImportTemplate
         $example = $this->parser->exampleValueFor($field);
 
         return match ($field->type) {
-            'number' => $example + 0,
+            'number' => (int) $example,
             'date' => $this->dateCellValue($example),
             default => $example,
         };

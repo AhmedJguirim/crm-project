@@ -140,7 +140,7 @@ class ContactImportTemplate
         $example = $this->importService->exampleValueFor($field);
 
         return match ($field->type) {
-            'number' => $example + 0,
+            'number' => (int) $example,
             'date' => $this->dateCellValue($example),
             default => $example,
         };

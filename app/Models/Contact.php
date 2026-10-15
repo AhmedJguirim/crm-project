@@ -56,6 +56,8 @@ class Contact extends Model
 
     /**
      * Emails are stored trimmed and in lowercase, so letter case can't create duplicate contacts.
+     *
+     * @return Attribute<string|null, string|null>
      */
     protected function email(): Attribute
     {

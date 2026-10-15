@@ -30,10 +30,7 @@ class ImportCellParser
      * @param  CsvDialect|null  $dialect  How the file is written. A file with `;` between columns is a European Excel
      *                                    file, so its numbers may have a decimal comma and its dates may be d/m/Y or d.m.Y.
      */
-    public function __construct(
-        private readonly int $organizationId,
-        private readonly ?CsvDialect $dialect = null,
-    ) {}
+    public function __construct(private readonly ?CsvDialect $dialect = null) {}
 
     public function castFieldValue(CustomField|CompanyCustomField $field, string $raw): mixed
     {

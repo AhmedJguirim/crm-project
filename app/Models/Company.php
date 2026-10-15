@@ -72,6 +72,8 @@ class Company extends Model
 
     /**
      * The website is stored as typed, only trimmed; blank means no website.
+     *
+     * @return Attribute<string|null, string|null>
      */
     protected function website(): Attribute
     {
@@ -92,7 +94,7 @@ class Company extends Model
             return null;
         }
 
-        $scheme = static::schemeOf($website);
+        $scheme = self::schemeOf($website);
 
         if ($scheme !== null && ! in_array($scheme, ['http', 'https'], true)) {
             return null;
@@ -123,7 +125,7 @@ class Company extends Model
             return null;
         }
 
-        $scheme = static::schemeOf($this->website);
+        $scheme = self::schemeOf($this->website);
 
         if ($scheme === null) {
             return "https://{$this->website}";

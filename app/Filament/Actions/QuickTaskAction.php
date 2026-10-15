@@ -14,6 +14,7 @@ use App\Models\Task;
 use App\Services\Deals\DealCompany;
 use App\Services\Deals\DealStageMover;
 use App\Support\MoneyLimit;
+use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DateTimePicker;
@@ -26,7 +27,6 @@ use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Support\Icons\Heroicon;
-use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
@@ -107,7 +107,7 @@ class QuickTaskAction
     /**
      * The values a quick task form starts with, because fillForm() replaces the field defaults.
      *
-     * @return array{due_at: Carbon, type: TaskType}
+     * @return array{due_at: CarbonImmutable, type: TaskType}
      */
     private static function defaultFormData(): array
     {

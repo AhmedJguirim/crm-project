@@ -6,7 +6,7 @@ use App\Services\Imports\ImportCellParser;
 use App\Support\CsvDialect;
 
 beforeEach(function () {
-    $this->parserFor = fn (string $delimiter): ImportCellParser => new ImportCellParser(1, new CsvDialect($delimiter));
+    $this->parserFor = fn (string $delimiter): ImportCellParser => new ImportCellParser(new CsvDialect($delimiter));
     $this->selectField = fn (): CustomField => CustomField::factory()->make([
         'type' => 'select',
         'options' => [['label' => 'Active', 'value' => 'opt_x'], ['label' => 'Dormant', 'value' => 'opt_y']],
@@ -14,7 +14,7 @@ beforeEach(function () {
 });
 
 it('reads a decimal comma only in a European file', function (?string $delimiter, string $raw, ?float $expected) {
-    $parser = $delimiter === null ? new ImportCellParser(1) : ($this->parserFor)($delimiter);
+    $parser = $delimiter === null ? new ImportCellParser : ($this->parserFor)($delimiter);
 
     expect($parser->parseNumber($raw))->toBe($expected);
 })->with([

@@ -5,6 +5,7 @@ namespace App\Livewire\Tenancy;
 use App\Enums\InviteStatus;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Mail\OrganizationInvitationMail;
+use App\Models\Organization;
 use App\Models\OrganizationInvite;
 use App\Support\NotificationText;
 use Filament\Actions\Action;
