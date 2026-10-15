@@ -424,3 +424,24 @@ test('a nested column search is harmless', function () {
         ->set('tableColumnSearches', ['name' => ['a' => ['b' => 'c']]])
         ->assertSuccessful();
 });
+
+test('an impossible calendar date in the invoices filter URL is dropped, not rolled over', function (string $date) {
+    $january = Invoice::factory()->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $this->ann->id,
+        'status' => InvoiceStatus::Sent,
+        'issued_at' => '2026-01-10',
+    ]);
+    $march = Invoice::factory()->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $this->ann->id,
+        'status' => InvoiceStatus::Sent,
+        'issued_at' => '2026-03-10',
+    ]);
+
+    $page = Livewire::withQueryParams(['filters' => ['issued_at_range' => ['until' => $date]]])->test(ListInvoices::class)->assertSuccessful();
+
+    expect($page->get('tableFilters.issued_at_range.until'))->toBeNull();
+
+    $page->assertCanSeeTableRecords([$january, $march]);
+})->with(['2026-02-30', '2026-13-01', '2026-04-31']);

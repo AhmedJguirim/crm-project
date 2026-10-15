@@ -44,6 +44,39 @@ test('a real date is unchanged', function () {
         ->and($cast->get(null))->toBeNull();
 });
 
+test('a date with a calendar day that does not exist counts as empty instead of rolling over', function (string $state) {
+    $cast = forgedDatePickerCast();
+
+    expect($cast->set($state))->toBeNull()
+        ->and($cast->get($state))->toBeNull();
+})->with([
+    'february 30' => ['2026-02-30'],
+    'february 30 with a time' => ['2026-02-30 10:00:00'],
+    'month 13' => ['2026-13-01'],
+    'april 31' => ['2026-04-31'],
+]);
+
+test('a leap day is kept', function () {
+    $cast = forgedDatePickerCast();
+
+    expect($cast->set('2024-02-29'))->toBe('2024-02-29')
+        ->and($cast->get('2024-02-29'))->toBe('2024-02-29');
+});
+
+test('an impossible date posted to a form date field is refused, never saved rolled over', function () {
+    $user = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
+    $this->actingAs($user);
+    Filament::setTenant($user->personalOrganization());
+
+    $page = Livewire::test(CreateDeal::class)
+        ->fillForm(['title' => 'Retainer', 'stage' => DealStage::Lead])
+        ->set('data.expected_close_date', '2026-02-30')
+        ->call('create');
+
+    expect($page->errors()->get('data.expected_close_date'))->toContain('The expected Close Date field must be a valid date.')
+        ->and(Deal::query()->where('title', 'Retainer')->exists())->toBeFalse();
+});
+
 test('a forged array in a form date field is still a validation error', function () {
     $user = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
     $this->actingAs($user);

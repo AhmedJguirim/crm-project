@@ -10,6 +10,7 @@ use App\Filament\Support\Filters\RecordKeySelectFilter;
 use App\Models\Invoice;
 use App\Support\LocalTime;
 use App\Support\Tenancy\CurrentOrganization;
+use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -19,6 +20,7 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\Indicator;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -103,6 +105,21 @@ class InvoicesTable
                         return $query
                             ->when(LocalTime::filterDate($data['from'] ?? null), fn (Builder $builder, $date): Builder => $builder->whereDate('issued_at', '>=', $date))
                             ->when(LocalTime::filterDate($data['until'] ?? null), fn (Builder $builder, $date): Builder => $builder->whereDate('issued_at', '<=', $date));
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $indicators = [];
+
+                        foreach (['from' => 'Issued from', 'until' => 'Issued until'] as $bound => $label) {
+                            $date = LocalTime::filterDate($data[$bound] ?? null);
+
+                            if ($date === null) {
+                                continue;
+                            }
+
+                            $indicators[] = Indicator::make($label.' '.CarbonImmutable::createFromFormat('!Y-m-d', $date)->format('M j, Y'))->removeField($bound);
+                        }
+
+                        return $indicators;
                     }),
 
                 Filter::make('overdue')
