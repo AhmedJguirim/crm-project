@@ -5,9 +5,18 @@ namespace App\Observers;
 use App\Jobs\SyncSegmentMembership;
 use App\Models\Organization;
 use App\Models\Segment;
+use App\Services\Deals\DefaultPipeline;
 
 class OrganizationObserver
 {
+    /**
+     * Every organization starts with the default pipeline (P2), whichever path creates it.
+     */
+    public function created(Organization $organization): void
+    {
+        DefaultPipeline::ensureFor($organization);
+    }
+
     /**
      * Segments with date conditions change membership when the organization's day starts at another time, so the
      * published ones with conditions on timestamps (the Created Date) or relative to today are synced again.

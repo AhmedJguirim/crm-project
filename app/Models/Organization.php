@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[ObservedBy([OrganizationObserver::class])]
 class Organization extends Model
@@ -128,6 +129,24 @@ class Organization extends Model
     public function deals(): HasMany
     {
         return $this->hasMany(Deal::class);
+    }
+
+    /**
+     * @return HasMany<Pipeline, $this>
+     */
+    public function pipelines(): HasMany
+    {
+        return $this->hasMany(Pipeline::class);
+    }
+
+    /**
+     * The pipeline the board and new deals use until several pipelines exist (P3): the oldest one.
+     *
+     * @return HasOne<Pipeline, $this>
+     */
+    public function defaultPipeline(): HasOne
+    {
+        return $this->hasOne(Pipeline::class)->oldestOfMany();
     }
 
     public function tags(): HasMany
