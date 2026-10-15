@@ -8,6 +8,7 @@ use Database\Factories\PipelineStageFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PipelineStage extends Model
 {
@@ -33,5 +34,13 @@ class PipelineStage extends Model
     public function pipeline(): BelongsTo
     {
         return $this->belongsTo(Pipeline::class);
+    }
+
+    /**
+     * @return HasMany<Deal, $this>
+     */
+    public function deals(): HasMany
+    {
+        return $this->hasMany(Deal::class);
     }
 }

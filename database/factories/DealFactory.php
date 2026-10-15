@@ -7,6 +7,7 @@ use App\Enums\DealStatus;
 use App\Models\Deal;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\Deals\DefaultPipeline;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -26,6 +27,9 @@ class DealFactory extends Factory
             'contact_id' => null,
             'title' => fake()->sentence(3),
             'stage' => fake()->randomElement(DealStage::cases()),
+            'pipeline_stage_id' => fn (array $attributes): ?int => $attributes['organization_id'] === null
+                ? null
+                : DefaultPipeline::stageFor($attributes['organization_id'], $attributes['stage'] instanceof DealStage ? $attributes['stage'] : DealStage::from($attributes['stage']))->getKey(),
             'value' => fake()->optional(0.8)->randomFloat(2, 500, 150000),
             'expected_close_date' => fake()->optional(0.75)->dateTimeBetween('-2 weeks', '+8 weeks'),
             'notes' => fake()->optional(0.6)->paragraph(),

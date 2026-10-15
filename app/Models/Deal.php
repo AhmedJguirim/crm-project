@@ -99,6 +99,14 @@ class Deal extends Model
     }
 
     /**
+     * @return BelongsTo<PipelineStage, $this>
+     */
+    public function pipelineStage(): BelongsTo
+    {
+        return $this->belongsTo(PipelineStage::class);
+    }
+
+    /**
      * @return BelongsTo<User, $this>
      */
     public function creator(): BelongsTo

@@ -17,6 +17,7 @@ use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\Deal;
 use App\Models\Organization;
+use App\Models\PipelineStage;
 use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\Task;
@@ -423,4 +424,25 @@ test('it consulting seeder assigns the demo contacts and companies to test@examp
         ->and($contactOwners->except('amara.diallo@innotech-sa.com')->unique()->values()->all())->toBe([$user->id])
         ->and($companyOwners['InnoTech SA'])->toBeNull()
         ->and($companyOwners->except('InnoTech SA')->unique()->values()->all())->toBe([$user->id]);
+});
+
+test('it consulting seeder gives every deal a pipeline stage of its organization named like its stage', function () {
+    $this->seed(ItConsultingSeeder::class);
+
+    $deals = Deal::query()->withoutGlobalScope('organization')->get();
+
+    expect($deals)->not->toBeEmpty();
+
+    foreach ($deals as $deal) {
+        $stage = PipelineStage::query()->withoutGlobalScope('organization')->findOrFail($deal->pipeline_stage_id);
+
+        expect($stage->organization_id)->toBe($deal->organization_id)
+            ->and($stage->name)->toBe($deal->stage->getLabel());
+    }
+
+    $stageNameOf = fn (string $title): string => PipelineStage::query()->withoutGlobalScope('organization')
+        ->findOrFail($deals->firstWhere('title', $title)->pipeline_stage_id)->name;
+
+    expect($stageNameOf('TechCorp Infra Expansion'))->toBe('Negotiating')
+        ->and($stageNameOf('SecurePeak Annual Security Program'))->toBe('Won');
 });
