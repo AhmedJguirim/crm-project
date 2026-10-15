@@ -88,7 +88,7 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Refuses a Livewire update below a scalar or null property with a 419 before Livewire applies it (BUG-45).
+     * Refuses a Livewire update below a scalar, null or model property with a 419 before Livewire applies it (BUG-45, BUG-46).
      */
     protected function configureLivewireUpdateGuard(): void
     {
