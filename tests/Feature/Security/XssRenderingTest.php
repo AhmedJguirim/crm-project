@@ -3,7 +3,6 @@
 use App\Data\Segments\SegmentConditionData;
 use App\Data\Segments\SegmentRuleData;
 use App\Enums\ContactAttribute;
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentOperator;
@@ -130,7 +129,7 @@ describe('record pages', function () {
     test('a pipeline stage named as markup is shown as text in the deal list, tab, page and overview', function (string $payload) {
         $company = ($this->companyNamed)('Acme Ltd');
         $deal = ($this->dealFor)('Retainer', ($this->contactNamed)('Ann'), $company);
-        $stage = DefaultPipeline::stageFor($this->org->id, DealStage::Lead);
+        $stage = pipelineStageNamed($this->org->id, 'Lead');
         $deal->update(['pipeline_stage_id' => $stage->id]);
         $stage->update(['name' => $payload]);
 

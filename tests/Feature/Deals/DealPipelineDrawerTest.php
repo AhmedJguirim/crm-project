@@ -2,7 +2,6 @@
 
 use App\Enums\ActivityType;
 use App\Enums\Currency;
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\OrganizationRole;
 use App\Enums\TaskStatus;
@@ -36,13 +35,12 @@ beforeEach(function () {
     $this->acme = Company::factory()->create(['organization_id' => $this->org->id, 'name' => 'Acme Ltd']);
     $this->contact->companies()->attach([$this->zeta->id, $this->acme->id]);
 
-    $this->deal = Deal::factory()->create([
+    $this->deal = Deal::factory()->inStage('Lead')->create([
         'organization_id' => $this->org->id,
         'contact_id' => $this->contact->id,
         'company_id' => $this->acme->id,
         'created_by' => $this->user->id,
         'title' => 'Retainer',
-        'stage' => DealStage::Lead,
         'status' => DealStatus::Open,
         'value' => 1234.5,
         'expected_close_date' => '2026-10-06',
@@ -110,7 +108,7 @@ test('the overdue close date is red only for an open deal', function () {
 
     expect($entry->getColor($entry->getState()))->toBe('danger');
 
-    $this->deal->forceFill(['status' => DealStatus::Won, 'stage' => DealStage::Won])->saveQuietly();
+    $this->deal->forceFill(['status' => DealStatus::Won, 'pipeline_stage_id' => pipelineStageNamed($this->org, 'Won')->id])->saveQuietly();
 
     $entry = ($this->drawerEntry)(($this->openDrawer)($this->deal), 'expected_close_date');
 
@@ -151,12 +149,11 @@ test('recent activities are newest first, at most three', function () {
 });
 
 test('empty lists and missing facts show placeholders', function () {
-    $empty = Deal::factory()->create([
+    $empty = Deal::factory()->inStage('Lead')->create([
         'organization_id' => $this->org->id,
         'contact_id' => null,
         'created_by' => $this->user->id,
         'title' => 'Empty',
-        'stage' => DealStage::Lead,
         'status' => DealStatus::Open,
         'value' => null,
         'expected_close_date' => null,
@@ -168,11 +165,10 @@ test('empty lists and missing facts show placeholders', function () {
 
 test("another organization's deal and an unknown id open nothing", function () {
     $otherUser = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
-    $otherDeal = Deal::factory()->create([
+    $otherDeal = Deal::factory()->inStage('Lead')->create([
         'organization_id' => $otherUser->personalOrganization()->id,
         'created_by' => $otherUser->id,
         'title' => 'Other Org Secret Deal',
-        'stage' => DealStage::Lead,
     ]);
 
     foreach ([(string) $otherDeal->id, '999999'] as $key) {

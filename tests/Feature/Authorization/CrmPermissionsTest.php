@@ -4,7 +4,6 @@ use App\Data\Segments\SegmentConditionData;
 use App\Data\Segments\SegmentRuleData;
 use App\Enums\ContactAttribute;
 use App\Enums\ContactStatus;
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\InvoiceStatus;
 use App\Enums\OrganizationRole;
@@ -38,7 +37,6 @@ use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\Task;
 use App\Models\User;
-use App\Services\Deals\DefaultPipeline;
 use Filament\Actions\AttachAction;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
@@ -238,9 +236,9 @@ describe('segments', function () {
 describe('deals and invoices', function () {
     beforeEach(function () {
         $this->contact = Contact::factory()->create(['organization_id' => $this->org->id]);
-        $this->deal = Deal::factory()->create([
+        $this->deal = Deal::factory()->inStage('Negotiating')->create([
             'organization_id' => $this->org->id, 'contact_id' => $this->contact->id, 'created_by' => $this->owner->id,
-            'stage' => DealStage::Negotiating, 'status' => DealStatus::Open, 'position' => '1000.0000000000',
+            'status' => DealStatus::Open, 'position' => '1000.0000000000',
         ]);
         $this->invoice = Invoice::factory()->create([
             'organization_id' => $this->org->id, 'contact_id' => $this->contact->id, 'deal_id' => $this->deal->id, 'status' => InvoiceStatus::Sent,
@@ -251,10 +249,10 @@ describe('deals and invoices', function () {
         ($this->actAs)(OrganizationRole::Viewer);
 
         Livewire::test(DealPipeline::class)
-            ->call('moveCard', (string) $this->deal->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Won)->id)
+            ->call('moveCard', (string) $this->deal->id, (string) pipelineStageNamed($this->org->id, 'Won')->id)
             ->assertForbidden();
 
-        expect($this->deal->fresh()->stage)->toBe(DealStage::Negotiating)
+        expect($this->deal->fresh()->pipelineStage->name)->toBe('Negotiating')
             ->and($this->deal->fresh()->status)->toBe(DealStatus::Open);
     });
 
@@ -262,19 +260,20 @@ describe('deals and invoices', function () {
         ($this->actAs)(OrganizationRole::Member);
 
         Livewire::test(DealPipeline::class)
-            ->call('moveCard', (string) $this->deal->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Won)->id);
+            ->call('moveCard', (string) $this->deal->id, (string) pipelineStageNamed($this->org->id, 'Won')->id);
 
-        expect($this->deal->fresh()->stage)->toBe(DealStage::Won);
+        expect($this->deal->fresh()->pipelineStage->name)->toBe('Won');
     });
 
     it('does not let a member move a card of another organization', function () {
         ($this->actAs)(OrganizationRole::Member);
-        $other = Deal::factory()->create(['organization_id' => User::factory()->withPersonalOrganization()->create()->personalOrganization()->id, 'stage' => DealStage::Negotiating]);
+        $otherOrganizationId = User::factory()->withPersonalOrganization()->create()->personalOrganization()->id;
+        $other = Deal::factory()->inStage('Negotiating')->create(['organization_id' => $otherOrganizationId]);
 
         Livewire::test(DealPipeline::class)
-            ->call('moveCard', (string) $other->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Won)->id);
+            ->call('moveCard', (string) $other->id, (string) pipelineStageNamed($this->org->id, 'Won')->id);
 
-        expect($other->fresh()->stage)->toBe(DealStage::Negotiating);
+        expect($other->fresh()->pipeline_stage_id)->toBe(pipelineStageNamed($otherOrganizationId, 'Negotiating')->id);
     });
 
     it('shows a viewer no editing action on a deal', function () {

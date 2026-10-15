@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\OrganizationRole;
 use App\Filament\Resources\Companies\CompanyResource;
@@ -13,7 +12,6 @@ use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\User;
 use App\Services\Deals\DealStageMover;
-use App\Services\Deals\DefaultPipeline;
 use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\DB;
@@ -31,7 +29,7 @@ beforeEach(function () {
     $this->zeta = Company::factory()->create(['organization_id' => $this->org->id, 'name' => 'Zeta Corp']);
     $this->jane = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Jane Doe']);
 
-    $this->makeDeal = fn (string $title, ?Company $company, DealStage $stage, ?string $closeDate, ?string $value, ?Contact $contact = null): Deal => Deal::factory()->create([
+    $this->makeDeal = fn (string $title, ?Company $company, string $stage, ?string $closeDate, ?string $value, ?Contact $contact = null): Deal => Deal::factory()->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->alice->id,
         'owner_id' => $this->alice->id,
@@ -40,15 +38,15 @@ beforeEach(function () {
         'title' => $title,
         'expected_close_date' => $closeDate,
         'value' => $value,
-        ...DealStageMover::attributesFor(DefaultPipeline::stageFor($this->org->id, $stage)),
+        ...DealStageMover::attributesFor(pipelineStageNamed($this->org->id, $stage)),
     ]);
 
-    $this->late = ($this->makeDeal)('Late renewal', $this->acme, DealStage::ProposalSent, '2026-10-05', '1200.00', $this->jane);
-    $this->next = ($this->makeDeal)('Next phase', $this->acme, DealStage::Lead, '2026-11-20', null);
-    $this->undated = ($this->makeDeal)('Undated idea', $this->acme, DealStage::Lead, null, '300.00');
-    $this->old = ($this->makeDeal)('Old pilot', $this->acme, DealStage::Lost, '2026-10-01', '500.00');
-    $this->zetaDeal = ($this->makeDeal)('Zeta audit', $this->zeta, DealStage::Lead, '2026-10-20', '900.00');
-    $this->orphan = ($this->makeDeal)('No company deal', null, DealStage::Lead, '2026-10-20', '100.00');
+    $this->late = ($this->makeDeal)('Late renewal', $this->acme, 'Proposal Sent', '2026-10-05', '1200.00', $this->jane);
+    $this->next = ($this->makeDeal)('Next phase', $this->acme, 'Lead', '2026-11-20', null);
+    $this->undated = ($this->makeDeal)('Undated idea', $this->acme, 'Lead', null, '300.00');
+    $this->old = ($this->makeDeal)('Old pilot', $this->acme, 'Lost', '2026-10-01', '500.00');
+    $this->zetaDeal = ($this->makeDeal)('Zeta audit', $this->zeta, 'Lead', '2026-10-20', '900.00');
+    $this->orphan = ($this->makeDeal)('No company deal', null, 'Lead', '2026-10-20', '100.00');
 
     $this->manager = fn (?Company $company = null) => Livewire::test(DealsRelationManager::class, [
         'ownerRecord' => $company ?? $this->acme,

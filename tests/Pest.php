@@ -1,5 +1,8 @@
 <?php
 
+use App\Models\Organization;
+use App\Models\PipelineStage;
+use App\Services\Deals\DefaultPipeline;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -55,6 +58,17 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/**
+ * The stage of the organization's default pipeline with this name.
+ *
+ * @throws InvalidArgumentException
+ */
+function pipelineStageNamed(Organization|int $organization, string $name): PipelineStage
+{
+    return DefaultPipeline::stagesOf($organization instanceof Organization ? $organization->getKey() : $organization)->firstWhere('name', $name)
+        ?? throw new InvalidArgumentException("No pipeline stage named \"{$name}\".");
 }
 
 /**

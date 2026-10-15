@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\DealStage;
 use App\Enums\InvoiceStatus;
 use App\Enums\TaskStatus;
 use App\Filament\Resources\Deals\Pages\ListDeals;
@@ -19,7 +18,6 @@ use App\Models\Invoice;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\Deals\DealStageMover;
-use App\Services\Deals\DefaultPipeline;
 use App\Support\LocalTime;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Testing\TestAction;
@@ -49,12 +47,12 @@ beforeEach(function () {
         'due_at' => $dueAt,
     ]);
 
-    $this->makeDeal = fn (string $title, ?string $closeDate, DealStage $stage = DealStage::Lead): Deal => Deal::factory()->create([
+    $this->makeDeal = fn (string $title, ?string $closeDate, string $stage = 'Lead'): Deal => Deal::factory()->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->alice->id,
         'title' => $title,
         'expected_close_date' => $closeDate,
-        ...DealStageMover::attributesFor(DefaultPipeline::stageFor($this->org->id, $stage)),
+        ...DealStageMover::attributesFor(pipelineStageNamed($this->org->id, $stage)),
     ]);
 
     $this->makeInvoice = fn (InvoiceStatus $status, string $dueAt, array $attributes = []): Invoice => Invoice::factory()->create([
@@ -120,14 +118,14 @@ test('closing this week uses local dates', function () {
         ->assertCountTableRecords(2);
 });
 
-test('a deal is overdue from the local day after its close date', function (DealStage $stage, string $date, bool $overdue) {
+test('a deal is overdue from the local day after its close date', function (string $stage, string $date, bool $overdue) {
     ($this->inZone)('Asia/Tokyo', '2026-10-12 23:30:00');
 
     expect(($this->makeDeal)('Deal', $date, $stage)->isOverdue())->toBe($overdue);
 })->with([
-    'open, closing on the UTC day' => [DealStage::Lead, '2026-10-12', true],
-    'open, closing on the local day' => [DealStage::Lead, '2026-10-13', false],
-    'won' => [DealStage::Won, '2026-10-12', false],
+    'open, closing on the UTC day' => ['Lead', '2026-10-12', true],
+    'open, closing on the local day' => ['Lead', '2026-10-13', false],
+    'won' => ['Won', '2026-10-12', false],
 ]);
 
 test('an invoice is overdue from the local day after its due date', function (InvoiceStatus $status, string $due, bool $included, bool $pastDue) {
@@ -177,8 +175,8 @@ test('the month widgets count the local month', function () {
     ($this->inZone)('Europe/Paris', '2026-10-31 23:30:00');
     Contact::factory()->create(['organization_id' => $this->org->id, 'created_at' => '2026-10-31 23:10:00']);
     Contact::factory()->create(['organization_id' => $this->org->id, 'created_at' => '2026-10-31 22:50:00']);
-    Deal::factory()->create(['organization_id' => $this->org->id, 'created_by' => $this->alice->id, 'value' => 300, ...DealStageMover::attributesFor(DefaultPipeline::stageFor($this->org->id, DealStage::Won)), 'won_at' => '2026-10-31 23:10:00']);
-    Deal::factory()->create(['organization_id' => $this->org->id, 'created_by' => $this->alice->id, 'value' => 200, ...DealStageMover::attributesFor(DefaultPipeline::stageFor($this->org->id, DealStage::Won)), 'won_at' => '2026-10-31 22:50:00']);
+    Deal::factory()->create(['organization_id' => $this->org->id, 'created_by' => $this->alice->id, 'value' => 300, ...DealStageMover::attributesFor(pipelineStageNamed($this->org->id, 'Won')), 'won_at' => '2026-10-31 23:10:00']);
+    Deal::factory()->create(['organization_id' => $this->org->id, 'created_by' => $this->alice->id, 'value' => 200, ...DealStageMover::attributesFor(pipelineStageNamed($this->org->id, 'Won')), 'won_at' => '2026-10-31 22:50:00']);
     ($this->makeInvoice)(InvoiceStatus::Paid, '2026-11-30', ['amount' => 100, 'amount_paid' => 100, 'paid_at' => '2026-11-01']);
     ($this->makeInvoice)(InvoiceStatus::Paid, '2026-11-30', ['amount' => 40, 'amount_paid' => 40, 'paid_at' => '2026-10-31']);
 

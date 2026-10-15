@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\DealStage;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
 use App\Filament\Resources\Contacts\Pages\ViewContact;
 use App\Filament\Resources\Deals\Pages\CreateDeal;
@@ -27,7 +26,7 @@ test('the main deal form refuses a value above the column size', function (strin
     Livewire::test(CreateDeal::class)
         ->fillForm([
             'title' => 'Big one',
-            'stage' => DealStage::Lead,
+            'pipeline_stage_id' => pipelineStageNamed($this->org, 'Lead')->id,
             'value' => $value,
         ])
         ->call('create')
@@ -44,7 +43,7 @@ test('the main deal form accepts the largest value the column holds', function (
     Livewire::test(CreateDeal::class)
         ->fillForm([
             'title' => 'Big one',
-            'stage' => DealStage::Lead,
+            'pipeline_stage_id' => pipelineStageNamed($this->org, 'Lead')->id,
             'value' => '99999999.99',
         ])
         ->call('create')
@@ -95,7 +94,7 @@ test('the create deal option form of each select refuses a value above the colum
     $page()
         ->callAction($actions(), data: [
             'title' => 'Big',
-            'stage' => DealStage::Lead,
+            'pipeline_stage_id' => pipelineStageNamed($this->org, 'Lead')->id,
             'value' => 100000000,
         ])
         ->assertHasActionErrors(['value' => 'max']);
@@ -107,7 +106,7 @@ test('the create deal option form of each select accepts the largest value', fun
     $page()
         ->callAction($actions(), data: [
             'title' => 'Big',
-            'stage' => DealStage::Lead,
+            'pipeline_stage_id' => pipelineStageNamed($this->org, 'Lead')->id,
             'value' => '99999999.99',
         ])
         ->assertHasNoActionErrors();
@@ -120,7 +119,7 @@ test('the create task form option for a deal refuses a value above the column si
         ->fillForm(['contact_id' => $this->contact->id])
         ->callAction(TestAction::make('createOption')->schemaComponent('deal_id'), data: [
             'title' => 'Big',
-            'stage' => DealStage::Lead,
+            'pipeline_stage_id' => pipelineStageNamed($this->org, 'Lead')->id,
             'value' => 100000000,
         ])
         ->assertHasActionErrors(['value' => 'max']);
@@ -133,7 +132,7 @@ test('the create task form option for a deal accepts the largest value', functio
         ->fillForm(['contact_id' => $this->contact->id])
         ->callAction(TestAction::make('createOption')->schemaComponent('deal_id'), data: [
             'title' => 'Big',
-            'stage' => DealStage::Lead,
+            'pipeline_stage_id' => pipelineStageNamed($this->org, 'Lead')->id,
             'value' => '99999999.99',
         ])
         ->assertHasNoActionErrors();

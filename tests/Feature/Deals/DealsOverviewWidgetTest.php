@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\Currency;
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Filament\Widgets\DealsOverviewWidget;
 use App\Models\Deal;
@@ -24,27 +23,24 @@ afterEach(function () {
 });
 
 test('deals overview widget renders metrics and stage breakdown for current tenant', function () {
-    Deal::factory()->create([
+    Deal::factory()->inStage('Lead')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
         'status' => DealStatus::Open,
-        'stage' => DealStage::Lead,
         'value' => 1000,
     ]);
 
-    Deal::factory()->create([
+    Deal::factory()->inStage('Negotiating')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
         'status' => DealStatus::Open,
-        'stage' => DealStage::Negotiating,
         'value' => 2000,
     ]);
 
-    Deal::factory()->create([
+    Deal::factory()->inStage('Won')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
         'status' => DealStatus::Won,
-        'stage' => DealStage::Won,
         'value' => 700,
         'won_at' => now()->subDays(2),
     ]);
@@ -68,19 +64,17 @@ test('deals overview widget ignores deals from other organizations', function ()
     $otherUser = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
     $otherOrg = $otherUser->personalOrganization();
 
-    Deal::factory()->create([
+    Deal::factory()->inStage('Lead')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
         'status' => DealStatus::Open,
-        'stage' => DealStage::Lead,
         'value' => 500,
     ]);
 
-    Deal::factory()->create([
+    Deal::factory()->inStage('Discovery')->create([
         'organization_id' => $otherOrg->id,
         'created_by' => $otherUser->id,
         'status' => DealStatus::Open,
-        'stage' => DealStage::Discovery,
         'value' => 9000,
     ]);
 
@@ -93,13 +87,12 @@ test('deals overview widget ignores deals from other organizations', function ()
         ->assertDontSee('$9,000.00');
 });
 
-function dealsOverviewOpenDeal(object $test, ?float $value, DealStage $stage = DealStage::Lead): Deal
+function dealsOverviewOpenDeal(object $test, ?float $value, string $stage = 'Lead'): Deal
 {
-    return Deal::factory()->create([
+    return Deal::factory()->inStage($stage)->create([
         'organization_id' => $test->org->id,
         'created_by' => $test->user->id,
         'status' => DealStatus::Open,
-        'stage' => $stage,
         'value' => $value,
     ]);
 }
@@ -120,11 +113,10 @@ test('the cards use the currency of the organization', function () {
 
     dealsOverviewOpenDeal($this, 1000);
     dealsOverviewOpenDeal($this, 2000);
-    Deal::factory()->create([
+    Deal::factory()->inStage('Won')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
         'status' => DealStatus::Won,
-        'stage' => DealStage::Won,
         'value' => 700,
         'won_at' => now()->subDays(2),
     ]);
@@ -147,11 +139,10 @@ test('a deal without a value counts as a deal and adds nothing to the pipeline',
 
 test('revenue won this month counts only won deals, not the open ones', function () {
     dealsOverviewOpenDeal($this, 1000);
-    Deal::factory()->create([
+    Deal::factory()->inStage('Won')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
         'status' => DealStatus::Won,
-        'stage' => DealStage::Won,
         'value' => 700,
         'won_at' => now()->subDays(2),
     ]);
@@ -177,11 +168,10 @@ test('the amounts of another organization do not leak into the overview', functi
     $otherOrg->update(['currency' => Currency::Eur]);
 
     dealsOverviewOpenDeal($this, 500);
-    Deal::factory()->create([
+    Deal::factory()->inStage('Lead')->create([
         'organization_id' => $otherOrg->id,
         'created_by' => $otherUser->id,
         'status' => DealStatus::Open,
-        'stage' => DealStage::Lead,
         'value' => 9000,
     ]);
 
@@ -210,11 +200,10 @@ test('the cards hold the counts of the open and of the won deals, not each other
     }
 
     foreach ([5000, 7000] as $value) {
-        Deal::factory()->create([
+        Deal::factory()->inStage('Won')->create([
             'organization_id' => $this->org->id,
             'created_by' => $this->user->id,
             'status' => DealStatus::Won,
-            'stage' => DealStage::Won,
             'value' => $value,
             'won_at' => now(),
         ]);

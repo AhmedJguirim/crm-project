@@ -1,13 +1,11 @@
 <?php
 
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Filament\Resources\Deals\Pages\DealPipeline;
 use App\Filament\Resources\Deals\Pages\ListDeals;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\User;
-use App\Services\Deals\DefaultPipeline;
 use Filament\Facades\Filament;
 use Illuminate\Support\Carbon;
 use Livewire\Livewire;
@@ -49,25 +47,23 @@ test('table view displays expected columns', function () {
 test('table can be filtered by stage status contact and closing this week', function () {
     $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
 
-    $matchingDeal = Deal::factory()->create([
+    $matchingDeal = Deal::factory()->inStage('Negotiating')->create([
         'organization_id' => $this->org->id,
         'contact_id' => $contact->id,
         'created_by' => $this->user->id,
-        'stage' => DealStage::Negotiating,
         'status' => DealStatus::Open,
         'expected_close_date' => Carbon::now()->addDay(),
     ]);
 
-    $otherDeal = Deal::factory()->create([
+    $otherDeal = Deal::factory()->inStage('Lost')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
-        'stage' => DealStage::Lost,
         'status' => DealStatus::Lost,
         'expected_close_date' => Carbon::now()->addMonth(),
     ]);
 
     Livewire::test(ListDeals::class)
-        ->filterTable('pipeline_stage_id', [DefaultPipeline::stageFor($this->org->id, DealStage::Negotiating)->id])
+        ->filterTable('pipeline_stage_id', [pipelineStageNamed($this->org->id, 'Negotiating')->id])
         ->assertCountTableRecords(1);
 
     Livewire::test(ListDeals::class)
@@ -99,11 +95,10 @@ test('pipeline board displays stage columns', function () {
 });
 
 test('pipeline board renders deal card titles', function () {
-    $deal = Deal::factory()->create([
+    $deal = Deal::factory()->inStage('Discovery')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
         'title' => 'Acme Consulting Retainer',
-        'stage' => DealStage::Discovery,
         'status' => DealStatus::Open,
         'position' => '1000.0000000000',
     ]);
@@ -113,11 +108,10 @@ test('pipeline board renders deal card titles', function () {
 });
 
 test('pipeline board only shows deals from current organization', function () {
-    $ourDeal = Deal::factory()->create([
+    $ourDeal = Deal::factory()->inStage('Lead')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
         'title' => 'Our Org Deal',
-        'stage' => DealStage::Lead,
         'status' => DealStatus::Open,
         'position' => '1000.0000000000',
     ]);
@@ -125,11 +119,10 @@ test('pipeline board only shows deals from current organization', function () {
     $otherUser = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
     $otherOrg = $otherUser->personalOrganization();
 
-    $otherDeal = Deal::factory()->create([
+    $otherDeal = Deal::factory()->inStage('Lead')->create([
         'organization_id' => $otherOrg->id,
         'created_by' => $otherUser->id,
         'title' => 'Other Org Secret Deal',
-        'stage' => DealStage::Lead,
         'status' => DealStatus::Open,
         'position' => '1000.0000000000',
     ]);
@@ -140,10 +133,9 @@ test('pipeline board only shows deals from current organization', function () {
 });
 
 test('moving deal to won stage sets status to won and records won_at', function () {
-    $deal = Deal::factory()->create([
+    $deal = Deal::factory()->inStage('Negotiating')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
-        'stage' => DealStage::Negotiating,
         'status' => DealStatus::Open,
         'position' => '1000.0000000000',
         'won_at' => null,
@@ -151,21 +143,20 @@ test('moving deal to won stage sets status to won and records won_at', function 
     ]);
 
     Livewire::test(DealPipeline::class)
-        ->call('moveCard', (string) $deal->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Won)->id);
+        ->call('moveCard', (string) $deal->id, (string) pipelineStageNamed($this->org->id, 'Won')->id);
 
     $deal->refresh();
 
-    expect($deal->stage)->toBe(DealStage::Won)
+    expect($deal->pipelineStage->name)->toBe('Won')
         ->and($deal->status)->toBe(DealStatus::Won)
         ->and($deal->won_at)->not->toBeNull()
         ->and($deal->lost_at)->toBeNull();
 });
 
 test('moving deal to lost stage sets status to lost and records lost_at', function () {
-    $deal = Deal::factory()->create([
+    $deal = Deal::factory()->inStage('Proposal Sent')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
-        'stage' => DealStage::ProposalSent,
         'status' => DealStatus::Open,
         'position' => '1000.0000000000',
         'won_at' => null,
@@ -173,21 +164,20 @@ test('moving deal to lost stage sets status to lost and records lost_at', functi
     ]);
 
     Livewire::test(DealPipeline::class)
-        ->call('moveCard', (string) $deal->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Lost)->id);
+        ->call('moveCard', (string) $deal->id, (string) pipelineStageNamed($this->org->id, 'Lost')->id);
 
     $deal->refresh();
 
-    expect($deal->stage)->toBe(DealStage::Lost)
+    expect($deal->pipelineStage->name)->toBe('Lost')
         ->and($deal->status)->toBe(DealStatus::Lost)
         ->and($deal->lost_at)->not->toBeNull()
         ->and($deal->won_at)->toBeNull();
 });
 
 test('moving deal from won back to open stage resets status and timestamps', function () {
-    $deal = Deal::factory()->create([
+    $deal = Deal::factory()->inStage('Won')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
-        'stage' => DealStage::Won,
         'status' => DealStatus::Won,
         'position' => '1000.0000000000',
         'won_at' => now()->subDay(),
@@ -195,21 +185,20 @@ test('moving deal from won back to open stage resets status and timestamps', fun
     ]);
 
     Livewire::test(DealPipeline::class)
-        ->call('moveCard', (string) $deal->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Negotiating)->id);
+        ->call('moveCard', (string) $deal->id, (string) pipelineStageNamed($this->org->id, 'Negotiating')->id);
 
     $deal->refresh();
 
-    expect($deal->stage)->toBe(DealStage::Negotiating)
+    expect($deal->pipelineStage->name)->toBe('Negotiating')
         ->and($deal->status)->toBe(DealStatus::Open)
         ->and($deal->won_at)->toBeNull()
         ->and($deal->lost_at)->toBeNull();
 });
 
 test('moving deal between open stages keeps status open', function () {
-    $deal = Deal::factory()->create([
+    $deal = Deal::factory()->inStage('Lead')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
-        'stage' => DealStage::Lead,
         'status' => DealStatus::Open,
         'position' => '1000.0000000000',
         'won_at' => null,
@@ -217,11 +206,11 @@ test('moving deal between open stages keeps status open', function () {
     ]);
 
     Livewire::test(DealPipeline::class)
-        ->call('moveCard', (string) $deal->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Discovery)->id);
+        ->call('moveCard', (string) $deal->id, (string) pipelineStageNamed($this->org->id, 'Discovery')->id);
 
     $deal->refresh();
 
-    expect($deal->stage)->toBe(DealStage::Discovery)
+    expect($deal->pipelineStage->name)->toBe('Discovery')
         ->and($deal->status)->toBe(DealStatus::Open)
         ->and($deal->won_at)->toBeNull()
         ->and($deal->lost_at)->toBeNull();

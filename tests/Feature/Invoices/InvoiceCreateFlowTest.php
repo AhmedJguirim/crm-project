@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\InvoiceStatus;
 use App\Enums\OrganizationRole;
@@ -23,12 +22,11 @@ beforeEach(function () {
     Filament::setTenant($this->org);
 
     $this->contact = Contact::factory()->create(['organization_id' => $this->org->id]);
-    $this->deal = Deal::factory()->create([
+    $this->deal = Deal::factory()->inStage('Proposal Sent')->create([
         'organization_id' => $this->org->id,
         'contact_id' => $this->contact->id,
         'created_by' => $this->user->id,
         'value' => 5000.00,
-        'stage' => DealStage::ProposalSent,
         'status' => DealStatus::Open,
     ]);
 });

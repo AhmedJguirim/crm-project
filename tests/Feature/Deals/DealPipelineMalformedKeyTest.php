@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Filament\Resources\Deals\Pages\DealPipeline;
 use App\Models\Activity;
@@ -8,7 +7,6 @@ use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Task;
 use App\Models\User;
-use App\Services\Deals\DefaultPipeline;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Illuminate\Support\Carbon;
@@ -24,12 +22,11 @@ beforeEach(function () {
 
     $this->contact = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Jane Doe']);
 
-    $this->deal = Deal::factory()->create([
+    $this->deal = Deal::factory()->inStage('Lead')->create([
         'organization_id' => $this->org->id,
         'contact_id' => $this->contact->id,
         'created_by' => $this->user->id,
         'title' => 'Retainer',
-        'stage' => DealStage::Lead,
         'status' => DealStatus::Open,
         'won_at' => null,
         'lost_at' => null,
@@ -104,8 +101,8 @@ test('a child action mounted after the drawer still reads the record of a valid 
 test('moveCard with malformed input does nothing', function (string $cardId, string $column, ?string $after, ?string $before) {
     $cardId = $cardId === 'valid' ? (string) $this->deal->id : $cardId;
     $column = match ($column) {
-        'wonId' => (string) DefaultPipeline::stageFor($this->org->id, DealStage::Won)->id,
-        'foreign' => (string) DefaultPipeline::stageFor(User::factory()->onboardingCompleted()->withPersonalOrganization()->create()->personalOrganization()->id, DealStage::Lead)->id,
+        'wonId' => (string) pipelineStageNamed($this->org->id, 'Won')->id,
+        'foreign' => (string) pipelineStageNamed(User::factory()->onboardingCompleted()->withPersonalOrganization()->create()->personalOrganization()->id, 'Lead')->id,
         default => $column,
     };
     $original = $this->deal->fresh()->getAttributes();
@@ -129,18 +126,17 @@ test('moveCard with malformed input does nothing', function (string $cardId, str
 ]);
 
 test('moveCard still moves a card with valid neighbours', function () {
-    $neighbour = Deal::factory()->create([
+    $neighbour = Deal::factory()->inStage('Won')->create([
         'organization_id' => $this->org->id,
         'contact_id' => $this->contact->id,
         'created_by' => $this->user->id,
-        'stage' => DealStage::Won,
         'status' => DealStatus::Won,
         'position' => '1000.0000000000',
     ]);
 
     Livewire::test(DealPipeline::class)
-        ->call('moveCard', (string) $this->deal->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Won)->id, (string) $neighbour->id, null);
+        ->call('moveCard', (string) $this->deal->id, (string) pipelineStageNamed($this->org->id, 'Won')->id, (string) $neighbour->id, null);
 
-    expect($this->deal->fresh()->stage)->toBe(DealStage::Won)
+    expect($this->deal->fresh()->pipelineStage->name)->toBe('Won')
         ->and($this->deal->fresh()->status)->toBe(DealStatus::Won);
 });

@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\Currency;
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\OrganizationRole;
 use App\Filament\Resources\Deals\Pages\DealPipeline;
@@ -30,13 +29,12 @@ beforeEach(function () {
     $this->acme = Company::factory()->create(['organization_id' => $this->org->id, 'name' => 'Acme Ltd']);
     $this->contact->companies()->attach([$this->zeta->id, $this->acme->id]);
 
-    $this->deal = Deal::factory()->create([
+    $this->deal = Deal::factory()->inStage('Lead')->create([
         'organization_id' => $this->org->id,
         'contact_id' => $this->contact->id,
         'company_id' => $this->acme->id,
         'created_by' => $this->user->id,
         'title' => 'Retainer',
-        'stage' => DealStage::Lead,
         'status' => DealStatus::Open,
         'value' => 1234.5,
         'expected_close_date' => '2026-10-06',
@@ -68,18 +66,18 @@ test('the card shows title, subtitle, value and date without labels or buttons',
         ->and($page->instance()->getBoard()->getCardAction())->toBe('openDeal');
 });
 
-test('the close date is red only for an open deal closing before today', function (DealStatus $status, DealStage $stage, string $date, string $color) {
-    $this->deal->forceFill(['status' => $status, 'stage' => $stage, 'expected_close_date' => $date])->saveQuietly();
+test('the close date is red only for an open deal closing before today', function (DealStatus $status, string $stage, string $date, string $color) {
+    $this->deal->forceFill(['status' => $status, 'pipeline_stage_id' => pipelineStageNamed($this->org, $stage)->id, 'expected_close_date' => $date])->saveQuietly();
 
     $entry = ($this->cardEntry)($this->deal->fresh(), 'expected_close_date');
 
     expect($entry->getColor($entry->getState()))->toBe($color);
 })->with([
-    'open, past' => [DealStatus::Open, DealStage::Lead, '2026-10-06', 'danger'],
-    'won, past' => [DealStatus::Won, DealStage::Won, '2026-10-06', 'gray'],
-    'lost, past' => [DealStatus::Lost, DealStage::Lost, '2026-10-06', 'gray'],
-    'open, today' => [DealStatus::Open, DealStage::Lead, '2026-10-09', 'gray'],
-    'open, future' => [DealStatus::Open, DealStage::Lead, '2026-10-12', 'gray'],
+    'open, past' => [DealStatus::Open, 'Lead', '2026-10-06', 'danger'],
+    'won, past' => [DealStatus::Won, 'Won', '2026-10-06', 'gray'],
+    'lost, past' => [DealStatus::Lost, 'Lost', '2026-10-06', 'gray'],
+    'open, today' => [DealStatus::Open, 'Lead', '2026-10-09', 'gray'],
+    'open, future' => [DealStatus::Open, 'Lead', '2026-10-12', 'gray'],
 ]);
 
 test('the value uses the organization currency, zero is shown and null is hidden', function () {
@@ -98,12 +96,11 @@ test('the value uses the organization currency, zero is shown and null is hidden
 test('the subtitle joins the live contact and the live company of the deal', function (?string $contactName, ?string $companyName, bool $trashContact, bool $trashCompany, ?string $expected) {
     $contact = $contactName === null ? null : Contact::factory()->create(['organization_id' => $this->org->id, 'name' => $contactName]);
     $company = $companyName === null ? null : Company::factory()->create(['organization_id' => $this->org->id, 'name' => $companyName]);
-    $deal = Deal::factory()->create([
+    $deal = Deal::factory()->inStage('Lead')->create([
         'organization_id' => $this->org->id,
         'contact_id' => $contact?->id,
         'company_id' => $company?->id,
         'created_by' => $this->user->id,
-        'stage' => DealStage::Lead,
     ]);
 
     if ($trashContact) {
@@ -168,12 +165,11 @@ test("another organization's deal is neither shown nor opened", function () {
     $otherUser = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
     $otherOrg = $otherUser->personalOrganization();
     $spy = Contact::factory()->create(['organization_id' => $otherOrg->id, 'name' => 'Spy Contact']);
-    $otherDeal = Deal::factory()->create([
+    $otherDeal = Deal::factory()->inStage('Lead')->create([
         'organization_id' => $otherOrg->id,
         'contact_id' => $spy->id,
         'created_by' => $otherUser->id,
         'title' => 'Other Org Secret Deal',
-        'stage' => DealStage::Lead,
     ]);
 
     $component = Livewire::test(DealPipeline::class)
@@ -222,12 +218,11 @@ test('more cards do not add company queries', function () {
 
     foreach (range(1, 6) as $i) {
         $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
-        Deal::factory()->create([
+        Deal::factory()->inStage('Lead')->create([
             'organization_id' => $this->org->id,
             'contact_id' => $contact->id,
             'company_id' => Company::factory()->create(['organization_id' => $this->org->id])->id,
             'created_by' => $this->user->id,
-            'stage' => DealStage::Lead,
             'status' => DealStatus::Open,
         ]);
     }
@@ -263,12 +258,11 @@ test('the outer card carries the click, the keys and the drag attributes', funct
 });
 
 test('one click mounts the action exactly once, on the card itself', function () use ($pipelineCardElements) {
-    $second = Deal::factory()->create([
+    $second = Deal::factory()->inStage('Discovery')->create([
         'organization_id' => $this->org->id,
         'contact_id' => $this->contact->id,
         'created_by' => $this->user->id,
         'title' => 'Second Deal',
-        'stage' => DealStage::Discovery,
         'status' => DealStatus::Open,
         'position' => '1000.0000000000',
     ]);

@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\ActivityType;
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\TaskStatus;
 use App\Filament\Resources\Contacts\Widgets\ContactActivityFeed;
@@ -124,12 +123,11 @@ test('date-only values do not move', function () {
 });
 
 test('the board drawer prints local dates', function () {
-    $deal = Deal::factory()->create([
+    $deal = Deal::factory()->inStage('Lead')->create([
         'organization_id' => $this->org->id,
         'contact_id' => $this->contact->id,
         'created_by' => $this->alice->id,
         'title' => 'Retainer',
-        'stage' => DealStage::Lead,
     ]);
     Task::factory()->create([
         'organization_id' => $this->org->id,
@@ -154,18 +152,16 @@ test('the board drawer prints local dates', function () {
 
 test('the deal page and the activity feeds print local time', function () {
     $this->org->update(['timezone' => 'America/New_York']);
-    $deal = Deal::factory()->create([
+    $deal = Deal::factory()->inStage('Won')->create([
         'organization_id' => $this->org->id,
         'contact_id' => $this->contact->id,
         'created_by' => $this->alice->id,
-        'stage' => DealStage::Won,
         'status' => DealStatus::Won,
         'won_at' => '2026-10-12 03:00:00',
     ]);
-    $lost = Deal::factory()->create([
+    $lost = Deal::factory()->inStage('Lost')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->alice->id,
-        'stage' => DealStage::Lost,
         'status' => DealStatus::Lost,
         'lost_at' => '2026-10-12 03:00:00',
     ]);

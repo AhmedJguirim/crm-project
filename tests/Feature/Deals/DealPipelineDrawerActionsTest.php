@@ -2,7 +2,6 @@
 
 use App\Enums\ActivityType;
 use App\Enums\Currency;
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\OrganizationRole;
 use App\Enums\TaskStatus;
@@ -14,7 +13,6 @@ use App\Models\Deal;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\Deals\DealStageMover;
-use App\Services\Deals\DefaultPipeline;
 use App\Support\MoneyLimit;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
@@ -35,12 +33,11 @@ beforeEach(function () {
 
     $this->contact = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Jane Doe']);
 
-    $this->deal = Deal::factory()->create([
+    $this->deal = Deal::factory()->inStage('Lead')->create([
         'organization_id' => $this->org->id,
         'contact_id' => $this->contact->id,
         'created_by' => $this->user->id,
         'title' => 'Retainer',
-        'stage' => DealStage::Lead,
         'status' => DealStatus::Open,
         'value' => 1234.5,
         'won_at' => null,
@@ -54,7 +51,7 @@ beforeEach(function () {
     $this->mountChild = fn (Testable $component, string $name, ?Deal $deal = null): Testable => $component
         ->call('mountAction', $name, [], ['recordKey' => (string) ($deal ?? $this->deal)->id]);
 
-    $this->stageId = fn (DealStage $stage): int => DefaultPipeline::stageFor($this->org->id, $stage)->id;
+    $this->stageId = fn (string $stage): int => pipelineStageNamed($this->org->id, $stage)->id;
 
     $this->childVisible = fn (Testable $component, string $name): bool => $component->instance()
         ->getMountedAction()->getModalAction($name)->isVisible();
@@ -70,12 +67,11 @@ beforeEach(function () {
         $otherUser = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
         $otherContact = Contact::factory()->create(['organization_id' => $otherUser->personalOrganization()->id]);
 
-        return Deal::factory()->create([
+        return Deal::factory()->inStage('Lead')->create([
             'organization_id' => $otherUser->personalOrganization()->id,
             'contact_id' => $otherContact->id,
             'created_by' => $otherUser->id,
             'title' => 'Other Org Deal',
-            'stage' => DealStage::Lead,
             'status' => DealStatus::Open,
         ]);
     };
@@ -160,49 +156,48 @@ test('the footer lists the quick actions in order, the full page link last', fun
 });
 
 test('move stage moves the card to the bottom of the column and updates the drawer', function () {
-    $wonCard = Deal::factory()->create([
+    $wonCard = Deal::factory()->inStage('Won')->create([
         'organization_id' => $this->org->id,
-        'stage' => DealStage::Won,
         'status' => DealStatus::Won,
         'won_at' => '2026-10-01 09:00:00',
         'position' => '5000.0000000000',
     ]);
 
     $component = ($this->mountChild)(($this->openDrawer)(), 'moveStage')
-        ->assertActionDataSet(['pipeline_stage_id' => ($this->stageId)(DealStage::Lead), 'from_pipeline_stage_id' => ($this->stageId)(DealStage::Lead)])
-        ->fillForm(['pipeline_stage_id' => ($this->stageId)(DealStage::Won)])
+        ->assertActionDataSet(['pipeline_stage_id' => ($this->stageId)('Lead'), 'from_pipeline_stage_id' => ($this->stageId)('Lead')])
+        ->fillForm(['pipeline_stage_id' => ($this->stageId)('Won')])
         ->call('callMountedAction');
 
     $deal = $this->deal->fresh();
 
-    expect($deal->stage)->toBe(DealStage::Won)
+    expect($deal->pipelineStage->name)->toBe('Won')
         ->and($deal->status)->toBe(DealStatus::Won)
         ->and($deal->won_at->toDateTimeString())->toBe('2026-10-09 12:00:00')
         ->and((float) $deal->position)->toBeGreaterThan((float) $wonCard->fresh()->position);
 
     $board = $component->instance()->getBoard();
 
-    expect($board->getBoardRecords((string) ($this->stageId)(DealStage::Won))->pluck('id'))->toContain($deal->id)
-        ->and($board->getBoardRecords((string) ($this->stageId)(DealStage::Lead))->pluck('id'))->not->toContain($deal->id);
+    expect($board->getBoardRecords((string) ($this->stageId)('Won'))->pluck('id'))->toContain($deal->id)
+        ->and($board->getBoardRecords((string) ($this->stageId)('Lead'))->pluck('id'))->not->toContain($deal->id);
 
     $component->assertSet('mountedActions.0.name', 'openDeal');
     expect(count($component->instance()->mountedActions))->toBe(1)
-        ->and($component->instance()->getMountedAction()->getRecord()->stage)->toBe(DealStage::Won)
+        ->and($component->instance()->getMountedAction()->getRecord()->pipelineStage->name)->toBe('Won')
         ->and(($this->drawerText)($component))->toContain('Expected close')->toContain('Won');
 
     $component->assertNotified('Deal moved to Won');
 });
 
 test('reopening a won deal clears the won date', function () {
-    $this->deal->forceFill(['stage' => DealStage::Won, 'pipeline_stage_id' => ($this->stageId)(DealStage::Won), 'status' => DealStatus::Won, 'won_at' => '2026-10-01 09:00:00'])->saveQuietly();
+    $this->deal->forceFill(['pipeline_stage_id' => ($this->stageId)('Won'), 'status' => DealStatus::Won, 'won_at' => '2026-10-01 09:00:00'])->saveQuietly();
 
     ($this->mountChild)(($this->openDrawer)(), 'moveStage')
-        ->fillForm(['pipeline_stage_id' => ($this->stageId)(DealStage::ProposalSent)])
+        ->fillForm(['pipeline_stage_id' => ($this->stageId)('Proposal Sent')])
         ->call('callMountedAction');
 
     $deal = $this->deal->fresh();
 
-    expect($deal->stage)->toBe(DealStage::ProposalSent)
+    expect($deal->pipelineStage->name)->toBe('Proposal Sent')
         ->and($deal->status)->toBe(DealStatus::Open)
         ->and($deal->won_at)->toBeNull()
         ->and($deal->lost_at)->toBeNull();
@@ -212,7 +207,7 @@ test('moving to the same stage writes nothing and sends no notification', functi
     $before = $this->deal->fresh();
 
     ($this->mountChild)(($this->openDrawer)(), 'moveStage')
-        ->fillForm(['pipeline_stage_id' => ($this->stageId)(DealStage::Lead)])
+        ->fillForm(['pipeline_stage_id' => ($this->stageId)('Lead')])
         ->call('callMountedAction')
         ->assertNotNotified();
 
@@ -220,15 +215,15 @@ test('moving to the same stage writes nothing and sends no notification', functi
 
     expect($after->updated_at->toDateTimeString())->toBe($before->updated_at->toDateTimeString())
         ->and($after->position)->toBe($before->position)
-        ->and($after->stage)->toBe(DealStage::Lead);
+        ->and($after->pipelineStage->name)->toBe('Lead');
 });
 
 test('a stale stage writes nothing and warns', function () {
     $component = ($this->mountChild)(($this->openDrawer)(), 'moveStage');
 
-    DealStageMover::move($this->deal->fresh(), DefaultPipeline::stageFor($this->deal->organization_id, DealStage::Discovery));
+    DealStageMover::move($this->deal->fresh(), pipelineStageNamed($this->deal->organization_id, 'Discovery'));
 
-    $component->fillForm(['pipeline_stage_id' => ($this->stageId)(DealStage::Won)])
+    $component->fillForm(['pipeline_stage_id' => ($this->stageId)('Won')])
         ->call('callMountedAction')
         ->assertNotified(
             Notification::make()
@@ -239,7 +234,7 @@ test('a stale stage writes nothing and warns', function () {
 
     $deal = $this->deal->fresh();
 
-    expect($deal->stage)->toBe(DealStage::Discovery)
+    expect($deal->pipelineStage->name)->toBe('Discovery')
         ->and($deal->status)->toBe(DealStatus::Open)
         ->and($deal->won_at)->toBeNull();
 });
@@ -250,7 +245,7 @@ test('a forged stage outside the options is refused', function () {
         ->call('callMountedAction')
         ->assertHasFormErrors(['pipeline_stage_id']);
 
-    expect($this->deal->fresh()->stage)->toBe(DealStage::Lead);
+    expect($this->deal->fresh()->pipelineStage->name)->toBe('Lead');
 });
 
 test('log an activity from the drawer', function () {
@@ -320,7 +315,7 @@ test('the deal page quick task is not changed by the new factory', function () {
 test('edit from the drawer saves through the deal form and the stage rule', function () {
     $hasPrefill = function (array $state): array {
         expect($state['title'])->toBe('Retainer')
-            ->and((int) $state['pipeline_stage_id'])->toBe(DefaultPipeline::stageFor($this->deal->organization_id, DealStage::Lead)->id)
+            ->and((int) $state['pipeline_stage_id'])->toBe(pipelineStageNamed($this->deal->organization_id, 'Lead')->id)
             ->and((float) $state['value'])->toBe(1234.5);
 
         return [];
@@ -328,23 +323,23 @@ test('edit from the drawer saves through the deal form and the stage rule', func
 
     $component = ($this->mountChild)(($this->openDrawer)(), 'editDeal')
         ->assertActionDataSet($hasPrefill)
-        ->fillForm(['value' => 2000, 'pipeline_stage_id' => DefaultPipeline::stageFor($this->deal->organization_id, DealStage::Lost)->id])
+        ->fillForm(['value' => 2000, 'pipeline_stage_id' => pipelineStageNamed($this->deal->organization_id, 'Lost')->id])
         ->call('callMountedAction')
         ->assertHasNoFormErrors()
         ->assertNotified('Saved');
 
     expect((string) $component->instance()->getMountedAction()->getRecord()->value)->toBe('2000.00')
-        ->and($component->instance()->getMountedAction()->getRecord()->stage)->toBe(DealStage::Lost)
+        ->and($component->instance()->getMountedAction()->getRecord()->pipelineStage->name)->toBe('Lost')
         ->and(($this->drawerText)($component))->toContain('Expected close')->toContain(Number::currency(2000, 'EUR'))->toContain('Lost')
         ->and($component->html())->not->toContain('€1,234.50');
 
     $deal = $this->deal->fresh();
 
     expect((string) $deal->value)->toBe('2000.00')
-        ->and($deal->stage)->toBe(DealStage::Lost)
+        ->and($deal->pipelineStage->name)->toBe('Lost')
         ->and($deal->status)->toBe(DealStatus::Lost)
         ->and($deal->lost_at->toDateTimeString())->toBe('2026-10-09 12:00:00')
-        ->and($component->instance()->getBoard()->getBoardRecords((string) ($this->stageId)(DealStage::Lost))->firstWhere('id', $deal->id)?->value)->toBe('2000.00')
+        ->and($component->instance()->getBoard()->getBoardRecords((string) ($this->stageId)('Lost'))->firstWhere('id', $deal->id)?->value)->toBe('2000.00')
         ->and(Livewire::test(DealPipeline::class)->html())->toContain('€2,000.00');
 });
 
@@ -447,7 +442,7 @@ test("a mounted edit form whose record key is swapped to another organization's 
 
 test('the moveCard drag path still moves the card', function () {
     Livewire::test(DealPipeline::class)
-        ->call('moveCard', (string) $this->deal->id, (string) ($this->stageId)(DealStage::Won));
+        ->call('moveCard', (string) $this->deal->id, (string) ($this->stageId)('Won'));
 
     expect($this->deal->fresh()->status)->toBe(DealStatus::Won);
 });
@@ -487,15 +482,15 @@ test('the drawer task form refuses a forged contact or deal of another organizat
 test('move stage re-renders the card in its new column while the drawer stays open', function () {
     $component = ($this->openDrawer)();
 
-    expect(($this->cardColumn)($component, $this->deal))->toBe((string) ($this->stageId)(DealStage::Lead));
+    expect(($this->cardColumn)($component, $this->deal))->toBe((string) ($this->stageId)('Lead'));
 
     ($this->mountChild)($component, 'moveStage')
-        ->fillForm(['pipeline_stage_id' => ($this->stageId)(DealStage::Discovery)])
+        ->fillForm(['pipeline_stage_id' => ($this->stageId)('Discovery')])
         ->call('callMountedAction')
         ->assertNotified('Deal moved to Discovery')
         ->assertSet('mountedActions.0.name', 'openDeal');
 
-    expect(($this->cardColumn)($component, $this->deal))->toBe((string) ($this->stageId)(DealStage::Discovery))
+    expect(($this->cardColumn)($component, $this->deal))->toBe((string) ($this->stageId)('Discovery'))
         ->and(count($component->instance()->mountedActions))->toBe(1)
         ->and(($this->drawerText)($component))->toContain('Expected close')->toContain('Discovery');
 });
@@ -506,12 +501,12 @@ test('edit re-renders the card with its new values while the drawer stays open',
     expect(($this->cardText)($component, $this->deal))->toContain('€1,234.50');
 
     ($this->mountChild)($component, 'editDeal')
-        ->fillForm(['value' => 32000, 'pipeline_stage_id' => DefaultPipeline::stageFor($this->deal->organization_id, DealStage::ProposalSent)->id])
+        ->fillForm(['value' => 32000, 'pipeline_stage_id' => pipelineStageNamed($this->deal->organization_id, 'Proposal Sent')->id])
         ->call('callMountedAction')
         ->assertNotified('Saved')
         ->assertSet('mountedActions.0.name', 'openDeal');
 
-    expect(($this->cardColumn)($component, $this->deal))->toBe((string) ($this->stageId)(DealStage::ProposalSent))
+    expect(($this->cardColumn)($component, $this->deal))->toBe((string) ($this->stageId)('Proposal Sent'))
         ->and(($this->cardText)($component, $this->deal))->toContain(Number::currency(32000, 'EUR'))
         ->and(($this->cardText)($component, $this->deal))->not->toContain('€1,234.50')
         ->and(count($component->instance()->mountedActions))->toBe(1)
@@ -521,11 +516,11 @@ test('edit re-renders the card with its new values while the drawer stays open',
 test('a stale move re-renders the board with the deal where it really is', function () {
     $component = ($this->mountChild)(($this->openDrawer)(), 'moveStage');
 
-    expect(($this->cardColumn)($component, $this->deal))->toBe((string) ($this->stageId)(DealStage::Lead));
+    expect(($this->cardColumn)($component, $this->deal))->toBe((string) ($this->stageId)('Lead'));
 
-    DealStageMover::move($this->deal->fresh(), DefaultPipeline::stageFor($this->deal->organization_id, DealStage::Negotiating));
+    DealStageMover::move($this->deal->fresh(), pipelineStageNamed($this->deal->organization_id, 'Negotiating'));
 
-    $component->fillForm(['pipeline_stage_id' => ($this->stageId)(DealStage::Discovery)])
+    $component->fillForm(['pipeline_stage_id' => ($this->stageId)('Discovery')])
         ->call('callMountedAction')
         ->assertNotified(
             Notification::make()
@@ -534,6 +529,6 @@ test('a stale move re-renders the board with the deal where it really is', funct
                 ->body('It is now in Negotiating. Nothing was changed.')
         );
 
-    expect(($this->cardColumn)($component, $this->deal))->toBe((string) ($this->stageId)(DealStage::Negotiating))
-        ->and($this->deal->fresh()->stage)->toBe(DealStage::Negotiating);
+    expect(($this->cardColumn)($component, $this->deal))->toBe((string) ($this->stageId)('Negotiating'))
+        ->and($this->deal->fresh()->pipelineStage->name)->toBe('Negotiating');
 });

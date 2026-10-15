@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\DealStage;
 use App\Enums\OrganizationRole;
 use App\Filament\Resources\Companies\CompanyResource;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
@@ -41,13 +40,12 @@ beforeEach(function () {
     $this->globex = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
     $this->otherOrg = $this->globex->personalOrganization();
 
-    $this->makeDeal = fn (string $title, ?Company $company = null, ?Contact $contact = null): Deal => Deal::factory()->create([
+    $this->makeDeal = fn (string $title, ?Company $company = null, ?Contact $contact = null): Deal => Deal::factory()->inStage('Lead')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->alice->id,
         'contact_id' => $contact?->id,
         'company_id' => $company?->id,
         'title' => $title,
-        'stage' => DealStage::Lead,
     ]);
 });
 

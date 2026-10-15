@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\DealStage;
 use App\Enums\OrganizationRole;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
@@ -163,11 +162,10 @@ test('a member can reassign a task and a viewer cannot edit it', function () {
 
 test('quick tasks are assigned to their creator', function () {
     $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
-    $deal = Deal::factory()->create([
+    $deal = Deal::factory()->inStage('Lead')->create([
         'organization_id' => $this->org->id,
         'contact_id' => $contact->id,
         'created_by' => $this->alice->id,
-        'stage' => DealStage::Lead,
         'position' => '1000.0000000000',
     ]);
 

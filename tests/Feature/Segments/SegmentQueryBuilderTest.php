@@ -6,7 +6,6 @@ use App\Enums\ActivityOutcome;
 use App\Enums\ActivityType;
 use App\Enums\ContactAttribute;
 use App\Enums\ContactStatus;
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\LeadSource;
 use App\Enums\SegmentConditionType;
@@ -340,8 +339,8 @@ describe('deals', function () {
         $bob = Contact::factory()->for($this->org)->create(['name' => 'B']);
         Contact::factory()->for($this->org)->create(['name' => 'C']);
 
-        Deal::factory()->for($this->org)->for($alice)->create(['status' => DealStatus::Open, 'stage' => DealStage::Lead, 'value' => 1000]);
-        Deal::factory()->for($this->org)->for($bob)->create(['status' => DealStatus::Won, 'stage' => DealStage::Won, 'value' => 5000]);
+        Deal::factory()->for($this->org)->for($alice)->inStage('Lead')->create(['status' => DealStatus::Open, 'value' => 1000]);
+        Deal::factory()->for($this->org)->for($bob)->inStage('Won')->create(['status' => DealStatus::Won, 'value' => 5000]);
     });
 
     it('matches deal operators', function (SegmentOperator $operator, array $value, array $expected) {

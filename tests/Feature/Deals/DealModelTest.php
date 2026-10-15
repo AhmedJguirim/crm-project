@@ -22,10 +22,9 @@ afterEach(function () {
 });
 
 test('deal casts stage and status to enums', function () {
-    $deal = Deal::factory()->create([
+    $deal = Deal::factory()->inStage('Discovery')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
-        'stage' => DealStage::Discovery,
         'status' => DealStatus::Open,
     ]);
 
@@ -91,17 +90,15 @@ test('status scopes return expected records', function () {
 });
 
 test('stage and closing this week scopes work correctly', function () {
-    $negotiatingThisWeek = Deal::factory()->create([
+    $negotiatingThisWeek = Deal::factory()->inStage('Negotiating')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
-        'stage' => DealStage::Negotiating,
         'expected_close_date' => Carbon::now()->addDay(),
     ]);
 
-    $leadNextMonth = Deal::factory()->create([
+    $leadNextMonth = Deal::factory()->inStage('Lead')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
-        'stage' => DealStage::Lead,
         'expected_close_date' => Carbon::now()->addMonth(),
     ]);
 

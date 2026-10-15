@@ -4,7 +4,6 @@ use App\Data\Segments\SegmentConditionData;
 use App\Data\Segments\SegmentRuleData;
 use App\Enums\ContactAttribute;
 use App\Enums\ContactStatus;
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentOperator;
@@ -141,9 +140,8 @@ it('matches multi-select segments for imported contacts with empty parts in the 
 
 it('puts a contact into a deal stage segment when its deal card is moved on the pipeline board', function () {
     $contact = Contact::factory()->for($this->org)->create();
-    $deal = Deal::factory()->for($this->org)->for($contact)->create([
+    $deal = Deal::factory()->for($this->org)->for($contact)->inStage('Negotiating')->create([
         'created_by' => $this->user->id,
-        'stage' => DealStage::Negotiating,
         'status' => DealStatus::Open,
         'position' => '1000.0000000000',
     ]);
@@ -155,9 +153,9 @@ it('puts a contact into a deal stage segment when its deal card is moved on the 
 
     expect($segment->contacts()->count())->toBe(0);
 
-    Livewire::test(DealPipeline::class)->call('moveCard', (string) $deal->id, (string) DefaultPipeline::stageFor($this->org->id, DealStage::Won)->id);
+    Livewire::test(DealPipeline::class)->call('moveCard', (string) $deal->id, (string) pipelineStageNamed($this->org->id, 'Won')->id);
 
-    expect($deal->fresh()->stage)->toBe(DealStage::Won)
+    expect($deal->fresh()->pipelineStage->name)->toBe('Won')
         ->and($deal->fresh()->status)->toBe(DealStatus::Won)
         ->and($segment->contacts()->pluck('contacts.id')->all())->toBe([$contact->id]);
 });

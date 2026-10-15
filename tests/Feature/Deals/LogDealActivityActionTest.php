@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\ActivityType;
-use App\Enums\DealStage;
 use App\Enums\OrganizationRole;
 use App\Filament\Actions\LogDealActivityAction;
 use App\Filament\Resources\Deals\Pages\ViewDeal;
@@ -24,12 +23,11 @@ beforeEach(function () {
     Filament::setTenant($this->org);
 
     $this->contact = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Jane Doe']);
-    $this->deal = Deal::factory()->create([
+    $this->deal = Deal::factory()->inStage('Lead')->create([
         'organization_id' => $this->org->id,
         'contact_id' => $this->contact->id,
         'created_by' => $this->user->id,
         'title' => 'Retainer',
-        'stage' => DealStage::Lead,
     ]);
 });
 

@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\ActivityType;
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Deals\DealResource;
@@ -35,12 +34,11 @@ test('deal detail page renders deal metadata and contact activities', function (
         'name' => 'Alice Smith',
     ]);
 
-    $deal = Deal::factory()->create([
+    $deal = Deal::factory()->inStage('Proposal Sent')->create([
         'organization_id' => $this->org->id,
         'contact_id' => $contact->id,
         'created_by' => $this->user->id,
         'title' => 'Website Revamp Retainer',
-        'stage' => DealStage::ProposalSent,
         'status' => DealStatus::Open,
         'value' => 5000,
         'notes' => 'Proposal sent, waiting for signature.',
@@ -72,10 +70,9 @@ test('deal detail page renders deal metadata and contact activities', function (
 });
 
 test('move to won action updates status stage and won date', function () {
-    $deal = Deal::factory()->create([
+    $deal = Deal::factory()->inStage('Negotiating')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
-        'stage' => DealStage::Negotiating,
         'status' => DealStatus::Open,
         'won_at' => null,
         'lost_at' => null,
@@ -88,7 +85,7 @@ test('move to won action updates status stage and won date', function () {
     $deal->refresh();
 
     expect($deal->status)->toBe(DealStatus::Won)
-        ->and($deal->stage)->toBe(DealStage::Won)
+        ->and($deal->pipelineStage->name)->toBe('Won')
         ->and($deal->won_at)->not->toBeNull()
         ->and($deal->lost_at)->toBeNull();
 
@@ -98,10 +95,9 @@ test('move to won action updates status stage and won date', function () {
 });
 
 test('move to lost action updates status stage and lost date', function () {
-    $deal = Deal::factory()->create([
+    $deal = Deal::factory()->inStage('Negotiating')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
-        'stage' => DealStage::Negotiating,
         'status' => DealStatus::Open,
         'won_at' => null,
         'lost_at' => null,
@@ -114,7 +110,7 @@ test('move to lost action updates status stage and lost date', function () {
     $deal->refresh();
 
     expect($deal->status)->toBe(DealStatus::Lost)
-        ->and($deal->stage)->toBe(DealStage::Lost)
+        ->and($deal->pipelineStage->name)->toBe('Lost')
         ->and($deal->lost_at)->not->toBeNull()
         ->and($deal->won_at)->toBeNull();
 });

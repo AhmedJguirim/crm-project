@@ -1,7 +1,6 @@
 <?php
 
 use App\Enums\Currency;
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Filament\Resources\Deals\Pages\CreateDeal;
 use App\Filament\Resources\Deals\Pages\DealPipeline;
@@ -27,12 +26,11 @@ beforeEach(function () {
     Filament::setTenant($this->org);
 
     $this->contact = Contact::factory()->create(['organization_id' => $this->org->id]);
-    $this->deal = Deal::factory()->create([
+    $this->deal = Deal::factory()->inStage('Lead')->create([
         'organization_id' => $this->org->id,
         'contact_id' => $this->contact->id,
         'created_by' => $this->user->id,
         'title' => 'Retainer',
-        'stage' => DealStage::Lead,
         'status' => DealStatus::Open,
         'value' => 1234.5,
         'position' => '1000.0000000000',

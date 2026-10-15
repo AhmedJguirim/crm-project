@@ -3,7 +3,6 @@
 use App\Data\Segments\SegmentConditionData;
 use App\Data\Segments\SegmentRuleData;
 use App\Enums\ContactAttribute;
-use App\Enums\DealStage;
 use App\Enums\InvoiceStatus;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentFieldKind;
@@ -83,21 +82,19 @@ beforeEach(function () {
     $this->ann = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Ann Lee']);
     $this->bob = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Bob Ray']);
 
-    $this->deal = Deal::factory()->create([
+    $this->deal = Deal::factory()->inStage('Lead')->create([
         'organization_id' => $this->org->id,
         'contact_id' => $this->ann->id,
         'owner_id' => $this->owner->id,
         'created_by' => $this->owner->id,
         'title' => 'Ann deal',
-        'stage' => DealStage::Lead,
     ]);
-    $this->otherDeal = Deal::factory()->create([
+    $this->otherDeal = Deal::factory()->inStage('Discovery')->create([
         'organization_id' => $this->org->id,
         'contact_id' => $this->bob->id,
         'owner_id' => null,
         'created_by' => $this->owner->id,
         'title' => 'Bob deal',
-        'stage' => DealStage::Discovery,
     ]);
     Task::factory()->create(['organization_id' => $this->org->id, 'contact_id' => $this->ann->id, 'created_by' => $this->owner->id, 'title' => 'Call Ann']);
     Invoice::factory()->create(['organization_id' => $this->org->id, 'contact_id' => $this->ann->id, 'status' => InvoiceStatus::Sent]);

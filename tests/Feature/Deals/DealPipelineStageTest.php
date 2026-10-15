@@ -32,8 +32,8 @@ function dealPipelineStageOf(Deal $deal): PipelineStage
     return PipelineStage::query()->withoutGlobalScope('organization')->findOrFail($deal->fresh()->pipeline_stage_id);
 }
 
-test('a deal created with a stage gets the pipeline stage at the same position', function (DealStage $stage, string $name, int $position, DealStatus $type) {
-    $deal = Deal::factory()->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id, 'stage' => $stage]);
+test('a deal created in a named stage gets that stage of its organization\'s pipeline', function (string $name, int $position, DealStatus $type) {
+    $deal = Deal::factory()->inStage($name)->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id]);
 
     $pipelineStage = dealPipelineStageOf($deal);
     $acmePipeline = Pipeline::forOrganization($this->acme->id)->oldest('id')->firstOrFail();
@@ -44,18 +44,30 @@ test('a deal created with a stage gets the pipeline stage at the same position',
         ->and($pipelineStage->position)->toBe($position)
         ->and($pipelineStage->type)->toBe($type);
 })->with([
-    'lead' => [DealStage::Lead, 'Lead', 1, DealStatus::Open],
-    'discovery' => [DealStage::Discovery, 'Discovery', 2, DealStatus::Open],
-    'proposal sent' => [DealStage::ProposalSent, 'Proposal Sent', 3, DealStatus::Open],
-    'negotiating' => [DealStage::Negotiating, 'Negotiating', 4, DealStatus::Open],
-    'won' => [DealStage::Won, 'Won', 5, DealStatus::Won],
-    'lost' => [DealStage::Lost, 'Lost', 6, DealStatus::Lost],
+    'lead' => ['Lead', 1, DealStatus::Open],
+    'discovery' => ['Discovery', 2, DealStatus::Open],
+    'proposal sent' => ['Proposal Sent', 3, DealStatus::Open],
+    'negotiating' => ['Negotiating', 4, DealStatus::Open],
+    'won' => ['Won', 5, DealStatus::Won],
+    'lost' => ['Lost', 6, DealStatus::Lost],
 ]);
 
-test('moving a deal moves its pipeline stage', function () {
-    $deal = Deal::factory()->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id, 'stage' => DealStage::Lead]);
+test('a deal created without a stage is in the Lead stage of its organization', function () {
+    $deal = Deal::factory()->for($this->acme)->create(['created_by' => $this->owner->id]);
 
-    DealStageMover::move($deal, DefaultPipeline::stageFor($this->acme->id, DealStage::Won));
+    expect(dealPipelineStageOf($deal)->is(pipelineStageNamed($this->acme, 'Lead')))->toBeTrue()
+        ->and($deal->fresh()->status)->toBe(DealStatus::Open);
+});
+
+test('inStage with an unknown stage name fails loudly', function () {
+    expect(fn () => Deal::factory()->for($this->acme)->inStage('Closed')->create())
+        ->toThrow(InvalidArgumentException::class, 'No pipeline stage named "Closed".');
+});
+
+test('moving a deal moves its pipeline stage', function () {
+    $deal = Deal::factory()->inStage('Lead')->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id]);
+
+    DealStageMover::move($deal, pipelineStageNamed($this->acme, 'Won'));
 
     $pipelineStage = dealPipelineStageOf($deal);
 
@@ -65,7 +77,7 @@ test('moving a deal moves its pipeline stage', function () {
 });
 
 test('a save that does not touch the stage keeps the pipeline stage', function () {
-    $deal = Deal::factory()->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id, 'stage' => DealStage::Discovery]);
+    $deal = Deal::factory()->inStage('Discovery')->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id]);
     $lostStage = PipelineStage::forOrganization($this->acme->id)->where('position', 6)->firstOrFail();
 
     $deal->forceFill(['pipeline_stage_id' => $lostStage->id])->saveQuietly();
@@ -77,7 +89,7 @@ test('a save that does not touch the stage keeps the pipeline stage', function (
 
 test('a deal created from the deal form gets its pipeline stage', function () {
     Livewire::test(CreateDeal::class)
-        ->fillForm(['title' => 'Form deal', 'pipeline_stage_id' => DefaultPipeline::stageFor($this->acme->id, DealStage::ProposalSent)->id])
+        ->fillForm(['title' => 'Form deal', 'pipeline_stage_id' => pipelineStageNamed($this->acme, 'Proposal Sent')->id])
         ->call('create')
         ->assertHasNoFormErrors();
 
@@ -91,7 +103,7 @@ test('a deal of another organization gets that organization stage, even under an
     $globex = User::factory()->onboardingCompleted()->withPersonalOrganization()->create()->personalOrganization();
     $globexPipeline = Pipeline::forOrganization($globex->id)->oldest('id')->firstOrFail();
 
-    $deal = Deal::factory()->create(['organization_id' => $globex->id, 'stage' => DealStage::Negotiating]);
+    $deal = Deal::factory()->inStage('Negotiating')->create(['organization_id' => $globex->id]);
 
     $pipelineStage = dealPipelineStageOf($deal);
 
@@ -102,8 +114,8 @@ test('a deal of another organization gets that organization stage, even under an
 
 test('a deal given the pipeline stage of another organization is refused on creation and on update', function () {
     $other = User::factory()->onboardingCompleted()->withPersonalOrganization()->create()->personalOrganization();
-    $foreignLead = DefaultPipeline::stageFor($other->id, DealStage::Lead);
-    $deal = Deal::factory()->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id, 'stage' => DealStage::Discovery]);
+    $foreignLead = pipelineStageNamed($other, 'Lead');
+    $deal = Deal::factory()->inStage('Discovery')->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id]);
 
     expect(fn () => Deal::factory()->create([
         'organization_id' => $this->acme->id,
@@ -128,7 +140,7 @@ test('the legacy stage mirrors the pipeline stage on creation and on a move', fu
 })->with(DealStage::cases());
 
 test('a direct write of the legacy stage is reverted by the mirror', function () {
-    $deal = Deal::factory()->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id, 'stage' => DealStage::Lead]);
+    $deal = Deal::factory()->inStage('Lead')->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id]);
     $before = $deal->fresh();
 
     $deal->update(['stage' => DealStage::Won]);
@@ -161,14 +173,16 @@ test('legacyStageFor maps the six positions and refuses another', function () {
 test('the stage lookups answer for the organization asked, in pipeline order', function () {
     $other = User::factory()->onboardingCompleted()->withPersonalOrganization()->create()->personalOrganization();
     $options = DefaultPipeline::stageOptions($this->acme->id);
-    $foreign = DefaultPipeline::stageFor($other->id, DealStage::Won);
+    $foreign = pipelineStageNamed($other, 'Won');
 
     expect(array_values($options))->toBe(['Lead', 'Discovery', 'Proposal Sent', 'Negotiating', 'Won', 'Lost'])
         ->and(array_keys($options))->not->toContain($foreign->id)
         ->and(DefaultPipeline::stageOfType($this->acme->id, DealStatus::Open)->name)->toBe('Lead')
         ->and(DefaultPipeline::stageOfType($this->acme->id, DealStatus::Won)->name)->toBe('Won')
         ->and(DefaultPipeline::stageOfType($this->acme->id, DealStatus::Lost)->name)->toBe('Lost')
-        ->and(fn () => DefaultPipeline::stageById($this->acme->id, $foreign->id))->toThrow(ModelNotFoundException::class);
+        ->and(fn () => DefaultPipeline::stageById($this->acme->id, $foreign->id))->toThrow(ModelNotFoundException::class)
+        ->and(pipelineStageNamed($other, 'Won')->is($foreign))->toBeTrue()
+        ->and(pipelineStageNamed($other->id, 'Won')->organization_id)->toBe($other->id);
 });
 
 test('an organization without a pipeline gets one when its first deal is created', function () {
@@ -176,7 +190,7 @@ test('an organization without a pipeline gets one when its first deal is created
 
     expect(Pipeline::forOrganization($initech->id)->count())->toBe(0);
 
-    $deal = Deal::factory()->create(['organization_id' => $initech->id, 'stage' => DealStage::Lead]);
+    $deal = Deal::factory()->inStage('Lead')->create(['organization_id' => $initech->id]);
 
     $pipelines = Pipeline::forOrganization($initech->id)->get();
 
@@ -192,7 +206,7 @@ test('the factory works when model events are faked', function () {
 
     Event::fake();
 
-    $deal = Deal::factory()->for($hooli)->create(['stage' => DealStage::Won]);
+    $deal = Deal::factory()->for($hooli)->inStage('Won')->create();
 
     $pipelineStage = dealPipelineStageOf($deal);
 
@@ -201,7 +215,7 @@ test('the factory works when model events are faked', function () {
 });
 
 test('a stage in use cannot be deleted', function () {
-    $deal = Deal::factory()->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id, 'stage' => DealStage::Lead]);
+    $deal = Deal::factory()->inStage('Lead')->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id]);
     $stage = dealPipelineStageOf($deal);
 
     $code = null;
@@ -218,7 +232,7 @@ test('a stage in use cannot be deleted', function () {
 
 test('deleting an organization deletes its deals and its pipeline', function () {
     $organization = User::factory()->onboardingCompleted()->withPersonalOrganization()->create()->personalOrganization();
-    $deal = Deal::factory()->create(['organization_id' => $organization->id, 'stage' => DealStage::Won]);
+    $deal = Deal::factory()->inStage('Won')->create(['organization_id' => $organization->id]);
 
     $organization->delete();
 
@@ -228,7 +242,7 @@ test('deleting an organization deletes its deals and its pipeline', function () 
 });
 
 test('the pipeline stage lists its deals', function () {
-    $deal = Deal::factory()->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id, 'stage' => DealStage::Lost]);
+    $deal = Deal::factory()->inStage('Lost')->create(['organization_id' => $this->acme->id, 'created_by' => $this->owner->id]);
     $stage = dealPipelineStageOf($deal);
 
     expect($deal->pipelineStage->is($stage))->toBeTrue()

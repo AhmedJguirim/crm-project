@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\DealStage;
 use App\Enums\InvoiceStatus;
 use App\Filament\Pages\Tenancy\OrganizationMembers;
 use App\Filament\Resources\Companies\CompanyResource;
@@ -39,7 +38,6 @@ use App\Models\Invoice;
 use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\User;
-use App\Services\Deals\DefaultPipeline;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Field;
@@ -56,21 +54,19 @@ beforeEach(function () {
     $this->ann = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Ann Lee', 'email' => 'ann.lee@example.test']);
     $this->bob = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Bob Ray', 'email' => 'bob.ray@example.test']);
 
-    $this->annDeal = Deal::factory()->create([
+    $this->annDeal = Deal::factory()->inStage('Lead')->create([
         'organization_id' => $this->org->id,
         'contact_id' => $this->ann->id,
         'owner_id' => $this->owner->id,
         'created_by' => $this->owner->id,
         'title' => 'Ann deal',
-        'stage' => DealStage::Lead,
     ]);
-    $this->bobDeal = Deal::factory()->create([
+    $this->bobDeal = Deal::factory()->inStage('Discovery')->create([
         'organization_id' => $this->org->id,
         'contact_id' => $this->bob->id,
         'owner_id' => null,
         'created_by' => $this->owner->id,
         'title' => 'Bob deal',
-        'stage' => DealStage::Discovery,
     ]);
 
     $this->gina = User::factory()->onboardingCompleted()->withPersonalOrganization()->create(['name' => 'Gina Globex']);
@@ -191,7 +187,7 @@ test('junk items in a multiple id filter are dropped and valid ones kept', funct
 });
 
 test('an unknown stage id is dropped and a known one kept', function () {
-    $lead = DefaultPipeline::stageFor($this->org->id, DealStage::Lead);
+    $lead = pipelineStageNamed($this->org->id, 'Lead');
 
     Livewire::test(ListDeals::class)
         ->set('tableFilters.pipeline_stage_id.values', [(string) $lead->id, 'bogus'])
@@ -202,7 +198,7 @@ test('an unknown stage id is dropped and a known one kept', function () {
 });
 
 test('the stage id of another organization in the deals filter matches nothing', function () {
-    $foreign = DefaultPipeline::stageFor($this->gina->personalOrganization()->id, DealStage::Lead);
+    $foreign = pipelineStageNamed($this->gina->personalOrganization()->id, 'Lead');
 
     Livewire::test(ListDeals::class)
         ->set('tableFilters.pipeline_stage_id.values', [(string) $foreign->id])

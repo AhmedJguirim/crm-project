@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\InvoiceStatus;
 use App\Filament\Resources\Companies\Pages\EditCompany;
@@ -18,7 +17,6 @@ use App\Models\Deal;
 use App\Models\Invoice;
 use App\Models\PipelineStage;
 use App\Models\User;
-use App\Services\Deals\DefaultPipeline;
 use Filament\Facades\Filament;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Schema;
@@ -30,21 +28,20 @@ beforeEach(function () {
     $this->actingAs($this->user);
     Filament::setTenant($this->org);
 
-    $this->stage = fn (DealStage $stage): PipelineStage => DefaultPipeline::stageFor($this->org->id, $stage);
+    $this->stage = fn (string $stage): PipelineStage => pipelineStageNamed($this->org->id, $stage);
     $this->stageEntry = function (string $schemaClass, Deal $deal): array {
         $schema = $schemaClass::configure(Schema::make(Livewire::test(ViewDeal::class, ['record' => $deal->id])->instance())->record($deal->fresh('pipelineStage')));
         $entry = collect($schema->getFlatComponents())->first(fn ($component): bool => $component instanceof TextEntry && $component->getName() === 'pipelineStage.name');
 
         return [$entry->getState(), $entry->getColor($entry->getState())];
     };
-    $this->dealIn = fn (string $title, DealStage $stage, array $attributes = []): Deal => Deal::factory()->create([
+    $this->dealIn = fn (string $title, string $stage, array $attributes = []): Deal => Deal::factory()->inStage($stage)->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->user->id,
         'title' => $title,
-        'stage' => $stage,
         'status' => match ($stage) {
-            DealStage::Won => DealStatus::Won,
-            DealStage::Lost => DealStatus::Lost,
+            'Won' => DealStatus::Won,
+            'Lost' => DealStatus::Lost,
             default => DealStatus::Open,
         },
         ...$attributes,
@@ -53,8 +50,8 @@ beforeEach(function () {
 
 test('a renamed stage shows its new name and color in the list, the company tab, the page, the drawer and the widget', function () {
     $company = Company::factory()->create(['organization_id' => $this->org->id, 'name' => 'Acme Ltd']);
-    $deal = ($this->dealIn)('Retainer', DealStage::Discovery, ['company_id' => $company->id]);
-    ($this->stage)(DealStage::Discovery)->update(['name' => 'Qualified', 'color' => 'success']);
+    $deal = ($this->dealIn)('Retainer', 'Discovery', ['company_id' => $company->id]);
+    ($this->stage)('Discovery')->update(['name' => 'Qualified', 'color' => 'success']);
 
     $list = Livewire::test(ListDeals::class)->assertCanSeeTableRecords([$deal]);
     $column = $list->instance()->getTable()->getColumn('pipelineStage.name');
@@ -72,9 +69,9 @@ test('a renamed stage shows its new name and color in the list, the company tab,
 });
 
 test('sorting by stage follows the pipeline order, not the alphabet', function () {
-    $lost = ($this->dealIn)('A', DealStage::Lost);
-    $lead = ($this->dealIn)('B', DealStage::Lead);
-    $discovery = ($this->dealIn)('C', DealStage::Discovery);
+    $lost = ($this->dealIn)('A', 'Lost');
+    $lead = ($this->dealIn)('B', 'Lead');
+    $discovery = ($this->dealIn)('C', 'Discovery');
 
     Livewire::test(ListDeals::class)
         ->sortTable('pipelineStage.name')
@@ -85,9 +82,9 @@ test('sorting by stage follows the pipeline order, not the alphabet', function (
 
 test('the company deals tab sorts by stage in pipeline order too', function () {
     $company = Company::factory()->create(['organization_id' => $this->org->id, 'name' => 'Acme Ltd']);
-    $lost = ($this->dealIn)('A', DealStage::Lost, ['company_id' => $company->id]);
-    $lead = ($this->dealIn)('B', DealStage::Lead, ['company_id' => $company->id]);
-    $discovery = ($this->dealIn)('C', DealStage::Discovery, ['company_id' => $company->id]);
+    $lost = ($this->dealIn)('A', 'Lost', ['company_id' => $company->id]);
+    $lead = ($this->dealIn)('B', 'Lead', ['company_id' => $company->id]);
+    $discovery = ($this->dealIn)('C', 'Discovery', ['company_id' => $company->id]);
 
     Livewire::test(DealsRelationManager::class, ['ownerRecord' => $company, 'pageClass' => EditCompany::class])
         ->sortTable('pipelineStage.name')
@@ -95,19 +92,19 @@ test('the company deals tab sorts by stage in pipeline order too', function () {
 });
 
 test('filtering by several stage ids lists their deals only', function () {
-    $lead = ($this->dealIn)('A', DealStage::Lead);
-    $won = ($this->dealIn)('B', DealStage::Won);
-    $lost = ($this->dealIn)('C', DealStage::Lost);
+    $lead = ($this->dealIn)('A', 'Lead');
+    $won = ($this->dealIn)('B', 'Won');
+    $lost = ($this->dealIn)('C', 'Lost');
 
     Livewire::test(ListDeals::class)
-        ->filterTable('pipeline_stage_id', [($this->stage)(DealStage::Lead)->id, ($this->stage)(DealStage::Won)->id])
+        ->filterTable('pipeline_stage_id', [($this->stage)('Lead')->id, ($this->stage)('Won')->id])
         ->assertCanSeeTableRecords([$lead, $won])
         ->assertCanNotSeeTableRecords([$lost]);
 });
 
 test('the stage filter offers this organization stages in pipeline order, never another one', function () {
     $other = User::factory()->onboardingCompleted()->withPersonalOrganization()->create()->personalOrganization();
-    $foreign = DefaultPipeline::stageFor($other->id, DealStage::Lead);
+    $foreign = pipelineStageNamed($other->id, 'Lead');
 
     $options = Livewire::test(ListDeals::class)->instance()->getTable()->getFilter('pipeline_stage_id')->getOptions();
 
@@ -116,19 +113,19 @@ test('the stage filter offers this organization stages in pipeline order, never 
 });
 
 test('the open deals breakdown uses the stage names in pipeline order and leaves out closed deals', function () {
-    ($this->dealIn)('A', DealStage::Negotiating);
-    ($this->dealIn)('B', DealStage::Lead);
-    ($this->dealIn)('C', DealStage::Lead);
-    ($this->dealIn)('D', DealStage::Won);
-    ($this->dealIn)('E', DealStage::Won, ['status' => DealStatus::Open]);
-    ($this->stage)(DealStage::Lead)->update(['name' => 'Cold']);
+    ($this->dealIn)('A', 'Negotiating');
+    ($this->dealIn)('B', 'Lead');
+    ($this->dealIn)('C', 'Lead');
+    ($this->dealIn)('D', 'Won');
+    ($this->dealIn)('E', 'Won', ['status' => DealStatus::Open]);
+    ($this->stage)('Lead')->update(['name' => 'Cold']);
 
     expect(Livewire::test(DealsOverviewWidget::class)->instance()->getOpenStageBreakdown())->toBe(['Cold' => 2, 'Negotiating' => 1]);
 });
 
 test('the invoice PDF names the pipeline stage of its deal', function () {
-    $deal = ($this->dealIn)('Retainer', DealStage::Discovery);
-    ($this->stage)(DealStage::Discovery)->update(['name' => 'Qualified']);
+    $deal = ($this->dealIn)('Retainer', 'Discovery');
+    ($this->stage)('Discovery')->update(['name' => 'Qualified']);
     $invoice = Invoice::factory()->create([
         'organization_id' => $this->org->id,
         'contact_id' => Contact::factory()->create(['organization_id' => $this->org->id])->id,
@@ -144,8 +141,8 @@ test('the invoice PDF names the pipeline stage of its deal', function () {
 });
 
 test('a deal in a lost stage is suffixed in the invoices list', function () {
-    $lost = ($this->dealIn)('Pen test', DealStage::Lost);
-    $open = ($this->dealIn)('Audit', DealStage::Lead);
+    $lost = ($this->dealIn)('Pen test', 'Lost');
+    $open = ($this->dealIn)('Audit', 'Lead');
     $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
     $lostInvoice = Invoice::factory()->create(['organization_id' => $this->org->id, 'contact_id' => $contact->id, 'deal_id' => $lost->id, 'status' => InvoiceStatus::Sent]);
     $openInvoice = Invoice::factory()->create(['organization_id' => $this->org->id, 'contact_id' => $contact->id, 'deal_id' => $open->id, 'status' => InvoiceStatus::Sent]);

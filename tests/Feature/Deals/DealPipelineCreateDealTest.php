@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\OrganizationRole;
 use App\Filament\Resources\Deals\Pages\DealPipeline;
@@ -10,7 +9,6 @@ use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Segment;
 use App\Models\User;
-use App\Services\Deals\DefaultPipeline;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
@@ -28,17 +26,16 @@ beforeEach(function () {
 
     $this->jane = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Jane Doe']);
 
-    $this->oldWon = Deal::factory()->create([
+    $this->oldWon = Deal::factory()->inStage('Won')->create([
         'organization_id' => $this->org->id,
         'created_by' => $this->owner->id,
         'title' => 'Old won',
-        'stage' => DealStage::Won,
         'status' => DealStatus::Won,
         'won_at' => '2026-10-01 10:00:00',
         'position' => '1000.0000000000',
     ]);
 
-    $this->stageId = fn (DealStage $stage): int => DefaultPipeline::stageFor($this->org->id, $stage)->getKey();
+    $this->stageId = fn (string $stage): int => pipelineStageNamed($this->org->id, $stage)->getKey();
 
     $this->asRole = function (OrganizationRole $role): void {
         $member = User::factory()->onboardingCompleted()->create();
@@ -75,11 +72,11 @@ test('the header button opens the deal form with the create defaults', function 
     Livewire::test(DealPipeline::class)
         ->assertActionExists('create', fn (Action $action): bool => $action->getUrl() === null && ! $action->canCreateAnother())
         ->mountAction('create')
-        ->assertSchemaStateSet(['owner_id' => $this->owner->id, 'pipeline_stage_id' => ($this->stageId)(DealStage::Lead)]);
+        ->assertSchemaStateSet(['owner_id' => $this->owner->id, 'pipeline_stage_id' => ($this->stageId)('Lead')]);
 });
 
 test('the creation attributes carry the tenant, the creator and the stage dates', function () {
-    $attributes = DealForm::mutateDataBeforeCreate(['title' => 'Direct', 'pipeline_stage_id' => ($this->stageId)(DealStage::Won)]);
+    $attributes = DealForm::mutateDataBeforeCreate(['title' => 'Direct', 'pipeline_stage_id' => ($this->stageId)('Won')]);
 
     expect($attributes['organization_id'])->toBe($this->org->id)
         ->and($attributes['created_by'])->toBe($this->owner->id)
@@ -91,7 +88,7 @@ test('creating a deal keeps me on the board and shows the card', function () {
         ->callAction('create', [
             'title' => 'Board deal',
             'contact_id' => $this->jane->id,
-            'pipeline_stage_id' => ($this->stageId)(DealStage::ProposalSent),
+            'pipeline_stage_id' => ($this->stageId)('Proposal Sent'),
             'value' => '1500',
         ])
         ->assertHasNoFormErrors()
@@ -107,10 +104,10 @@ test('creating a deal keeps me on the board and shows the card', function () {
         ->and($deal->won_at)->toBeNull()
         ->and($deal->lost_at)->toBeNull()
         ->and($deal->position)->toBeNull()
-        ->and(($this->cardColumn)($component, $deal))->toBe((string) ($this->stageId)(DealStage::ProposalSent));
+        ->and(($this->cardColumn)($component, $deal))->toBe((string) ($this->stageId)('Proposal Sent'));
 });
 
-test('the stage decides the status and the dates', function (DealStage $stage, DealStatus $status, bool $won) {
+test('the stage decides the status and the dates', function (string $stage, DealStatus $status, bool $won) {
     Livewire::test(DealPipeline::class)
         ->callAction('create', ['title' => 'Closed deal', 'pipeline_stage_id' => ($this->stageId)($stage)])
         ->assertHasNoFormErrors();
@@ -121,16 +118,16 @@ test('the stage decides the status and the dates', function (DealStage $stage, D
         ->and($deal->won_at?->toDateTimeString())->toBe($won ? '2026-10-14 09:15:00' : null)
         ->and($deal->lost_at?->toDateTimeString())->toBe($won ? null : '2026-10-14 09:15:00');
 })->with([
-    'won' => [DealStage::Won, DealStatus::Won, true],
-    'lost' => [DealStage::Lost, DealStatus::Lost, false],
+    'won' => ['Won', DealStatus::Won, true],
+    'lost' => ['Lost', DealStatus::Lost, false],
 ]);
 
 test('a new won card goes to the bottom of its column', function () {
     $component = Livewire::test(DealPipeline::class)
-        ->callAction('create', ['title' => 'Board won', 'pipeline_stage_id' => ($this->stageId)(DealStage::Won)])
+        ->callAction('create', ['title' => 'Board won', 'pipeline_stage_id' => ($this->stageId)('Won')])
         ->assertHasNoFormErrors();
 
-    expect($component->instance()->getBoard()->getBoardRecords((string) ($this->stageId)(DealStage::Won))->pluck('title')->all())->toBe(['Old won', 'Board won']);
+    expect($component->instance()->getBoard()->getBoardRecords((string) ($this->stageId)('Won'))->pluck('title')->all())->toBe(['Old won', 'Board won']);
 });
 
 test('the contact segments are resynced', function () {
@@ -138,7 +135,7 @@ test('the contact segments are resynced', function () {
     Queue::fake([ResyncContactSegments::class]);
 
     Livewire::test(DealPipeline::class)
-        ->callAction('create', ['title' => 'Board deal', 'contact_id' => $this->jane->id, 'pipeline_stage_id' => ($this->stageId)(DealStage::Lead)])
+        ->callAction('create', ['title' => 'Board deal', 'contact_id' => $this->jane->id, 'pipeline_stage_id' => ($this->stageId)('Lead')])
         ->assertHasNoFormErrors();
 
     Queue::assertPushed(ResyncContactSegments::class, fn (ResyncContactSegments $job): bool => $job->contactId === $this->jane->id);
@@ -146,7 +143,7 @@ test('the contact segments are resynced', function () {
 
 test('the title is required', function () {
     Livewire::test(DealPipeline::class)
-        ->callAction('create', ['title' => '', 'pipeline_stage_id' => ($this->stageId)(DealStage::Lead)])
+        ->callAction('create', ['title' => '', 'pipeline_stage_id' => ($this->stageId)('Lead')])
         ->assertHasFormErrors(['title' => 'required']);
 
     expect(Deal::query()->count())->toBe(1);
@@ -160,7 +157,7 @@ test('a contact of another organization is refused', function () {
     ]);
 
     Livewire::test(DealPipeline::class)
-        ->callAction('create', ['title' => 'Forged', 'contact_id' => $secret->id, 'pipeline_stage_id' => ($this->stageId)(DealStage::Lead)])
+        ->callAction('create', ['title' => 'Forged', 'contact_id' => $secret->id, 'pipeline_stage_id' => ($this->stageId)('Lead')])
         ->assertHasFormErrors(['contact_id']);
 
     expect(Deal::query()->withoutGlobalScopes()->where('title', 'Forged')->exists())->toBeFalse();
