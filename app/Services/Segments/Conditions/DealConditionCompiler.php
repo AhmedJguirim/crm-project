@@ -11,15 +11,19 @@ class DealConditionCompiler implements SegmentConditionCompiler
 {
     use ComparesExpressions;
 
+    /**
+     * The `deal_stages` values are pipeline stage ids: a junk, stale or other-organization value is dropped (or matches no stage), so the condition then matches no deal.
+     */
     public function apply(Builder $query, SegmentConditionData $condition, SegmentFieldKind $kind): void
     {
         $statuses = $condition->values('deal_statuses');
         $stages = $condition->values('deal_stages');
+        $stageIds = $this->stageIds($stages);
         $minValue = $condition->value('min_value');
 
         $matchingDeals = fn (Builder $deals): Builder => $deals
             ->when($statuses !== [], fn (Builder $query): Builder => $query->whereIn('status', $statuses))
-            ->when($stages !== [], fn (Builder $query): Builder => $query->whereIn('stage', $stages))
+            ->when($stages !== [], fn (Builder $query): Builder => $query->whereIn('pipeline_stage_id', $stageIds))
             ->when(is_numeric($minValue), fn (Builder $query): Builder => $query->where('value', '>=', $minValue));
 
         match ($condition->operator) {
@@ -27,5 +31,26 @@ class DealConditionCompiler implements SegmentConditionCompiler
             SegmentOperator::HasNoDeal => $query->whereDoesntHave('deals', $matchingDeals),
             default => throw $this->unsupported($condition),
         };
+    }
+
+    /**
+     * @param  array<int, mixed>  $stages
+     * @return array<int, int>
+     */
+    private function stageIds(array $stages): array
+    {
+        $ids = [];
+
+        foreach ($stages as $stage) {
+            $id = is_int($stage) || is_string($stage)
+                ? filter_var($stage, FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]])
+                : false;
+
+            if ($id !== false) {
+                $ids[] = $id;
+            }
+        }
+
+        return $ids;
     }
 }

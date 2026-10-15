@@ -22,6 +22,7 @@ use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\Deals\DefaultPipeline;
 use App\Support\Tenancy\TenantContext;
 use Database\Seeders\ItConsultingSeeder;
 use Filament\Facades\Filament;
@@ -262,6 +263,8 @@ test('it consulting seeder seeds synced segments for every kind of condition and
     ])
         ->and($members['VIP'])->toBe(['Marcus Chen', 'Priya Nair', 'Yasmin Al-Rashid'])
         ->and($members['Won customers'])->toBe(['Priya Nair'])
+        ->and(Segment::query()->where('name', 'Won customers')->sole()->workingRules()->sole()->conditions[0]->value)
+        ->toBe(['deal_stages' => [DefaultPipeline::stageOfType($user->personalOrganization()->id, DealStatus::Won)->id]])
         ->and($members['Never contacted'])->toBe(['Florian Dupont', 'Hugo Fernandes'])
         ->and(Segment::query()->where('name', 'Gone quiet (hourly)')->sole()->refreshFrequency())->toBe(SegmentRefreshFrequency::Hourly)
         ->and(Segment::query()->where('name', 'Added recently (daily)')->sole()->refreshFrequency())->toBe(SegmentRefreshFrequency::Daily)

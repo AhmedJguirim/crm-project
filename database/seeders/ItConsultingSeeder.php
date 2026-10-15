@@ -678,7 +678,7 @@ class ItConsultingSeeder extends Seeder
                 $rule('Has an open deal', $condition(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_statuses' => [DealStatus::Open->value]])),
             ],
             'Won customers' => [
-                $rule('Has a won deal', $condition(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_stages' => [DealStage::Won->value]])),
+                $rule('Has a won deal', $condition(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_stages' => [DefaultPipeline::stageOfType($org->id, DealStatus::Won)->id]])),
             ],
             'Agency contacts' => [
                 $rule('Works at an agency', $condition(SegmentConditionType::Company, null, SegmentOperator::CompanyTypeIsAnyOf, ['values' => [$agency->id]])),

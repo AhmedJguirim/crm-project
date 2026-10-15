@@ -5,7 +5,6 @@ namespace App\Services\Segments;
 use App\Data\Segments\SegmentConditionData;
 use App\Enums\ActivityOutcome;
 use App\Enums\ActivityType;
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentFieldKind;
@@ -13,6 +12,7 @@ use App\Enums\SegmentOperator;
 use App\Enums\SegmentValueInput;
 use App\Models\Company;
 use App\Models\CompanyType;
+use App\Models\PipelineStage;
 use App\Models\Tag;
 use Illuminate\Support\HtmlString;
 use Illuminate\Support\Number;
@@ -27,6 +27,9 @@ class SegmentConditionDescriber
 {
     /** @var array<string, array<int|string, string>> */
     private array $namesCache = [];
+
+    /** @var ?array<int, string> */
+    private ?array $stageNames = null;
 
     public function __construct(private readonly SegmentFieldCatalog $catalog) {}
 
@@ -119,8 +122,9 @@ class SegmentConditionDescriber
         $statuses = collect($condition->values('deal_statuses'))
             ->map(fn (string $status): string => DealStatus::tryFrom($status)?->getLabel() ?? $status)
             ->all();
+        $stageNames = $this->stageNames();
         $stages = collect($condition->values('deal_stages'))
-            ->map(fn (string $stage): string => DealStage::tryFrom($stage)?->getLabel() ?? $stage)
+            ->map(fn (mixed $stage): string => $stageNames[is_scalar($stage) ? (string) $stage : ''] ?? (is_scalar($stage) ? "{$stage} (deleted)" : 'Unknown stage (deleted)'))
             ->all();
 
         if ($statuses !== []) {
@@ -136,6 +140,16 @@ class SegmentConditionDescriber
         }
 
         return $parts === [] ? null : implode(' ', $parts);
+    }
+
+    /**
+     * The names of all the organization's pipeline stages by id, loaded once.
+     *
+     * @return array<int, string>
+     */
+    private function stageNames(): array
+    {
+        return $this->stageNames ??= PipelineStage::forOrganization($this->catalog->organizationId)->pluck('name', 'id')->all();
     }
 
     /**

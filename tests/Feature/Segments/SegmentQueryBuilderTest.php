@@ -20,6 +20,7 @@ use App\Models\Deal;
 use App\Models\Organization;
 use App\Models\Tag;
 use App\Models\User;
+use App\Services\Deals\DefaultPipeline;
 use App\Services\Segments\SegmentQueryBuilder;
 use App\Support\Tenancy\TenantContext;
 use Filament\Facades\Filament;
@@ -27,6 +28,11 @@ use Filament\Facades\Filament;
 function segmentCondition(SegmentConditionType $type, ?string $field, SegmentOperator $operator, array $value = []): SegmentConditionData
 {
     return SegmentConditionData::make($type, $field, $operator, $value);
+}
+
+function dealStageIdNamed(Organization $organization, string $name): int
+{
+    return array_search($name, DefaultPipeline::stageOptions($organization->id), true);
 }
 
 function segmentRule(SegmentConditionData ...$conditions): SegmentRuleData
@@ -343,11 +349,34 @@ describe('deals', function () {
             ->toBe($expected);
     })->with([
         'has an open deal' => [SegmentOperator::HasDeal, ['deal_statuses' => [DealStatus::Open->value]], ['A']],
-        'has a deal in stage' => [SegmentOperator::HasDeal, ['deal_stages' => [DealStage::Won->value]], ['B']],
         'has a big deal' => [SegmentOperator::HasDeal, ['min_value' => 2000], ['B']],
         'has no deal' => [SegmentOperator::HasNoDeal, [], ['C']],
         'has no won deal' => [SegmentOperator::HasNoDeal, ['deal_statuses' => [DealStatus::Won->value]], ['A', 'C']],
     ]);
+
+    it('matches deal stage conditions on pipeline stage ids', function (SegmentOperator $operator, Closure $stages, array $expected) {
+        expect(segmentMatches($this->org, segmentCondition(SegmentConditionType::Deal, null, $operator, ['deal_stages' => $stages->call($this)])))
+            ->toBe($expected);
+    })->with([
+        'in the Won stage' => [SegmentOperator::HasDeal, fn () => [dealStageIdNamed($this->org, 'Won')], ['B']],
+        'in the Lead or Won stage' => [SegmentOperator::HasDeal, fn () => [dealStageIdNamed($this->org, 'Lead'), dealStageIdNamed($this->org, 'Won')], ['A', 'B']],
+        'a stage id sent as a string' => [SegmentOperator::HasDeal, fn () => [(string) dealStageIdNamed($this->org, 'Won')], ['B']],
+        'no deal in the Won stage' => [SegmentOperator::HasNoDeal, fn () => [dealStageIdNamed($this->org, 'Won')], ['A', 'C']],
+        'a stale slug matches no deal' => [SegmentOperator::HasDeal, fn () => ['won'], []],
+        'a stage of another organization matches no deal' => [SegmentOperator::HasDeal, fn () => [dealStageIdNamed(Organization::factory()->create(), 'Won')], []],
+        'an unknown id matches no deal' => [SegmentOperator::HasDeal, fn () => [999999999], []],
+        'a zero, a negative number, a decimal and a huge number match no deal' => [SegmentOperator::HasDeal, fn () => ['0', '-1', '5.0', '99999999999999999999'], []],
+        'no deal in a stale slug stage matches everyone' => [SegmentOperator::HasNoDeal, fn () => ['won'], ['A', 'B', 'C']],
+    ]);
+
+    it('combines the deal statuses with the deal stages', function () {
+        $condition = segmentCondition(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, [
+            'deal_statuses' => [DealStatus::Won->value],
+            'deal_stages' => [dealStageIdNamed($this->org, 'Lead')],
+        ]);
+
+        expect(segmentMatches($this->org, $condition))->toBe([]);
+    });
 });
 
 describe('rule logic', function () {

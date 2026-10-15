@@ -4,6 +4,7 @@ use App\Data\Segments\SegmentConditionData;
 use App\Data\Segments\SegmentRuleData;
 use App\Enums\ContactAttribute;
 use App\Enums\DealStage;
+use App\Enums\DealStatus;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentOperator;
 use App\Filament\Resources\Companies\Pages\EditCompany;
@@ -142,10 +143,13 @@ describe('record pages', function () {
     test('a segment page and its rule engine show names and values as text', function (string $payload) {
         $tag = Tag::factory()->create(['organization_id' => $this->org->id, 'name' => $payload]);
         $company = ($this->companyNamed)($payload);
+        $wonStage = DefaultPipeline::stageOfType($this->org->id, DealStatus::Won);
+        $wonStage->update(['name' => $payload]);
         $rule = new SegmentRuleData('rule-1', $payload, [
             new SegmentConditionData('condition-1', SegmentConditionType::Attribute, ContactAttribute::Name->value, SegmentOperator::Is, ['value' => $payload]),
             new SegmentConditionData('condition-2', SegmentConditionType::Tags, null, SegmentOperator::HasAnyOf, ['values' => [$tag->id]]),
             new SegmentConditionData('condition-3', SegmentConditionType::Company, null, SegmentOperator::BelongsToAnyOf, ['values' => [$company->id]]),
+            new SegmentConditionData('condition-4', SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_stages' => [$wonStage->id]]),
         ]);
         $segment = Segment::factory()->published()->withRules([$rule])->create(['organization_id' => $this->org->id, 'name' => $payload]);
         $segment->update(['draft_rules' => $segment->rules]);

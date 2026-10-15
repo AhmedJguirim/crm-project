@@ -6,7 +6,6 @@ use App\Data\Segments\SegmentConditionData;
 use App\Enums\ActivityOutcome;
 use App\Enums\ActivityType;
 use App\Enums\ContactAttribute;
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentFieldKind;
@@ -16,6 +15,7 @@ use App\Models\Company;
 use App\Models\CompanyType;
 use App\Models\CustomField;
 use App\Models\Tag;
+use App\Services\Deals\DefaultPipeline;
 use App\Services\Segments\SegmentCountCache;
 use App\Services\Segments\SegmentFieldCatalog;
 use App\Services\Segments\SegmentQueryBuilder;
@@ -173,7 +173,7 @@ class SegmentConditionForm
                     ->label('Deal stage')
                     ->placeholder('Any stage')
                     ->multiple()
-                    ->options(DealStage::class)
+                    ->options(fn (): array => DefaultPipeline::stageOptions($catalog->organizationId))
                     ->live()
                     ->visible(fn (Get $get): bool => self::input($get) === SegmentValueInput::DealCriteria),
 
@@ -254,7 +254,7 @@ class SegmentConditionForm
             ],
             SegmentValueInput::DealCriteria => [
                 'deal_statuses' => self::enumValues($data['deal_statuses'] ?? []),
-                'deal_stages' => self::enumValues($data['deal_stages'] ?? []),
+                'deal_stages' => array_values(array_map('intval', (array) ($data['deal_stages'] ?? []))),
                 'min_value' => $data['min_value'] ?? null,
             ],
         };

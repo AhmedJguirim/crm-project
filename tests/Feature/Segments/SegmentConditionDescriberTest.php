@@ -10,7 +10,9 @@ use App\Enums\SegmentConditionType;
 use App\Enums\SegmentOperator;
 use App\Models\CustomField;
 use App\Models\Organization;
+use App\Models\PipelineStage;
 use App\Models\Tag;
+use App\Services\Deals\DefaultPipeline;
 use App\Services\Segments\SegmentConditionDescriber;
 use App\Services\Segments\SegmentFieldCatalog;
 
@@ -72,11 +74,35 @@ it('describes conditions as readable sentences', function (Closure $condition, s
         fn () => SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_statuses' => [DealStatus::Won->value], 'min_value' => 5000]),
         'If the contact has a deal with status Won worth at least 5,000',
     ],
+    'deal stages by name' => [
+        fn () => SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_statuses' => [DealStatus::Won->value], 'deal_stages' => [DefaultPipeline::stageOfType($this->org->id, DealStatus::Won)->id]]),
+        'If the contact has a deal with status Won in stage Won',
+    ],
+    'deal stage renamed, and an unknown id' => [
+        function () {
+            $discovery = PipelineStage::forOrganization($this->org->id)->findOrFail(array_search('Discovery', DefaultPipeline::stageOptions($this->org->id), true));
+            $discovery->update(['name' => 'Qualified']);
+
+            return SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_stages' => [$discovery->id, 999999]]);
+        },
+        'If the contact has a deal in stage Qualified, 999999 (deleted)',
+    ],
+    'deal stage stale slug' => [
+        fn () => SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_stages' => ['won']]),
+        'If the contact has a deal in stage won (deleted)',
+    ],
     'deleted custom field' => [
         fn () => SegmentConditionData::make(SegmentConditionType::CustomField, 'cf_missing', SegmentOperator::IsBlank),
         'If the contact Unknown field (deleted) is blank',
     ],
 ]);
+
+it('does not name a stage of another organization', function () {
+    $foreign = DefaultPipeline::stageOfType(Organization::factory()->create()->id, DealStatus::Won)->id;
+
+    expect(describeCondition($this->org, SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_stages' => [$foreign]])))
+        ->toBe("If the contact has a deal in stage {$foreign} (deleted)");
+});
 
 it('escapes user content', function () {
     $condition = SegmentConditionData::make(SegmentConditionType::Attribute, ContactAttribute::Name->value, SegmentOperator::Is, ['value' => '<script>alert(1)</script>']);

@@ -6,20 +6,22 @@ use App\Enums\ActivityOutcome;
 use App\Enums\ActivityType;
 use App\Enums\ContactAttribute;
 use App\Enums\ContactStatus;
-use App\Enums\DealStage;
 use App\Enums\DealStatus;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentOperator;
 use App\Filament\Resources\Segments\Pages\SegmentRuleEngine;
+use App\Filament\Resources\Segments\Schemas\SegmentConditionForm;
 use App\Filament\Resources\Segments\SegmentResource;
 use App\Jobs\SyncSegmentMembership;
 use App\Models\Company;
 use App\Models\CompanyType;
 use App\Models\Contact;
 use App\Models\CustomField;
+use App\Models\Organization;
 use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\User;
+use App\Services\Deals\DefaultPipeline;
 use App\Services\Segments\SegmentFieldCatalog;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
@@ -355,8 +357,8 @@ describe('conditions', function () {
             SegmentConditionType::Activity, SegmentOperator::LastActivityMoreThanDaysAgo,
         ],
         'deal' => [
-            fn () => ['type' => 'deal', 'operator' => 'has_deal', 'deal_statuses' => ['won'], 'deal_stages' => ['won'], 'min_value' => 1000],
-            fn () => ['deal_statuses' => [DealStatus::Won->value], 'deal_stages' => [DealStage::Won->value], 'min_value' => 1000],
+            fn () => ['type' => 'deal', 'operator' => 'has_deal', 'deal_statuses' => ['won'], 'deal_stages' => [(string) DefaultPipeline::stageOfType($this->org->id, DealStatus::Won)->id], 'min_value' => 1000],
+            fn () => ['deal_statuses' => [DealStatus::Won->value], 'deal_stages' => [DefaultPipeline::stageOfType($this->org->id, DealStatus::Won)->id], 'min_value' => 1000],
             SegmentConditionType::Deal, SegmentOperator::HasDeal,
         ],
     ]);
@@ -429,6 +431,49 @@ describe('conditions', function () {
             ->assertHasActionErrors(['days' => ['max']]);
 
         expect($segment->fresh()->workingRules()->sole()->conditions)->toBe([]);
+    });
+
+    it('offers the organization stages in pipeline order for a deal condition', function () {
+        $stages = DefaultPipeline::stageOptions($this->org->id);
+
+        ruleEngine(ruleEngineSegment([new SegmentRuleData('rule-1', 'Rule', [])]))
+            ->mountAction(TestAction::make('addCondition')->arguments(['rule' => 'rule-1']))
+            ->fillForm(['type' => 'deal', 'operator' => 'has_deal'])
+            ->assertFormFieldExists('deal_stages', fn ($field): bool => $field->getOptions() === $stages && array_values($stages) === ['Lead', 'Discovery', 'Proposal Sent', 'Negotiating', 'Won', 'Lost']);
+    });
+
+    it('refuses a forged deal stage id of another organization and stores nothing', function () {
+        $segment = ruleEngineSegment([new SegmentRuleData('rule-1', 'Rule', [])]);
+        $foreign = DefaultPipeline::stageOfType(Organization::factory()->create()->id, DealStatus::Won)->id;
+
+        $page = ruleEngine($segment)
+            ->callAction(TestAction::make('addCondition')->arguments(['rule' => 'rule-1']), ['type' => 'deal', 'operator' => 'has_deal', 'deal_stages' => [$foreign]]);
+
+        expect($page->errors()->get('mountedActions.0.data.deal_stages.0'))->toBe(['The selected deal stage is invalid.']);
+
+        expect($segment->fresh()->workingRules()->sole()->conditions)->toBe([]);
+    });
+
+    it('stores the stage ids of a deal condition as integers even when they are sent as strings', function () {
+        $won = DefaultPipeline::stageOfType($this->org->id, DealStatus::Won)->id;
+
+        $condition = SegmentConditionForm::toCondition(
+            ['type' => 'deal', 'operator' => 'has_deal', 'deal_stages' => [(string) $won]],
+            SegmentFieldCatalog::forOrganization($this->org->id),
+        );
+
+        expect($condition->value['deal_stages'])->toBe([$won]);
+    });
+
+    it('pre-fills the stages of a stored deal condition', function () {
+        $won = DefaultPipeline::stageOfType($this->org->id, DealStatus::Won)->id;
+        $segment = ruleEngineSegment([new SegmentRuleData('rule-1', 'Rule', [
+            new SegmentConditionData('condition-1', SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_stages' => [$won]]),
+        ])]);
+
+        ruleEngine($segment)
+            ->mountAction(TestAction::make('editCondition')->arguments(['rule' => 'rule-1', 'condition' => 'condition-1']))
+            ->assertSchemaStateSet(['deal_stages' => [$won]]);
     });
 
     it('edits a condition, pre-filling the modal', function () {

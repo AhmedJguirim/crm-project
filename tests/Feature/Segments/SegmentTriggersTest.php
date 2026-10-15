@@ -149,7 +149,7 @@ it('puts a contact into a deal stage segment when its deal card is moved on the 
     ]);
     $segment = Segment::factory()->for($this->org)->published()->withRules([
         new SegmentRuleData('rule-1', 'Won deals', [
-            SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_stages' => [DealStage::Won->value]]),
+            SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_stages' => [DefaultPipeline::stageOfType($this->org->id, DealStatus::Won)->id]]),
         ]),
     ])->create();
 

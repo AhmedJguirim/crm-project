@@ -25,9 +25,7 @@ function dealStageEnumFiles(): array
 test('DealStage is only used where P2 slice 3 will remove it', function () {
     expect(dealStageEnumFiles())->toBe([
         'Enums/DealStage.php',
-        'Filament/Resources/Segments/Schemas/SegmentConditionForm.php',
         'Models/Deal.php',
         'Services/Deals/DefaultPipeline.php',
-        'Services/Segments/SegmentConditionDescriber.php',
     ], 'DealStage is being removed (P2 slice 3): use pipeline stages.');
 });

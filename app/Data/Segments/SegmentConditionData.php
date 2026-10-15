@@ -14,7 +14,7 @@ class SegmentConditionData extends Data
 {
     /**
      * @param  array<string, mixed>  $value  Keys used depend on the operator's value input: `value`, `value_to`, `values`,
-     *                                       `days`, `month`, `day`, `activity_types`, `outcome`, `deal_statuses`, `deal_stages`, `min_value`.
+     *                                       `days`, `month`, `day`, `activity_types`, `outcome`, `deal_statuses`, `deal_stages` (pipeline stage ids), `min_value`.
      */
     public function __construct(
         public string $id,
