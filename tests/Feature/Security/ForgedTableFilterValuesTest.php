@@ -20,6 +20,7 @@ use App\Filament\Resources\Deals\Pages\DealPipeline;
 use App\Filament\Resources\Deals\Pages\ListDeals;
 use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Filament\Resources\Invoices\Pages\ListInvoices;
+use App\Filament\Resources\PipelineStages\Pages\ManagePipelineStages;
 use App\Filament\Resources\Segments\Pages\ListSegments;
 use App\Filament\Resources\Segments\Pages\ViewSegment;
 use App\Filament\Resources\Segments\RelationManagers\ContactsRelationManager as SegmentContactsRelationManager;
@@ -145,6 +146,7 @@ test('every select filter of every list is a guarded filter and ignores junk', f
     'ListCustomFields' => [ListCustomFields::class, false],
     'ListCompanyCustomFields' => [ListCompanyCustomFields::class, false],
     'ManageCompanyTypes' => [ManageCompanyTypes::class, false],
+    'ManagePipelineStages' => [ManagePipelineStages::class, false],
 ]);
 
 test('a junk contact id is ignored on the deals list', function () {

@@ -10,6 +10,7 @@ use App\Models\CustomField;
 use App\Models\Deal;
 use App\Models\Invoice;
 use App\Models\Organization;
+use App\Models\PipelineStage;
 use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\Task;
@@ -22,6 +23,7 @@ use App\Policies\ContactPolicy;
 use App\Policies\CustomFieldPolicy;
 use App\Policies\DealPolicy;
 use App\Policies\InvoicePolicy;
+use App\Policies\PipelineStagePolicy;
 use App\Policies\SegmentPolicy;
 use App\Policies\TagPolicy;
 use App\Policies\TaskPolicy;
@@ -44,6 +46,7 @@ function authorizationModels(): array
         'company type' => [CompanyType::class, true, CompanyTypePolicy::class],
         'custom field' => [CustomField::class, true, CustomFieldPolicy::class],
         'company custom field' => [CompanyCustomField::class, true, CompanyCustomFieldPolicy::class],
+        'pipeline stage' => [PipelineStage::class, true, PipelineStagePolicy::class],
         'tag' => [Tag::class, false, TagPolicy::class],
         'segment' => [Segment::class, false, SegmentPolicy::class],
         'deal' => [Deal::class, false, DealPolicy::class],

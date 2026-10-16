@@ -20,6 +20,7 @@ use App\Filament\Resources\Deals\Pages\ListDeals;
 use App\Filament\Resources\Deals\Pages\ViewDeal;
 use App\Filament\Resources\Deals\Widgets\DealActivityFeed;
 use App\Filament\Resources\Deals\Widgets\DealDetailsWidget;
+use App\Filament\Resources\PipelineStages\Pages\ManagePipelineStages;
 use App\Filament\Resources\Segments\Pages\ListSegments;
 use App\Filament\Resources\Segments\Pages\SegmentRuleEngine;
 use App\Filament\Resources\Segments\Pages\ViewSegment;
@@ -137,6 +138,7 @@ describe('record pages', function () {
         SecurityPayloads::assertHtmlIsInert(Livewire::test(DealsRelationManager::class, ['ownerRecord' => $company, 'pageClass' => EditCompany::class])->html(), $payload);
         SecurityPayloads::assertHtmlIsInert(Livewire::test(DealDetailsWidget::class, ['record' => $deal])->html(), $payload);
         SecurityPayloads::assertHtmlIsInert(Livewire::test(DealsOverviewWidget::class)->html(), $payload);
+        SecurityPayloads::assertHtmlIsInert(Livewire::test(ManagePipelineStages::class)->assertSuccessful()->html(), $payload);
     })->with(SecurityPayloads::xss());
 
     test('a segment page and its rule engine show names and values as text', function (string $payload) {

@@ -17,6 +17,13 @@ class PipelineStage extends Model
     /** @use HasFactory<PipelineStageFactory> */
     use HasFactory;
 
+    /**
+     * The colors a stage can have: the Filament color names the admin panel registers, with their labels.
+     *
+     * @var array<string, string>
+     */
+    public const COLORS = ['gray' => 'Gray', 'info' => 'Sky', 'primary' => 'Blue', 'success' => 'Green', 'warning' => 'Yellow', 'orange' => 'Orange', 'danger' => 'Red'];
+
     protected $guarded = [];
 
     protected function casts(): array

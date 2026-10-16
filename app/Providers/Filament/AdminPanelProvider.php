@@ -134,6 +134,7 @@ class AdminPanelProvider extends PanelProvider
                 'warning' => Color::Yellow,
                 'danger' => Color::Red,
                 'info' => Color::Sky,
+                'orange' => Color::Orange,
             ])
             ->font('Inter')
             ->viteTheme('resources/css/filament/admin/theme.css')
