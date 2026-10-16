@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Filament\Http\Responses\LogoutResponse;
+use App\Filament\Support\SingleValueFieldState;
 use App\Filament\Support\StateCasts\ScalarDateTimeStateCast;
 use App\Mail\SecuredMarkdown;
 use App\Models\Organization;
@@ -85,6 +86,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
         $this->configurePanelTimezone();
         $this->configureLivewireUpdateGuard();
+        $this->configureSingleValueFormFields();
     }
 
     /**
@@ -93,6 +95,14 @@ class AppServiceProvider extends ServiceProvider
     protected function configureLivewireUpdateGuard(): void
     {
         before('update', new RefuseSubKeyUpdatesOfScalars);
+    }
+
+    /**
+     * A forged array in a single-value form field is refused with a validation error before the field's other rules and the save (BUG-50).
+     */
+    protected function configureSingleValueFormFields(): void
+    {
+        SingleValueFieldState::register();
     }
 
     /**
