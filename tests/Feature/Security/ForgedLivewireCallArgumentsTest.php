@@ -7,11 +7,27 @@ use App\Filament\Resources\PipelineStages\Pages\ManagePipelineStages;
 use App\Models\Contact;
 use App\Models\User;
 use Filament\Facades\Filament;
+use Illuminate\Contracts\Container\BindingResolutionException;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\Livewire;
 
 use function Livewire\wrap;
+
+class ForgedCallArgumentsUnresolvableProbe
+{
+    public function __construct(public string $name) {}
+}
+
+class ForgedCallArgumentsRequiredMountProbeComponent extends Component
+{
+    public function mount(int $start): void {}
+
+    public function render(): string
+    {
+        return '<div></div>';
+    }
+}
 
 class ForgedCallArgumentsProbeComponent extends Component
 {
@@ -50,6 +66,23 @@ class ForgedCallArgumentsProbeComponent extends Component
     public function bodyCallsOwnMethodThroughWrapWrongly(): void
     {
         wrap($this)->reorder('abc');
+    }
+
+    public function bodyResolvesListenerThroughContainer(): void
+    {
+        app()->call([$this, 'select']);
+    }
+
+    public function bodyCallsListenerThroughWrap(): void
+    {
+        wrap($this)->select();
+    }
+
+    public function takesUnresolvableClass(ForgedCallArgumentsUnresolvableProbe $probe): void {}
+
+    public function bodyBuildsUnresolvableClass(): void
+    {
+        app()->make(ForgedCallArgumentsUnresolvableProbe::class);
     }
 
     public function render(): string
@@ -163,4 +196,88 @@ test('a type error in mount is not turned into a 419', function () {
 
     expect($cause)->toBeInstanceOf(TypeError::class)
         ->and($cause->getMessage())->toStartWith('ForgedCallArgumentsProbeComponent::mount(): Argument #1 ($start)');
+});
+
+test('a forged call that omits a required argument answers 419', function (string $component, string $method, array $params) {
+    Livewire::test($component)->call($method, ...$params)->assertStatus(419);
+})->with([
+    'mount action of the contacts' => [ListContacts::class, 'mountAction', []],
+    'mount action of the deals' => [ListDeals::class, 'mountAction', []],
+    'reorder of the stages' => [ManagePipelineStages::class, 'reorderTable', []],
+    'select of the probe' => [ForgedCallArgumentsProbeComponent::class, 'select', []],
+    'dispatch with an empty payload' => [ForgedCallArgumentsProbeComponent::class, '__dispatch', ['probe-selected', []]],
+    'dispatch with a payload without the id' => [ForgedCallArgumentsProbeComponent::class, '__dispatch', ['probe-selected', ['x' => 1]]],
+]);
+
+test('a malformed dispatch answers 419', function (array $params) {
+    Livewire::test(ForgedCallArgumentsProbeComponent::class)->call('__dispatch', ...$params)->assertStatus(419);
+})->with([
+    'string payload' => [['probe-selected', 'x']],
+    'null payload' => [['probe-selected', null]],
+    'missing payload' => [['probe-selected']],
+    'no params' => [[]],
+    'array event name' => [[['x'], []]],
+    'int event name' => [[5, []]],
+    'unknown event name' => [['no-such-event', []]],
+]);
+
+test('a forged reorder without arguments changes no stage', function () {
+    $pipeline = $this->org->pipelines()->first();
+    $names = fn () => $pipeline->stages()->orderBy('position')->pluck('name')->all();
+    $before = $names();
+
+    Livewire::test(ManagePipelineStages::class)->call('reorderTable')->assertStatus(419);
+
+    expect($names())->toBe($before);
+});
+
+test('the refusal of a missing argument does not depend on debug mode', function () {
+    config(['app.debug' => true]);
+
+    Livewire::test(ListContacts::class)->call('mountAction')->assertStatus(419);
+});
+
+test('a call with a missing argument over raw http answers 419 and a plain call answers 200', function () {
+    $snapshot = json_encode(Livewire::test(ListContacts::class)->snapshot);
+
+    $send = fn (string $method, array $params) => $this->postJson(route('default-livewire.update'), [
+        'components' => [['snapshot' => $snapshot, 'updates' => [], 'calls' => [['method' => $method, 'params' => $params, 'metadata' => []]]]],
+    ], ['X-Livewire' => 'true']);
+
+    $send('mountAction', [])->assertStatus(419);
+    $send('sortTable', ['name'])->assertOk();
+});
+
+test('legitimate dispatches keep working', function () {
+    Livewire::test(ForgedCallArgumentsProbeComponent::class)
+        ->call('__dispatch', 'probe-selected', ['id' => 5])
+        ->assertStatus(200);
+    Livewire::test(ForgedCallArgumentsProbeComponent::class)
+        ->call('__dispatch', 'probe-selected', [5])
+        ->assertStatus(200);
+});
+
+test('a missing-dependency error raised below a method body still propagates', function (string $method, string $message) {
+    expect(fn () => Livewire::test(ForgedCallArgumentsProbeComponent::class)->call($method))
+        ->toThrow(BindingResolutionException::class, $message);
+})->with([
+    'container call of a listener' => ['bodyResolvesListenerThroughContainer', 'Unable to resolve dependency [Parameter #0 [ <required> int $id ]]'],
+    'wrap call of a listener' => ['bodyCallsListenerThroughWrap', 'Unable to resolve dependency [Parameter #0 [ <required> int $id ]]'],
+    'container build of an unresolvable class' => ['bodyBuildsUnresolvableClass', 'Unresolvable dependency resolving [Parameter #0 [ <required> string $name ]]'],
+]);
+
+test('a class parameter the container cannot build is not turned into a 419', function () {
+    expect(fn () => Livewire::test(ForgedCallArgumentsProbeComponent::class)->call('takesUnresolvableClass'))
+        ->toThrow(BindingResolutionException::class, 'Unresolvable dependency resolving [Parameter #0 [ <required> string $name ]]');
+});
+
+test('a mount without its required parameter is not turned into a 419', function () {
+    try {
+        Livewire::test(ForgedCallArgumentsRequiredMountProbeComponent::class);
+    } catch (Throwable $e) {
+        $cause = $e->getPrevious() ?? $e;
+    }
+
+    expect($cause)->toBeInstanceOf(BindingResolutionException::class)
+        ->and($cause->getMessage())->toStartWith('Unable to resolve dependency [Parameter #0 [ <required> int $start ]]');
 });

@@ -101,14 +101,16 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Refuses a Livewire call whose arguments do not match the method's declared types with a 419 instead of a 500 (BUG-51).
+     * Refuses a forged Livewire call (wrong-typed or missing arguments, malformed `__dispatch`) with a 419 instead of a 500 (BUG-51, BUG-54).
      */
     protected function configureLivewireCallGuard(): void
     {
         $guard = new RefuseMistypedCallArguments;
 
         on('exception', [$guard, 'refuseMistypedArgument']);
+        on('exception', [$guard, 'refuseMissingArgument']);
         before('call', [$guard, 'refusePaginationArguments']);
+        before('call', [$guard, 'refuseMalformedDispatch']);
     }
 
     /**
