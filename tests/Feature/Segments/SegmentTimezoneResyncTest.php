@@ -122,6 +122,25 @@ it('knows which conditions depend on the timezone', function (SegmentConditionTy
     'custom field that is not an attribute' => [SegmentConditionType::CustomField, 'created_at', SegmentOperator::On, false],
 ]);
 
+it('depends on the timezone for the overdue deals toggle only', function (array $value, bool $expected) {
+    expect(SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, $value)->dependsOnTimezone())->toBe($expected);
+})->with([
+    'overdue only' => [['overdue_only' => true], true],
+    'without the toggle' => [[], false],
+    'a string "1"' => [['overdue_only' => '1'], false],
+]);
+
+it('re-syncs the segments with an overdue deals condition when the timezone changes', function () {
+    $overdue = ($this->segmentWith)(SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['overdue_only' => true]));
+    $plain = ($this->segmentWith)(SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, []));
+    Queue::fake([SyncSegmentMembership::class]);
+
+    $this->org->update(['timezone' => 'Pacific/Auckland']);
+
+    expect(($this->pushedSegmentIds)())->toBe([$overdue->id])
+        ->and(($this->pushedSegmentIds)())->not->toContain($plain->id);
+});
+
 it('only looks at the published rules of a segment, not at its draft', function () {
     $tag = Tag::factory()->for($this->org)->create();
     $segment = ($this->segmentWith)(

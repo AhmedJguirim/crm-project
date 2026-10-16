@@ -14,7 +14,7 @@ class SegmentConditionData extends Data
 {
     /**
      * @param  array<string, mixed>  $value  Keys used depend on the operator's value input: `value`, `value_to`, `values`,
-     *                                       `days`, `month`, `day`, `activity_types`, `outcome`, `deal_statuses`, `deal_stages` (pipeline stage ids), `min_value`.
+     *                                       `days`, `month`, `day`, `activity_types`, `outcome`, `deal_statuses`, `deal_stages` (pipeline stage ids), `min_value`, `overdue_only` (only ever JSON `true`, or absent).
      */
     public function __construct(
         public string $id,
@@ -70,6 +70,7 @@ class SegmentConditionData extends Data
     {
         return match (true) {
             in_array($this->operator, [SegmentOperator::WithinLastDays, SegmentOperator::MoreThanDaysAgo], true) => SegmentRefreshFrequency::Daily,
+            $this->type === SegmentConditionType::Deal && $this->value('overdue_only') === true => SegmentRefreshFrequency::Daily,
             $this->type !== SegmentConditionType::Activity => null,
             $this->operator === SegmentOperator::LastActivityMoreThanDaysAgo => SegmentRefreshFrequency::Hourly,
             in_array($this->operator, [SegmentOperator::HasHadActivity, SegmentOperator::HasNotHadActivity], true)

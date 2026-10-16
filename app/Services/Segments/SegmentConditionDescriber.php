@@ -139,6 +139,10 @@ class SegmentConditionDescriber
             $parts[] = 'worth at least '.$this->highlight(Number::format((float) $condition->value('min_value')));
         }
 
+        if ($condition->value('overdue_only') === true) {
+            $parts[] = 'that is '.$this->highlight('overdue');
+        }
+
         return $parts === [] ? null : implode(' ', $parts);
     }
 

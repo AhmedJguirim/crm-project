@@ -23,6 +23,7 @@ use BackedEnum;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Utilities\Get;
@@ -40,7 +41,7 @@ class SegmentConditionForm
     /** @var array<int, string> */
     private const VALUE_KEYS = [
         'text_value', 'number_value', 'date_value', 'date_value_to', 'option_value', 'values', 'days', 'month', 'day',
-        'activity_types', 'outcome', 'deal_statuses', 'deal_stages', 'min_value',
+        'activity_types', 'outcome', 'deal_statuses', 'deal_stages', 'min_value', 'overdue_only',
     ];
 
     /** @return array<int, mixed> */
@@ -48,7 +49,7 @@ class SegmentConditionForm
     {
         $resetFrom = fn (string ...$keys): \Closure => function (Set $set) use ($keys): void {
             foreach ([...$keys, ...self::VALUE_KEYS] as $key) {
-                $set($key, null);
+                $set($key, $key === 'overdue_only' ? false : null);
             }
         };
 
@@ -184,6 +185,12 @@ class SegmentConditionForm
                     ->live(onBlur: true)
                     ->visible(fn (Get $get): bool => self::input($get) === SegmentValueInput::DealCriteria),
 
+                Toggle::make('overdue_only')
+                    ->label('Only overdue deals')
+                    ->helperText('Open deals whose expected close date is before today. Segments using this are refreshed every day just after midnight.')
+                    ->live()
+                    ->visible(fn (Get $get): bool => self::input($get) === SegmentValueInput::DealCriteria),
+
                 TextInput::make('days')
                     ->label(fn (Get $get): string => self::input($get) === SegmentValueInput::ActivityCriteria && ! self::operator($get)?->requiresDays()
                         ? 'In the last (days)'
@@ -256,6 +263,7 @@ class SegmentConditionForm
                 'deal_statuses' => self::enumValues($data['deal_statuses'] ?? []),
                 'deal_stages' => array_values(array_map('intval', (array) ($data['deal_stages'] ?? []))),
                 'min_value' => $data['min_value'] ?? null,
+                'overdue_only' => filter_var($data['overdue_only'] ?? false, FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE) === true ? true : null,
             ],
         };
 
@@ -298,6 +306,7 @@ class SegmentConditionForm
             'deal_statuses' => $condition->values('deal_statuses'),
             'deal_stages' => $condition->values('deal_stages'),
             'min_value' => $condition->value('min_value'),
+            'overdue_only' => $condition->value('overdue_only') === true,
         ];
     }
 

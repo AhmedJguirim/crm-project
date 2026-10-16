@@ -18,7 +18,9 @@ use App\Models\Deal;
 use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\User;
+use App\Services\Deals\DealStageMover;
 use App\Services\Deals\DefaultPipeline;
+use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -159,3 +161,30 @@ it('puts a contact into a deal stage segment when its deal card is moved on the 
         ->and($deal->fresh()->status)->toBe(DealStatus::Won)
         ->and($segment->contacts()->pluck('contacts.id')->all())->toBe([$contact->id]);
 });
+
+it('takes a contact out of an overdue deals segment when its deal is changed or deleted', function (Closure $change) {
+    $this->travelTo(CarbonImmutable::parse('2026-10-16 12:00:00', 'UTC'));
+    $this->org->update(['timezone' => 'UTC']);
+    $contact = Contact::factory()->for($this->org)->create();
+    $deal = Deal::factory()->for($this->org)->for($contact)->inStage('Lead')->create([
+        'created_by' => $this->user->id,
+        'status' => DealStatus::Open,
+        'expected_close_date' => '2026-10-15',
+    ]);
+    $segment = Segment::factory()->for($this->org)->published()->withRules([
+        new SegmentRuleData('rule-1', 'Overdue', [
+            SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['overdue_only' => true]),
+        ]),
+    ])->create();
+    SyncSegmentMembership::dispatchSync($segment->id);
+
+    expect($segment->contacts()->pluck('contacts.id')->all())->toBe([$contact->id]);
+
+    $change($deal, $this);
+
+    expect($segment->contacts()->count())->toBe(0);
+})->with([
+    'a future expected close date' => [fn (Deal $deal) => $deal->update(['expected_close_date' => '2026-10-20'])],
+    'moved to the Won stage' => [fn (Deal $deal, $test) => DealStageMover::move($deal, pipelineStageNamed($test->org->id, 'Won'))],
+    'deleted' => [fn (Deal $deal) => $deal->delete()],
+]);

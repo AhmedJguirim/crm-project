@@ -361,6 +361,16 @@ describe('conditions', function () {
             fn () => ['deal_statuses' => [DealStatus::Won->value], 'deal_stages' => [DefaultPipeline::stageOfType($this->org->id, DealStatus::Won)->id], 'min_value' => 1000],
             SegmentConditionType::Deal, SegmentOperator::HasDeal,
         ],
+        'overdue deal' => [
+            fn () => ['type' => 'deal', 'operator' => 'has_deal', 'overdue_only' => true],
+            fn () => ['overdue_only' => true],
+            SegmentConditionType::Deal, SegmentOperator::HasDeal,
+        ],
+        'deal with the overdue toggle off' => [
+            fn () => ['type' => 'deal', 'operator' => 'has_no_deal', 'overdue_only' => false],
+            fn () => [],
+            SegmentConditionType::Deal, SegmentOperator::HasNoDeal,
+        ],
     ]);
 
     it('validates the inputs required by the operator', function (array $data, array $errors) {
@@ -463,6 +473,71 @@ describe('conditions', function () {
         );
 
         expect($condition->value['deal_stages'])->toBe([$won]);
+    });
+
+    it('only keeps the overdue flag of a deal condition when the form state is a real true', function (mixed $state, ?bool $expected) {
+        $condition = SegmentConditionForm::toCondition(
+            ['type' => 'deal', 'operator' => 'has_deal', 'overdue_only' => $state],
+            SegmentFieldCatalog::forOrganization($this->org->id),
+        );
+
+        expect($condition->value['overdue_only'] ?? null)->toBe($expected);
+    })->with([
+        'true' => [true, true],
+        'the string "1"' => ['1', true],
+        'false' => [false, null],
+        'the string "false"' => ['false', null],
+        'a junk string' => ['maybe', null],
+        'an array' => [['x'], null],
+        'null' => [null, null],
+    ]);
+
+    it('has no error on the overdue toggle when the type is switched to deal without touching it', function () {
+        $segment = ruleEngineSegment([new SegmentRuleData('rule-1', 'Rule', [])]);
+
+        ruleEngine($segment)
+            ->mountAction(TestAction::make('addCondition')->arguments(['rule' => 'rule-1']))
+            ->fillForm(['type' => 'attribute', 'field' => 'name', 'operator' => 'is', 'text_value' => 'Bob'])
+            ->fillForm(['type' => 'deal'])
+            ->assertSchemaStateSet(['overdue_only' => false])
+            ->fillForm(['operator' => 'has_deal'])
+            ->callMountedAction()
+            ->assertHasNoActionErrors();
+
+        expect($segment->fresh()->workingRules()->sole()->conditions[0]->value)->toBe([]);
+    });
+
+    it('refuses a forged value for the overdue toggle and stores nothing', function (mixed $forged) {
+        $segment = ruleEngineSegment([new SegmentRuleData('rule-1', 'Rule', [])]);
+
+        ruleEngine($segment)
+            ->callAction(TestAction::make('addCondition')->arguments(['rule' => 'rule-1']), ['type' => 'deal', 'operator' => 'has_deal', 'overdue_only' => $forged])
+            ->assertHasActionErrors(['overdue_only']);
+
+        expect($segment->fresh()->workingRules()->sole()->conditions)->toBe([]);
+    })->with([
+        'an array' => [['x']],
+        'a junk string' => ['maybe'],
+    ]);
+
+    it('pre-fills the overdue toggle of a stored deal condition and saves the change', function () {
+        $segment = ruleEngineSegment([new SegmentRuleData('rule-1', 'Rule', [
+            new SegmentConditionData('condition-1', SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['overdue_only' => true]),
+            new SegmentConditionData('condition-2', SegmentConditionType::Deal, null, SegmentOperator::HasDeal, []),
+        ])]);
+
+        ruleEngine($segment)
+            ->mountAction(TestAction::make('editCondition')->arguments(['rule' => 'rule-1', 'condition' => 'condition-1']))
+            ->assertSchemaStateSet(['overdue_only' => true])
+            ->fillForm(['overdue_only' => false])
+            ->callMountedAction()
+            ->assertHasNoActionErrors();
+
+        ruleEngine($segment)
+            ->mountAction(TestAction::make('editCondition')->arguments(['rule' => 'rule-1', 'condition' => 'condition-2']))
+            ->assertSchemaStateSet(['overdue_only' => false]);
+
+        expect($segment->fresh()->workingRules()->sole()->conditions[0]->value)->toBe([]);
     });
 
     it('pre-fills the stages of a stored deal condition', function () {

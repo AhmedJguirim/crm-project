@@ -115,7 +115,7 @@ class SegmentQueryBuilder
             SegmentConditionType::Tags => new TagsConditionCompiler,
             SegmentConditionType::Company => new CompanyConditionCompiler,
             SegmentConditionType::Activity => new ActivityConditionCompiler,
-            SegmentConditionType::Deal => new DealConditionCompiler,
+            SegmentConditionType::Deal => new DealConditionCompiler($this->catalog->timezone()),
         };
     }
 }

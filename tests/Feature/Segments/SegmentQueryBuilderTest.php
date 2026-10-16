@@ -22,6 +22,7 @@ use App\Models\User;
 use App\Services\Deals\DefaultPipeline;
 use App\Services\Segments\SegmentQueryBuilder;
 use App\Support\Tenancy\TenantContext;
+use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
 
 function segmentCondition(SegmentConditionType $type, ?string $field, SegmentOperator $operator, array $value = []): SegmentConditionData
@@ -375,6 +376,69 @@ describe('deals', function () {
         ]);
 
         expect(segmentMatches($this->org, $condition))->toBe([]);
+    });
+});
+
+describe('overdue deals', function () {
+    beforeEach(function () {
+        $this->travelTo(CarbonImmutable::parse('2026-10-16 12:00:00', 'UTC'));
+        $this->org->update(['timezone' => 'UTC']);
+
+        $overdue = fn (string $name, string $stage, DealStatus $status, ?string $date, int $value = 1000) => Deal::factory()->for($this->org)
+            ->for(Contact::factory()->for($this->org)->create(['name' => $name]))
+            ->inStage($stage)
+            ->create(['status' => $status, 'value' => $value, 'expected_close_date' => $date]);
+
+        $overdue('A', 'Lead', DealStatus::Open, '2026-10-15');
+        $overdue('B', 'Lead', DealStatus::Open, '2026-10-16');
+        $overdue('C', 'Lead', DealStatus::Open, null);
+        $overdue('D', 'Won', DealStatus::Won, '2026-10-01');
+        Contact::factory()->for($this->org)->create(['name' => 'E']);
+    });
+
+    it('matches only the open deals whose expected close date is before today', function (SegmentOperator $operator, Closure $value, array $expected) {
+        expect(segmentMatches($this->org, segmentCondition(SegmentConditionType::Deal, null, $operator, $value->call($this))))
+            ->toBe($expected);
+    })->with([
+        'has an overdue deal' => [SegmentOperator::HasDeal, fn () => ['overdue_only' => true], ['A']],
+        'has no overdue deal' => [SegmentOperator::HasNoDeal, fn () => ['overdue_only' => true], ['B', 'C', 'D', 'E']],
+        'overdue in the Lead stage' => [SegmentOperator::HasDeal, fn () => ['overdue_only' => true, 'deal_stages' => [dealStageIdNamed($this->org, 'Lead')]], ['A']],
+        'overdue and worth at least 2000' => [SegmentOperator::HasDeal, fn () => ['overdue_only' => true, 'min_value' => 2000], []],
+        'overdue and worth at least 1000' => [SegmentOperator::HasDeal, fn () => ['overdue_only' => true, 'min_value' => 1000], ['A']],
+        'overdue and won' => [SegmentOperator::HasDeal, fn () => ['overdue_only' => true, 'deal_statuses' => [DealStatus::Won->value]], []],
+        'without the key nothing changes' => [SegmentOperator::HasDeal, fn () => [], ['A', 'B', 'C', 'D']],
+        'a false value is ignored' => [SegmentOperator::HasDeal, fn () => ['overdue_only' => false], ['A', 'B', 'C', 'D']],
+        'a string "1" is ignored' => [SegmentOperator::HasDeal, fn () => ['overdue_only' => '1'], ['A', 'B', 'C', 'D']],
+        'an integer 1 is ignored' => [SegmentOperator::HasDeal, fn () => ['overdue_only' => 1], ['A', 'B', 'C', 'D']],
+        'an array is ignored' => [SegmentOperator::HasDeal, fn () => ['overdue_only' => [true]], ['A', 'B', 'C', 'D']],
+    ]);
+
+    it('does not see the overdue deals of another organization', function () {
+        $other = Organization::factory()->create(['timezone' => 'UTC']);
+        Deal::factory()->for($other)->for(Contact::factory()->for($other)->create(['name' => 'Z']))->inStage('Lead')
+            ->create(['status' => DealStatus::Open, 'expected_close_date' => '2026-10-01']);
+
+        $condition = segmentCondition(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['overdue_only' => true]);
+
+        expect(segmentMatches($this->org, $condition))->toBe(['A']);
+
+        app(TenantContext::class)->set($other->id);
+
+        expect(segmentMatches($other, $condition))->toBe(['Z']);
+    });
+
+    it('uses the day of the organization timezone', function () {
+        $auckland = Organization::factory()->create(['timezone' => 'Pacific/Auckland']);
+        Deal::factory()->for($auckland)->for(Contact::factory()->for($auckland)->create(['name' => 'N']))->inStage('Lead')
+            ->create(['status' => DealStatus::Open, 'expected_close_date' => '2026-10-16']);
+        $condition = segmentCondition(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['overdue_only' => true]);
+        app(TenantContext::class)->set($auckland->id);
+
+        $this->travelTo(CarbonImmutable::parse('2026-10-16 10:59:00', 'UTC'));
+        expect(segmentMatches($auckland, $condition))->toBe([]);
+
+        $this->travelTo(CarbonImmutable::parse('2026-10-16 11:00:00', 'UTC'));
+        expect(segmentMatches($auckland, $condition))->toBe(['N']);
     });
 });
 

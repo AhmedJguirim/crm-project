@@ -74,6 +74,22 @@ it('describes conditions as readable sentences', function (Closure $condition, s
         fn () => SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_statuses' => [DealStatus::Won->value], 'min_value' => 5000]),
         'If the contact has a deal with status Won worth at least 5,000',
     ],
+    'overdue deal' => [
+        fn () => SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['overdue_only' => true]),
+        'If the contact has a deal that is overdue',
+    ],
+    'overdue deal in a stage worth at least' => [
+        fn () => SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['overdue_only' => true, 'min_value' => 1000, 'deal_stages' => [array_search('Lead', DefaultPipeline::stageOptions($this->org->id), true)]]),
+        'If the contact has a deal in stage Lead worth at least 1,000 that is overdue',
+    ],
+    'no overdue deal' => [
+        fn () => SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasNoDeal, ['overdue_only' => true]),
+        'If the contact has no deal that is overdue',
+    ],
+    'overdue flag that is not true' => [
+        fn () => SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['overdue_only' => '1']),
+        'If the contact has a deal',
+    ],
     'deal stages by name' => [
         fn () => SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_statuses' => [DealStatus::Won->value], 'deal_stages' => [DefaultPipeline::stageOfType($this->org->id, DealStatus::Won)->id]]),
         'If the contact has a deal with status Won in stage Won',

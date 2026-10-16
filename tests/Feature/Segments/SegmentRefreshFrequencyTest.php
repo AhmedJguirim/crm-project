@@ -5,6 +5,7 @@ use App\Data\Segments\SegmentConditionData;
 use App\Data\Segments\SegmentRuleData;
 use App\Enums\ActivityType;
 use App\Enums\ContactAttribute;
+use App\Enums\DealStatus;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentOperator;
 use App\Enums\SegmentRefreshFrequency;
@@ -13,10 +14,12 @@ use App\Filament\Resources\Segments\Pages\ViewSegment;
 use App\Jobs\SyncSegmentMembership;
 use App\Models\Activity;
 use App\Models\Contact;
+use App\Models\Deal;
 use App\Models\Organization;
 use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
 use Filament\Tables\Columns\TextColumn;
 use Illuminate\Console\Scheduling\Event;
@@ -59,6 +62,9 @@ describe('condition classification', function () {
         'tags' => [SegmentConditionType::Tags, SegmentOperator::HasAnyOf, ['values' => [1]], null],
         'company type' => [SegmentConditionType::Company, SegmentOperator::CompanyTypeIsAnyOf, ['values' => [1]], null],
         'deal' => [SegmentConditionType::Deal, SegmentOperator::HasDeal, [], null],
+        'overdue deals' => [SegmentConditionType::Deal, SegmentOperator::HasDeal, ['overdue_only' => true], SegmentRefreshFrequency::Daily],
+        'no overdue deals' => [SegmentConditionType::Deal, SegmentOperator::HasNoDeal, ['overdue_only' => true], SegmentRefreshFrequency::Daily],
+        'overdue flag sent as a string' => [SegmentConditionType::Deal, SegmentOperator::HasDeal, ['overdue_only' => '1'], null],
         'activity without days' => [SegmentConditionType::Activity, SegmentOperator::HasHadActivity, [], null],
         'activity with days' => [SegmentConditionType::Activity, SegmentOperator::HasHadActivity, ['days' => 30], SegmentRefreshFrequency::Hourly],
         'no activity with days' => [SegmentConditionType::Activity, SegmentOperator::HasNotHadActivity, ['days' => 7], SegmentRefreshFrequency::Hourly],
@@ -198,6 +204,32 @@ describe('end to end', function () {
         $this->artisan('segments:sync', ['--frequency' => 'hourly'])->assertSuccessful();
 
         expect($segment->contacts()->withoutGlobalScope('organization')->count())->toBe(0);
+    });
+
+    it('adds a contact with a deal that becomes overdue at local midnight without any write', function () {
+        $organization = Organization::factory()->create(['timezone' => 'Pacific/Auckland']);
+        $other = Organization::factory()->create(['timezone' => 'UTC']);
+        $condition = fn () => refreshCondition(SegmentConditionType::Deal, SegmentOperator::HasDeal, ['overdue_only' => true]);
+        $segment = refreshSegment($organization, [$condition()]);
+        $utcSegment = refreshSegment($other, [$condition()]);
+
+        $this->travelTo(CarbonImmutable::parse('2026-10-16 10:00:00', 'UTC'));
+        $contact = Contact::factory()->for($organization)->create();
+        Deal::factory()->for($organization)->for($contact)->inStage('Lead')->create(['status' => DealStatus::Open, 'expected_close_date' => '2026-10-16']);
+        SyncSegmentMembership::dispatchSync($segment->id);
+
+        expect($segment->contacts()->withoutGlobalScope('organization')->count())->toBe(0);
+
+        $this->travelTo(CarbonImmutable::parse('2026-10-16 11:05:00', 'UTC'));
+        $this->artisan('segments:sync', ['--frequency' => 'daily', '--local-hour' => 0])->assertSuccessful();
+
+        expect($segment->contacts()->withoutGlobalScope('organization')->pluck('contacts.id')->all())->toBe([$contact->id]);
+
+        Queue::fake([SyncSegmentMembership::class]);
+        $this->artisan('segments:sync', ['--frequency' => 'daily', '--local-hour' => 0])->assertSuccessful();
+
+        expect(queuedSegmentIds())->toBe([$segment->id])
+            ->and(queuedSegmentIds())->not->toContain($utcSegment->id);
     });
 
     it('leaves static segments alone on scheduled runs', function () {
