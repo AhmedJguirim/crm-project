@@ -18,6 +18,7 @@ use App\Models\PipelineStage;
 use App\Models\User;
 use App\Services\Deals\DefaultPipeline;
 use App\Services\Segments\SegmentQueryBuilder;
+use Filament\Actions\CreateAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
@@ -269,4 +270,150 @@ describe('who can edit', function () {
 
         expect(($this->stage)('Lead')->name)->toBe('Lead');
     });
+});
+
+describe('add a stage', function () {
+    beforeEach(function () {
+        $this->add = fn (array $data) => Livewire::test(ManagePipelineStages::class)->callAction(CreateAction::class, $data);
+        $this->order = fn (): array => PipelineStage::query()->where('organization_id', $this->org->id)->orderBy('position')->pluck('position', 'name')->all();
+    });
+
+    it('adds an open stage before Won, trimmed, and the table, the board and the options follow', function () {
+        ($this->add)(['name' => '  Qualified  ', 'color' => 'info', 'probability' => 60])->assertHasNoActionErrors()->assertNotified('Stage added');
+
+        $qualified = ($this->stage)('Qualified');
+        $names = ['Lead', 'Discovery', 'Proposal Sent', 'Negotiating', 'Qualified', 'Won', 'Lost'];
+        $columns = collect(Livewire::test(DealPipeline::class)->instance()->getBoard()->getColumns())->map(fn ($column): string => $column->getLabel());
+
+        expect($qualified->type)->toBe(DealStatus::Open)
+            ->and($qualified->position)->toBe(5)
+            ->and(($this->order)())->toBe(['Lead' => 1, 'Discovery' => 2, 'Proposal Sent' => 3, 'Negotiating' => 4, 'Qualified' => 5, 'Won' => 6, 'Lost' => 7])
+            ->and(array_values(array_intersect($columns->all(), $names)))->toBe($names)
+            ->and(DefaultPipeline::stageOptions($this->org->id))->toContain('Qualified');
+
+        Livewire::test(ManagePipelineStages::class)
+            ->assertCanSeeTableRecords(collect($names)->map(fn (string $name): PipelineStage => ($this->stage)($name)), inOrder: true);
+    });
+
+    it('defaults the color to gray', function () {
+        ($this->add)(['name' => 'Qualified', 'probability' => 60])->assertHasNoActionErrors();
+
+        expect(($this->stage)('Qualified')->color)->toBe('gray');
+    });
+
+    it('refuses bad input and creates nothing', function (string $name, string $color, mixed $probability, string $field) {
+        $page = ($this->add)(['name' => $name, 'color' => $color, 'probability' => $probability]);
+
+        if ($field === 'unique') {
+            expect($page->errors()->get('mountedActions.0.data.name'))->toContain('Another stage of the pipeline already has this name.');
+        } else {
+            $page->assertHasActionErrors([$field]);
+        }
+
+        expect(PipelineStage::query()->where('organization_id', $this->org->id)->count())->toBe(6);
+    })->with([
+        'empty name' => ['', 'gray', 50, 'name'],
+        '51 characters' => [str_repeat('a', 51), 'gray', 50, 'name'],
+        'name of Lead, padded' => [' lead ', 'gray', 50, 'unique'],
+        'name of Won, upper-cased' => ['WON', 'gray', 50, 'unique'],
+        'unknown color' => ['Qualified', 'purple', 50, 'color'],
+        'no probability' => ['Qualified', 'gray', '', 'probability'],
+        'probability 101' => ['Qualified', 'gray', 101, 'probability'],
+        'decimal probability' => ['Qualified', 'gray', '12.5', 'probability'],
+    ]);
+
+    it('accepts 50 characters and a probability of 0 or 100', function () {
+        ($this->add)(['name' => str_repeat('a', 50), 'color' => 'gray', 'probability' => 0])->assertHasNoActionErrors();
+        ($this->add)(['name' => 'Sure thing', 'color' => 'gray', 'probability' => 100])->assertHasNoActionErrors();
+
+        expect(PipelineStage::query()->where('organization_id', $this->org->id)->count())->toBe(8);
+    });
+
+    it('accepts a name used only in another organization', function () {
+        $globex = Organization::factory()->create();
+        pipelineStageNamed($globex, 'Discovery')->update(['name' => 'Qualified']);
+
+        ($this->add)(['name' => 'Qualified', 'color' => 'gray', 'probability' => 60])->assertHasNoActionErrors();
+
+        expect(PipelineStage::query()->where('organization_id', $this->org->id)->where('name', 'Qualified')->count())->toBe(1);
+    });
+
+    it('lets only admins and owners add a stage', function (OrganizationRole $role, bool $allowed) {
+        ($this->actAs)($role);
+
+        $page = Livewire::test(ManagePipelineStages::class);
+        $allowed ? $page->assertActionVisible(CreateAction::class) : $page->assertActionHidden(CreateAction::class);
+    })->with([
+        'owner' => [OrganizationRole::Owner, true],
+        'admin' => [OrganizationRole::Admin, true],
+        'member' => [OrganizationRole::Member, false],
+        'viewer' => [OrganizationRole::Viewer, false],
+    ]);
+
+    it('refuses a member who forces the create action', function () {
+        ($this->actAs)(OrganizationRole::Member);
+
+        Livewire::test(ManagePipelineStages::class)
+            ->call('mountAction', 'create')
+            ->assertActionNotMounted()
+            ->call('callMountedAction');
+
+        expect(PipelineStage::query()->where('organization_id', $this->org->id)->count())->toBe(6);
+    });
+});
+
+describe('reorder', function () {
+    beforeEach(function () {
+        $this->order = fn (): array => PipelineStage::query()->where('organization_id', $this->org->id)->orderBy('position')->pluck('position', 'name')->all();
+        $this->keys = fn (array $names): array => array_map(fn (string $name): string => (string) ($this->stage)($name)->id, $names);
+    });
+
+    it('reorders the open stages from the page without a notification', function () {
+        $page = Livewire::test(ManagePipelineStages::class)
+            ->call('reorderTable', ($this->keys)(['Negotiating', 'Lead', 'Discovery', 'Proposal Sent', 'Won', 'Lost']))
+            ->assertNotNotified();
+
+        expect(($this->order)())->toBe(['Negotiating' => 1, 'Lead' => 2, 'Discovery' => 3, 'Proposal Sent' => 4, 'Won' => 5, 'Lost' => 6]);
+
+        $page->assertCanSeeTableRecords(
+            collect(['Negotiating', 'Lead', 'Discovery', 'Proposal Sent', 'Won', 'Lost'])->map(fn (string $name): PipelineStage => ($this->stage)($name)),
+            inOrder: true,
+        );
+        expect(Livewire::test(DealPipeline::class)->instance()->getBoard()->getColumns()[0]->getLabel())->toBe('Negotiating');
+    });
+
+    it('warns and snaps Won and Lost back when they are dragged up', function () {
+        Livewire::test(ManagePipelineStages::class)
+            ->call('reorderTable', ($this->keys)(['Won', 'Lead', 'Discovery', 'Proposal Sent', 'Negotiating', 'Lost']))
+            ->assertNotified('Won and Lost always stay at the end of the pipeline.');
+
+        expect(($this->order)())->toBe(['Lead' => 1, 'Discovery' => 2, 'Proposal Sent' => 3, 'Negotiating' => 4, 'Won' => 5, 'Lost' => 6]);
+    });
+
+    it('ignores the stages of another organization in the order', function () {
+        $globex = Organization::factory()->create();
+        $foreign = pipelineStageNamed($globex, 'Lead');
+
+        Livewire::test(ManagePipelineStages::class)->call('reorderTable', [(string) $foreign->id, ...($this->keys)(['Negotiating'])]);
+
+        expect(($this->order)())->toBe(['Negotiating' => 1, 'Lead' => 2, 'Discovery' => 3, 'Proposal Sent' => 4, 'Won' => 5, 'Lost' => 6])
+            ->and($foreign->fresh()->position)->toBe(1);
+    });
+
+    it('lets only admins and owners reorder', function (OrganizationRole $role, bool $allowed) {
+        ($this->actAs)($role);
+
+        $page = Livewire::test(ManagePipelineStages::class)
+            ->call('reorderTable', ($this->keys)(['Negotiating', 'Lead', 'Discovery', 'Proposal Sent', 'Won', 'Lost']));
+
+        expect($page->instance()->getTable()->isReorderable())->toBe($allowed)
+            ->and(($this->order)())->toBe($allowed
+                ? ['Negotiating' => 1, 'Lead' => 2, 'Discovery' => 3, 'Proposal Sent' => 4, 'Won' => 5, 'Lost' => 6]
+                : ['Lead' => 1, 'Discovery' => 2, 'Proposal Sent' => 3, 'Negotiating' => 4, 'Won' => 5, 'Lost' => 6]);
+    })->with([
+        'owner' => [OrganizationRole::Owner, true],
+        'admin' => [OrganizationRole::Admin, true],
+        'member' => [OrganizationRole::Member, false],
+        'viewer' => [OrganizationRole::Viewer, false],
+    ]);
 });

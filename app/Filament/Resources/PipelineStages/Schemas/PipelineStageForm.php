@@ -4,10 +4,13 @@ namespace App\Filament\Resources\PipelineStages\Schemas;
 
 use App\Enums\DealStatus;
 use App\Models\PipelineStage;
+use App\Services\Deals\DefaultPipeline;
+use App\Support\Tenancy\CurrentOrganization;
 use Closure;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
+use Illuminate\Database\Eloquent\Builder;
 
 class PipelineStageForm
 {
@@ -21,7 +24,7 @@ class PipelineStageForm
                     ->maxLength(50)
                     ->dehydrateStateUsing(fn (?string $state): string => trim((string) $state))
                     ->rule(fn (?PipelineStage $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($record): void {
-                        if ($record === null || ! self::nameIsTaken($record, (string) $value)) {
+                        if (! self::nameIsTaken($record, (string) $value)) {
                             return;
                         }
 
@@ -32,6 +35,7 @@ class PipelineStageForm
                     ->label('Color')
                     ->options(PipelineStage::COLORS)
                     ->required()
+                    ->default('gray')
                     ->native(false),
 
                 TextInput::make('probability')
@@ -47,16 +51,16 @@ class PipelineStageForm
     }
 
     /**
-     * Whether another stage of the same pipeline already has this name, ignoring case and surrounding spaces. Compared in
-     * PHP so no raw SQL is involved.
+     * Whether another stage of the same pipeline already has this name, ignoring case and surrounding spaces. A new stage
+     * is compared with the stages of the organization's pipeline. Compared in PHP so no raw SQL is involved.
      */
-    private static function nameIsTaken(PipelineStage $record, string $name): bool
+    private static function nameIsTaken(?PipelineStage $record, string $name): bool
     {
         $wanted = mb_strtolower(trim($name));
 
         return PipelineStage::query()
-            ->where('pipeline_id', $record->pipeline_id)
-            ->whereKeyNot($record->getKey())
+            ->where('pipeline_id', $record?->pipeline_id ?? DefaultPipeline::ensureFor(CurrentOrganization::get())->getKey())
+            ->when($record !== null, fn (Builder $query): Builder => $query->whereKeyNot($record->getKey()))
             ->pluck('name')
             ->contains(fn (string $existing): bool => mb_strtolower(trim($existing)) === $wanted);
     }

@@ -32,6 +32,7 @@ class PipelineStagesTable
                     ->label('Deals'),
             ])
             ->defaultSort('position')
+            ->reorderable('position')
             ->paginated(false)
             ->recordActions([
                 EditAction::make(),
