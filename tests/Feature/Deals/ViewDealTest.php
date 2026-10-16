@@ -11,6 +11,7 @@ use App\Models\Activity;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\User;
+use App\Services\Deals\DealStageMover;
 use Filament\Facades\Filament;
 use Illuminate\Support\Carbon;
 use Livewire\Livewire;
@@ -192,3 +193,54 @@ test('the deal page flags only an open deal whose close date is before today as 
     'won, yesterday' => [DealStatus::Won, '2026-02-20', false],
     'open, today' => [DealStatus::Open, '2026-02-21', false],
 ]);
+
+test('the deal page action tells the details panel the deal changed', function (string $action) {
+    $deal = Deal::factory()->inStage('Negotiating')->create([
+        'organization_id' => $this->org->id,
+        'created_by' => $this->user->id,
+        'title' => 'Panel Refresh Deal',
+        'status' => DealStatus::Open,
+        'won_at' => null,
+        'lost_at' => null,
+    ]);
+
+    Livewire::test(ViewDeal::class, ['record' => $deal->id])
+        ->callAction($action)
+        ->assertHasNoActionErrors()
+        ->assertDispatched('dealUpdated')
+        ->assertNotDispatched('activityLogged');
+})->with(['moveToWon', 'moveToLost']);
+
+test('the details panel listens to dealUpdated', function () {
+    $deal = Deal::factory()->inStage('Negotiating')->create(['organization_id' => $this->org->id, 'created_by' => $this->user->id]);
+
+    expect(Livewire::test(DealDetailsWidget::class, ['record' => $deal])->effects['listeners'])->toContain('dealUpdated');
+});
+
+test('the details panel shows the new stage and status after dealUpdated', function (string $stage) {
+    $deal = Deal::factory()->inStage('Negotiating')->create([
+        'organization_id' => $this->org->id,
+        'created_by' => $this->user->id,
+        'status' => DealStatus::Open,
+        'won_at' => null,
+        'lost_at' => null,
+    ]);
+
+    $widget = Livewire::test(DealDetailsWidget::class, ['record' => $deal])
+        ->assertSee('Negotiating')
+        ->assertSee('Open');
+
+    DealStageMover::move($deal->fresh(), pipelineStageNamed($this->org->id, $stage));
+
+    $widget->dispatch('dealUpdated')
+        ->assertSee($stage)
+        ->assertDontSee('Negotiating')
+        ->assertDontSee('Open');
+})->with(['Won', 'Lost']);
+
+test('edit on the deal page is a link to the edit page, not a modal', function () {
+    $deal = Deal::factory()->inStage('Negotiating')->create(['organization_id' => $this->org->id, 'created_by' => $this->user->id]);
+
+    Livewire::test(ViewDeal::class, ['record' => $deal->id])
+        ->assertActionHasUrl('edit', DealResource::getUrl('edit', ['record' => $deal]));
+});

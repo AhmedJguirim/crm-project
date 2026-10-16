@@ -8,6 +8,7 @@ use App\Support\Tenancy\CurrentOrganization;
 use Filament\Widgets\Widget;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Number;
+use Livewire\Attributes\On;
 
 class DealDetailsWidget extends Widget
 {
@@ -16,6 +17,15 @@ class DealDetailsWidget extends Widget
     protected string $view = 'filament.resources.deals.widgets.deal-details-widget';
 
     protected int|string|array $columnSpan = 1;
+
+    /**
+     * Reloads the deal after a page action changed it, so the panel shows the new stage, status and dates.
+     */
+    #[On('dealUpdated')]
+    public function refreshDeal(): void
+    {
+        $this->record?->refresh();
+    }
 
     protected function getViewData(): array
     {

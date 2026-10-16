@@ -115,7 +115,7 @@ class ViewDeal extends Page
                         ->success()
                         ->send();
 
-                    $this->dispatch('activityLogged');
+                    $this->dispatch('dealUpdated');
                 }),
 
             Action::make('moveToLost')
@@ -135,6 +135,8 @@ class ViewDeal extends Page
                         ->title('Deal moved to Lost')
                         ->success()
                         ->send();
+
+                    $this->dispatch('dealUpdated');
                 }),
 
             EditAction::make()
