@@ -7,6 +7,7 @@ use App\Filament\Support\CustomFields\HandlesDuplicateCustomFieldValues;
 use App\Jobs\ResyncContactSegments;
 use App\Models\Contact;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Support\Enums\Width;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -17,6 +18,8 @@ class CreateContact extends CreateRecord
     use HandlesDuplicateCustomFieldValues;
 
     protected static string $resource = ContactResource::class;
+
+    protected Width|string|null $maxContentWidth = Width::SevenExtraLarge;
 
     protected function handleRecordCreation(array $data): Model
     {

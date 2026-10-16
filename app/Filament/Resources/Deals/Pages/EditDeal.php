@@ -9,6 +9,7 @@ use App\Services\Deals\DefaultPipeline;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Support\Enums\Width;
 
 /**
  * @method Deal getRecord()
@@ -16,6 +17,8 @@ use Filament\Resources\Pages\EditRecord;
 class EditDeal extends EditRecord
 {
     protected static string $resource = DealResource::class;
+
+    protected Width|string|null $maxContentWidth = Width::SevenExtraLarge;
 
     protected function mutateFormDataBeforeSave(array $data): array
     {

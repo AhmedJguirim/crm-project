@@ -8,11 +8,14 @@ use App\Filament\Resources\Invoices\Schemas\InvoiceForm;
 use App\Models\Contact;
 use App\Models\Deal;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Support\Enums\Width;
 use Livewire\Attributes\Url;
 
 class CreateInvoice extends CreateRecord
 {
     protected static string $resource = InvoiceResource::class;
+
+    protected Width|string|null $maxContentWidth = Width::SevenExtraLarge;
 
     #[Url(as: 'contact')]
     public ?string $prefillContactId = null;

@@ -12,6 +12,7 @@ use Filament\Actions\ActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 
 /**
@@ -20,6 +21,8 @@ use Filament\Support\Icons\Heroicon;
 class EditTask extends EditRecord
 {
     protected static string $resource = TaskResource::class;
+
+    protected Width|string|null $maxContentWidth = Width::SevenExtraLarge;
 
     protected function getHeaderActions(): array
     {

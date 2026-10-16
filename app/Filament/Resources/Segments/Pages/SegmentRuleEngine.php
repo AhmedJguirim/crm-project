@@ -40,6 +40,8 @@ class SegmentRuleEngine extends Page
 
     protected static string $resource = SegmentResource::class;
 
+    protected Width|string|null $maxContentWidth = Width::SevenExtraLarge;
+
     protected string $view = 'filament.resources.segments.pages.segment-rule-engine';
 
     public ?string $selectedRuleId = null;

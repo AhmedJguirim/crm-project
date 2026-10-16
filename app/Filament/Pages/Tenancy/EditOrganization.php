@@ -10,9 +10,12 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Textarea;
 use Filament\Pages\Tenancy\EditTenantProfile;
 use Filament\Schemas\Schema;
+use Filament\Support\Enums\Width;
 
 class EditOrganization extends EditTenantProfile
 {
+    protected Width|string|null $maxContentWidth = Width::SevenExtraLarge;
+
     public static function getLabel(): string
     {
         return 'Organization Settings';

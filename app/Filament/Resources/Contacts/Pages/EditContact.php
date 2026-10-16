@@ -9,6 +9,7 @@ use App\Models\Contact;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\RestoreAction;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Support\Enums\Width;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -19,6 +20,8 @@ class EditContact extends EditRecord
     use HandlesDuplicateCustomFieldValues;
 
     protected static string $resource = ContactResource::class;
+
+    protected Width|string|null $maxContentWidth = Width::SevenExtraLarge;
 
     protected function handleRecordUpdate(Model $record, array $data): Model
     {

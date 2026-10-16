@@ -6,10 +6,13 @@ use App\Filament\Resources\CustomFields\CustomFieldResource;
 use App\Models\CustomField;
 use App\Support\Tenancy\CurrentOrganization;
 use Filament\Resources\Pages\CreateRecord;
+use Filament\Support\Enums\Width;
 
 class CreateCustomField extends CreateRecord
 {
     protected static string $resource = CustomFieldResource::class;
+
+    protected Width|string|null $maxContentWidth = Width::SevenExtraLarge;
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {

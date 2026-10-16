@@ -7,6 +7,7 @@ use App\Filament\Support\CustomFields\CustomFieldDefinitionActions;
 use App\Models\CustomField;
 use App\Support\Tenancy\CurrentOrganization;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Support\Enums\Width;
 
 /**
  * @method CustomField getRecord()
@@ -14,6 +15,8 @@ use Filament\Resources\Pages\EditRecord;
 class EditCustomField extends EditRecord
 {
     protected static string $resource = CustomFieldResource::class;
+
+    protected Width|string|null $maxContentWidth = Width::SevenExtraLarge;
 
     protected function getHeaderActions(): array
     {
