@@ -257,6 +257,32 @@ test('the outer card carries the click, the keys and the drag attributes', funct
         ->not->toContain('cursor-grab ');
 });
 
+test('the drag handle follows the update permission of the role', function (OrganizationRole $role, bool $handle) use ($pipelineCardElements) {
+    $member = User::factory()->onboardingCompleted()->create();
+    $this->org->members()->attach($member, ['role' => $role->value]);
+    $this->actingAs($member);
+    Filament::setTenant($this->org);
+
+    $id = (string) $this->deal->id;
+    $expression = "mountAction('openDeal', [], ".Js::from(['recordKey' => $id]).')';
+
+    $card = collect($pipelineCardElements(Livewire::test(DealPipeline::class)->html()))
+        ->first(fn (DOMElement $element): bool => $element->getAttribute('data-card-id') === $id);
+
+    expect($card)->not->toBeNull()
+        ->and($card->hasAttribute('x-sortable-handle'))->toBe($handle)
+        ->and($card->getAttribute('class'))->not->toContain('cursor-grab ')
+        ->and($card->getAttribute('x-sortable-item'))->toBe($id)
+        ->and($card->getAttribute('wire:click'))->toBe($expression)
+        ->and($card->getAttribute('tabindex'))->toBe('0')
+        ->and($card->getAttribute('role'))->toBe('button');
+})->with([
+    'owner' => [OrganizationRole::Owner, true],
+    'admin' => [OrganizationRole::Admin, true],
+    'member' => [OrganizationRole::Member, true],
+    'viewer' => [OrganizationRole::Viewer, false],
+]);
+
 test('one click mounts the action exactly once, on the card itself', function () use ($pipelineCardElements) {
     $second = Deal::factory()->inStage('Discovery')->create([
         'organization_id' => $this->org->id,

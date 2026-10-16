@@ -281,7 +281,7 @@ class DealPipeline extends BoardResourcePage
     }
 
     /**
-     * Moves the card and lets DealStageMover set the status and the won / lost dates, in one transaction; ignores a forged card, neighbour or column.
+     * Moves the card and lets DealStageMover set the status and the won / lost dates, in one transaction; ignores a forged card, neighbour or column, and refuses a user who may not update the deal with a notification instead of a 403.
      */
     public function moveCard(
         string $cardId,
@@ -311,7 +311,15 @@ class DealPipeline extends BoardResourcePage
             return;
         }
 
-        Gate::authorize('update', $deal);
+        if (! Gate::allows('update', $deal)) {
+            Notification::make()
+                ->title("You can't move this deal")
+                ->body('Nothing was changed.')
+                ->danger()
+                ->send();
+
+            return;
+        }
 
         DB::transaction(function () use ($deal, $stage, $cardId, $targetColumnId, $afterCardId, $beforeCardId): void {
             parent::moveCard($cardId, $targetColumnId, $afterCardId, $beforeCardId);

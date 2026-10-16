@@ -245,22 +245,41 @@ describe('deals and invoices', function () {
         ]);
     });
 
-    it('does not let a viewer move a card of the pipeline', function () {
+    it('refuses a viewer move of a card of the pipeline with a notification instead of a 403', function () {
         ($this->actAs)(OrganizationRole::Viewer);
 
         Livewire::test(DealPipeline::class)
             ->call('moveCard', (string) $this->deal->id, (string) pipelineStageNamed($this->org->id, 'Won')->id)
-            ->assertForbidden();
+            ->assertSuccessful()
+            ->assertNotified("You can't move this deal");
 
         expect($this->deal->fresh()->pipelineStage->name)->toBe('Negotiating')
             ->and($this->deal->fresh()->status)->toBe(DealStatus::Open);
+    });
+
+    it('renders the refused card back in its own column', function () {
+        ($this->actAs)(OrganizationRole::Viewer);
+
+        $component = Livewire::test(DealPipeline::class)
+            ->call('moveCard', (string) $this->deal->id, (string) pipelineStageNamed($this->org->id, 'Won')->id);
+
+        expect($component->effects)->toHaveKey('html');
+
+        $dom = new DOMDocument;
+        @$dom->loadHTML($component->effects['html'], LIBXML_NOERROR);
+        $cards = collect(iterator_to_array($dom->getElementsByTagName('*')))
+            ->filter(fn (DOMElement $element): bool => $element->getAttribute('data-card-id') === (string) $this->deal->id);
+
+        expect($cards)->toHaveCount(1)
+            ->and($cards->first()->parentNode->getAttribute('data-column-id'))->toBe((string) pipelineStageNamed($this->org->id, 'Negotiating')->id);
     });
 
     it('lets a member move a card of the pipeline', function () {
         ($this->actAs)(OrganizationRole::Member);
 
         Livewire::test(DealPipeline::class)
-            ->call('moveCard', (string) $this->deal->id, (string) pipelineStageNamed($this->org->id, 'Won')->id);
+            ->call('moveCard', (string) $this->deal->id, (string) pipelineStageNamed($this->org->id, 'Won')->id)
+            ->assertNotNotified("You can't move this deal");
 
         expect($this->deal->fresh()->pipelineStage->name)->toBe('Won');
     });

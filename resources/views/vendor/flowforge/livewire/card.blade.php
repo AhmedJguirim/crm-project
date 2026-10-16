@@ -1,11 +1,14 @@
 @props(['columnId', 'record'])
 
+{{-- Drag needs the updateAny ability on the board's model: a viewer's card has no handle, so SortableJS can't pick it up. --}}
 @php
     $processedRecordActions = $this->getBoard()->getBoardRecordActions($record);
     $hasActions = !empty($processedRecordActions);
     $cardAction = $this->getBoard()->getCardAction();
     $hasCardAction = $cardAction !== null;
     $hasPositionIdentifier = $this->getBoard()->getPositionIdentifierAttribute() !== null;
+    $boardModel = $this->getBoard()->getQuery()?->getModel();
+    $canDragCards = $hasPositionIdentifier && $boardModel !== null && \Illuminate\Support\Facades\Gate::allows('updateAny', $boardModel::class);
 
     // A card action configured with a url must navigate like a native link instead of
     // mounting a modal, so middle-click, cmd-click and "copy link" keep working.
@@ -38,13 +41,13 @@
         'flowforge-card mb-3 bg-white dark:bg-gray-900 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden transition-all duration-200 hover:shadow-md',
         'cursor-pointer' => $hasActions || $hasCardAction,
         'cursor-pointer transition-all duration-100 ease-in-out hover:shadow-lg hover:border-gray-400 active:shadow-md' => $hasCardAction,
-        'cursor-grab hover:cursor-grabbing' => $hasPositionIdentifier && ! $mountsCardAction,
+        'cursor-grab hover:cursor-grabbing' => $canDragCards && ! $mountsCardAction,
         'active:cursor-grabbing focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500' => $mountsCardAction,
-        'cursor-default' => !$hasActions && !$hasCardAction && !$hasPositionIdentifier,
+        'cursor-default' => !$hasActions && !$hasCardAction && !$canDragCards,
     ])
     x-sortable-item="{{ $record['id'] }}"
     data-card-id="{{ $record['id'] }}"
-    @if($hasPositionIdentifier)
+    @if($canDragCards)
         x-sortable-handle
     @endif
     data-position="{{ $record['position'] ?? '' }}"
