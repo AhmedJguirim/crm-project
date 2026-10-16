@@ -83,10 +83,25 @@ function referencedRecord(string $kind): array
             $tag = Tag::factory()->for($org)->create(['name' => 'VIP']),
             SegmentConditionData::make(SegmentConditionType::Tags, null, SegmentOperator::HasAllOf, ['values' => [(string) $tag->id]]),
         ],
+        'pipeline stage' => [
+            $stage = pipelineStageNamed($org, 'Proposal Sent'),
+            SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_stages' => [$stage->id]]),
+        ],
+        'pipeline stage stored as a string id' => [
+            $stage = pipelineStageNamed($org, 'Proposal Sent'),
+            SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasNoDeal, ['deal_stages' => [(string) $stage->id]]),
+        ],
     };
 }
 
-dataset('referenced records', ['custom field', 'tag', 'company', 'company excluded', 'company type', 'tag stored as a string id']);
+dataset('referenced records', ['custom field', 'tag', 'company', 'company excluded', 'company type', 'tag stored as a string id', 'pipeline stage', 'pipeline stage stored as a string id']);
+
+function segmentGuardedRecordStillExists(Model $record): bool
+{
+    $fresh = $record->fresh();
+
+    return $fresh !== null && ! (method_exists($fresh, 'trashed') && $fresh->trashed());
+}
 
 describe('model guard', function () {
     it('refuses to delete a record used in published rules', function (string $kind) {
@@ -94,7 +109,7 @@ describe('model guard', function () {
         segmentWithCondition($condition, ['is_published' => true]);
 
         expect(fn () => $record->delete())->toThrow(UsedInSegmentsException::class, 'used in the conditions of the segment "Newsletter"');
-        $this->assertNotSoftDeleted($record);
+        expect(segmentGuardedRecordStillExists($record))->toBeTrue();
     })->with('referenced records');
 
     it('refuses to delete a record only used in an unsaved draft', function (string $kind) {
@@ -102,7 +117,7 @@ describe('model guard', function () {
         segmentWithCondition($condition, ['is_published' => true], asDraft: true);
 
         expect(fn () => $record->delete())->toThrow(UsedInSegmentsException::class);
-        $this->assertNotSoftDeleted($record);
+        expect(segmentGuardedRecordStillExists($record))->toBeTrue();
     })->with('referenced records');
 
     it('refuses to delete a record used by a segment that was never published', function (string $kind) {
@@ -119,7 +134,7 @@ describe('model guard', function () {
         $segment->delete();
         $record->delete();
 
-        $this->assertSoftDeleted($record);
+        expect(segmentGuardedRecordStillExists($record))->toBeFalse();
     })->with('referenced records');
 
     it('allows deleting a record once its condition is removed', function () {

@@ -5,6 +5,7 @@ namespace App\Exceptions;
 use App\Models\Company;
 use App\Models\CompanyType;
 use App\Models\CustomField;
+use App\Models\PipelineStage;
 use App\Models\Segment;
 use App\Models\Tag;
 use App\Services\Segments\SegmentUsage;
@@ -41,6 +42,7 @@ class UsedInSegmentsException extends LogicException
             $record instanceof Tag => 'tag',
             $record instanceof Company => 'company',
             $record instanceof CompanyType => 'company type',
+            $record instanceof PipelineStage => 'pipeline stage',
             default => strtolower(class_basename($record)),
         };
 

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\PipelineStages\Tables;
 
+use App\Filament\Resources\PipelineStages\Actions\PipelineStageDeletionAction;
 use App\Models\PipelineStage;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
@@ -36,6 +37,7 @@ class PipelineStagesTable
             ->paginated(false)
             ->recordActions([
                 EditAction::make(),
+                PipelineStageDeletionAction::make(),
             ]);
     }
 }

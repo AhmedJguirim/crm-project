@@ -5,16 +5,23 @@ use App\Data\Segments\SegmentRuleData;
 use App\Enums\DealStatus;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentOperator;
+use App\Exceptions\PipelineStageCannotBeDeleted;
+use App\Exceptions\UsedInSegmentsException;
+use App\Jobs\ResyncContactSegments;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Organization;
 use App\Models\Pipeline;
 use App\Models\PipelineStage;
+use App\Models\Segment;
 use App\Models\User;
 use App\Services\Deals\DefaultPipeline;
 use App\Services\Deals\PipelineStageOrder;
 use App\Services\Segments\SegmentQueryBuilder;
 use Filament\Facades\Filament;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Support\Facades\Queue;
+use Tests\Feature\Security\SecurityPayloads;
 
 beforeEach(function () {
     $this->owner = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
@@ -133,4 +140,135 @@ it('changes positions only: deals and segment members stay the same', function (
 
     expect($deal->fresh()->pipeline_stage_id)->toBe($lead->id)
         ->and($members())->toBe([$contact->id]);
+});
+
+describe('delete an open stage', function () {
+    beforeEach(function () {
+        $this->deal = fn (string $stage, string $title, ?Organization $org = null): Deal => Deal::factory()->inStage($stage)->create([
+            'organization_id' => ($org ?? $this->org)->id,
+            'title' => $title,
+            'contact_id' => Contact::factory()->create(['organization_id' => ($org ?? $this->org)->id])->id,
+        ]);
+        $this->stageOf = fn (): array => Deal::forOrganization($this->org->id)->orderBy('id')->pluck('pipeline_stage_id', 'title')->all();
+        $this->stageRows = fn (): array => PipelineStage::forOrganization($this->org->id)->orderBy('id')->pluck('position', 'id')->all();
+        $this->delete = fn (string $name, mixed $target = null): int => PipelineStageOrder::deleteOpenStage($this->pipeline, pipelineStageNamed($this->org, $name), $target);
+    });
+
+    it('moves the deals to the chosen stage and renumbers the positions', function () {
+        ($this->deal)('Proposal Sent', 'Retainer');
+        ($this->deal)('Proposal Sent', 'Audit prep');
+        $discovery = ($this->id)('Discovery');
+
+        $moved = ($this->delete)('Proposal Sent', $discovery);
+
+        expect($moved)->toBe(2)
+            ->and(($this->stageOf)())->toBe(['Retainer' => $discovery, 'Audit prep' => $discovery])
+            ->and(Deal::forOrganization($this->org->id)->get()->every(fn (Deal $deal): bool => $deal->status === DealStatus::Open && $deal->won_at === null && $deal->lost_at === null))->toBeTrue()
+            ->and(($this->positions)())->toBe(['Lead' => 1, 'Discovery' => 2, 'Negotiating' => 3, 'Won' => 4, 'Lost' => 5]);
+    });
+
+    it('accepts the target as a numeric string', function () {
+        $deal = ($this->deal)('Proposal Sent', 'Retainer');
+
+        ($this->delete)('Proposal Sent', (string) ($this->id)('Lead'));
+
+        expect($deal->fresh()->pipeline_stage_id)->toBe(($this->id)('Lead'));
+    });
+
+    it('moves the deals through model events so the segments are resynced', function () {
+        $deal = ($this->deal)('Proposal Sent', 'Retainer');
+        Segment::factory()->for($this->org)->published()->create(['name' => 'Anyone']);
+        Queue::fake();
+
+        ($this->delete)('Proposal Sent', ($this->id)('Discovery'));
+
+        Queue::assertPushed(ResyncContactSegments::class, fn (ResyncContactSegments $job): bool => $job->contactId === $deal->contact_id);
+    });
+
+    it('deletes a stage without deals and ignores the target', function () {
+        expect(($this->delete)('Lead'))->toBe(0)
+            ->and(($this->positions)())->toBe(['Discovery' => 1, 'Proposal Sent' => 2, 'Negotiating' => 3, 'Won' => 4, 'Lost' => 5]);
+
+        expect(($this->delete)('Discovery', 'junk'))->toBe(0)
+            ->and(($this->positions)())->toBe(['Proposal Sent' => 1, 'Negotiating' => 2, 'Won' => 3, 'Lost' => 4]);
+    });
+
+    it('refuses and changes nothing', function (string $stage, Closure $target, string $message) {
+        ($this->deal)('Proposal Sent', 'Retainer');
+        ($this->deal)('Won', 'Audit');
+        $before = [($this->positions)(), ($this->stageOf)(), ($this->stageRows)()];
+
+        expect(fn () => ($this->delete)($stage, $target($this)))->toThrow(PipelineStageCannotBeDeleted::class, $message);
+
+        expect([($this->positions)(), ($this->stageOf)(), ($this->stageRows)()])->toBe($before);
+    })->with([
+        'Won' => ['Won', fn ($test): int => ($test->id)('Discovery'), 'Won and Lost cannot be deleted: every pipeline keeps one of each.'],
+        'Lost' => ['Lost', fn ($test): int => ($test->id)('Discovery'), 'Won and Lost cannot be deleted: every pipeline keeps one of each.'],
+        'no target' => ['Proposal Sent', fn (): mixed => null, 'Choose another open stage of this pipeline to move the deals to.'],
+        'a text target' => ['Proposal Sent', fn (): string => 'abc', 'Choose another open stage of this pipeline to move the deals to.'],
+        'the stage itself' => ['Proposal Sent', fn ($test): int => ($test->id)('Proposal Sent'), 'Choose another open stage of this pipeline to move the deals to.'],
+        'Won as the target' => ['Proposal Sent', fn ($test): int => ($test->id)('Won'), 'Choose another open stage of this pipeline to move the deals to.'],
+        'a stage of another organization' => ['Proposal Sent', fn ($test): int => ($test->id)('Discovery', $test->globex), 'Choose another open stage of this pipeline to move the deals to.'],
+        'a decimal target' => ['Proposal Sent', fn ($test): string => ($test->id)('Discovery').'.5', 'Choose another open stage of this pipeline to move the deals to.'],
+    ]);
+
+    it('refuses to delete the last open stage', function () {
+        foreach (['Lead', 'Discovery', 'Negotiating'] as $name) {
+            ($this->delete)($name);
+        }
+
+        expect(fn () => ($this->delete)('Proposal Sent'))->toThrow(PipelineStageCannotBeDeleted::class, 'The stage "Proposal Sent" cannot be deleted: a pipeline needs at least one open stage.')
+            ->and(($this->positions)())->toBe(['Proposal Sent' => 1, 'Won' => 2, 'Lost' => 3]);
+    });
+
+    it('refuses a stage used by a segment before any deal moves', function () {
+        $deal = ($this->deal)('Negotiating', 'Retainer');
+        Segment::factory()->for($this->org)->create([
+            'name' => 'Hot deals',
+            'draft_rules' => [(new SegmentRuleData('rule-1', 'Rule', [
+                SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasNoDeal, ['deal_stages' => [(string) ($this->id)('Negotiating')]]),
+            ]))->toArray()],
+        ]);
+
+        Segment::factory()->for($this->org)->published()->create(['name' => 'Anyone']);
+        Queue::fake();
+
+        expect(fn () => ($this->delete)('Negotiating', ($this->id)('Discovery')))
+            ->toThrow(UsedInSegmentsException::class, 'The pipeline stage "Negotiating" cannot be deleted: it is used in the conditions of the segment "Hot deals". Remove it from those conditions first.');
+
+        Queue::assertNothingPushed();
+        expect($deal->fresh()->pipeline_stage_id)->toBe(($this->id)('Negotiating'))
+            ->and(($this->positions)())->toBe(['Lead' => 1, 'Discovery' => 2, 'Proposal Sent' => 3, 'Negotiating' => 4, 'Won' => 5, 'Lost' => 6]);
+    });
+
+    it('locks the stage row before the deals are moved', function () {
+        ($this->deal)('Proposal Sent', 'Retainer');
+        $stageId = ($this->id)('Proposal Sent');
+        $target = ($this->id)('Discovery');
+
+        $queries = SecurityPayloads::queriesDuring(fn () => ($this->delete)('Proposal Sent', $target));
+
+        $lock = collect($queries)->search(fn (string $sql): bool => str_contains($sql, 'from "pipeline_stages"') && str_contains($sql, '"id" = ') && str_ends_with(trim($sql), 'for update'));
+        $firstMove = collect($queries)->search(fn (string $sql): bool => str_starts_with($sql, 'update "deals"'));
+
+        expect($lock)->not->toBeFalse()
+            ->and($firstMove)->not->toBeFalse()
+            ->and($lock)->toBeLessThan($firstMove);
+    });
+
+    it('leaves the other organizations alone', function () {
+        $foreign = ($this->deal)('Proposal Sent', 'Globex deal', $this->globex);
+        ($this->deal)('Proposal Sent', 'Retainer');
+
+        ($this->delete)('Proposal Sent', ($this->id)('Discovery'));
+
+        expect(($this->positions)($this->globexPipeline))->toBe(['Lead' => 1, 'Discovery' => 2, 'Proposal Sent' => 3, 'Negotiating' => 4, 'Won' => 5, 'Lost' => 6])
+            ->and($foreign->fresh()->pipeline_stage_id)->toBe(($this->id)('Proposal Sent', $this->globex));
+    });
+
+    it('fails with a missing stage when the stage is not in the pipeline', function () {
+        expect(fn () => PipelineStageOrder::deleteOpenStage($this->pipeline, pipelineStageNamed($this->globex, 'Lead'), null))
+            ->toThrow(ModelNotFoundException::class);
+        expect(PipelineStage::forOrganization($this->globex->id)->count())->toBe(6);
+    });
 });

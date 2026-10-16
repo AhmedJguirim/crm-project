@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\DealStatus;
 use App\Models\Concerns\BelongsToOrganization;
+use App\Models\Concerns\PreventsDeletionWhileUsedInSegments;
 use Database\Factories\PipelineStageFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -16,6 +17,8 @@ class PipelineStage extends Model
 
     /** @use HasFactory<PipelineStageFactory> */
     use HasFactory;
+
+    use PreventsDeletionWhileUsedInSegments;
 
     /**
      * The colors a stage can have: the Filament color names the admin panel registers, with their labels.

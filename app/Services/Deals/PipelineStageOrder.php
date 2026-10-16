@@ -3,15 +3,21 @@
 namespace App\Services\Deals;
 
 use App\Enums\DealStatus;
+use App\Exceptions\PipelineStageCannotBeDeleted;
+use App\Exceptions\UsedInSegmentsException;
+use App\Models\Deal;
 use App\Models\Pipeline;
 use App\Models\PipelineStage;
+use App\Services\Segments\SegmentUsage;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Adds and reorders the stages of a pipeline: the open stages in the wanted order, then the closed stages (Won, Lost) in
- * their current order, with positions rewritten 1..N without gaps. Won and Lost always stay last, whatever order is asked.
+ * Adds, reorders and deletes the stages of a pipeline: the open stages in the wanted order, then the closed stages (Won, Lost) in
+ * their current order, with positions rewritten 1..N without gaps. Won and Lost always stay last, whatever order is asked,
+ * and they are never deleted.
  */
 final class PipelineStageOrder
 {
@@ -89,6 +95,70 @@ final class PipelineStageOrder
             self::renumber($stages, $openInOrder);
 
             return $closedSeen && $openBeforeClosed < count($openIds);
+        });
+    }
+
+    /**
+     * Deletes an open stage and moves its deals to another open stage of the same pipeline, then renumbers the positions
+     * 1..N. The checks run in this order, before anything changes: the stage is open, it is not the last open stage, no
+     * segment condition uses it, and (when it has deals) the target is another open stage of this pipeline. The stage
+     * row is locked before its deals are read, so a deal inserted meanwhile waits and is moved too. The deals move
+     * through model events, so the segments are resynced; the target is ignored when the stage has no deals.
+     *
+     * @param  mixed  $targetStageId  the id sent by the browser, validated here
+     * @return int the number of deals moved
+     *
+     * @throws PipelineStageCannotBeDeleted
+     * @throws UsedInSegmentsException
+     */
+    public static function deleteOpenStage(Pipeline $pipeline, PipelineStage $stage, mixed $targetStageId): int
+    {
+        return DB::transaction(function () use ($pipeline, $stage, $targetStageId): int {
+            $stages = self::lockedStagesOf($pipeline);
+            $current = $stages->firstWhere('id', $stage->getKey())
+                ?? throw (new ModelNotFoundException)->setModel(PipelineStage::class, [$stage->getKey()]);
+            $openStages = $stages->where('type', DealStatus::Open);
+
+            if ($current->type !== DealStatus::Open) {
+                throw PipelineStageCannotBeDeleted::notOpen($current);
+            }
+
+            if ($openStages->count() <= 1) {
+                throw PipelineStageCannotBeDeleted::lastOpenStage($current);
+            }
+
+            $segments = SegmentUsage::segmentsUsing($current);
+
+            if ($segments->isNotEmpty()) {
+                throw UsedInSegmentsException::cannotDelete($current, $segments);
+            }
+
+            PipelineStage::forOrganization($pipeline->organization_id)->whereKey($current->getKey())->lockForUpdate()->first();
+
+            $deals = Deal::forOrganization($pipeline->organization_id)->where('pipeline_stage_id', $current->getKey());
+            $moved = 0;
+
+            if ($deals->exists()) {
+                $targetId = filter_var($targetStageId, FILTER_VALIDATE_INT);
+                $target = $targetId === false ? null : $openStages->firstWhere('id', $targetId);
+
+                if ($target === null || $target->is($current)) {
+                    throw PipelineStageCannotBeDeleted::invalidTarget();
+                }
+
+                foreach ($deals->lazyById(100) as $deal) {
+                    DealStageMover::move($deal, $target);
+                    $moved++;
+                }
+            }
+
+            $current->delete();
+
+            $remaining = $stages->reject(fn (PipelineStage $other): bool => $other->is($current))->values();
+
+            self::renumber($remaining, $remaining->where('type', DealStatus::Open)->modelKeys());
+
+            return $moved;
         });
     }
 

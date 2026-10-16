@@ -40,6 +40,8 @@ use App\Models\Task;
 use App\Models\User;
 use App\Services\Deals\DefaultPipeline;
 use Carbon\CarbonImmutable;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Filament\Livewire\GlobalSearch;
 use Livewire\Livewire;
@@ -139,6 +141,16 @@ describe('record pages', function () {
         SecurityPayloads::assertHtmlIsInert(Livewire::test(DealDetailsWidget::class, ['record' => $deal])->html(), $payload);
         SecurityPayloads::assertHtmlIsInert(Livewire::test(DealsOverviewWidget::class)->html(), $payload);
         SecurityPayloads::assertHtmlIsInert(Livewire::test(ManagePipelineStages::class)->assertSuccessful()->html(), $payload);
+    })->with(SecurityPayloads::xss());
+
+    test('a pipeline stage named as markup is shown as text in the delete modal, its heading and its target select', function (string $payload) {
+        $company = ($this->companyNamed)('Acme Ltd');
+        ($this->dealFor)('Retainer', ($this->contactNamed)('Ann'), $company)->update(['pipeline_stage_id' => pipelineStageNamed($this->org->id, 'Discovery')->id]);
+        pipelineStageNamed($this->org->id, 'Lead')->update(['name' => $payload]);
+        $delete = fn (string $name) => TestAction::make(DeleteAction::class)->table(pipelineStageNamed($this->org->id, $name));
+
+        SecurityPayloads::assertHtmlIsInert(Livewire::test(ManagePipelineStages::class)->mountAction($delete('Discovery'))->assertSuccessful()->html(), $payload);
+        SecurityPayloads::assertHtmlIsInert(Livewire::test(ManagePipelineStages::class)->mountAction($delete($payload))->assertSuccessful()->html(), $payload);
     })->with(SecurityPayloads::xss());
 
     test('a segment page and its rule engine show names and values as text', function (string $payload) {

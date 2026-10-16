@@ -9,12 +9,13 @@ use App\Enums\SegmentOperator;
 use App\Models\Company;
 use App\Models\CompanyType;
 use App\Models\CustomField;
+use App\Models\PipelineStage;
 use App\Models\Segment;
 use App\Models\Tag;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * What each organization's segments reference (custom field keys, tag, company and company type IDs), loaded once
+ * What each organization's segments reference (custom field keys, tag, company, company type and pipeline stage IDs), loaded once
  * per request. For display only: enforcement goes through SegmentUsage, which always queries the database.
  *
  * It applies the same matching as {@see SegmentUsage}: the published rules and the draft of every segment are read,
@@ -22,7 +23,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class SegmentUsageIndex
 {
-    /** @var array<int, array{custom_fields: array<string, list<string>>, tags: array<int, list<string>>, companies: array<int, list<string>>, company_types: array<int, list<string>>}> */
+    /** @var array<int, array{custom_fields: array<string, list<string>>, tags: array<int, list<string>>, companies: array<int, list<string>>, company_types: array<int, list<string>>, pipeline_stages: array<int, list<string>>}> */
     private array $byOrganization = [];
 
     /**
@@ -45,6 +46,7 @@ class SegmentUsageIndex
             $record instanceof Tag => ['tags', (int) $record->getKey()],
             $record instanceof Company => ['companies', (int) $record->getKey()],
             $record instanceof CompanyType => ['company_types', (int) $record->getKey()],
+            $record instanceof PipelineStage => ['pipeline_stages', (int) $record->getKey()],
             default => null,
         };
 
@@ -60,16 +62,16 @@ class SegmentUsageIndex
         return $this->segmentNamesUsing($record) !== [];
     }
 
-    /** @return array{custom_fields: array<string, list<string>>, tags: array<int, list<string>>, companies: array<int, list<string>>, company_types: array<int, list<string>>} */
+    /** @return array{custom_fields: array<string, list<string>>, tags: array<int, list<string>>, companies: array<int, list<string>>, company_types: array<int, list<string>>, pipeline_stages: array<int, list<string>>} */
     private function usageOf(int $organizationId): array
     {
         return $this->byOrganization[$organizationId] ??= $this->load($organizationId);
     }
 
-    /** @return array{custom_fields: array<string, list<string>>, tags: array<int, list<string>>, companies: array<int, list<string>>, company_types: array<int, list<string>>} */
+    /** @return array{custom_fields: array<string, list<string>>, tags: array<int, list<string>>, companies: array<int, list<string>>, company_types: array<int, list<string>>, pipeline_stages: array<int, list<string>>} */
     private function load(int $organizationId): array
     {
-        $usage = ['custom_fields' => [], 'tags' => [], 'companies' => [], 'company_types' => []];
+        $usage = ['custom_fields' => [], 'tags' => [], 'companies' => [], 'company_types' => [], 'pipeline_stages' => []];
 
         Segment::query()
             ->withoutGlobalScope('organization')
@@ -90,7 +92,7 @@ class SegmentUsageIndex
     }
 
     /**
-     * @param  array{custom_fields: array<string, list<string>>, tags: array<int, list<string>>, companies: array<int, list<string>>, company_types: array<int, list<string>>}  $usage
+     * @param  array{custom_fields: array<string, list<string>>, tags: array<int, list<string>>, companies: array<int, list<string>>, company_types: array<int, list<string>>, pipeline_stages: array<int, list<string>>}  $usage
      */
     private function record(array &$usage, string $segmentName, SegmentConditionData $condition): void
     {
@@ -100,12 +102,13 @@ class SegmentUsageIndex
             return;
         }
 
-        $ids = array_map('intval', $condition->values());
+        $ids = array_map('intval', $condition->values($condition->type === SegmentConditionType::Deal ? 'deal_stages' : 'values'));
 
         $bucket = match (true) {
             $condition->type === SegmentConditionType::Tags => 'tags',
             $condition->type === SegmentConditionType::Company && in_array($condition->operator, [SegmentOperator::BelongsToAnyOf, SegmentOperator::BelongsToNoneOf], true) => 'companies',
             $condition->type === SegmentConditionType::Company && $condition->operator === SegmentOperator::CompanyTypeIsAnyOf => 'company_types',
+            $condition->type === SegmentConditionType::Deal => 'pipeline_stages',
             default => null,
         };
 

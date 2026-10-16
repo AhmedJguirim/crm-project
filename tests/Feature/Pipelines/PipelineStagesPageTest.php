@@ -15,15 +15,21 @@ use App\Models\Deal;
 use App\Models\Organization;
 use App\Models\Pipeline;
 use App\Models\PipelineStage;
+use App\Models\Segment;
 use App\Models\User;
 use App\Services\Deals\DefaultPipeline;
 use App\Services\Segments\SegmentQueryBuilder;
+use App\Services\Segments\SegmentUsageIndex;
 use Filament\Actions\CreateAction;
+use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Field;
+use Filament\Forms\Components\Select;
+use Filament\Notifications\Livewire\Notifications;
 use Filament\Support\Facades\FilamentColor;
+use Illuminate\Database\Eloquent\Model;
 use Livewire\Livewire;
 
 beforeEach(function () {
@@ -416,4 +422,222 @@ describe('reorder', function () {
         'member' => [OrganizationRole::Member, false],
         'viewer' => [OrganizationRole::Viewer, false],
     ]);
+});
+
+describe('delete a stage', function () {
+    beforeEach(function () {
+        $this->delete = fn (string $stage) => TestAction::make(DeleteAction::class)->table(($this->stage)($stage));
+        $this->order = fn (): array => PipelineStage::query()->where('organization_id', $this->org->id)->orderBy('position')->pluck('position', 'name')->all();
+        $this->segmentUsing = fn (string $stage, string $name = 'Hot deals'): Segment => Segment::factory()->for($this->org)->create([
+            'name' => $name,
+            'rules' => [(new SegmentRuleData('rule-1', 'Rule', [
+                SegmentConditionData::make(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_stages' => [($this->stage)($stage)->id]]),
+            ]))->toArray()],
+        ]);
+        $this->secondLead = Deal::factory()->inStage('Lead')->create(['organization_id' => $this->org->id, 'title' => 'Second']);
+    });
+
+    it('deletes a stage with deals, moving them to the chosen stage', function () {
+        $discovery = ($this->stage)('Discovery');
+
+        $page = Livewire::test(ManagePipelineStages::class)
+            ->callAction(($this->delete)('Lead'), ['target_stage_id' => $discovery->id])
+            ->assertHasNoActionErrors()
+            ->assertNotified('Stage deleted. 2 deals moved to "Discovery".');
+
+        expect(PipelineStage::query()->where('name', 'Lead')->where('organization_id', $this->org->id)->exists())->toBeFalse()
+            ->and($this->retainer->fresh()->pipeline_stage_id)->toBe($discovery->id)
+            ->and($this->secondLead->fresh()->pipeline_stage_id)->toBe($discovery->id)
+            ->and(($this->order)())->toBe(['Discovery' => 1, 'Proposal Sent' => 2, 'Negotiating' => 3, 'Won' => 4, 'Lost' => 5]);
+
+        $page->assertCanSeeTableRecords(collect(['Discovery', 'Proposal Sent', 'Negotiating', 'Won', 'Lost'])->map(fn (string $name): PipelineStage => ($this->stage)($name)), inOrder: true);
+        expect(Livewire::test(DealPipeline::class)->instance()->getBoard()->getColumns()[0]->getLabel())->toBe('Discovery');
+    });
+
+    it('says "1 deal" in the singular', function () {
+        $this->secondLead->delete();
+
+        Livewire::test(ManagePipelineStages::class)
+            ->callAction(($this->delete)('Lead'), ['target_stage_id' => ($this->stage)('Discovery')->id])
+            ->assertNotified('Stage deleted. 1 deal moved to "Discovery".');
+    });
+
+    it('deletes an empty stage without asking for a target', function () {
+        Livewire::test(ManagePipelineStages::class)
+            ->callAction(($this->delete)('Proposal Sent'))
+            ->assertHasNoActionErrors()
+            ->assertNotified('Stage deleted');
+
+        expect(($this->order)())->toBe(['Lead' => 1, 'Discovery' => 2, 'Negotiating' => 3, 'Won' => 4, 'Lost' => 5]);
+    });
+
+    it('defaults the target to the previous open stage, or the next one for the first', function () {
+        $page = Livewire::test(ManagePipelineStages::class);
+
+        $page->mountAction(($this->delete)('Negotiating'))->assertActionDataSet(['target_stage_id' => ($this->stage)('Proposal Sent')->id]);
+        Livewire::test(ManagePipelineStages::class)->mountAction(($this->delete)('Lead'))->assertActionDataSet(['target_stage_id' => ($this->stage)('Discovery')->id]);
+    });
+
+    it('offers only the other open stages, and only when the stage has deals', function () {
+        $page = Livewire::test(ManagePipelineStages::class)->mountAction(($this->delete)('Lead'));
+        $select = $page->instance()->getSchema($page->instance()->getMountedActionSchemaName())->getFlatFields()['target_stage_id'];
+
+        expect($select)->toBeInstanceOf(Select::class)
+            ->and($select->isVisible())->toBeTrue()
+            ->and($select->getOptions())->toBe([
+                ($this->stage)('Discovery')->id => 'Discovery',
+                ($this->stage)('Proposal Sent')->id => 'Proposal Sent',
+                ($this->stage)('Negotiating')->id => 'Negotiating',
+            ])
+            ->and($page->instance()->getMountedAction()->getModalDescription())->toBe('Its 2 deals move to the stage you choose. This cannot be undone.');
+
+        $empty = Livewire::test(ManagePipelineStages::class)->mountAction(($this->delete)('Proposal Sent'));
+        expect($empty->instance()->getSchema($empty->instance()->getMountedActionSchemaName())->getFlatFields())->not->toHaveKey('target_stage_id')
+            ->and($empty->instance()->getMountedAction()->getModalDescription())->toBe('No deal is in this stage. This cannot be undone.')
+            ->and($empty->instance()->getMountedAction()->getModalHeading())->toBe('Delete the stage "Proposal Sent"?');
+    });
+
+    it('describes a single deal in the singular', function () {
+        $this->secondLead->delete();
+
+        $page = Livewire::test(ManagePipelineStages::class)->mountAction(($this->delete)('Lead'));
+
+        expect($page->instance()->getMountedAction()->getModalDescription())->toBe('Its 1 deal moves to the stage you choose. This cannot be undone.');
+    });
+
+    it('refuses a forged target and keeps the stage and its deals', function (Closure $target) {
+        $page = Livewire::test(ManagePipelineStages::class)
+            ->callAction(($this->delete)('Lead'), ['target_stage_id' => $target($this)])
+            ->assertHasActionErrors(['target_stage_id']);
+
+        expect(($this->stage)('Lead')->exists)->toBeTrue()
+            ->and($this->retainer->fresh()->pipeline_stage_id)->toBe(($this->stage)('Lead')->id);
+    })->with([
+        'Won' => [fn ($test): int => ($test->stage)('Won')->id],
+        'the stage itself' => [fn ($test): int => ($test->stage)('Lead')->id],
+        'a stage of another organization' => [fn ($test): int => pipelineStageNamed(Organization::factory()->create(), 'Discovery')->id],
+        'an unknown id' => [fn (): int => 999999],
+        'text' => [fn (): string => 'abc'],
+        'no target' => [fn (): ?int => null],
+    ]);
+
+    it('hides the action on Won and Lost and disables it on the last open stage', function () {
+        $page = Livewire::test(ManagePipelineStages::class)
+            ->assertActionHidden(($this->delete)('Won'))
+            ->assertActionHidden(($this->delete)('Lost'))
+            ->assertActionVisible(($this->delete)('Lead'));
+
+        foreach (['Discovery', 'Proposal Sent', 'Negotiating'] as $name) {
+            Livewire::test(ManagePipelineStages::class)->callAction(($this->delete)($name));
+        }
+
+        Livewire::test(ManagePipelineStages::class)
+            ->assertActionDisabled(($this->delete)('Lead'))
+            ->assertActionExists(($this->delete)('Lead'), fn (DeleteAction $action): bool => $action->getTooltip() === 'A pipeline needs at least one open stage.');
+    });
+
+    it('disables the action of a stage used by a segment, naming the segment', function () {
+        ($this->segmentUsing)('Discovery');
+
+        Livewire::test(ManagePipelineStages::class)
+            ->assertActionDisabled(($this->delete)('Discovery'))
+            ->assertActionExists(($this->delete)('Discovery'), fn (DeleteAction $action): bool => $action->getTooltip() === 'Used in the conditions of the segment "Hot deals". Remove it from those conditions to delete it.')
+            ->assertActionEnabled(($this->delete)('Proposal Sent'));
+    });
+
+    it('reports a segment the display index did not see yet, instead of failing', function () {
+        $page = Livewire::test(ManagePipelineStages::class)->mountAction(($this->delete)('Discovery'));
+
+        ($this->segmentUsing)('Discovery');
+        $this->app->instance(SegmentUsageIndex::class, new class extends SegmentUsageIndex
+        {
+            public function isUsed(Model $record): bool
+            {
+                return false;
+            }
+
+            public function segmentNamesUsing(Model $record): array
+            {
+                return [];
+            }
+        });
+
+        $page->callMountedAction()->assertNotified('The pipeline stage "Discovery" cannot be deleted: it is used in the conditions of the segment "Hot deals". Remove it from those conditions first.');
+
+        expect(($this->stage)('Discovery')->exists)->toBeTrue()
+            ->and(($this->order)())->toBe(['Lead' => 1, 'Discovery' => 2, 'Proposal Sent' => 3, 'Negotiating' => 4, 'Won' => 5, 'Lost' => 6]);
+    });
+
+    it('shows a hostile stage name as plain text in the success notification', function () {
+        ($this->stage)('Discovery')->update(['name' => '<img src=x onerror=alert(1)>']);
+
+        Livewire::test(ManagePipelineStages::class)->callAction(($this->delete)('Lead'), ['target_stage_id' => ($this->stage)('<img src=x onerror=alert(1)>')->id]);
+
+        $notifications = new Notifications;
+        $notifications->mount();
+
+        expect($notifications->notifications->last()->getTitle())->toContain('&lt;img src=x onerror=alert(1)&gt;')
+            ->and($notifications->notifications->last()->getTitle())->not->toContain('<img');
+    });
+
+    it('shows a hostile stage name as plain text in the refusal notification', function () {
+        ($this->stage)('Discovery')->update(['name' => '<img src=x onerror=alert(1)>']);
+        $page = Livewire::test(ManagePipelineStages::class)->mountAction(TestAction::make(DeleteAction::class)->table(($this->stage)('<img src=x onerror=alert(1)>')));
+        ($this->segmentUsing)('<img src=x onerror=alert(1)>', '<b>Hot</b>');
+        $this->app->instance(SegmentUsageIndex::class, new class extends SegmentUsageIndex
+        {
+            public function isUsed(Model $record): bool
+            {
+                return false;
+            }
+        });
+
+        $page->callMountedAction();
+
+        $notifications = new Notifications;
+        $notifications->mount();
+
+        expect($notifications->notifications->last()->getTitle())->toContain('&lt;img src=x onerror=alert(1)&gt;')->toContain('&lt;b&gt;Hot&lt;/b&gt;')
+            ->and($notifications->notifications->last()->getTitle())->not->toContain('<img')->not->toContain('<b>');
+    });
+
+    it('lets only admins and owners delete', function (OrganizationRole $role, bool $visible) {
+        ($this->actAs)($role);
+
+        $page = Livewire::test(ManagePipelineStages::class);
+
+        $visible
+            ? $page->assertActionVisible(($this->delete)('Proposal Sent'))
+            : $page->assertActionHidden(($this->delete)('Proposal Sent'));
+    })->with([
+        'owner' => [OrganizationRole::Owner, true],
+        'admin' => [OrganizationRole::Admin, true],
+        'member' => [OrganizationRole::Member, false],
+        'viewer' => [OrganizationRole::Viewer, false],
+    ]);
+
+    it('refuses a member who forces the delete', function () {
+        ($this->actAs)(OrganizationRole::Member);
+
+        Livewire::test(ManagePipelineStages::class)
+            ->call('mountAction', 'delete', [], ['table' => true, 'recordKey' => (string) ($this->stage)('Proposal Sent')->id])
+            ->assertActionNotMounted()
+            ->call('callMountedAction');
+
+        expect(($this->order)())->toBe(['Lead' => 1, 'Discovery' => 2, 'Proposal Sent' => 3, 'Negotiating' => 4, 'Won' => 5, 'Lost' => 6]);
+    });
+
+    it('cannot be forced on Won, or on a stage of another organization', function () {
+        $foreign = pipelineStageNamed(Organization::factory()->create(), 'Discovery');
+
+        foreach ([($this->stage)('Won')->id, $foreign->id] as $key) {
+            Livewire::test(ManagePipelineStages::class)
+                ->call('mountAction', 'delete', [], ['table' => true, 'recordKey' => (string) $key])
+                ->assertActionNotMounted()
+                ->call('callMountedAction');
+        }
+
+        expect(($this->order)())->toBe(['Lead' => 1, 'Discovery' => 2, 'Proposal Sent' => 3, 'Negotiating' => 4, 'Won' => 5, 'Lost' => 6])
+            ->and(PipelineStage::query()->withoutGlobalScope('organization')->whereKey($foreign->id)->exists())->toBeTrue();
+    });
 });

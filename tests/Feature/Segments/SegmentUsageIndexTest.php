@@ -91,6 +91,16 @@ describe('parity with the authoritative check', function () {
 
             return [$type, usageIndexSegment($org, [usageIndexCondition(SegmentConditionType::Company, null, SegmentOperator::CompanyTypeIsAnyOf, ['values' => [$type->id]])])];
         }],
+        'pipeline stage in the published rules' => [function (Organization $org): array {
+            $stage = pipelineStageNamed($org, 'Discovery');
+
+            return [$stage, usageIndexSegment($org, [usageIndexCondition(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_stages' => [$stage->id]])])];
+        }],
+        'pipeline stage stored as a string in the draft rules' => [function (Organization $org): array {
+            $stage = pipelineStageNamed($org, 'Discovery');
+
+            return [$stage, usageIndexSegment($org, [usageIndexCondition(SegmentConditionType::Deal, null, SegmentOperator::HasNoDeal, ['deal_stages' => [(string) $stage->id]])], asDraft: true)];
+        }],
     ]);
 
     it('finds nothing for records no segment references, like the database check', function () {
@@ -126,6 +136,26 @@ describe('parity with the authoritative check', function () {
         expect($index->isUsed($type))->toBeTrue()
             ->and($index->isUsed($company))->toBeFalse()
             ->and(SegmentUsage::isUsed($company))->toBeFalse();
+    });
+
+    it('does not confuse a pipeline stage with a tag that shares its ID', function () {
+        $stage = pipelineStageNamed($this->org, 'Discovery');
+        $tag = Tag::factory()->for($this->org)->create(['id' => $stage->id]);
+        usageIndexSegment($this->org, [usageIndexCondition(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_stages' => [$stage->id]])]);
+
+        $index = new SegmentUsageIndex;
+
+        expect($index->isUsed($stage))->toBeTrue()
+            ->and($index->isUsed($tag))->toBeFalse()
+            ->and(SegmentUsage::isUsed($tag))->toBeFalse();
+    });
+
+    it('does not read the other value lists of a deal condition as pipeline stages', function () {
+        $stage = pipelineStageNamed($this->org, 'Discovery');
+        usageIndexSegment($this->org, [usageIndexCondition(SegmentConditionType::Deal, null, SegmentOperator::HasDeal, ['deal_statuses' => [(string) $stage->id], 'values' => [$stage->id]])]);
+
+        expect((new SegmentUsageIndex)->isUsed($stage))->toBeFalse()
+            ->and(SegmentUsage::isUsed($stage))->toBeFalse();
     });
 
     it('ignores the segments of other organizations', function () {

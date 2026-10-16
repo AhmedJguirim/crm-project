@@ -9,6 +9,7 @@ use App\Enums\SegmentOperator;
 use App\Models\Company;
 use App\Models\CompanyType;
 use App\Models\CustomField;
+use App\Models\PipelineStage;
 use App\Models\Segment;
 use App\Models\Tag;
 use Illuminate\Database\Eloquent\Builder;
@@ -16,7 +17,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Finds the segments whose conditions reference a record (custom field, tag, company or company type),
+ * Finds the segments whose conditions reference a record (custom field, tag, company, company type or pipeline stage),
  * looking at both the published rules and the unsaved draft of every segment.
  */
 class SegmentUsage
@@ -110,6 +111,9 @@ class SegmentUsage
             $record instanceof Tag => $byIds(SegmentConditionType::Tags),
             $record instanceof Company => $byIds(SegmentConditionType::Company, SegmentOperator::BelongsToAnyOf, SegmentOperator::BelongsToNoneOf),
             $record instanceof CompanyType => $byIds(SegmentConditionType::Company, SegmentOperator::CompanyTypeIsAnyOf),
+            $record instanceof PipelineStage => collect([$record->getKey(), (string) $record->getKey()])
+                ->map(fn (int|string $id): array => ['type' => SegmentConditionType::Deal->value, 'value' => ['deal_stages' => [$id]]])
+                ->all(),
             default => [],
         };
     }
