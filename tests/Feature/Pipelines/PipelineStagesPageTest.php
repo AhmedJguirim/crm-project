@@ -29,6 +29,7 @@ use Filament\Forms\Components\Field;
 use Filament\Forms\Components\Select;
 use Filament\Notifications\Livewire\Notifications;
 use Filament\Support\Facades\FilamentColor;
+use Filament\Tables\Columns\TextColumn;
 use Illuminate\Database\Eloquent\Model;
 use Livewire\Livewire;
 
@@ -222,6 +223,23 @@ describe('probability', function () {
         expect(($this->stage)('Discovery')->probability)->toBe(25);
     })->with([-1, 101, '12.5', 'abc']);
 
+    it('explains the probability on a new stage', function () {
+        $field = Livewire::test(ManagePipelineStages::class)
+            ->mountAction(CreateAction::class)
+            ->instance()->mountedActionSchema0->getFlatFields(withHidden: true)['probability'];
+
+        expect($field->getLabel())->toBe('Win probability')
+            ->and($field->isDisabled())->toBeFalse()
+            ->and(html_entity_decode(strip_tags((string) $field->getChildSchema(Field::BELOW_CONTENT_SCHEMA_KEY)?->toHtmlString())))->toContain('How likely a deal in this stage is to be won, from 0 to 100%.');
+    });
+
+    it('labels the table column and explains it in a header tooltip', function () {
+        Livewire::test(ManagePipelineStages::class)
+            ->assertTableColumnExists('probability', fn (TextColumn $column): bool => $column->getLabel() === 'Win probability'
+                && $column->getHeaderTooltip() === 'How likely a deal in this stage is to be won.')
+            ->assertTableColumnFormattedStateSet('probability', '10%', ($this->stage)('Lead'));
+    });
+
     it('fixes the probability of Won and Lost', function () {
         $helper = 'A won stage is always 100% and a lost stage 0%.';
         $probabilityField = fn (string $stage): Field => Livewire::test(ManagePipelineStages::class)
@@ -232,13 +250,16 @@ describe('probability', function () {
             $field = $probabilityField($name);
 
             expect($field->isDisabled())->toBeTrue()
+                ->and(strip_tags((string) $field->getChildSchema(Field::BELOW_CONTENT_SCHEMA_KEY)?->toHtmlString()))->not->toContain('How likely')
                 ->and(html_entity_decode(strip_tags((string) $field->getChildSchema(Field::BELOW_CONTENT_SCHEMA_KEY)?->toHtmlString())))->toContain($helper);
         }
 
         $open = $probabilityField('Discovery');
 
         expect($open->isDisabled())->toBeFalse()
-            ->and(strip_tags((string) $open->getChildSchema(Field::BELOW_CONTENT_SCHEMA_KEY)?->toHtmlString()))->not->toContain('always');
+            ->and($open->getLabel())->toBe('Win probability')
+            ->and(strip_tags((string) $open->getChildSchema(Field::BELOW_CONTENT_SCHEMA_KEY)?->toHtmlString()))->not->toContain('always')
+            ->and(html_entity_decode(strip_tags((string) $open->getChildSchema(Field::BELOW_CONTENT_SCHEMA_KEY)?->toHtmlString())))->toContain('How likely a deal in this stage is to be won, from 0 to 100%. Forecasts will use it to weight deal values.');
 
         ($this->edit)('Won', ['name' => 'Won', 'color' => 'success', 'probability' => 55])->assertHasNoActionErrors();
         ($this->edit)('Lost', ['name' => 'Lost', 'color' => 'gray', 'probability' => 30])->assertHasNoActionErrors();
@@ -404,6 +425,36 @@ describe('reorder', function () {
 
         expect(($this->order)())->toBe(['Negotiating' => 1, 'Lead' => 2, 'Discovery' => 3, 'Proposal Sent' => 4, 'Won' => 5, 'Lost' => 6])
             ->and($foreign->fresh()->position)->toBe(1);
+    });
+
+    it('shows admins and owners a labelled reorder button that toggles', function (OrganizationRole $role) {
+        if ($role !== OrganizationRole::Owner) {
+            ($this->actAs)($role);
+        }
+
+        Livewire::test(ManagePipelineStages::class)
+            ->assertSee('Reorder stages')
+            ->assertDontSee('Done reordering')
+            ->call('toggleTableReordering')
+            ->assertSee('Done reordering')
+            ->assertDontSee('Reorder stages');
+    })->with([OrganizationRole::Owner, OrganizationRole::Admin]);
+
+    it('shows members and viewers no reorder button', function (OrganizationRole $role) {
+        ($this->actAs)($role);
+
+        Livewire::test(ManagePipelineStages::class)
+            ->assertDontSee('Reorder stages')
+            ->call('toggleTableReordering')
+            ->assertDontSee('Done reordering');
+    })->with([OrganizationRole::Member, OrganizationRole::Viewer]);
+
+    it('builds the trigger as a button with a state-dependent label', function () {
+        $table = Livewire::test(ManagePipelineStages::class)->instance()->getTable();
+
+        expect($table->getReorderRecordsTriggerAction(false)->isButton())->toBeTrue()
+            ->and($table->getReorderRecordsTriggerAction(false)->getLabel())->toBe('Reorder stages')
+            ->and($table->getReorderRecordsTriggerAction(true)->getLabel())->toBe('Done reordering');
     });
 
     it('lets only admins and owners reorder', function (OrganizationRole $role, bool $allowed) {

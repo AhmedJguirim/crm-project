@@ -45,7 +45,7 @@ it('refuses a forged array in a pipeline stage field with one single-value error
     $page = ($this->forgedStageEdit)($stage, $data);
 
     $page->assertHasActionErrors([$field]);
-    expect($page->errors()->get("mountedActions.0.data.{$field}"))->toBe(["The {$field} field must be a single value."]);
+    expect($page->errors()->get("mountedActions.0.data.{$field}"))->toBe(['The '.($field === 'probability' ? 'win probability' : $field).' field must be a single value.']);
 
     $record = pipelineStageNamed($this->org->id, $stage)->refresh();
     expect($record->name)->toBe($stage)

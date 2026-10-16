@@ -14,6 +14,10 @@ use Illuminate\Database\Eloquent\Builder;
 
 class PipelineStageForm
 {
+    private const CLOSED_PROBABILITY_HELP = 'A won stage is always 100% and a lost stage 0%.';
+
+    private const OPEN_PROBABILITY_HELP = 'How likely a deal in this stage is to be won, from 0 to 100%. Forecasts will use it to weight deal values.';
+
     public static function configure(Schema $schema): Schema
     {
         return $schema
@@ -39,14 +43,14 @@ class PipelineStageForm
                     ->native(false),
 
                 TextInput::make('probability')
-                    ->label('Probability')
+                    ->label('Win probability')
                     ->required()
                     ->integer()
                     ->minValue(0)
                     ->maxValue(100)
                     ->suffix('%')
                     ->disabled(fn (?PipelineStage $record): bool => self::isClosed($record))
-                    ->helperText(fn (?PipelineStage $record): ?string => self::isClosed($record) ? 'A won stage is always 100% and a lost stage 0%.' : null),
+                    ->helperText(fn (?PipelineStage $record): string => self::isClosed($record) ? self::CLOSED_PROBABILITY_HELP : self::OPEN_PROBABILITY_HELP),
             ]);
     }
 
