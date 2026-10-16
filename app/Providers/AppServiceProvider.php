@@ -9,6 +9,7 @@ use App\Mail\SecuredMarkdown;
 use App\Models\Organization;
 use App\Policies\SegmentPolicy;
 use App\Services\Segments\SegmentUsageIndex;
+use App\Support\Livewire\RefuseMistypedCallArguments;
 use App\Support\Livewire\RefuseSubKeyUpdatesOfScalars;
 use App\Support\Tenancy\CurrentOrganization;
 use App\Support\Tenancy\TenantContext;
@@ -23,6 +24,7 @@ use Illuminate\Validation\Rules\Password;
 use Spatie\LaravelTypeScriptTransformer\TypeScriptTransformerApplicationServiceProvider;
 
 use function Livewire\before;
+use function Livewire\on;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -86,6 +88,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureDefaults();
         $this->configurePanelTimezone();
         $this->configureLivewireUpdateGuard();
+        $this->configureLivewireCallGuard();
         $this->configureSingleValueFormFields();
     }
 
@@ -95,6 +98,17 @@ class AppServiceProvider extends ServiceProvider
     protected function configureLivewireUpdateGuard(): void
     {
         before('update', new RefuseSubKeyUpdatesOfScalars);
+    }
+
+    /**
+     * Refuses a Livewire call whose arguments do not match the method's declared types with a 419 instead of a 500 (BUG-51).
+     */
+    protected function configureLivewireCallGuard(): void
+    {
+        $guard = new RefuseMistypedCallArguments;
+
+        on('exception', [$guard, 'refuseMistypedArgument']);
+        before('call', [$guard, 'refusePaginationArguments']);
     }
 
     /**
