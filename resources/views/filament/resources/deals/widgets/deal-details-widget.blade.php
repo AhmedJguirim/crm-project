@@ -18,6 +18,13 @@
                 </x-filament::badge>
             </div>
 
+            @if ($timeInStage)
+                <div>
+                    <dt class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Time in stage</dt>
+                    <dd class="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">{{ $timeInStage }}</dd>
+                </div>
+            @endif
+
             <div>
                 <dt class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Value</dt>
                 <dd class="mt-1 text-sm font-semibold text-gray-900 dark:text-gray-100">

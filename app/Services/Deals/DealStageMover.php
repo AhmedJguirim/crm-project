@@ -4,8 +4,10 @@ namespace App\Services\Deals;
 
 use App\Enums\DealStatus;
 use App\Models\Deal;
+use App\Models\DealStageChange;
 use App\Models\PipelineStage;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\Auth;
 
 final class DealStageMover
 {
@@ -41,5 +43,21 @@ final class DealStageMover
         $deal->fill(self::attributesFor($stage, $deal))->save();
 
         return $deal;
+    }
+
+    /**
+     * Writes the history row of a deal that was created (no from stage) or moved to another stage. The only code that
+     * creates `DealStageChange` rows; the deal observer calls it, so every save that changes the stage is recorded.
+     */
+    public static function recordStageChange(Deal $deal, ?int $fromStageId, CarbonInterface $changedAt): DealStageChange
+    {
+        return DealStageChange::create([
+            'organization_id' => $deal->organization_id,
+            'deal_id' => $deal->getKey(),
+            'from_pipeline_stage_id' => $fromStageId,
+            'to_pipeline_stage_id' => (int) $deal->pipeline_stage_id,
+            'changed_by' => Auth::id(),
+            'changed_at' => $changedAt,
+        ]);
     }
 }

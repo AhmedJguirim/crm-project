@@ -30,6 +30,10 @@ function dealStageWritePatterns(): array
             'pattern' => '/\$\w+\[[\'"]status[\'"]\]\s*=\s*DealStatus::/',
             'except' => ['Services/Deals/DealStageMover.php'],
         ],
+        'a deal stage change written outside DealStageMover' => [
+            'pattern' => '/(DealStageChange::|stageChanges\(\)->)(create|forceCreate|insert|insertGetId|firstOrCreate|updateOrCreate|make|save)\s*\(|new DealStageChange\b/',
+            'except' => ['Services/Deals/DealStageMover.php'],
+        ],
     ];
 }
 

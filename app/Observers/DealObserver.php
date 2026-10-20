@@ -5,6 +5,7 @@ namespace App\Observers;
 use App\Jobs\ResyncContactSegments;
 use App\Models\Deal;
 use App\Models\PipelineStage;
+use App\Services\Deals\DealStageMover;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
@@ -27,6 +28,20 @@ class DealObserver
     {
         if ($deal->isDirty('pipeline_stage_id')) {
             $this->ensureStageOfOrganization($deal);
+        }
+    }
+
+    public function created(Deal $deal): void
+    {
+        DealStageMover::recordStageChange($deal, null, $deal->created_at ?? now());
+    }
+
+    public function updated(Deal $deal): void
+    {
+        if ($deal->wasChanged('pipeline_stage_id')) {
+            $original = $deal->getOriginal('pipeline_stage_id');
+
+            DealStageMover::recordStageChange($deal, $original === null ? null : (int) $original, now());
         }
     }
 

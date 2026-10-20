@@ -7,6 +7,7 @@ use App\Models\Concerns\BelongsToOrganization;
 use App\Models\Concerns\HasOwner;
 use App\Observers\DealObserver;
 use App\Support\LocalTime;
+use Carbon\CarbonInterface;
 use Database\Factories\DealFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
@@ -134,6 +135,29 @@ class Deal extends Model
     public function activities(): HasMany
     {
         return $this->hasMany(Activity::class);
+    }
+
+    /**
+     * @return HasMany<DealStageChange, $this>
+     */
+    public function stageChanges(): HasMany
+    {
+        return $this->hasMany(DealStageChange::class);
+    }
+
+    /**
+     * When the deal entered its current stage, from its stage history; null when the history doesn't know (no row, or
+     * the latest row is for another stage).
+     */
+    public function stageEnteredAt(): ?CarbonInterface
+    {
+        $latest = $this->stageChanges()->orderByDesc('changed_at')->orderByDesc('id')->first();
+
+        if ($latest === null || $latest->to_pipeline_stage_id !== $this->pipeline_stage_id) {
+            return null;
+        }
+
+        return $latest->changed_at;
     }
 
     public function scopeOpen(Builder $query): Builder
