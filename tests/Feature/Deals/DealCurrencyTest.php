@@ -25,6 +25,10 @@ beforeEach(function () {
     $this->actingAs($this->user);
     Filament::setTenant($this->org);
 
+    $this->pipelineCardValue = fn (Deal $deal): ?string => collect(Livewire::test(DealPipeline::class)->instance()->getBoard()->getCardSchema($deal)->getFlatComponents(withHidden: true))
+        ->first(fn ($component): bool => $component instanceof TextEntry && $component->getName() === 'value')
+        ?->getState();
+
     $this->contact = Contact::factory()->create(['organization_id' => $this->org->id]);
     $this->deal = Deal::factory()->inStage('Lead')->create([
         'organization_id' => $this->org->id,
@@ -91,12 +95,12 @@ test('the invoices widget of a deal shows amounts and totals in the currency of 
 });
 
 test('the pipeline card shows the value in the currency of the organization', function () {
-    Livewire::test(DealPipeline::class)->assertSee('€1,234.50');
+    expect(($this->pipelineCardValue)($this->deal))->toBe('€1,234.50');
 });
 
 test('a default organization shows dollars', function () {
     $this->org->update(['currency' => Currency::Usd]);
 
     Livewire::test(ListDeals::class)->assertSee('$1,234.50')->assertDontSee('€1,234.50');
-    Livewire::test(DealPipeline::class)->assertSee('$1,234.50');
+    expect(($this->pipelineCardValue)($this->deal))->toBe('$1,234.50');
 });

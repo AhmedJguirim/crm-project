@@ -427,6 +427,51 @@ class DealPipeline extends BoardResourcePage
             ->all();
     }
 
+    /** @var array<string, array{text: string, hint: ?string}>|null */
+    protected ?array $cachedBoardColumnSummaries = null;
+
+    /**
+     * The line under a column header: the total value of the column's deals and, for an open stage, that total weighted by the stage's win probability. Same deals as the count badge (search and filters applied). Null for an unknown column.
+     *
+     * @return array{text: string, hint: ?string}|null
+     */
+    public function getBoardColumnSummary(string $columnId): ?array
+    {
+        return ($this->cachedBoardColumnSummaries ??= $this->buildBoardColumnSummaries())[$columnId] ?? null;
+    }
+
+    /**
+     * One grouped aggregate over the filtered board query, formatted per stage of the default pipeline.
+     *
+     * @return array<string, array{text: string, hint: ?string}>
+     */
+    protected function buildBoardColumnSummaries(): array
+    {
+        $currency = CurrentOrganization::find()?->currencyCode() ?? 'USD';
+
+        $totals = $this->getFilteredTableQuery()
+            ->select('pipeline_stage_id')
+            ->selectRaw('COALESCE(SUM(value), 0) as total_value')
+            ->groupBy('pipeline_stage_id')
+            ->pluck('total_value', 'pipeline_stage_id');
+
+        return DefaultPipeline::stagesOf(CurrentOrganization::get()->id)
+            ->mapWithKeys(function (PipelineStage $stage) use ($totals, $currency): array {
+                $total = (float) ($totals[$stage->getKey()] ?? 0);
+                $text = 'Total '.Number::currency($total, $currency);
+
+                if ($stage->type !== DealStatus::Open) {
+                    return [(string) $stage->getKey() => ['text' => $text, 'hint' => null]];
+                }
+
+                return [(string) $stage->getKey() => [
+                    'text' => $text.' · Weighted '.Number::currency($stage->weightedValue($total), $currency),
+                    'hint' => "Weighted: the total × {$stage->probability}% win probability",
+                ]];
+            })
+            ->all();
+    }
+
     protected function getHeaderActions(): array
     {
         return [

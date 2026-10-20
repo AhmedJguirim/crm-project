@@ -53,4 +53,12 @@ class PipelineStage extends Model
     {
         return $this->hasMany(Deal::class);
     }
+
+    /**
+     * The value weighted by this stage's win probability (0-100).
+     */
+    public function weightedValue(float $value): float
+    {
+        return $value * $this->probability / 100;
+    }
 }

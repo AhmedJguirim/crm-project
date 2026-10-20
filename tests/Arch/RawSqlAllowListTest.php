@@ -23,6 +23,9 @@ function rawSqlAllowList(): array
         'Filament/Resources/CompanyTypes/Schemas/CompanyTypeForm.php' => [
             'constant' => 'lower(name) = ? with the name as a binding',
         ],
+        'Filament/Resources/Deals/Pages/DealPipeline.php' => [
+            'constant' => 'constant aggregate select (COALESCE(SUM(value), 0)) for the board column totals',
+        ],
         'Filament/Resources/Deals/Schemas/DealDrawerInfolist.php' => [
             'constant' => 'constant orderByRaw on the due date',
         ],

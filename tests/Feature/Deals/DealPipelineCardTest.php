@@ -57,10 +57,11 @@ test('the card shows title, subtitle, value and date without labels or buttons',
     $page = Livewire::test(DealPipeline::class)
         ->assertSee('Retainer')
         ->assertSee('Jane Doe · Acme Ltd')
-        ->assertSee('€1,234.50')
         ->assertSee('Oct 6, 2026')
         ->assertDontSee('Close Date')
         ->assertDontSee('No contact');
+
+    expect(($this->cardEntry)($this->deal, 'value')->getState())->toBe('€1,234.50');
 
     expect($page->instance()->getBoard()->getRecordActions())->toBe([])
         ->and($page->instance()->getBoard()->getCardAction())->toBe('openDeal');
@@ -84,11 +85,14 @@ test('the value uses the organization currency, zero is shown and null is hidden
     $this->org->update(['currency' => Currency::Gbp]);
     $this->deal->forceFill(['value' => 0])->saveQuietly();
 
-    Livewire::test(DealPipeline::class)->assertSee('£0.00');
+    $entry = ($this->cardEntry)($this->deal->fresh(), 'value');
+
+    expect($entry->isVisible())->toBeTrue()
+        ->and($entry->getState())->toBe('£0.00');
 
     $this->deal->forceFill(['value' => null])->saveQuietly();
 
-    Livewire::test(DealPipeline::class)->assertDontSee('£0.00')->assertDontSee('—');
+    Livewire::test(DealPipeline::class)->assertDontSee('—');
 
     expect(($this->cardEntry)($this->deal->fresh(), 'value')->isVisible())->toBeFalse();
 });
