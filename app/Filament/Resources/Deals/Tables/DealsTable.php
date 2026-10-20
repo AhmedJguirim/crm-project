@@ -34,7 +34,7 @@ class DealsTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['owner.organizations', 'companyWithTrashed', 'pipelineStage']))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['owner.organizations', 'companyWithTrashed', 'pipelineStage', 'latestStageChange']))
             ->columns([
                 TextColumn::make('title')
                     ->searchable()
@@ -70,6 +70,11 @@ class DealsTable
                     ->badge()
                     ->color(fn (Deal $record): ?string => $record->pipelineStage?->color)
                     ->sortable(query: fn (Builder $query, string $direction): Builder => $query->orderBy(PipelineStage::query()->select('position')->whereColumn('pipeline_stages.id', 'deals.pipeline_stage_id'), $direction)),
+
+                TextColumn::make('time_in_stage')
+                    ->label('Time in stage')
+                    ->state(fn (Deal $record): ?string => $record->timeInStageForHumans())
+                    ->placeholder('—'),
 
                 TextColumn::make('status')
                     ->badge()

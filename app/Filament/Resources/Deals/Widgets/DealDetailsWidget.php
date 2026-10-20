@@ -6,7 +6,6 @@ use App\Enums\DealStatus;
 use App\Models\Deal;
 use App\Support\LocalTime;
 use App\Support\Tenancy\CurrentOrganization;
-use Carbon\CarbonInterface;
 use Filament\Widgets\Widget;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Number;
@@ -68,8 +67,6 @@ class DealDetailsWidget extends Widget
             return null;
         }
 
-        $duration = $enteredAt->diffForHumans(now(), ['syntax' => CarbonInterface::DIFF_ABSOLUTE, 'parts' => 1]);
-
-        return $duration.' (since '.LocalTime::format($enteredAt, 'M j, Y').')';
+        return $deal->timeInStageForHumans().' (since '.LocalTime::format($enteredAt, 'M j, Y').')';
     }
 }

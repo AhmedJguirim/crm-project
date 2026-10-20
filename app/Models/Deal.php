@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[ObservedBy([DealObserver::class])]
 class Deal extends Model
@@ -146,18 +147,37 @@ class Deal extends Model
     }
 
     /**
+     * The newest stage history row (latest changed_at, then highest id), loadable for many deals in one query.
+     *
+     * @return HasOne<DealStageChange, $this>
+     */
+    public function latestStageChange(): HasOne
+    {
+        return $this->hasOne(DealStageChange::class)->latestOfMany('changed_at');
+    }
+
+    /**
      * When the deal entered its current stage, from its stage history; null when the history doesn't know (no row, or
-     * the latest row is for another stage).
+     * the latest row is for another stage). Uses the eager-loaded `latestStageChange` when present, so lists pay one
+     * query for all their deals.
      */
     public function stageEnteredAt(): ?CarbonInterface
     {
-        $latest = $this->stageChanges()->orderByDesc('changed_at')->orderByDesc('id')->first();
+        $latest = $this->relationLoaded('latestStageChange') ? $this->latestStageChange : $this->latestStageChange()->first();
 
         if ($latest === null || (int) $latest->to_pipeline_stage_id !== (int) $this->pipeline_stage_id) {
             return null;
         }
 
         return $latest->changed_at;
+    }
+
+    /**
+     * How long the deal has been in its current stage (e.g. "3 days"); null when the stage history doesn't know.
+     */
+    public function timeInStageForHumans(): ?string
+    {
+        return $this->stageEnteredAt()?->diffForHumans(now(), ['syntax' => CarbonInterface::DIFF_ABSOLUTE, 'parts' => 1]);
     }
 
     public function scopeOpen(Builder $query): Builder

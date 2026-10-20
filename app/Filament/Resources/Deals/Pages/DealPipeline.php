@@ -102,6 +102,13 @@ class DealPipeline extends BoardResourcePage
                     ])
                         ->justify('between')
                         ->align('center'),
+
+                    TextEntry::make('time_in_stage')
+                        ->hiddenLabel()
+                        ->state(fn (Deal $record): ?string => ($duration = $record->timeInStageForHumans()) === null ? null : "{$duration} in stage")
+                        ->size(TextSize::ExtraSmall)
+                        ->color('gray')
+                        ->visible(fn (Deal $record): bool => $record->timeInStageForHumans() !== null),
                 ]);
             })
             ->actions([
@@ -363,6 +370,6 @@ class DealPipeline extends BoardResourcePage
     {
         return Deal::query()
             ->where('organization_id', CurrentOrganization::get()->id)
-            ->with(['contact', 'company', 'creator', 'pipelineStage']);
+            ->with(['contact', 'company', 'creator', 'pipelineStage', 'latestStageChange']);
     }
 }
