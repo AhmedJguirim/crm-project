@@ -105,6 +105,24 @@
                         {{ \App\Support\LocalTime::format($record->lost_at, 'M j, Y \a\t g:i A') ?? '—' }}
                     </dd>
                 </div>
+
+                <div>
+                    <dt class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Lost Reason</dt>
+                    <dd class="mt-1 text-sm text-gray-700 dark:text-gray-300">
+                        @if (filled($record->lostReasonLabel()))
+                            {{ $record->lostReasonLabel() }}
+                        @else
+                            <span class="text-gray-400 dark:text-gray-600">No reason given</span>
+                        @endif
+                    </dd>
+                </div>
+
+                @if (filled($record->lost_reason_note))
+                    <div>
+                        <dt class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Lost Note</dt>
+                        <dd class="mt-1 max-h-48 overflow-y-auto whitespace-pre-line text-sm text-gray-700 dark:text-gray-300">{{ $record->lost_reason_note }}</dd>
+                    </div>
+                @endif
             @endif
 
             <div class="border-t border-gray-100 pt-4 dark:border-gray-700">

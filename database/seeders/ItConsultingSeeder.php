@@ -655,13 +655,18 @@ class ItConsultingSeeder extends Seeder
     }
 
     /**
-     * The reasons the demo organization loses deals for.
+     * The reasons the demo organization loses deals for, and the reason of its lost deal.
      */
     private function seedLostReasons(Organization $org): void
     {
         foreach (['Price too high', 'Went with a competitor', 'No budget', 'Bad timing', 'No response'] as $name) {
             LostReason::firstOrCreate(['organization_id' => $org->id, 'name' => $name]);
         }
+
+        Deal::query()->where('title', 'NordicSec Pen Testing Extension')->firstOrFail()->update([
+            'lost_reason_id' => LostReason::query()->where('name', 'No budget')->firstOrFail()->id,
+            'lost_reason_note' => 'Budget reallocated to internal team.',
+        ]);
     }
 
     /**

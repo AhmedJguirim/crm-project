@@ -48,6 +48,7 @@ use Carbon\CarbonImmutable;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
+use Filament\Forms\Components\Select;
 use Filament\Livewire\GlobalSearch;
 use Livewire\Livewire;
 use Tests\Feature\Security\SecurityPayloads;
@@ -134,6 +135,26 @@ describe('record pages', function () {
 
         SecurityPayloads::assertHtmlIsInert(Livewire::test(ViewDeal::class, ['record' => $deal->id])->assertSuccessful()->html(), $payload);
         SecurityPayloads::assertHtmlIsInert(Livewire::test(DealDetailsWidget::class, ['record' => $deal])->html(), $payload);
+    })->with(SecurityPayloads::xss());
+
+    test('a lost reason and note typed as markup are shown as text on the deal page and in the move to lost form', function (string $payload) {
+        $reason = LostReason::factory()->create(['organization_id' => $this->org->id, 'name' => $payload]);
+        $lost = ($this->dealFor)('Lost Retainer', ($this->contactNamed)('Ann'));
+        $lost->update(['status' => DealStatus::Lost, 'lost_at' => now(), 'lost_reason_id' => $reason->id, 'lost_reason_note' => $payload]);
+        $open = ($this->dealFor)('Open Retainer', ($this->contactNamed)('Bob'));
+
+        Livewire::test(ViewDeal::class, ['record' => $lost->id])->assertSuccessful();
+        SecurityPayloads::assertHtmlIsInert(Livewire::test(DealDetailsWidget::class, ['record' => $lost])->html(), $payload);
+        Livewire::test(ViewDeal::class, ['record' => $open->id])
+            ->mountAction('moveToLost')
+            ->assertSchemaComponentExists('lost_reason_id', 'mountedActionSchema0', function (Select $field) use ($payload): bool {
+                $html = $field->toHtml();
+
+                expect($field->getOptions())->toContain($payload)
+                    ->and(str_contains($payload, '<') ? $html : '')->not->toContain($payload);
+
+                return true;
+            });
     })->with(SecurityPayloads::xss());
 
     test('a pipeline stage named as markup is shown as text in the deal list, tab, page and overview', function (string $payload) {

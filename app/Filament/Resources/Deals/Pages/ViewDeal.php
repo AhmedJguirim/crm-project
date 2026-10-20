@@ -7,6 +7,7 @@ use App\Filament\Actions\LogDealActivityAction;
 use App\Filament\Actions\QuickTaskAction;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Deals\DealResource;
+use App\Filament\Resources\Deals\Schemas\DealForm;
 use App\Filament\Resources\Deals\Widgets\DealActivityFeed;
 use App\Filament\Resources\Deals\Widgets\DealDetailsWidget;
 use App\Filament\Resources\Deals\Widgets\DealInvoicesWidget;
@@ -22,6 +23,7 @@ use Filament\Actions\EditAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\Page;
+use Filament\Support\Enums\Width;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Model;
 
@@ -126,12 +128,13 @@ class ViewDeal extends Page
                 ->icon(Heroicon::OutlinedXCircle)
                 ->color('danger')
                 ->visible($isOpen)
-                ->requiresConfirmation()
+                ->schema(DealForm::lostReasonFields())
+                ->modalWidth(Width::Medium)
                 ->modalHeading('Move deal to Lost?')
                 ->modalDescription('This will close the deal as Lost and set the lost date to now.')
                 ->modalSubmitActionLabel('Yes, mark as lost')
-                ->action(function (): void {
-                    DealStageMover::move($this->getRecord(), DefaultPipeline::stageOfType($this->getRecord()->organization_id, DealStatus::Lost));
+                ->action(function (array $data): void {
+                    DealStageMover::moveToLost($this->getRecord(), $data['lost_reason_id'] ?? null, $data['lost_reason_note'] ?? null);
 
                     Notification::make()
                         ->title('Deal moved to Lost')

@@ -133,6 +133,8 @@ test('it consulting seeder is idempotent for companies', function () {
         ->and(CompanyType::query()->count())->toBe(4)
         ->and(LostReason::query()->count())->toBe(5)
         ->and(LostReason::query()->pluck('name')->sort()->values()->all())->toBe(['Bad timing', 'No budget', 'No response', 'Price too high', 'Went with a competitor'])
+        ->and(Deal::query()->where('title', 'NordicSec Pen Testing Extension')->firstOrFail()->lostReason?->name)->toBe('No budget')
+        ->and(Deal::query()->where('title', 'NordicSec Pen Testing Extension')->firstOrFail()->lost_reason_note)->toBe('Budget reallocated to internal team.')
         ->and(CompanyCustomField::query()->count())->toBe(4)
         ->and(Contact::query()->withCount('companies')->get()->sum('companies_count'))->toBe(16);
 });

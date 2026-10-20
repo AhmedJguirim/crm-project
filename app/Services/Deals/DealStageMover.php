@@ -46,6 +46,21 @@ final class DealStageMover
     }
 
     /**
+     * Moves the deal to the Lost stage of its organization with an optional reason and note, in one save (one history
+     * row). The deal observer checks that the reason belongs to the organization.
+     */
+    public static function moveToLost(Deal $deal, ?int $lostReasonId, ?string $lostReasonNote): Deal
+    {
+        $deal->fill([
+            ...self::attributesFor(DefaultPipeline::stageOfType($deal->organization_id, DealStatus::Lost), $deal),
+            'lost_reason_id' => $lostReasonId,
+            'lost_reason_note' => $lostReasonNote,
+        ])->save();
+
+        return $deal;
+    }
+
+    /**
      * Writes the history row of a deal that was created (no from stage) or moved to another stage. The only code that
      * creates `DealStageChange` rows; the deal observer calls it, so every save that changes the stage is recorded.
      */

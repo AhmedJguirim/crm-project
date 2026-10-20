@@ -39,6 +39,8 @@ class Deal extends Model
         'status',
         'won_at',
         'lost_at',
+        'lost_reason_id',
+        'lost_reason_note',
         'created_by',
         'owner_id',
         'position',
@@ -96,6 +98,24 @@ class Deal extends Model
         }
 
         return $company->name.($company->trashed() ? ' (deleted)' : '');
+    }
+
+    /**
+     * The lost reason of the deal, including a deleted one: only for display, a deleted reason still shows.
+     *
+     * @return BelongsTo<LostReason, $this>
+     */
+    public function lostReason(): BelongsTo
+    {
+        return $this->belongsTo(LostReason::class)->withTrashed();
+    }
+
+    /**
+     * The name of the lost reason of the deal, followed by " (deleted)" when the reason is deleted; null without a reason.
+     */
+    public function lostReasonLabel(): ?string
+    {
+        return $this->lostReason?->lostReasonLabel();
     }
 
     /**

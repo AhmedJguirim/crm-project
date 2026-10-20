@@ -7,6 +7,7 @@ use App\Filament\Support\RecordKeyField;
 use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Deal;
+use App\Models\LostReason;
 use App\Services\Deals\DealCompany;
 use App\Services\Deals\DealStageMover;
 use App\Services\Deals\DefaultPipeline;
@@ -17,6 +18,7 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
@@ -51,6 +53,62 @@ class DealForm
             ->in(fn (): array => array_keys(DefaultPipeline::stageOptions(CurrentOrganization::get()->id)))
             ->default(fn (): int => DefaultPipeline::stageOfType(CurrentOrganization::get()->id, DealStatus::Open)->getKey())
             ->required();
+    }
+
+    /**
+     * The optional lost reason and note: used by the deal form (only while the Lost stage is picked) and by "Move to Lost".
+     * The note is trimmed and an empty one is stored as null.
+     *
+     * @return array<int, Component>
+     */
+    public static function lostReasonFields(): array
+    {
+        return [
+            RecordKeyField::select('lost_reason_id')
+                ->label('Lost reason')
+                ->options(fn (?Deal $record): array => static::lostReasonOptions($record))
+                ->in(fn (?Deal $record): array => array_keys(static::lostReasonOptions($record)))
+                ->placeholder('No reason')
+                ->searchable()
+                ->nullable(),
+
+            Textarea::make('lost_reason_note')
+                ->label('Lost note')
+                ->rows(3)
+                ->maxLength(1000)
+                ->nullable()
+                ->dehydrateStateUsing(fn (?string $state): ?string => filled(trim((string) $state)) ? trim((string) $state) : null),
+        ];
+    }
+
+    /**
+     * The lost reasons a deal can be given, by name: the current organization's reasons that are not deleted, plus the
+     * reason the deal already has when it was deleted since (so editing a lost deal keeps it).
+     *
+     * @return array<int, string>
+     */
+    public static function lostReasonOptions(?Deal $record): array
+    {
+        $options = LostReason::query()
+            ->forOrganization(CurrentOrganization::get()->id)
+            ->orderBy('name')
+            ->pluck('name', 'id')
+            ->all();
+
+        if ($record?->lost_reason_id !== null && ! array_key_exists($record->lost_reason_id, $options) && $record->lostReasonLabel() !== null) {
+            $options[$record->lost_reason_id] = $record->lostReasonLabel();
+        }
+
+        return $options;
+    }
+
+    /**
+     * Whether the stage id (a value from the form, so any type) is the Lost stage of the current organization.
+     */
+    public static function isLostStage(mixed $stageId): bool
+    {
+        return filter_var($stageId, FILTER_VALIDATE_INT) !== false
+            && (int) $stageId === DefaultPipeline::stageOfType(CurrentOrganization::get()->id, DealStatus::Lost)->getKey();
     }
 
     public static function configure(Schema $schema): Schema
@@ -114,7 +172,12 @@ class DealForm
                     ->nullable()
                     ->placeholder('No owner'),
 
-                static::stageSelect(),
+                static::stageSelect()->live(),
+
+                ...array_map(
+                    fn (Component $field): Component => $field->visible(fn (Get $get): bool => static::isLostStage($get('pipeline_stage_id'))),
+                    static::lostReasonFields(),
+                ),
 
                 TextInput::make('value')
                     ->numeric()

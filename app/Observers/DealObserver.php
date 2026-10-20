@@ -2,8 +2,10 @@
 
 namespace App\Observers;
 
+use App\Enums\DealStatus;
 use App\Jobs\ResyncContactSegments;
 use App\Models\Deal;
+use App\Models\LostReason;
 use App\Models\PipelineStage;
 use App\Services\Deals\DealStageMover;
 use App\Support\Tenancy\TenantContext;
@@ -22,6 +24,7 @@ class DealObserver
         }
 
         $this->ensureStageOfOrganization($deal);
+        $this->applyLostReasonRules($deal);
     }
 
     public function updating(Deal $deal): void
@@ -29,6 +32,8 @@ class DealObserver
         if ($deal->isDirty('pipeline_stage_id')) {
             $this->ensureStageOfOrganization($deal);
         }
+
+        $this->applyLostReasonRules($deal);
     }
 
     public function created(Deal $deal): void
@@ -68,5 +73,27 @@ class DealObserver
         }
 
         PipelineStage::forOrganization($deal->organization_id)->findOrFail($deal->pipeline_stage_id);
+    }
+
+    /**
+     * The lost reason and note only live on a Lost deal: any other status clears both, so reopening a deal (or a forged
+     * value on an open one) leaves nothing behind. On a Lost deal a changed reason must be one of the organization's
+     * (a deleted one is still accepted, it is only the choice in the forms that hides it): another organization's id is
+     * not found.
+     *
+     * @throws ModelNotFoundException
+     */
+    private function applyLostReasonRules(Deal $deal): void
+    {
+        if ($deal->status !== DealStatus::Lost) {
+            $deal->lost_reason_id = null;
+            $deal->lost_reason_note = null;
+
+            return;
+        }
+
+        if ($deal->lost_reason_id !== null && $deal->isDirty('lost_reason_id')) {
+            LostReason::withTrashed()->forOrganization($deal->organization_id)->findOrFail($deal->lost_reason_id);
+        }
     }
 }
