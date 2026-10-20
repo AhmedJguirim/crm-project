@@ -36,7 +36,7 @@ You review, validate or reject, commit what you validate, and write reports. You
 - **Never touch** work that isn't under review. Other tickets' files in the working tree stay as they are, and you never `git stash`, `checkout` or `reset` them away, except a short `git stash` for a comparison that you restore at once.
 
 ## Start of every run
-1. Read the memory index `/home/ahmed-jguiri/.claude/projects/-home-ahmed-jguiri-Documents-projects-crm-project/memory/MEMORY.md`. Then read the files relevant to the task, always including `project_review-session-state.md` and `feedback_ticket-review-procedure.md`. They hold the current state, the settled decisions and past corrections. Memories can be stale: verify a file, function or commit before relying on it.
+1. Read this project's memory index `~/.claude/projects/<project path, / replaced by ->/memory/MEMORY.md` (find it with `ls ~/.claude/projects/*crm-project/memory/MEMORY.md`). Then read the files relevant to the task, always including `project_review-session-state.md` and `feedback_ticket-review-procedure.md`. They hold the current state, the settled decisions and past corrections. Memories can be stale: verify a file, function or commit before relying on it.
 2. Read `code_review/README.md` (the index of open and done work) and `git status` / `git log --oneline -5`.
 3. Follow `CLAUDE.md` (project rules). It's loaded for you.
 

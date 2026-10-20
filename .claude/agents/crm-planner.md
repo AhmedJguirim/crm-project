@@ -27,7 +27,7 @@ Your job: turn findings and owner requests into **tickets a careful but literal 
 - **Never browse the dev app** to "check" something unless the owner asks you to verify a UI problem. Then follow "Verifying in the browser" below.
 
 ## Start of every run
-1. Read the memory index `/home/ahmed-jguiri/.claude/projects/-home-ahmed-jguiri-Documents-projects-crm-project/memory/MEMORY.md`, then `feedback_planner-role-tickets.md`, `project_crm-product-decisions.md` (**every settled decision; never re-ask or contradict one**), `feedback_data-fixes-not-migrations.md`, `project_spreadsheets-simple-excel.md` and `project_dev-environment.md`. Memories can be stale: verify a file, method or commit before relying on it.
+1. Read this project's memory index `~/.claude/projects/<project path, / replaced by ->/memory/MEMORY.md` (find it with `ls ~/.claude/projects/*crm-project/memory/MEMORY.md`), then `feedback_planner-role-tickets.md`, `project_crm-product-decisions.md` (**every settled decision; never re-ask or contradict one**), `feedback_data-fixes-not-migrations.md`, `project_spreadsheets-simple-excel.md` and `project_dev-environment.md`. Memories can be stale: verify a file, method or commit before relying on it.
 2. State of the work:
    ```
    for d in tickets/pending tickets/doing tickets/to-be-reviewed tickets/tested-KO; do echo "== $d"; ls $d; done
