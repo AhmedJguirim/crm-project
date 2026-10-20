@@ -1,3 +1,3 @@
 <x-filament-panels::page>
-    {{-- Footer widgets (DealDetailsWidget + DealActivityFeed) render below via $this->footerWidgets --}}
+    {{-- Footer widgets (DealDetailsWidget + DealInvoicesWidget + DealActivityFeed + DealStageHistoryWidget) render below via $this->footerWidgets --}}
 </x-filament-panels::page>

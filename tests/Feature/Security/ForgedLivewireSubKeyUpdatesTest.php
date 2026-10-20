@@ -11,6 +11,7 @@ use App\Filament\Resources\Deals\Pages\ListDeals;
 use App\Filament\Resources\Deals\Widgets\DealActivityFeed;
 use App\Filament\Resources\Deals\Widgets\DealDetailsWidget;
 use App\Filament\Resources\Deals\Widgets\DealInvoicesWidget;
+use App\Filament\Resources\Deals\Widgets\DealStageHistoryWidget;
 use App\Filament\Resources\Segments\Widgets\SegmentStatsOverview;
 use App\Models\Company;
 use App\Models\Contact;
@@ -119,6 +120,7 @@ test('a sub-key of the record of a widget answers 419 and leaves the model untou
     'deal feed title' => [DealActivityFeed::class, 'retainer', 'record.title'],
     'deal details title' => [DealDetailsWidget::class, 'retainer', 'record.title'],
     'deal invoices title' => [DealInvoicesWidget::class, 'retainer', 'record.title'],
+    'deal stage history title' => [DealStageHistoryWidget::class, 'retainer', 'record.title'],
     'segment stats name' => [SegmentStatsOverview::class, 'segment', 'record.name'],
 ]);
 

@@ -4,6 +4,7 @@ use App\Data\Segments\SegmentConditionData;
 use App\Data\Segments\SegmentRuleData;
 use App\Enums\ContactAttribute;
 use App\Enums\DealStatus;
+use App\Enums\OrganizationRole;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentOperator;
 use App\Filament\Resources\Companies\Pages\EditCompany;
@@ -20,6 +21,7 @@ use App\Filament\Resources\Deals\Pages\ListDeals;
 use App\Filament\Resources\Deals\Pages\ViewDeal;
 use App\Filament\Resources\Deals\Widgets\DealActivityFeed;
 use App\Filament\Resources\Deals\Widgets\DealDetailsWidget;
+use App\Filament\Resources\Deals\Widgets\DealStageHistoryWidget;
 use App\Filament\Resources\PipelineStages\Pages\ManagePipelineStages;
 use App\Filament\Resources\Segments\Pages\ListSegments;
 use App\Filament\Resources\Segments\Pages\SegmentRuleEngine;
@@ -38,6 +40,7 @@ use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\Deals\DealStageMover;
 use App\Services\Deals\DefaultPipeline;
 use Carbon\CarbonImmutable;
 use Filament\Actions\DeleteAction;
@@ -139,8 +142,23 @@ describe('record pages', function () {
         SecurityPayloads::assertHtmlIsInert(Livewire::test(ListDeals::class)->assertSuccessful()->html(), $payload);
         SecurityPayloads::assertHtmlIsInert(Livewire::test(DealsRelationManager::class, ['ownerRecord' => $company, 'pageClass' => EditCompany::class])->html(), $payload);
         SecurityPayloads::assertHtmlIsInert(Livewire::test(DealDetailsWidget::class, ['record' => $deal])->html(), $payload);
+        SecurityPayloads::assertHtmlIsInert(Livewire::test(DealStageHistoryWidget::class, ['record' => $deal])->html(), $payload);
         SecurityPayloads::assertHtmlIsInert(Livewire::test(DealsOverviewWidget::class)->html(), $payload);
         SecurityPayloads::assertHtmlIsInert(Livewire::test(ManagePipelineStages::class)->assertSuccessful()->html(), $payload);
+    })->with(SecurityPayloads::xss());
+
+    test('a user named as markup is shown as text in the stage history of a deal', function (string $payload) {
+        $mover = User::factory()->create(['name' => $payload]);
+        $this->org->members()->attach($mover, ['role' => OrganizationRole::Member->value]);
+        $deal = ($this->dealFor)('Retainer', ($this->contactNamed)('Ann'));
+        $this->actingAs($mover);
+        $origin = $deal->pipelineStage;
+        DealStageMover::move($deal, pipelineStageNamed($this->org->id, 'Discovery'));
+        $origin->update(['name' => $payload]);
+
+        $html = Livewire::test(DealStageHistoryWidget::class, ['record' => $deal])->assertSee('Discovery')->html();
+
+        SecurityPayloads::assertHtmlIsInert($html, $payload);
     })->with(SecurityPayloads::xss());
 
     test('a pipeline stage named as markup is shown as text in the delete modal, its heading and its target select', function (string $payload) {

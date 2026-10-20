@@ -1,11 +1,13 @@
 <?php
 
 use App\Enums\DealStatus;
+use App\Enums\OrganizationRole;
 use App\Filament\Resources\Deals\Pages\CreateDeal;
 use App\Filament\Resources\Deals\Pages\DealPipeline;
 use App\Filament\Resources\Deals\Pages\EditDeal;
 use App\Filament\Resources\Deals\Pages\ViewDeal;
 use App\Filament\Resources\Deals\Widgets\DealDetailsWidget;
+use App\Filament\Resources\Deals\Widgets\DealStageHistoryWidget;
 use App\Models\Deal;
 use App\Models\DealStageChange;
 use App\Models\User;
@@ -246,6 +248,152 @@ test('the time in stage starts at the latest move, not the first', function () {
 
     expect($deal->fresh()->stageEnteredAt()?->toDateTimeString())->toBe('2026-10-09 10:00:00');
 });
+
+test('the stage history lists every change, newest first', function () {
+    $this->user->forceFill(['name' => 'Dana Seller'])->save();
+    $deal = stageHistoryDeal($this->user, 'Lead');
+    Carbon::setTestNow('2026-10-09 10:00:00');
+    DealStageMover::move($deal, pipelineStageNamed($this->org->id, 'Discovery'));
+
+    Livewire::test(DealStageHistoryWidget::class, ['record' => $deal])
+        ->assertSeeInOrder(['Stage history', 'From', 'To', 'By', 'When'])
+        ->assertSeeInOrder(['Lead', 'Discovery', 'Dana Seller', 'Oct 9, 2026 at 10:00 AM', '—', 'Lead', 'Dana Seller', 'Oct 8, 2026 at 9:15 AM']);
+});
+
+test('the stage history shows dates in the organization timezone', function () {
+    $this->org->forceFill(['timezone' => 'Pacific/Auckland'])->save();
+    $deal = stageHistoryDeal($this->user, 'Lead');
+
+    Livewire::test(DealStageHistoryWidget::class, ['record' => $deal])
+        ->assertSee('Oct 8, 2026 at 10:15 PM')
+        ->assertDontSee('Oct 8, 2026 at 9:15 AM');
+});
+
+test('the stage history orders rows written in the same second by id', function () {
+    $deal = stageHistoryDeal($this->user, 'Lead');
+    DealStageMover::move($deal, pipelineStageNamed($this->org->id, 'Discovery'));
+
+    Livewire::test(DealStageHistoryWidget::class, ['record' => $deal])
+        ->assertSeeInOrder(['Lead', 'Discovery', 'Oct 8, 2026 at 9:15 AM', '—', 'Lead', 'Oct 8, 2026 at 9:15 AM']);
+});
+
+test('the stage history shows a dash when nobody made the change', function () {
+    $this->user->forceFill(['name' => 'Dana Seller'])->save();
+    auth()->logout();
+    $deal = stageHistoryDeal($this->user, 'Lead');
+    $this->actingAs($this->user);
+
+    Livewire::test(DealStageHistoryWidget::class, ['record' => $deal])
+        ->assertSee('Lead')
+        ->assertDontSee('Dana Seller')
+        ->assertSeeInOrder(['—', 'Lead', '—', 'Oct 8, 2026 at 9:15 AM']);
+});
+
+test('the stage history shows a deleted to-stage', function () {
+    Event::fakeFor(fn () => $deal = stageHistoryDeal($this->user, 'Lead'));
+    $deal = Deal::query()->where('title', 'Retainer')->firstOrFail();
+    DealStageChange::factory()->create([
+        'deal_id' => $deal->id,
+        'from_pipeline_stage_id' => stageHistoryStage($this->user, 'Lead'),
+        'to_pipeline_stage_id' => null,
+        'changed_at' => '2026-10-08 09:15:00',
+    ]);
+
+    Livewire::test(DealStageHistoryWidget::class, ['record' => $deal])
+        ->assertSee('Lead')
+        ->assertSee('Deleted stage');
+});
+
+test('the stage history says so when nothing is recorded', function () {
+    Event::fakeFor(fn () => stageHistoryDeal($this->user, 'Lead'));
+    $deal = Deal::query()->where('title', 'Retainer')->firstOrFail();
+
+    Livewire::test(DealStageHistoryWidget::class, ['record' => $deal])
+        ->assertSee('Stage history')
+        ->assertSee('No stage changes recorded yet.');
+});
+
+test('the stage history pages by ten on its own page name', function () {
+    Event::fakeFor(fn () => stageHistoryDeal($this->user, 'Lead'));
+    $deal = Deal::query()->where('title', 'Retainer')->firstOrFail();
+
+    foreach (range(1, 12) as $day) {
+        DealStageChange::factory()->create([
+            'deal_id' => $deal->id,
+            'to_pipeline_stage_id' => stageHistoryStage($this->user, 'Lead'),
+            'changed_at' => Carbon::parse('2026-10-01 08:00:00')->addDays($day - 1),
+        ]);
+    }
+
+    $component = Livewire::test(DealStageHistoryWidget::class, ['record' => $deal])
+        ->assertSee('Oct 12, 2026 at 8:00 AM')
+        ->assertSee('Oct 3, 2026 at 8:00 AM')
+        ->assertDontSee('Oct 2, 2026 at 8:00 AM')
+        ->call('gotoPage', 2, 'stageHistoryPage')
+        ->assertSee('Oct 2, 2026 at 8:00 AM')
+        ->assertSee('Oct 1, 2026 at 8:00 AM')
+        ->assertDontSee('Oct 12, 2026 at 8:00 AM');
+
+    expect($component->get('paginators'))->toHaveKey('stageHistoryPage', 2)->not->toHaveKey('page');
+});
+
+test('moving the deal to won refreshes the stage history', function () {
+    $deal = stageHistoryDeal($this->user, 'Lead');
+
+    $component = Livewire::test(DealStageHistoryWidget::class, ['record' => $deal])->assertDontSee('Won');
+
+    expect($component->effects['listeners'])->toContain('dealUpdated');
+
+    DealStageMover::move($deal->fresh(), pipelineStageNamed($this->org->id, 'Won'));
+
+    $component->dispatch('dealUpdated')->assertSee('Won');
+});
+
+test('the stage history refresh goes back to the first page', function () {
+    Event::fakeFor(fn () => stageHistoryDeal($this->user, 'Lead'));
+    $deal = Deal::query()->where('title', 'Retainer')->firstOrFail();
+    DealStageChange::factory()->count(12)->create(['deal_id' => $deal->id, 'to_pipeline_stage_id' => stageHistoryStage($this->user, 'Lead')]);
+
+    $component = Livewire::test(DealStageHistoryWidget::class, ['record' => $deal])
+        ->call('gotoPage', 2, 'stageHistoryPage')
+        ->dispatch('dealUpdated');
+
+    expect($component->get('paginators'))->toHaveKey('stageHistoryPage', 1);
+});
+
+test("a stage change row of another organization is never shown in a deal's history", function () {
+    $other = User::factory()->onboardingCompleted()->withPersonalOrganization()->create(['name' => 'Olga Other']);
+    $deal = stageHistoryDeal($this->user, 'Lead');
+    DealStageChange::factory()->create([
+        'deal_id' => $deal->id,
+        'organization_id' => $other->personalOrganization()->id,
+        'to_pipeline_stage_id' => stageHistoryStage($this->user, 'Lead'),
+        'changed_by' => $other->id,
+    ]);
+
+    expect(DealStageChange::query()->withoutGlobalScope('organization')->where('deal_id', $deal->id)->count())->toBe(2);
+
+    Livewire::test(DealStageHistoryWidget::class, ['record' => $deal])->assertDontSee('Olga Other');
+});
+
+test('every role sees the stage history on the deal page', function (OrganizationRole $role) {
+    $deal = stageHistoryDeal($this->user, 'Lead');
+    $member = User::factory()->onboardingCompleted()->create();
+    $this->org->members()->attach($member, ['role' => $role->value]);
+    $this->actingAs($member);
+    Filament::setTenant($this->org);
+
+    Livewire::test(ViewDeal::class, ['record' => $deal->id])
+        ->assertSuccessful()
+        ->assertSeeLivewire(DealStageHistoryWidget::class);
+
+    Livewire::test(DealStageHistoryWidget::class, ['record' => $deal])->assertSee('Lead');
+})->with([
+    'owner' => [OrganizationRole::Owner],
+    'admin' => [OrganizationRole::Admin],
+    'member' => [OrganizationRole::Member],
+    'viewer' => [OrganizationRole::Viewer],
+]);
 
 test('the time in stage matches when the in-memory stage id is a numeric string', function () {
     $deal = stageHistoryDeal($this->user, 'Lead');

@@ -10,6 +10,7 @@ use App\Filament\Resources\Deals\DealResource;
 use App\Filament\Resources\Deals\Widgets\DealActivityFeed;
 use App\Filament\Resources\Deals\Widgets\DealDetailsWidget;
 use App\Filament\Resources\Deals\Widgets\DealInvoicesWidget;
+use App\Filament\Resources\Deals\Widgets\DealStageHistoryWidget;
 use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Filament\Support\AbilityCheck;
 use App\Models\Deal;
@@ -56,6 +57,7 @@ class ViewDeal extends Page
             DealDetailsWidget::class,
             DealInvoicesWidget::class,
             DealActivityFeed::class,
+            DealStageHistoryWidget::class,
         ];
     }
 
