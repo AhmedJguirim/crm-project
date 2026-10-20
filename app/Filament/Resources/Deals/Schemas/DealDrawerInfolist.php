@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Deals\Schemas;
 
+use App\Enums\DealStatus;
 use App\Enums\TaskStatus;
 use App\Models\Deal;
 use App\Support\LocalTime;
@@ -47,6 +48,17 @@ class DealDrawerInfolist
                             ->label('Deal owner')
                             ->state(fn (?Deal $record): ?string => $record?->ownerLabel())
                             ->placeholder('No owner'),
+
+                        TextEntry::make('lost_reason')
+                            ->label('Lost reason')
+                            ->state(fn (?Deal $record): ?string => $record?->lostReasonLabel())
+                            ->placeholder('No reason given')
+                            ->visible(fn (?Deal $record): bool => $record?->status === DealStatus::Lost),
+
+                        TextEntry::make('lost_reason_note')
+                            ->label('Lost note')
+                            ->visible(fn (?Deal $record): bool => $record?->status === DealStatus::Lost && filled($record->lost_reason_note))
+                            ->columnSpanFull(),
 
                         TextEntry::make('next_tasks')
                             ->label('Next tasks')

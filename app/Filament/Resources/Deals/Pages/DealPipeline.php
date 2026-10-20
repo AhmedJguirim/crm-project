@@ -23,6 +23,8 @@ use Filament\Actions\CreateAction;
 use Filament\Facades\Filament;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Component;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Filament\Support\Enums\FontWeight;
 use Filament\Support\Enums\TextSize;
@@ -134,6 +136,8 @@ class DealPipeline extends BoardResourcePage
                             ->color('gray')
                             ->url(fn (?Deal $record): ?string => $record === null ? null : DealResource::getUrl('view', ['record' => $record])),
                     ]),
+
+                $this->lostReasonAction(),
             ])
             ->cardAction('openDeal');
     }
@@ -164,7 +168,47 @@ class DealPipeline extends BoardResourcePage
     }
 
     /**
-     * Moves the open deal to another stage through moveCard(), unless it was moved by someone else since the form opened.
+     * The follow-up of a drag into Lost: asks for the optional reason and note and saves them on the lost deal; closing it or "Skip" leaves the deal lost without a reason.
+     */
+    protected function lostReasonAction(): Action
+    {
+        return Action::make('lostReason')
+            ->authorize(fn (?Deal $record): bool => $this->canOnDrawerDeal('update', $record))
+            ->modalHeading('Why was this deal lost?')
+            ->modalDescription('The deal is now lost. A reason and a note are optional.')
+            ->modalWidth(Width::Medium)
+            ->schema(DealForm::lostReasonFields())
+            ->modalSubmitActionLabel('Save reason')
+            ->modalCancelActionLabel('Skip')
+            ->action(function (array $data, Deal $record): void {
+                if ($record->status !== DealStatus::Lost) {
+                    Notification::make()
+                        ->title('This deal is no longer lost')
+                        ->body('Nothing was changed.')
+                        ->warning()
+                        ->send();
+
+                    return;
+                }
+
+                $reasonId = filled($data['lost_reason_id'] ?? null) ? (int) $data['lost_reason_id'] : null;
+                $note = $data['lost_reason_note'] ?? null;
+
+                if ($reasonId === null && $note === null) {
+                    return;
+                }
+
+                $record->update(['lost_reason_id' => $reasonId, 'lost_reason_note' => $note]);
+
+                Notification::make()
+                    ->title('Lost reason saved')
+                    ->success()
+                    ->send();
+            });
+    }
+
+    /**
+     * Moves the open deal to another stage through moveDealCard() (so the drag prompt never opens), with the optional lost reason and note when the target is Lost, unless it was moved by someone else since the form opened.
      */
     protected function moveStageAction(): Action
     {
@@ -180,7 +224,12 @@ class DealPipeline extends BoardResourcePage
                 'from_pipeline_stage_id' => $record->pipeline_stage_id,
             ])
             ->schema([
-                DealForm::stageSelect(),
+                DealForm::stageSelect()->live(),
+
+                ...array_map(
+                    fn (Component $field): Component => $field->visible(fn (Get $get): bool => DealForm::isLostStage($get('pipeline_stage_id'))),
+                    DealForm::lostReasonFields(),
+                ),
 
                 RecordKeyField::hidden('from_pipeline_stage_id'),
             ])
@@ -201,7 +250,12 @@ class DealPipeline extends BoardResourcePage
 
                 $target = DefaultPipeline::stageById($record->organization_id, $data['pipeline_stage_id']);
 
-                $this->moveCard((string) $record->getKey(), (string) $target->getKey());
+                $this->moveDealCard(
+                    (string) $record->getKey(),
+                    (string) $target->getKey(),
+                    lostReasonId: filled($data['lost_reason_id'] ?? null) ? (int) $data['lost_reason_id'] : null,
+                    lostReasonNote: $data['lost_reason_note'] ?? null,
+                );
 
                 Notification::make()
                     ->title(NotificationText::plain("Deal moved to {$target->name}"))
@@ -288,7 +342,7 @@ class DealPipeline extends BoardResourcePage
     }
 
     /**
-     * Moves the card and lets DealStageMover set the status and the won / lost dates, in one transaction; ignores a forged card, neighbour or column, and refuses a user who may not update the deal with a notification instead of a 403.
+     * Moves the dragged card, then asks for the optional lost reason when the drag made the deal lost.
      */
     public function moveCard(
         string $cardId,
@@ -296,6 +350,24 @@ class DealPipeline extends BoardResourcePage
         ?string $afterCardId = null,
         ?string $beforeCardId = null
     ): void {
+        $deal = $this->moveDealCard($cardId, $targetColumnId, $afterCardId, $beforeCardId);
+
+        if ($deal !== null && $deal->status === DealStatus::Lost && $deal->wasChanged('status')) {
+            $this->mountAction('lostReason', [], ['recordKey' => (string) $deal->getKey()]);
+        }
+    }
+
+    /**
+     * Moves the card and lets DealStageMover set the status and the won / lost dates, in one transaction; ignores a forged card, neighbour or column, and refuses a user who may not update the deal with a notification instead of a 403. Returns the moved deal, or null when nothing was moved. A Lost target with a reason or a note saves them in the same write.
+     */
+    protected function moveDealCard(
+        string $cardId,
+        string $targetColumnId,
+        ?string $afterCardId = null,
+        ?string $beforeCardId = null,
+        ?int $lostReasonId = null,
+        ?string $lostReasonNote = null
+    ): ?Deal {
         $stage = self::isDealKey($targetColumnId)
             ? PipelineStage::forOrganization(CurrentOrganization::get()->id)
                 ->where('pipeline_id', DefaultPipeline::ensureFor(CurrentOrganization::get())->getKey())
@@ -308,14 +380,14 @@ class DealPipeline extends BoardResourcePage
             || ($afterCardId !== null && ! self::isDealKey($afterCardId))
             || ($beforeCardId !== null && ! self::isDealKey($beforeCardId))
         ) {
-            return;
+            return null;
         }
 
         $deal = Deal::query()
             ->find($cardId);
 
         if (! $deal) {
-            return;
+            return null;
         }
 
         if (! Gate::allows('update', $deal)) {
@@ -325,14 +397,24 @@ class DealPipeline extends BoardResourcePage
                 ->danger()
                 ->send();
 
-            return;
+            return null;
         }
 
-        DB::transaction(function () use ($deal, $stage, $cardId, $targetColumnId, $afterCardId, $beforeCardId): void {
+        DB::transaction(function () use ($deal, $stage, $cardId, $targetColumnId, $afterCardId, $beforeCardId, $lostReasonId, $lostReasonNote): void {
             parent::moveCard($cardId, $targetColumnId, $afterCardId, $beforeCardId);
 
-            DealStageMover::move($deal->refresh(), $stage);
+            $deal->refresh();
+
+            if ($stage->type === DealStatus::Lost && ($lostReasonId !== null || $lostReasonNote !== null)) {
+                DealStageMover::moveToLost($deal, $lostReasonId, $lostReasonNote);
+
+                return;
+            }
+
+            DealStageMover::move($deal, $stage);
         });
+
+        return $deal;
     }
 
     /** @return array<int, Column> */

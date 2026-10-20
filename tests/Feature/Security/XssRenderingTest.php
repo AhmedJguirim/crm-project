@@ -17,6 +17,7 @@ use App\Filament\Resources\Contacts\Pages\ViewContact;
 use App\Filament\Resources\Contacts\Widgets\ContactActivityFeed;
 use App\Filament\Resources\Contacts\Widgets\ContactDetailsWidget;
 use App\Filament\Resources\CustomFields\Pages\ListCustomFields;
+use App\Filament\Resources\Deals\Pages\DealPipeline;
 use App\Filament\Resources\Deals\Pages\ListDeals;
 use App\Filament\Resources\Deals\Pages\ViewDeal;
 use App\Filament\Resources\Deals\Widgets\DealActivityFeed;
@@ -147,6 +148,28 @@ describe('record pages', function () {
         SecurityPayloads::assertHtmlIsInert(Livewire::test(DealDetailsWidget::class, ['record' => $lost])->html(), $payload);
         Livewire::test(ViewDeal::class, ['record' => $open->id])
             ->mountAction('moveToLost')
+            ->assertSchemaComponentExists('lost_reason_id', 'mountedActionSchema0', function (Select $field) use ($payload): bool {
+                $html = $field->toHtml();
+
+                expect($field->getOptions())->toContain($payload)
+                    ->and(str_contains($payload, '<') ? $html : '')->not->toContain($payload);
+
+                return true;
+            });
+    })->with(SecurityPayloads::xss());
+
+    test('a lost reason and note typed as markup are shown as text in the board drawer and in the prompt after a drag into Lost', function (string $payload) {
+        $reason = LostReason::factory()->create(['organization_id' => $this->org->id, 'name' => $payload]);
+        $lost = ($this->dealFor)('Lost Retainer', ($this->contactNamed)('Ann'));
+        $lost->update(['status' => DealStatus::Lost, 'lost_at' => now(), 'lost_reason_id' => $reason->id, 'lost_reason_note' => $payload]);
+        $open = ($this->dealFor)('Open Retainer', ($this->contactNamed)('Bob'));
+
+        $drawer = Livewire::test(DealPipeline::class)->call('mountAction', 'openDeal', [], ['recordKey' => (string) $lost->id]);
+        SecurityPayloads::assertHtmlIsInert($drawer->getMountedActionModalHtml(), $payload);
+
+        Livewire::test(DealPipeline::class)
+            ->call('moveCard', (string) $open->id, (string) pipelineStageNamed($this->org->id, 'Lost')->id)
+            ->assertSet('mountedActions.0.name', 'lostReason')
             ->assertSchemaComponentExists('lost_reason_id', 'mountedActionSchema0', function (Select $field) use ($payload): bool {
                 $html = $field->toHtml();
 
