@@ -37,6 +37,13 @@
             </div>
         </x-slot>
 
+        @if($rangeIsReversed)
+            <p class="mb-3 text-xs text-warning-600 dark:text-warning-400" role="alert">
+                From is after To — no day can match.
+                <button type="button" wire:click="swapDateRange" class="underline">Swap them</button>
+            </p>
+        @endif
+
         @if($activities->isEmpty())
             <div class="flex flex-col items-center justify-center py-8 text-center">
                 <div class="mb-3 rounded-full bg-gray-100 p-3 dark:bg-gray-800">

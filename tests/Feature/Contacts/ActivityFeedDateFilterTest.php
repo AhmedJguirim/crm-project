@@ -153,6 +153,60 @@ test('from after to lists nothing', function () {
         ->assertDontSee('Tuesday midnight');
 });
 
+test('a reversed range shows the hint with a swap link and keeps the empty state', function () {
+    ($this->feed)('2026-02-13', '2026-02-12')
+        ->assertSee('From is after To — no day can match.')
+        ->assertSee('Swap them')
+        ->assertSeeHtml('wire:click="swapDateRange"')
+        ->assertSee('No activities in this date range');
+});
+
+test('no hint unless both bounds are valid days and From is after To', function (?string $from, ?string $to) {
+    ($this->feed)($from, $to)->assertDontSee('From is after To');
+})->with([
+    'same day' => ['2026-02-12', '2026-02-12'],
+    'only from' => ['2026-02-12', null],
+    'only to' => [null, '2026-02-12'],
+    'ordered' => ['2026-02-12', '2026-02-13'],
+    'junk to' => ['2026-02-13', 'not-a-date'],
+    'impossible from' => ['2026-02-30', '2026-02-12'],
+]);
+
+test('swapping a reversed range exchanges the bounds and lists those days', function () {
+    ($this->logWeek)($this->contact);
+    ($this->logAt)($this->contact, 'Later call', '2026-03-03 10:00:00');
+
+    ($this->feed)('2026-03-02', '2026-03-01')
+        ->assertDontSee('Monday breakfast')
+        ->call('swapDateRange')
+        ->assertSet('dateFrom', '2026-03-01')
+        ->assertSet('dateTo', '2026-03-02')
+        ->assertDontSee('From is after To')
+        ->assertSee('Late Sunday call')
+        ->assertSee('Monday breakfast')
+        ->assertSee('Tuesday midnight')
+        ->assertDontSee('Later call');
+});
+
+test('swapping does nothing on an ordered or half-set range', function (?string $from, ?string $to) {
+    ($this->feed)($from, $to)
+        ->call('swapDateRange')
+        ->assertSet('dateFrom', $from)
+        ->assertSet('dateTo', $to);
+})->with([
+    'ordered' => ['2026-03-01', '2026-03-02'],
+    'only from' => ['2026-03-02', null],
+    'junk to' => ['2026-03-02', 'not-a-date'],
+]);
+
+test('swapping a range with a junk bound leaves the raw values alone', function () {
+    ($this->feed)('not-a-date', '2026-03-01')
+        ->call('swapDateRange')
+        ->assertSet('dateFrom', 'not-a-date')
+        ->assertSet('dateTo', '2026-03-01')
+        ->assertDontSee('From is after To');
+});
+
 test('an array is refused by Livewire with a 419 when debug is off', function () {
     config(['app.debug' => false]);
 
