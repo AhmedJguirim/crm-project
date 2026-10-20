@@ -246,3 +246,12 @@ test('the time in stage starts at the latest move, not the first', function () {
 
     expect($deal->fresh()->stageEnteredAt()?->toDateTimeString())->toBe('2026-10-09 10:00:00');
 });
+
+test('the time in stage matches when the in-memory stage id is a numeric string', function () {
+    $deal = stageHistoryDeal($this->user, 'Lead');
+    Carbon::setTestNow('2026-10-09 10:00:00');
+
+    $deal->update(['pipeline_stage_id' => (string) stageHistoryStage($this->user, 'Discovery')]);
+
+    expect($deal->stageEnteredAt()?->toDateTimeString())->toBe('2026-10-09 10:00:00');
+});

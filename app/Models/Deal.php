@@ -153,7 +153,7 @@ class Deal extends Model
     {
         $latest = $this->stageChanges()->orderByDesc('changed_at')->orderByDesc('id')->first();
 
-        if ($latest === null || $latest->to_pipeline_stage_id !== $this->pipeline_stage_id) {
+        if ($latest === null || (int) $latest->to_pipeline_stage_id !== (int) $this->pipeline_stage_id) {
             return null;
         }
 
