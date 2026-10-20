@@ -10,6 +10,7 @@ use App\Models\CompanyCustomField;
 use App\Models\CompanyType;
 use App\Models\Contact;
 use App\Models\CustomField;
+use App\Models\LostReason;
 use App\Models\Tag;
 use App\Models\User;
 use Filament\Facades\Filament;
@@ -36,6 +37,7 @@ it('refuses to permanently delete records', function (Closure $makeRecord) {
     'contact' => fn () => Contact::factory()->for($this->org)->create(),
     'company' => fn () => Company::factory()->for($this->org)->create(),
     'company type' => fn () => CompanyType::factory()->for($this->org)->create(),
+    'lost reason' => fn () => LostReason::factory()->for($this->org)->create(),
     'custom field' => fn () => CustomField::factory()->for($this->org)->create(),
     'company custom field' => fn () => CompanyCustomField::factory()->for($this->org)->create([
     ]),

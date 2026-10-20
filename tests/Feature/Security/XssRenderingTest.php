@@ -22,6 +22,7 @@ use App\Filament\Resources\Deals\Pages\ViewDeal;
 use App\Filament\Resources\Deals\Widgets\DealActivityFeed;
 use App\Filament\Resources\Deals\Widgets\DealDetailsWidget;
 use App\Filament\Resources\Deals\Widgets\DealStageHistoryWidget;
+use App\Filament\Resources\LostReasons\Pages\ManageLostReasons;
 use App\Filament\Resources\PipelineStages\Pages\ManagePipelineStages;
 use App\Filament\Resources\Segments\Pages\ListSegments;
 use App\Filament\Resources\Segments\Pages\SegmentRuleEngine;
@@ -36,6 +37,7 @@ use App\Models\CompanyType;
 use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\Deal;
+use App\Models\LostReason;
 use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\Task;
@@ -59,6 +61,7 @@ dataset('xssListPages', [
     'ListTags' => [ListTags::class],
     'ListCustomFields' => [ListCustomFields::class],
     'ManageCompanyTypes' => [ManageCompanyTypes::class],
+    'ManageLostReasons' => [ManageLostReasons::class],
 ]);
 
 beforeEach(function () {
@@ -83,6 +86,7 @@ beforeEach(function () {
 describe('list pages', function () {
     test('a name typed as markup is shown as text', function (string $page, string $payload) {
         $type = CompanyType::factory()->create(['organization_id' => $this->org->id, 'name' => $payload]);
+        LostReason::factory()->create(['organization_id' => $this->org->id, 'name' => $payload]);
         $company = ($this->companyNamed)($payload, ['company_type_id' => $type->id]);
         $contact = ($this->contactNamed)($payload);
         $tag = Tag::factory()->create(['organization_id' => $this->org->id, 'name' => $payload]);

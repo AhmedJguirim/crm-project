@@ -16,6 +16,7 @@ use App\Models\CompanyType;
 use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\Deal;
+use App\Models\LostReason;
 use App\Models\Organization;
 use App\Models\PipelineStage;
 use App\Models\Segment;
@@ -130,6 +131,8 @@ test('it consulting seeder is idempotent for companies', function () {
 
     expect(Company::query()->count())->toBe(14)
         ->and(CompanyType::query()->count())->toBe(4)
+        ->and(LostReason::query()->count())->toBe(5)
+        ->and(LostReason::query()->pluck('name')->sort()->values()->all())->toBe(['Bad timing', 'No budget', 'No response', 'Price too high', 'Went with a competitor'])
         ->and(CompanyCustomField::query()->count())->toBe(4)
         ->and(Contact::query()->withCount('companies')->get()->sum('companies_count'))->toBe(16);
 });
@@ -295,6 +298,7 @@ test('it consulting seeder seeds a second organization with lookalike data for c
 
     expect(Contact::query()->orderBy('name')->pluck('name')->all())->toBe(['Globex Alice', 'Globex Bob', 'Globex Carol'])
         ->and(Tag::query()->pluck('name')->all())->toBe(['VIP'])
+        ->and(LostReason::query()->forOrganization($globex->id)->count())->toBe(0)
         ->and(Segment::query()->count())->toBe(1)
         ->and($vip->contacts()->orderBy('name')->pluck('name')->all())->toBe(['Globex Alice', 'Globex Bob']);
 

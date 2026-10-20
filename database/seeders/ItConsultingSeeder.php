@@ -26,6 +26,7 @@ use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\Deal;
 use App\Models\Invoice;
+use App\Models\LostReason;
 use App\Models\Organization;
 use App\Models\Segment;
 use App\Models\Tag;
@@ -649,6 +650,18 @@ class ItConsultingSeeder extends Seeder
 
         // ── Segments ─────────────────────────────────────────────────────────
         $this->seedSegments($org, $tags, $linkedin, $techStack, $hourlyRate);
+
+        $this->seedLostReasons($org);
+    }
+
+    /**
+     * The reasons the demo organization loses deals for.
+     */
+    private function seedLostReasons(Organization $org): void
+    {
+        foreach (['Price too high', 'Went with a competitor', 'No budget', 'Bad timing', 'No response'] as $name) {
+            LostReason::firstOrCreate(['organization_id' => $org->id, 'name' => $name]);
+        }
     }
 
     /**
