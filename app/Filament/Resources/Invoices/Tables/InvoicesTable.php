@@ -140,7 +140,7 @@ class InvoicesTable
                     ->action(function (Invoice $record): void {
                         $record->update([
                             'status' => InvoiceStatus::Paid,
-                            'paid_at' => $record->paid_at ?? LocalTime::todayDate(),
+                            'paid_at' => LocalTime::todayDate(),
                         ]);
                     }),
 

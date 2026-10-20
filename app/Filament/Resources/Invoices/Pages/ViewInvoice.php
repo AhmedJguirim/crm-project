@@ -50,7 +50,7 @@ class ViewInvoice extends ViewRecord
                 ->action(function (): void {
                     $this->getRecord()->update([
                         'status' => InvoiceStatus::Paid,
-                        'paid_at' => $this->getRecord()->paid_at ?? LocalTime::todayDate(),
+                        'paid_at' => LocalTime::todayDate(),
                     ]);
                 }),
 

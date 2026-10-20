@@ -572,7 +572,7 @@ class ItConsultingSeeder extends Seeder
         $invoicesData = [
             ['invoice_number' => 'INV-2026-001', 'email' => 'marcus.chen@techcorp.io', 'deal_title' => 'TechCorp Infra Expansion', 'amount' => 24000, 'status' => InvoiceStatus::Paid, 'issued_at' => now()->subDays(20)->toDateString(), 'due_at' => now()->subDays(5)->toDateString(), 'paid_at' => now()->subDays(6)->toDateString(), 'notes' => 'Phase 1 infrastructure migration milestone.'],
             ['invoice_number' => 'INV-2026-002', 'email' => 'sarah.johansson@cloudbase.dev', 'deal_title' => 'Cloudbase Cost Optimization Retainer', 'amount' => 7800, 'status' => InvoiceStatus::Sent, 'issued_at' => now()->subDays(9)->toDateString(), 'due_at' => now()->addDays(7)->toDateString(), 'notes' => 'Monthly retainer February.'],
-            ['invoice_number' => 'INV-2026-003', 'email' => 'damien.leroy@hexasys.fr', 'deal_title' => 'HexaSys React Platform Migration', 'amount' => 5600, 'status' => InvoiceStatus::Partial, 'issued_at' => now()->subDays(18)->toDateString(), 'due_at' => now()->subDays(2)->toDateString(), 'paid_at' => now()->subDays(1)->toDateString(), 'notes' => 'Deposit received, awaiting final transfer.'],
+            ['invoice_number' => 'INV-2026-003', 'email' => 'damien.leroy@hexasys.fr', 'deal_title' => 'HexaSys React Platform Migration', 'amount' => 5600, 'amount_paid' => 2000, 'status' => InvoiceStatus::Partial, 'issued_at' => now()->subDays(18)->toDateString(), 'due_at' => now()->subDays(2)->toDateString(), 'paid_at' => now()->subDays(1)->toDateString(), 'notes' => 'Deposit received, awaiting final transfer.'],
             ['invoice_number' => 'INV-2026-004', 'email' => 'ingrid.svensson@nordicsec.com', 'deal_title' => 'NordicSec Pen Testing Extension', 'amount' => 9200, 'status' => InvoiceStatus::Overdue, 'issued_at' => now()->subDays(26)->toDateString(), 'due_at' => now()->subDays(8)->toDateString(), 'notes' => 'Reminder sent twice.'],
             ['invoice_number' => 'INV-2026-005', 'email' => 'priya.nair@securepeak.com', 'deal_title' => 'SecurePeak Annual Security Program', 'amount' => 31000, 'status' => InvoiceStatus::Paid, 'issued_at' => now()->subDays(40)->toDateString(), 'due_at' => now()->subDays(25)->toDateString(), 'paid_at' => now()->subDays(24)->toDateString(), 'notes' => 'Annual security program Q1 billing.'],
             ['invoice_number' => 'INV-2026-006', 'email' => 'amara.diallo@innotech-sa.com', 'deal_title' => null, 'amount' => 3500, 'status' => InvoiceStatus::Draft, 'issued_at' => now()->toDateString(), 'due_at' => now()->addDays(14)->toDateString(), 'notes' => 'Draft invoice for discovery workshops.'],
@@ -603,6 +603,7 @@ class ItConsultingSeeder extends Seeder
                     'contact_id' => $contact->id,
                     'deal_id' => $deal?->id,
                     'amount' => $invoiceData['amount'],
+                    'amount_paid' => $invoiceData['amount_paid'] ?? 0,
                     'status' => $invoiceData['status'],
                     'issued_at' => $invoiceData['issued_at'],
                     'due_at' => $invoiceData['due_at'],

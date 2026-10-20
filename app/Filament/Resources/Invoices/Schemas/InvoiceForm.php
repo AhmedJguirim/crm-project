@@ -10,6 +10,7 @@ use App\Models\Invoice;
 use App\Support\LocalTime;
 use App\Support\MoneyLimit;
 use App\Support\Tenancy\CurrentOrganization;
+use Closure;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -141,6 +142,11 @@ class InvoiceForm
                     ->default(InvoiceStatus::Draft)
                     ->required()
                     ->live()
+                    ->afterStateUpdated(function (Set $set, Get $get): void {
+                        if (self::statusOf($get) === InvoiceStatus::Paid) {
+                            $set('amount_paid', $get('amount'));
+                        }
+                    })
                     ->hiddenOn('create'),
 
                 TextInput::make('amount_paid')
@@ -150,6 +156,27 @@ class InvoiceForm
                     ->maxValue(MoneyLimit::MAX)
                     ->step(0.01)
                     ->default(0)
+                    ->disabled(fn (Get $get): bool => self::statusOf($get) === InvoiceStatus::Paid)
+                    ->rule(fn (Get $get): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get): void {
+                        if ($value !== null && ! is_numeric($value)) {
+                            return;
+                        }
+
+                        $paid = round((float) ($value ?? 0), 2);
+                        $amount = round((float) ($get('amount') ?? 0), 2);
+
+                        match (self::statusOf($get)) {
+                            InvoiceStatus::Partial => match (true) {
+                                $paid <= 0 => $fail('A partial invoice needs the amount already paid.'),
+                                $paid >= $amount => $fail('A partial payment must be less than the invoice amount. Set the status to Paid if the invoice is fully paid.'),
+                                default => null,
+                            },
+                            InvoiceStatus::Draft, InvoiceStatus::Sent, InvoiceStatus::Overdue => $paid > 0
+                                ? $fail('Only a partial or paid invoice can have an amount paid. Set the status to Partial, or the amount paid to 0.')
+                                : null,
+                            default => null,
+                        };
+                    })
                     ->prefix(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD')
                     ->helperText(fn (Get $get): ?string => self::balanceHelper($get))
                     ->hiddenOn('create'),
@@ -175,14 +202,11 @@ class InvoiceForm
 
                 DatePicker::make('paid_at')
                     ->label('Paid')
-                    ->visible(function (Get $get): bool {
-                        $status = $get('status');
-
-                        if ($status instanceof InvoiceStatus) {
-                            return in_array($status, [InvoiceStatus::Paid, InvoiceStatus::Partial], true);
-                        }
-
-                        return in_array($status, [InvoiceStatus::Paid->value, InvoiceStatus::Partial->value], true);
+                    ->visible(fn (Get $get): bool => in_array(self::statusOf($get), [InvoiceStatus::Paid, InvoiceStatus::Partial], true))
+                    ->helperText(fn (Get $get): ?string => match (self::statusOf($get)) {
+                        InvoiceStatus::Paid => 'The date the invoice was fully paid. Today if left empty.',
+                        InvoiceStatus::Partial => 'The date of the last payment received. Today if left empty.',
+                        default => null,
                     }),
 
                 Textarea::make('notes')
@@ -190,6 +214,17 @@ class InvoiceForm
                     ->nullable()
                     ->columnSpanFull(),
             ]);
+    }
+
+    private static function statusOf(Get $get): ?InvoiceStatus
+    {
+        $status = $get('status');
+
+        if ($status instanceof InvoiceStatus) {
+            return $status;
+        }
+
+        return is_string($status) ? InvoiceStatus::tryFrom($status) : null;
     }
 
     private static function balanceHelper(Get $get): ?string

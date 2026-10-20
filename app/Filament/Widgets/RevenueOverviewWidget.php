@@ -12,6 +12,7 @@ use Filament\Schemas\Components\View;
 use Filament\Support\Icons\Heroicon;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Number;
 
 class RevenueOverviewWidget extends BaseWidget
@@ -50,11 +51,11 @@ class RevenueOverviewWidget extends BaseWidget
 
         $outstanding = (float) Invoice::query()
             ->outstanding()
-            ->sum('amount');
+            ->sum(DB::raw('amount - amount_paid'));
 
         $overdueAggregate = Invoice::query()
             ->overdue()
-            ->selectRaw('COUNT(*) as invoices_count, COALESCE(SUM(amount), 0) as total_amount')
+            ->selectRaw('COUNT(*) as invoices_count, COALESCE(SUM(amount - amount_paid), 0) as total_amount')
             ->first();
 
         $ytdRevenue = (float) Invoice::query()

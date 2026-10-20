@@ -16,6 +16,7 @@ use App\Models\CompanyType;
 use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\Deal;
+use App\Models\Invoice;
 use App\Models\LostReason;
 use App\Models\Organization;
 use App\Models\PipelineStage;
@@ -377,7 +378,12 @@ test('it consulting seeder seeds one currency and the dashboard adds the amounts
         ->assertSeeInOrder(['Pipeline Value', '$222,000.00']);
 
     Livewire::test(RevenueOverviewWidget::class)
-        ->assertSeeInOrder(['Outstanding', '$22,600.00']);
+        ->assertSeeInOrder(['Outstanding', '$20,600.00'])
+        ->assertSeeInOrder(['Overdue Invoices', '2 invoices', '$12,800.00']);
+
+    expect(Invoice::query()->where('invoice_number', 'INV-2026-003')->value('amount_paid'))->toBe('2000.00')
+        ->and(Invoice::query()->where('invoice_number', 'INV-2026-001')->value('amount_paid'))->toBe('24000.00')
+        ->and(Invoice::query()->where('invoice_number', 'INV-2026-005')->value('amount_paid'))->toBe('31000.00');
 });
 
 test('it consulting seeder gives the demo deals to test@example.com except one', function () {
