@@ -200,8 +200,8 @@ test('it consulting seeder keeps the sizes of the companies in their columns', f
     expect($company('TechCorp Solutions')->only(['employees', 'annual_revenue']))->toBe(['employees' => 1200, 'annual_revenue' => '180000000.00'])
         ->and($company('Cloudbase Nordic')->only(['employees', 'annual_revenue']))->toBe(['employees' => 85, 'annual_revenue' => null])
         ->and($company('StackOps')->employees)->toBeNull()
-        ->and(Company::query()->whereNotNull('employees')->orderBy('name')->pluck('employees', 'name')->all())->toBe([
-            'Cloudbase Nordic' => 85, 'CloudShift MENA' => 700, 'HexaSys' => 140, 'InnoTech SA' => 2300,
+        ->and(Company::query()->whereNotNull('employees')->pluck('employees', 'name')->sortKeys()->all())->toBe([
+            'CloudShift MENA' => 700, 'Cloudbase Nordic' => 85, 'HexaSys' => 140, 'InnoTech SA' => 2300,
             'Nordic Security AB' => 45, 'SecurePeak Ltd' => 950, 'SoftBridge Europe' => 60, 'TechCorp Solutions' => 1200,
         ])
         ->and(Company::query()->whereNotNull('annual_revenue')->count())->toBe(1)
