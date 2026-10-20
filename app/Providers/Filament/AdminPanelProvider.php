@@ -10,6 +10,7 @@ use App\Filament\Widgets\ContactsOverviewWidget;
 use App\Filament\Widgets\DashboardTasksWidget;
 use App\Filament\Widgets\DealForecastWidget;
 use App\Filament\Widgets\DealsOverviewWidget;
+use App\Filament\Widgets\MyTasksWidget;
 use App\Filament\Widgets\RecentActivitiesWidget;
 use App\Filament\Widgets\RevenueOverviewWidget;
 use App\Models\Organization;
@@ -150,6 +151,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
+                MyTasksWidget::class,
                 DealsOverviewWidget::class,
                 RevenueOverviewWidget::class,
                 DealForecastWidget::class,

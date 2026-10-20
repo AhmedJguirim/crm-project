@@ -115,65 +115,9 @@ class TasksTable
                     ->orderBy('due_at');
             })
             ->recordActions([
-                ActionGroup::make([
-                    Action::make('snooze1Day')
-                        ->authorize('update')
-                        ->label('+1 day')
-                        ->action(function (Task $record): void {
-                            self::snoozeTask($record, 1, 'Task snoozed for 1 day');
-                        }),
+                self::snoozeActionGroup(),
 
-                    Action::make('snooze3Days')
-                        ->authorize('update')
-                        ->label('+3 days')
-                        ->action(function (Task $record): void {
-                            self::snoozeTask($record, 3, 'Task snoozed for 3 days');
-                        }),
-
-                    Action::make('snooze1Week')
-                        ->authorize('update')
-                        ->label('+1 week')
-                        ->action(function (Task $record): void {
-                            self::snoozeTask($record, 7, 'Task snoozed for 1 week');
-                        }),
-
-                    Action::make('snoozeCustom')
-                        ->authorize('update')
-                        ->label('Custom')
-                        ->schema([TaskForm::snoozeDueAtPicker()])
-                        ->action(function (Task $record, array $data): void {
-                            $record->update([
-                                'due_at' => $data['due_at'],
-                            ]);
-
-                            Notification::make()
-                                ->title('Task rescheduled successfully')
-                                ->success()
-                                ->send();
-                        }),
-                ])
-                    ->label('Snooze')
-                    ->icon(Heroicon::OutlinedClock)
-                    ->color('gray')
-                    ->visible(fn (Task $record): bool => $record->status !== TaskStatus::Done),
-
-                Action::make('markDone')
-                    ->authorize('update')
-                    ->label('Mark Done')
-                    ->icon(Heroicon::OutlinedCheck)
-                    ->color('success')
-                    ->visible(fn (Task $record): bool => $record->status !== TaskStatus::Done)
-                    ->action(function (Task $record): void {
-                        $record->update([
-                            'status' => TaskStatus::Done,
-                            'completed_at' => now(),
-                        ]);
-
-                        Notification::make()
-                            ->title('Task marked as done')
-                            ->success()
-                            ->send();
-                    }),
+                self::markDoneAction(),
 
                 DeleteAction::make('delete')
                     ->requiresConfirmation()
@@ -225,6 +169,78 @@ class TasksTable
             ->emptyStateActions([
                 CreateAction::make()->label('Create your first task'),
             ]);
+    }
+
+    /**
+     * The "Snooze" group (+1 day, +3 days, +1 week, Custom), shared by the tasks list and the dashboard "My tasks" widget.
+     */
+    public static function snoozeActionGroup(): ActionGroup
+    {
+        return ActionGroup::make([
+            Action::make('snooze1Day')
+                ->authorize('update')
+                ->label('+1 day')
+                ->action(function (Task $record): void {
+                    self::snoozeTask($record, 1, 'Task snoozed for 1 day');
+                }),
+
+            Action::make('snooze3Days')
+                ->authorize('update')
+                ->label('+3 days')
+                ->action(function (Task $record): void {
+                    self::snoozeTask($record, 3, 'Task snoozed for 3 days');
+                }),
+
+            Action::make('snooze1Week')
+                ->authorize('update')
+                ->label('+1 week')
+                ->action(function (Task $record): void {
+                    self::snoozeTask($record, 7, 'Task snoozed for 1 week');
+                }),
+
+            Action::make('snoozeCustom')
+                ->authorize('update')
+                ->label('Custom')
+                ->schema([TaskForm::snoozeDueAtPicker()])
+                ->action(function (Task $record, array $data): void {
+                    $record->update([
+                        'due_at' => $data['due_at'],
+                    ]);
+
+                    Notification::make()
+                        ->title('Task rescheduled successfully')
+                        ->success()
+                        ->send();
+                }),
+        ])
+            ->label('Snooze')
+            ->icon(Heroicon::OutlinedClock)
+            ->color('gray')
+            ->visible(fn (Task $record): bool => $record->status !== TaskStatus::Done);
+    }
+
+    /**
+     * The "Mark Done" row action, shared by the tasks list and the dashboard "My tasks" widget.
+     */
+    public static function markDoneAction(): Action
+    {
+        return Action::make('markDone')
+            ->authorize('update')
+            ->label('Mark Done')
+            ->icon(Heroicon::OutlinedCheck)
+            ->color('success')
+            ->visible(fn (Task $record): bool => $record->status !== TaskStatus::Done)
+            ->action(function (Task $record): void {
+                $record->update([
+                    'status' => TaskStatus::Done,
+                    'completed_at' => now(),
+                ]);
+
+                Notification::make()
+                    ->title('Task marked as done')
+                    ->success()
+                    ->send();
+            });
     }
 
     private static function snoozeTask(Task $record, int $days, string $message): void
