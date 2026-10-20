@@ -53,6 +53,9 @@ function rawSqlAllowList(): array
         'Services/Companies/CompanyMatcher.php' => [
             'constant' => 'lower(trim(name)) = ? with the name as a binding',
         ],
+        'Services/Deals/DealForecast.php' => [
+            'constant' => 'constant aggregate select (COUNT, COALESCE(SUM(value), 0)) for the forecast by close month',
+        ],
         'Services/Segments/SegmentQueryBuilder.php' => [
             'constant' => 'whereRaw(\'1 = 0\') only, for a rule without usable conditions',
         ],

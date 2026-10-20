@@ -8,6 +8,7 @@ use App\Filament\Pages\Tenancy\EditOrganization;
 use App\Filament\Pages\Tenancy\RegisterOrganization;
 use App\Filament\Widgets\ContactsOverviewWidget;
 use App\Filament\Widgets\DashboardTasksWidget;
+use App\Filament\Widgets\DealForecastWidget;
 use App\Filament\Widgets\DealsOverviewWidget;
 use App\Filament\Widgets\RecentActivitiesWidget;
 use App\Filament\Widgets\RevenueOverviewWidget;
@@ -151,6 +152,7 @@ class AdminPanelProvider extends PanelProvider
             ->widgets([
                 DealsOverviewWidget::class,
                 RevenueOverviewWidget::class,
+                DealForecastWidget::class,
                 ContactsOverviewWidget::class,
                 DashboardTasksWidget::class,
                 RecentActivitiesWidget::class,
