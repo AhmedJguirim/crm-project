@@ -106,3 +106,66 @@ test('every preset but custom has a title and a phrase', function () {
 test('forPreset refuses the custom preset', function () {
     ReportPeriod::forPreset(ReportPeriodPreset::Custom);
 })->throws(InvalidArgumentException::class, 'Use ReportPeriod::custom() for a custom range.');
+
+test('a trail has six periods of the preset, oldest first, the period itself last', function (ReportPeriodPreset $preset, array $starts, string $firstEnd) {
+    $period = ReportPeriod::forPreset($preset, 'Europe/Paris');
+    $trail = $period->trail(6);
+
+    expect(array_map(fn (ReportPeriod $step): string => $step->startDate, $trail))->toBe($starts)
+        ->and($trail[0]->endDate)->toBe($firstEnd)
+        ->and($trail[5])->toEqual($period)
+        ->and($trail[5]->preset)->toBe($preset);
+
+    foreach (array_slice($trail, 0, 5) as $earlier) {
+        expect($earlier->preset)->toBe(ReportPeriodPreset::Custom)->and($earlier->timezone)->toBe('Europe/Paris');
+    }
+
+    for ($index = 1; $index < 6; $index++) {
+        expect(CarbonImmutable::parse($trail[$index - 1]->endDate)->addDay()->toDateString())->toBe($trail[$index]->startDate);
+    }
+})->with([
+    'today' => [ReportPeriodPreset::Today, ['2026-10-16', '2026-10-17', '2026-10-18', '2026-10-19', '2026-10-20', '2026-10-21'], '2026-10-16'],
+    'this week' => [ReportPeriodPreset::ThisWeek, ['2026-09-14', '2026-09-21', '2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19'], '2026-09-20'],
+    'this month' => [ReportPeriodPreset::ThisMonth, ['2026-05-01', '2026-06-01', '2026-07-01', '2026-08-01', '2026-09-01', '2026-10-01'], '2026-05-31'],
+    'last month' => [ReportPeriodPreset::LastMonth, ['2026-04-01', '2026-05-01', '2026-06-01', '2026-07-01', '2026-08-01', '2026-09-01'], '2026-04-30'],
+    'this quarter' => [ReportPeriodPreset::ThisQuarter, ['2025-07-01', '2025-10-01', '2026-01-01', '2026-04-01', '2026-07-01', '2026-10-01'], '2025-09-30'],
+    'this year' => [ReportPeriodPreset::ThisYear, ['2021-01-01', '2022-01-01', '2023-01-01', '2024-01-01', '2025-01-01', '2026-01-01'], '2021-12-31'],
+    'last 12 months' => [ReportPeriodPreset::Last12Months, ['2020-11-01', '2021-11-01', '2022-11-01', '2023-11-01', '2024-11-01', '2025-11-01'], '2021-10-31'],
+]);
+
+test('a custom range steps back by its own length', function () {
+    $trail = ReportPeriod::custom('2026-10-01', '2026-10-15', 'Europe/Paris')->trail(6);
+
+    expect(array_map(fn (ReportPeriod $step): string => $step->startDate.'..'.$step->endDate, $trail))->toBe([
+        '2026-07-18..2026-08-01',
+        '2026-08-02..2026-08-16',
+        '2026-08-17..2026-08-31',
+        '2026-09-01..2026-09-15',
+        '2026-09-16..2026-09-30',
+        '2026-10-01..2026-10-15',
+    ]);
+});
+
+test('the second-to-last period of a trail is the previous period', function (callable $period) {
+    $period = $period();
+
+    expect($period->trail(2)[0]->dates())->toBe($period->previous()->dates());
+})->with([
+    'today' => [fn (): ReportPeriod => ReportPeriod::forPreset(ReportPeriodPreset::Today, 'Europe/Paris')],
+    'this week' => [fn (): ReportPeriod => ReportPeriod::forPreset(ReportPeriodPreset::ThisWeek, 'Europe/Paris')],
+    'this month' => [fn (): ReportPeriod => ReportPeriod::forPreset(ReportPeriodPreset::ThisMonth, 'Europe/Paris')],
+    'last month' => [fn (): ReportPeriod => ReportPeriod::forPreset(ReportPeriodPreset::LastMonth, 'Europe/Paris')],
+    'this quarter' => [fn (): ReportPeriod => ReportPeriod::forPreset(ReportPeriodPreset::ThisQuarter, 'Europe/Paris')],
+    'last quarter' => [fn (): ReportPeriod => ReportPeriod::forPreset(ReportPeriodPreset::LastQuarter, 'Europe/Paris')],
+    'this year' => [fn (): ReportPeriod => ReportPeriod::forPreset(ReportPeriodPreset::ThisYear, 'Europe/Paris')],
+    'last 12 months' => [fn (): ReportPeriod => ReportPeriod::forPreset(ReportPeriodPreset::Last12Months, 'Europe/Paris')],
+    'a custom range' => [fn (): ReportPeriod => ReportPeriod::custom('2026-10-01', '2026-10-15', 'Europe/Paris')],
+]);
+
+test('a trail of one is the period itself and a trail of zero is refused', function () {
+    $period = ReportPeriod::forPreset(ReportPeriodPreset::ThisMonth, 'Europe/Paris');
+
+    expect($period->trail(1))->toEqual([$period]);
+
+    $period->trail(0);
+})->throws(InvalidArgumentException::class, 'A trail needs at least one period.');

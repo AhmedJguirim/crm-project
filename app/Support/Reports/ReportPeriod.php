@@ -86,7 +86,44 @@ final readonly class ReportPeriod
      */
     public function previous(): self
     {
-        $start = CarbonImmutable::createFromFormat('!Y-m-d', $this->startDate, 'UTC');
+        [$start, $end] = $this->stepBack($this->startDate, $this->endDate);
+
+        return new self(ReportPeriodPreset::Custom, $start, $end, $this->timezone);
+    }
+
+    /**
+     * The given number of consecutive periods ending with this one, oldest first, each one step back from the next in
+     * the unit of this period's preset (so a month-based trail does not drift). The earlier periods are custom ranges.
+     *
+     * @return list<self>
+     *
+     * @throws InvalidArgumentException when fewer than one period is asked
+     */
+    public function trail(int $count): array
+    {
+        if ($count < 1) {
+            throw new InvalidArgumentException('A trail needs at least one period.');
+        }
+
+        $periods = [$this];
+        [$start, $end] = $this->dates();
+
+        for ($step = 1; $step < $count; $step++) {
+            [$start, $end] = $this->stepBack($start, $end);
+            array_unshift($periods, new self(ReportPeriodPreset::Custom, $start, $end, $this->timezone));
+        }
+
+        return $periods;
+    }
+
+    /**
+     * The dates of the period just before the one given, stepping back in the unit of this period's preset.
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function stepBack(string $startDate, string $endDate): array
+    {
+        $start = CarbonImmutable::createFromFormat('!Y-m-d', $startDate, 'UTC');
         $end = $start->subDay();
 
         $previousStart = match ($this->preset) {
@@ -96,10 +133,10 @@ final readonly class ReportPeriod
             ReportPeriodPreset::ThisQuarter, ReportPeriodPreset::LastQuarter => $start->subMonthsNoOverflow(3),
             ReportPeriodPreset::ThisYear => $start->subYear(),
             ReportPeriodPreset::Last12Months => $start->subMonthsNoOverflow(12),
-            ReportPeriodPreset::Custom => $end->subDays((int) $start->diffInDays(CarbonImmutable::createFromFormat('!Y-m-d', $this->endDate, 'UTC'))),
+            ReportPeriodPreset::Custom => $end->subDays((int) $start->diffInDays(CarbonImmutable::createFromFormat('!Y-m-d', $endDate, 'UTC'))),
         };
 
-        return new self(ReportPeriodPreset::Custom, $previousStart->toDateString(), $end->toDateString(), $this->timezone);
+        return [$previousStart->toDateString(), $end->toDateString()];
     }
 
     /**
