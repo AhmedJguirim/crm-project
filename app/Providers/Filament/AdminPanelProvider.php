@@ -10,6 +10,7 @@ use App\Filament\Widgets\ContactsOverviewWidget;
 use App\Filament\Widgets\DealForecastWidget;
 use App\Filament\Widgets\DealsOverviewWidget;
 use App\Filament\Widgets\KpiOverviewWidget;
+use App\Filament\Widgets\MoneyOwedWidget;
 use App\Filament\Widgets\MyDealsClosingWidget;
 use App\Filament\Widgets\MyTasksWidget;
 use App\Filament\Widgets\RecentActivitiesWidget;
@@ -152,6 +153,7 @@ class AdminPanelProvider extends PanelProvider
                 MyTasksWidget::class,
                 MyDealsClosingWidget::class,
                 DealsOverviewWidget::class,
+                MoneyOwedWidget::class,
                 RevenueOverviewWidget::class,
                 DealForecastWidget::class,
                 ContactsOverviewWidget::class,
