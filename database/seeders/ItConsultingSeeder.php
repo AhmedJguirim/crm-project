@@ -36,9 +36,12 @@ use App\Models\Tag;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\Deals\DealCompany;
+use App\Services\Deals\DealStageMover;
 use App\Services\Deals\DefaultPipeline;
 use App\Support\Tenancy\TenantContext;
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -63,9 +66,10 @@ class ItConsultingSeeder extends Seeder
 
         $org = $user->personalOrganization() ?? $user->createPersonalOrganization();
 
+        $this->seedRoleUsers($org);
+
         app(TenantContext::class)->run($org->getKey(), fn () => $this->seedOrganization($user, $org));
 
-        $this->seedRoleUsers($org);
         $this->seedSecondOrganization($user);
     }
 
@@ -571,6 +575,9 @@ class ItConsultingSeeder extends Seeder
             );
         }
 
+        $this->seedLostReasons($org);
+        $this->seedClosedDealHistory($org);
+
         // ── Invoices ─────────────────────────────────────────────────────────
         $invoicesData = [
             ['invoice_number' => 'INV-2026-001', 'email' => 'marcus.chen@techcorp.io', 'deal_title' => 'TechCorp Infra Expansion', 'amount' => 24000, 'status' => InvoiceStatus::Paid, 'issued_at' => now()->subDays(20)->toDateString(), 'due_at' => now()->subDays(5)->toDateString(), 'paid_at' => now()->subDays(6)->toDateString(), 'notes' => 'Phase 1 infrastructure migration milestone.'],
@@ -668,8 +675,71 @@ class ItConsultingSeeder extends Seeder
 
         // ── Segments ─────────────────────────────────────────────────────────
         $this->seedSegments($org, $tags, $linkedin, $techStack, $hourlyRate);
+    }
 
-        $this->seedLostReasons($org);
+    /**
+     * Twelve closed deals over the six months before the current one, moved through the pipeline at their own dates so
+     * the stage history, won and lost dates and reports have a past. Each deal is created and moved under
+     * `Carbon::withTestNow()`, through `DealStageMover` and the deal observer; a deal that already exists is skipped.
+     */
+    private function seedClosedDealHistory(Organization $org): void
+    {
+        $today = now()->toImmutable();
+        $at = fn (int $monthsAgo, int $day): CarbonImmutable => $today->startOfMonth()->subMonthsNoOverflow($monthsAgo)->setDay($day)->setTime(12, 0);
+
+        $test = 'test@example.com';
+        $admin = 'admin@example.com';
+        $member = 'member@example.com';
+
+        $rows = [
+            ['TechCorp Security Audit', 'marcus.chen@techcorp.io', $test, 48000, [['Lead', 6, 4], ['Discovery', 6, 12], ['Proposal Sent', 6, 25], ['Negotiating', 5, 8], ['Won', 5, 19]], null, null],
+            ['Cloudbase Kubernetes Migration', 'sarah.johansson@cloudbase.dev', $admin, 36000, [['Lead', 6, 10], ['Discovery', 6, 20], ['Proposal Sent', 5, 6], ['Won', 5, 27]], null, null],
+            ['StackOps CI Pipeline Hardening', 'tom.whitfield@stackops.io', $member, 18000, [['Lead', 5, 3], ['Proposal Sent', 5, 10], ['Negotiating', 5, 24], ['Won', 4, 9]], null, null],
+            ['DataLab Warehouse Prototype', 'hugo.fernandes@datalab.pt', $member, 22000, [['Lead', 5, 12], ['Discovery', 5, 22], ['Lost', 4, 14]], 'Price too high', null],
+            ['SecurePeak Cloud Posture Review', 'priya.nair@securepeak.com', $test, 27000, [['Lead', 4, 2], ['Discovery', 4, 8], ['Proposal Sent', 4, 17], ['Negotiating', 4, 24], ['Won', 3, 6]], null, null],
+            ['CyberNode Mobile App', 'james.okafor@cybernode.ng', $admin, 54000, [['Lead', 4, 6], ['Discovery', 4, 20], ['Proposal Sent', 3, 4], ['Lost', 3, 18]], 'Went with a competitor', null],
+            ['SoftBridge Laravel API Build', 'nadia.petrova@softbridge.eu', $test, 33000, [['Lead', 3, 2], ['Discovery', 3, 9], ['Proposal Sent', 3, 16], ['Negotiating', 3, 23], ['Won', 2, 11]], null, null],
+            ['WebScale Performance Audit', 'remy.bertrand@webscale.fr', $member, 12000, [['Lead', 3, 11], ['Lost', 3, 25]], null, null],
+            ['DevStudio Vue Front-end Partnership', 'lars.muller@devstudio.de', $admin, 41000, [['Lead', 2, 3], ['Discovery', 2, 10], ['Proposal Sent', 2, 19], ['Negotiating', 1, 5], ['Won', 1, 16]], null, null],
+            ['CloudShift Managed Services Pilot', 'yasmin.alrashid@cloudshift.ae', $test, 75000, [['Lead', 2, 6], ['Discovery', 2, 16], ['Proposal Sent', 2, 26], ['Negotiating', 1, 9], ['Lost', 1, 20]], 'No budget', 'Pilot postponed to next fiscal year.'],
+            ['PixelCraft Design System Support', 'elena.vasquez@pixelcraft.studio', $member, 9500, [['Lead', 2, 14], ['Proposal Sent', 2, 21], ['Won', 1, 8]], null, null],
+            ['HexaSys Code Review Retainer', 'damien.leroy@hexasys.fr', $admin, 15000, [['Lead', 1, 2], ['Discovery', 1, 12], ['Lost', 1, 23]], 'Bad timing', null],
+        ];
+
+        $stages = DefaultPipeline::stagesOf($org->id)->keyBy('name');
+        $owners = User::query()->whereIn('email', [$test, $admin, $member])->pluck('id', 'email');
+        $contacts = Contact::query()->whereIn('email', array_column($rows, 1))->get()->keyBy('email');
+        $reasons = LostReason::query()->pluck('id', 'name');
+
+        foreach ($rows as [$title, $email, $ownerEmail, $value, $steps, $reason, $note]) {
+            if (Deal::query()->where('organization_id', $org->id)->where('title', $title)->exists()) {
+                continue;
+            }
+
+            $contact = $contacts[$email];
+            $ownerId = $owners[$ownerEmail];
+            $lastMoment = $at($steps[array_key_last($steps)][1], $steps[array_key_last($steps)][2]);
+            [, $createdMonths, $createdDay] = $steps[0];
+
+            $deal = Carbon::withTestNow($at($createdMonths, $createdDay), fn (): Deal => Deal::create([
+                ...DealStageMover::attributesFor($stages['Lead']),
+                'organization_id' => $org->id,
+                'contact_id' => $contact->id,
+                'company_id' => DealCompany::defaultIdFor($contact->id),
+                'title' => $title,
+                'value' => $value,
+                'expected_close_date' => $lastMoment->toDateString(),
+                'notes' => null,
+                'created_by' => $ownerId,
+                'owner_id' => $ownerId,
+            ]));
+
+            foreach (array_slice($steps, 1) as [$stageName, $months, $day]) {
+                Carbon::withTestNow($at($months, $day), fn (): Deal => $stageName === 'Lost'
+                    ? DealStageMover::moveToLost($deal, $reason === null ? null : $reasons[$reason], $note)
+                    : DealStageMover::move($deal, $stages[$stageName]));
+            }
+        }
     }
 
     /**

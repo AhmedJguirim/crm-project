@@ -19,6 +19,7 @@ use App\Models\CompanyType;
 use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\Deal;
+use App\Models\DealStageChange;
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
 use App\Models\LostReason;
@@ -33,6 +34,7 @@ use App\Support\Tenancy\TenantContext;
 use Database\Seeders\ItConsultingSeeder;
 use Filament\Facades\Filament;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 use Livewire\Livewire;
 
 function customFieldKey(Model $record, string $name): string
@@ -68,12 +70,12 @@ test('it consulting seeder seeds core crm modules data', function () {
         ->and(CustomField::query()->where('organization_id', $organization->id)->count())->toBe(9)
         ->and(Contact::query()->where('organization_id', $organization->id)->count())->toBe(15)
         ->and(Activity::query()->where('organization_id', $organization->id)->count())->toBe(20)
-        ->and(Deal::query()->count())->toBe(6)
+        ->and(Deal::query()->count())->toBe(18)
         ->and(Task::query()->count())->toBe(6);
 
     expect(Deal::query()->where('status', DealStatus::Open)->count())->toBe(4)
-        ->and(Deal::query()->where('status', DealStatus::Won)->count())->toBe(1)
-        ->and(Deal::query()->where('status', DealStatus::Lost)->count())->toBe(1)
+        ->and(Deal::query()->where('status', DealStatus::Won)->count())->toBe(8)
+        ->and(Deal::query()->where('status', DealStatus::Lost)->count())->toBe(6)
         ->and(Task::query()->where('status', TaskStatus::Done)->count())->toBe(1)
         ->and(Task::query()->where('type', TaskType::Invoice)->count())->toBe(1);
 });
@@ -88,7 +90,8 @@ test('it consulting seeder is idempotent for deals and tasks', function () {
     $this->actingAs($user);
     Filament::setTenant($organization);
 
-    expect(Deal::query()->count())->toBe(6)
+    expect(Deal::query()->count())->toBe(18)
+        ->and(DealStageChange::query()->count())->toBe(54)
         ->and(Task::query()->count())->toBe(6);
 });
 
@@ -264,7 +267,7 @@ test('it consulting seeder seeds synced segments for every kind of condition and
         'VIP' => 3,
         'Laravel developers' => 3,
         'Open deals' => 4,
-        'Won customers' => 1,
+        'Won customers' => 7,
         'Agency contacts' => 4,
         'Never contacted' => 2,
         'Gone quiet (hourly)' => 13,
@@ -272,7 +275,7 @@ test('it consulting seeder seeds synced segments for every kind of condition and
         'High rate (draft)' => 0,
     ])
         ->and($members['VIP'])->toBe(['Marcus Chen', 'Priya Nair', 'Yasmin Al-Rashid'])
-        ->and($members['Won customers'])->toBe(['Priya Nair'])
+        ->and(collect($members['Won customers'])->sort(SORT_STRING)->values()->all())->toBe(['Elena Vasquez', 'Lars Müller', 'Marcus Chen', 'Nadia Petrova', 'Priya Nair', 'Sarah Johansson', 'Tom Whitfield'])
         ->and(Segment::query()->where('name', 'Won customers')->sole()->workingRules()->sole()->conditions[0]->value)
         ->toBe(['deal_stages' => [DefaultPipeline::stageOfType($user->personalOrganization()->id, DealStatus::Won)->id]])
         ->and($members['Never contacted'])->toBe(['Florian Dupont', 'Hugo Fernandes'])
@@ -424,7 +427,14 @@ test('it consulting seeder gives the demo deals to test@example.com except one',
     $this->actingAs($user);
     Filament::setTenant($user->personalOrganization());
 
-    $owners = Deal::query()->pluck('owner_id', 'title');
+    $owners = Deal::query()->pluck('owner_id', 'title')->only([
+        'TechCorp Infra Expansion',
+        'Cloudbase Cost Optimization Retainer',
+        'HexaSys React Platform Migration',
+        'SecurePeak Annual Security Program',
+        'InnoTech Transformation Advisory',
+        'NordicSec Pen Testing Extension',
+    ]);
 
     expect($owners['InnoTech Transformation Advisory'])->toBeNull()
         ->and($owners->except('InnoTech Transformation Advisory')->unique()->values()->all())->toBe([$user->id]);
@@ -503,4 +513,169 @@ test('it consulting seeder gives every deal a pipeline stage of its organization
 
     expect($stageNameOf('TechCorp Infra Expansion'))->toBe('Negotiating')
         ->and($stageNameOf('SecurePeak Annual Security Program'))->toBe('Won');
+});
+
+/**
+ * Seeds the demo data with the clock at 2026-10-21 12:00 UTC and returns the demo organization.
+ */
+function seedHistoryAt(object $test): Organization
+{
+    $test->travelTo(Carbon::parse('2026-10-21 12:00:00', 'UTC'));
+    $test->seed(ItConsultingSeeder::class);
+
+    $user = User::query()->where('email', 'test@example.com')->firstOrFail();
+    $test->actingAs($user);
+    Filament::setTenant($user->personalOrganization());
+
+    return $user->personalOrganization();
+}
+
+/**
+ * The stage history of a seeded deal as "from > to @ changed_at" lines, oldest first.
+ *
+ * @return array<int, string>
+ */
+function seededHistoryOf(string $title): array
+{
+    return Deal::query()->where('title', $title)->firstOrFail()->stageChanges()
+        ->with(['fromStage', 'toStage'])->orderBy('changed_at')->orderBy('id')->get()
+        ->map(fn (DealStageChange $change): string => ($change->fromStage?->name ?? '(none)').' > '.$change->toStage->name.' @ '.$change->changed_at->toDateTimeString())
+        ->all();
+}
+
+test('it consulting seeder seeds closed deals whose totals and months are stable', function () {
+    seedHistoryAt($this);
+
+    $sum = fn (DealStatus $status): string => number_format((float) Deal::query()->where('status', $status)->sum('value'), 2, '.', '');
+    $original = ['TechCorp Infra Expansion', 'Cloudbase Cost Optimization Retainer', 'HexaSys React Platform Migration', 'SecurePeak Annual Security Program', 'InnoTech Transformation Advisory', 'NordicSec Pen Testing Extension'];
+    $october = Deal::query()->whereNotIn('title', $original)
+        ->where(fn ($query) => $query->whereBetween('created_at', ['2026-10-01', '2026-11-01'])
+            ->orWhereBetween('won_at', ['2026-10-01', '2026-11-01'])
+            ->orWhereBetween('lost_at', ['2026-10-01', '2026-11-01']))
+        ->count();
+
+    expect(Deal::query()->count())->toBe(18)
+        ->and(Deal::query()->where('status', DealStatus::Open)->count())->toBe(4)
+        ->and(Deal::query()->where('status', DealStatus::Won)->count())->toBe(8)
+        ->and(Deal::query()->where('status', DealStatus::Lost)->count())->toBe(6)
+        ->and($sum(DealStatus::Won))->toBe('332500.00')
+        ->and($sum(DealStatus::Lost))->toBe('216000.00')
+        ->and(DealStageChange::query()->count())->toBe(54)
+        ->and($october)->toBe(0);
+});
+
+test('it consulting seeder moves a won deal through every stage at its own dates', function () {
+    seedHistoryAt($this);
+
+    $deal = Deal::query()->with(['contact', 'company'])->where('title', 'TechCorp Security Audit')->firstOrFail();
+    $testId = User::query()->where('email', 'test@example.com')->value('id');
+
+    expect($deal->owner_id)->toBe($testId)
+        ->and($deal->created_by)->toBe($testId)
+        ->and($deal->contact->name)->toBe('Marcus Chen')
+        ->and($deal->company->name)->toBe('TechCorp Solutions')
+        ->and($deal->value)->toBe('48000.00')
+        ->and($deal->created_at->toDateTimeString())->toBe('2026-04-04 12:00:00')
+        ->and($deal->won_at->toDateTimeString())->toBe('2026-05-19 12:00:00')
+        ->and($deal->lost_at)->toBeNull()
+        ->and($deal->expected_close_date->toDateString())->toBe('2026-05-19')
+        ->and(seededHistoryOf('TechCorp Security Audit'))->toBe([
+            '(none) > Lead @ 2026-04-04 12:00:00',
+            'Lead > Discovery @ 2026-04-12 12:00:00',
+            'Discovery > Proposal Sent @ 2026-04-25 12:00:00',
+            'Proposal Sent > Negotiating @ 2026-05-08 12:00:00',
+            'Negotiating > Won @ 2026-05-19 12:00:00',
+        ])
+        ->and($deal->stageChanges()->whereNotNull('changed_by')->count())->toBe(0);
+});
+
+test('it consulting seeder seeds a path that skips a stage', function () {
+    seedHistoryAt($this);
+
+    $deal = Deal::query()->where('title', 'StackOps CI Pipeline Hardening')->firstOrFail();
+
+    $memberId = User::query()->where('email', 'member@example.com')->value('id');
+
+    expect($deal->owner_id)->toBe($memberId)
+        ->and($deal->created_by)->toBe($memberId)
+        ->and(seededHistoryOf('StackOps CI Pipeline Hardening'))->toBe([
+            '(none) > Lead @ 2026-05-03 12:00:00',
+            'Lead > Proposal Sent @ 2026-05-10 12:00:00',
+            'Proposal Sent > Negotiating @ 2026-05-24 12:00:00',
+            'Negotiating > Won @ 2026-06-09 12:00:00',
+        ])
+        ->and($deal->won_at->toDateTimeString())->toBe('2026-06-09 12:00:00');
+});
+
+test('it consulting seeder keeps the reason, note and date of the lost history deals', function (string $title, string $lostAt, ?string $reason, ?string $note, string $ownerEmail) {
+    seedHistoryAt($this);
+
+    $deal = Deal::query()->with('lostReason')->where('title', $title)->firstOrFail();
+
+    expect($deal->status)->toBe(DealStatus::Lost)
+        ->and($deal->lost_at->toDateTimeString())->toBe($lostAt)
+        ->and($deal->won_at)->toBeNull()
+        ->and($deal->lostReason?->name)->toBe($reason)
+        ->and($deal->lost_reason_note)->toBe($note)
+        ->and($deal->owner_id)->toBe(User::query()->where('email', $ownerEmail)->value('id'));
+})->with([
+    ['CloudShift Managed Services Pilot', '2026-09-20 12:00:00', 'No budget', 'Pilot postponed to next fiscal year.', 'test@example.com'],
+    ['WebScale Performance Audit', '2026-07-25 12:00:00', null, null, 'member@example.com'],
+    ['CyberNode Mobile App', '2026-07-18 12:00:00', 'Went with a competitor', null, 'admin@example.com'],
+]);
+
+test('it consulting seeder dates every history deal like its history', function () {
+    seedHistoryAt($this);
+
+    $original = ['TechCorp Infra Expansion', 'Cloudbase Cost Optimization Retainer', 'HexaSys React Platform Migration', 'SecurePeak Annual Security Program', 'InnoTech Transformation Advisory', 'NordicSec Pen Testing Extension'];
+    $deals = Deal::query()->whereNotIn('title', $original)->get();
+
+    expect($deals)->toHaveCount(12);
+
+    foreach ($deals as $deal) {
+        $history = $deal->stageChanges()->orderBy('changed_at')->orderBy('id')->get();
+        $closedAt = $deal->status === DealStatus::Won ? $deal->won_at : $deal->lost_at;
+
+        expect($history->first()->from_pipeline_stage_id)->toBeNull()
+            ->and($deal->created_at->toDateTimeString())->toBe($history->first()->changed_at->toDateTimeString())
+            ->and($closedAt->toDateTimeString())->toBe($history->last()->changed_at->toDateTimeString())
+            ->and($deal->pipeline_stage_id)->toBe($history->last()->to_pipeline_stage_id);
+    }
+});
+
+test('it consulting seeder splits the won value and lost reasons of the history deals', function () {
+    seedHistoryAt($this);
+
+    $wonPerOwner = Deal::query()->where('status', DealStatus::Won)->get()->groupBy('owner_id')
+        ->map(fn ($deals): string => number_format((float) $deals->sum('value'), 2, '.', ''));
+    $ownerId = fn (string $email): int => User::query()->where('email', $email)->value('id');
+    $lostPerReason = Deal::query()->where('status', DealStatus::Lost)->with('lostReason')->get()
+        ->countBy(fn (Deal $deal): string => $deal->lostReason?->name ?? 'none')->sortKeys()->all();
+
+    expect($wonPerOwner[$ownerId('test@example.com')])->toBe('228000.00')
+        ->and($wonPerOwner[$ownerId('admin@example.com')])->toBe('77000.00')
+        ->and($wonPerOwner[$ownerId('member@example.com')])->toBe('27500.00')
+        ->and(Deal::query()->where('status', DealStatus::Won)->where('owner_id', $ownerId('test@example.com'))->count())->toBe(4)
+        ->and(Deal::query()->where('status', DealStatus::Won)->where('owner_id', $ownerId('admin@example.com'))->count())->toBe(2)
+        ->and(Deal::query()->where('status', DealStatus::Won)->where('owner_id', $ownerId('member@example.com'))->count())->toBe(2)
+        ->and($lostPerReason)->toBe(['Bad timing' => 1, 'No budget' => 2, 'Price too high' => 1, 'Went with a competitor' => 1, 'none' => 1]);
+});
+
+test('it consulting seeder does not move the test clock', function () {
+    seedHistoryAt($this);
+
+    expect(now()->toDateTimeString())->toBe('2026-10-21 12:00:00')
+        ->and(now()->toImmutable()->toDateTimeString())->toBe('2026-10-21 12:00:00');
+});
+
+test('it consulting seeder adds no history twice and gives Globex Demo none', function () {
+    $this->seed(ItConsultingSeeder::class);
+    seedHistoryAt($this);
+
+    $globex = Organization::query()->where('slug', 'globex-demo')->sole();
+
+    expect(Deal::query()->count())->toBe(18)
+        ->and(DealStageChange::query()->count())->toBe(54)
+        ->and(Deal::query()->forOrganization($globex->id)->count())->toBe(0)
+        ->and(DealStageChange::query()->forOrganization($globex->id)->count())->toBe(0);
 });
