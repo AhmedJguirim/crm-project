@@ -14,6 +14,7 @@ use App\Filament\Widgets\MyDealsClosingWidget;
 use App\Filament\Widgets\MyTasksWidget;
 use App\Filament\Widgets\OverdueInvoicesWidget;
 use App\Filament\Widgets\RecentActivitiesWidget;
+use App\Filament\Widgets\RevenueByMonthWidget;
 use App\Models\Activity;
 use App\Models\Contact;
 use App\Models\Deal;
@@ -133,7 +134,8 @@ test('the Filament default cards are gone from the dashboard', function () {
         ->and($widgets)->not->toContain(FilamentInfoWidget::class)
         ->and($widgets)->toContain(KpiOverviewWidget::class)
         ->and($widgets)->toContain(MyTasksWidget::class)
-        ->and($widgets)->toContain(DealsNeedingAttentionWidget::class);
+        ->and($widgets)->toContain(DealsNeedingAttentionWidget::class)
+        ->and($widgets)->toContain(RevenueByMonthWidget::class);
 });
 
 test('only my tasks refreshes on its own', function (string $widget) {
@@ -143,4 +145,5 @@ test('only my tasks refreshes on its own', function (string $widget) {
     ContactsOverviewWidget::class,
     KpiOverviewWidget::class,
     MoneyOwedWidget::class,
+    RevenueByMonthWidget::class,
 ]);
