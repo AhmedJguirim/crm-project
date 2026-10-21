@@ -6,6 +6,7 @@ use App\Enums\CompanyIndustry;
 use App\Enums\Currency;
 use App\Enums\DealStatus;
 use App\Enums\InvoicePaymentKind;
+use App\Enums\InvoiceStatus;
 use App\Enums\OrganizationRole;
 use App\Enums\PaymentMethod;
 use App\Enums\ReportPeriodPreset;
@@ -14,6 +15,7 @@ use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
 use App\Filament\Widgets\DealsOverviewWidget;
+use App\Filament\Widgets\KpiOverviewWidget;
 use App\Filament\Widgets\MoneyOwedWidget;
 use App\Filament\Widgets\OverdueInvoicesWidget;
 use App\Models\Activity;
@@ -34,6 +36,7 @@ use App\Models\Tag;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\Deals\DefaultPipeline;
+use App\Services\Reports\DashboardKpis;
 use App\Services\Reports\TeamActivity;
 use App\Support\Reports\ReportPeriod;
 use App\Support\Tenancy\TenantContext;
@@ -389,18 +392,21 @@ test('it consulting seeder seeds one currency and the dashboard adds the amounts
     Filament::setTenant($organization);
 
     expect($organization->currency)->toBe(Currency::Usd)
-        ->and(Invoice::query()->pluck('created_by')->unique()->all())->toBe([$user->id]);
+        ->and(Invoice::query()->whereIn('invoice_number', ['INV-2026-001', 'INV-2026-002', 'INV-2026-003', 'INV-2026-004', 'INV-2026-005', 'INV-2026-006'])->pluck('created_by')->unique()->all())->toBe([$user->id]);
 
     Livewire::test(DealsOverviewWidget::class)
         ->assertSeeInOrder(['Pipeline Value', '$222,000.00']);
 
     Livewire::test(MoneyOwedWidget::class)
-        ->assertSeeInOrder(['Outstanding', '$20,600.00', '3 unpaid invoices · $12,800.00 overdue'])
+        ->assertSeeInOrder(['Outstanding', '$50,500.00', '6 unpaid invoices · $42,700.00 overdue'])
         ->assertSeeInOrder(['Not due yet', '$7,800.00', '1 invoice'])
-        ->assertSeeInOrder(['1–30 days late', '$12,800.00', '2 invoices']);
+        ->assertSeeInOrder(['1–30 days late', '$12,800.00', '2 invoices'])
+        ->assertSeeInOrder(['31–60 days late', '$23,000.00', '1 invoice'])
+        ->assertSeeInOrder(['61–90 days late', '$2,400.00', '1 invoice'])
+        ->assertSeeInOrder(['Over 90 days late', '$4,500.00', '1 invoice']);
 
     Livewire::test(OverdueInvoicesWidget::class)
-        ->assertSeeInOrder(['INV-2026-004', 'INV-2026-003']);
+        ->assertSeeInOrder(['INV-2026-010', 'INV-2026-012', 'INV-2026-013', 'INV-2026-004', 'INV-2026-003']);
 
     expect(Invoice::query()->where('invoice_number', 'INV-2026-003')->value('amount_paid'))->toBe('2000.00')
         ->and(Invoice::query()->where('invoice_number', 'INV-2026-001')->value('amount_paid'))->toBe('24000.00')
@@ -426,7 +432,7 @@ test('it consulting seeder records the seeded payments once in the ledger', func
             ->and($entries->first()->method)->toBe(PaymentMethod::BankTransfer);
     }
 
-    expect(InvoicePayment::query()->count())->toBe(3);
+    expect(InvoicePayment::query()->count())->toBe(12);
 });
 
 test('it consulting seeder gives the demo deals to test@example.com except one', function () {
@@ -781,4 +787,125 @@ test('it consulting seeder adds no recent activity or task when it runs again la
         ->and(Task::query()->count())->toBe(18)
         ->and(Activity::query()->forOrganization($globex->id)->count())->toBe(0)
         ->and(Task::query()->forOrganization($globex->id)->count())->toBe(0);
+});
+
+/**
+ * The ledger of an invoice as "kind amount paid_on method recorder" lines, by id.
+ *
+ * @return array<int, string>
+ */
+function seededLedgerOf(string $number): array
+{
+    return Invoice::query()->where('invoice_number', $number)->firstOrFail()->payments()
+        ->with('recordedBy')->orderBy('id')->get()
+        ->map(fn (InvoicePayment $p): string => "{$p->kind->value} {$p->amount} {$p->paid_on->toDateString()} {$p->method->value} {$p->recordedBy->email}")
+        ->all();
+}
+
+test('it consulting seeder seeds backdated invoices whose totals, statuses and ledgers agree', function () {
+    seedHistoryAt($this);
+
+    $statuses = Invoice::query()->get()->countBy(fn (Invoice $invoice): string => $invoice->status->value)->all();
+
+    expect(Invoice::query()->count())->toBe(15)
+        ->and(InvoicePayment::query()->count())->toBe(12)
+        ->and(InvoicePayment::query()->where('kind', InvoicePaymentKind::Refund)->count())->toBe(1)
+        ->and($statuses)->toEqual([
+            InvoiceStatus::Paid->value => 7,
+            InvoiceStatus::Partial->value => 2,
+            InvoiceStatus::Sent->value => 2,
+            InvoiceStatus::Overdue->value => 2,
+            InvoiceStatus::Draft->value => 1,
+            InvoiceStatus::Cancelled->value => 1,
+        ])
+        ->and(InvoicePayment::query()->where('paid_on', '>', '2026-10-21')->count())->toBe(0)
+        ->and(Invoice::query()->where('issued_at', '>', '2026-10-21')->count())->toBe(0);
+
+    foreach (Invoice::query()->with('payments')->get() as $invoice) {
+        $net = $invoice->payments->sum(fn (InvoicePayment $p): float => $p->kind === InvoicePaymentKind::Payment ? (float) $p->amount : -(float) $p->amount);
+
+        expect((float) $net)->toBe((float) $invoice->amount_paid, $invoice->invoice_number);
+    }
+});
+
+test('it consulting seeder pays one invoice in two instalments through the ledger', function () {
+    seedHistoryAt($this);
+
+    $invoice = Invoice::query()->where('invoice_number', 'INV-2026-008')->firstOrFail();
+
+    expect(seededLedgerOf('INV-2026-008'))->toBe([
+        'payment 18000.00 2026-06-25 bank_transfer admin@example.com',
+        'payment 18000.00 2026-07-10 bank_transfer admin@example.com',
+    ])
+        ->and($invoice->status)->toBe(InvoiceStatus::Paid)
+        ->and($invoice->amount_paid)->toBe('36000.00')
+        ->and($invoice->paid_at->toDateString())->toBe('2026-07-10')
+        ->and($invoice->creator->email)->toBe('admin@example.com')
+        ->and($invoice->deal->title)->toBe('Cloudbase Kubernetes Migration')
+        ->and($invoice->issued_at->toDateString())->toBe('2026-05-28')
+        ->and($invoice->due_at->toDateString())->toBe('2026-06-27')
+        ->and($invoice->created_at->toDateTimeString())->toBe('2026-05-28 12:00:00')
+        ->and($invoice->payments()->orderBy('id')->first()->created_at->toDateTimeString())->toBe('2026-06-25 12:00:00');
+});
+
+test('it consulting seeder leaves one invoice partial after a deposit', function () {
+    seedHistoryAt($this);
+
+    $invoice = Invoice::query()->where('invoice_number', 'INV-2026-013')->firstOrFail();
+
+    expect($invoice->status)->toBe(InvoiceStatus::Partial)
+        ->and($invoice->amount_paid)->toBe('10000.00')
+        ->and($invoice->paid_at->toDateString())->toBe('2026-08-20')
+        ->and($invoice->due_at->toDateString())->toBe('2026-09-06')
+        ->and($invoice->creator->email)->toBe('test@example.com')
+        ->and(seededLedgerOf('INV-2026-013'))->toBe(['payment 10000.00 2026-08-20 bank_transfer test@example.com']);
+});
+
+test('it consulting seeder cancels and refunds one invoice', function () {
+    seedHistoryAt($this);
+
+    $invoice = Invoice::query()->where('invoice_number', 'INV-2026-014')->firstOrFail();
+
+    expect($invoice->status)->toBe(InvoiceStatus::Cancelled)
+        ->and($invoice->amount_paid)->toBe('0.00')
+        ->and($invoice->paid_at)->toBeNull()
+        ->and(seededLedgerOf('INV-2026-014'))->toBe([
+            'payment 7500.00 2026-08-28 bank_transfer test@example.com',
+            'refund 7500.00 2026-09-24 bank_transfer test@example.com',
+        ]);
+});
+
+test('it consulting seeder splits the cash collected by month between the owners', function (?string $ownerEmail, array $values) {
+    seedHistoryAt($this);
+
+    $ownerId = $ownerEmail === null ? null : User::query()->where('email', $ownerEmail)->value('id');
+
+    expect(DashboardKpis::cashCollectedByPeriod(ReportPeriod::forPreset(ReportPeriodPreset::ThisMonth)->trail(6), $ownerId))->toBe($values);
+})->with([
+    'everyone' => [null, [0.0, 66000.0, 36000.0, 44500.0, 33000.0, 26000.0]],
+    'test' => ['test@example.com', [0.0, 48000.0, 0.0, 44500.0, 23500.0, 26000.0]],
+    'admin' => ['admin@example.com', [0.0, 18000.0, 18000.0, 0.0, 0.0, 0.0]],
+    'member' => ['member@example.com', [0.0, 0.0, 18000.0, 0.0, 9500.0, 0.0]],
+]);
+
+test('it consulting seeder shows the cash of last month and the aging buckets on the dashboard', function () {
+    seedHistoryAt($this);
+
+    Livewire::test(KpiOverviewWidget::class)
+        ->assertSeeInOrder(['Cash Collected This Month', '$26,000.00', '-21.2% from $33,000.00']);
+
+    Livewire::test(MoneyOwedWidget::class)
+        ->assertSeeInOrder(['31–60 days late', '$23,000.00', '1 invoice', '61–90 days late', '$2,400.00', '1 invoice', 'Over 90 days late', '$4,500.00', '1 invoice']);
+});
+
+test('it consulting seeder adds no invoice or payment twice and gives Globex Demo none', function () {
+    $this->seed(ItConsultingSeeder::class);
+    seedHistoryAt($this);
+
+    $globex = Organization::query()->where('slug', 'globex-demo')->sole();
+
+    expect(Invoice::query()->count())->toBe(15)
+        ->and(InvoicePayment::query()->count())->toBe(12)
+        ->and(Invoice::query()->forOrganization($globex->id)->count())->toBe(0)
+        ->and(InvoicePayment::query()->forOrganization($globex->id)->count())->toBe(0);
 });

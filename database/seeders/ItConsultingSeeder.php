@@ -38,6 +38,7 @@ use App\Models\User;
 use App\Services\Deals\DealCompany;
 use App\Services\Deals\DealStageMover;
 use App\Services\Deals\DefaultPipeline;
+use App\Services\Invoices\InvoiceLedger;
 use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
@@ -637,6 +638,8 @@ class ItConsultingSeeder extends Seeder
             }
         }
 
+        $this->seedInvoiceHistory($org);
+
         // ── Tasks ────────────────────────────────────────────────────────────
         $tasksData = [
             ['title' => 'Finalize TechCorp contract redlines', 'email' => 'marcus.chen@techcorp.io', 'type' => TaskType::FollowUp, 'priority' => TaskPriority::High, 'status' => TaskStatus::Pending, 'due_at' => now()->addDay(), 'notes' => 'Review legal comments and send final draft.'],
@@ -777,6 +780,81 @@ class ItConsultingSeeder extends Seeder
                     'notes' => $notes,
                 ]
             );
+        }
+    }
+
+    /**
+     * Nine invoices issued over the months before the current one, paid at their own dates through the invoice ledger
+     * (one in two instalments, one partial after a deposit, one cancelled and refunded), plus overdue ones for every
+     * aging bucket; an invoice that already exists is skipped.
+     */
+    private function seedInvoiceHistory(Organization $org): void
+    {
+        $today = now()->toImmutable();
+        $month = fn (int $monthsAgo, int $day): CarbonImmutable => $today->startOfMonth()->subMonthsNoOverflow($monthsAgo)->setDay($day)->setTime(12, 0);
+        $daysAgo = fn (int $days): CarbonImmutable => $today->subDays($days)->setTime(12, 0);
+
+        $test = 'test@example.com';
+        $admin = 'admin@example.com';
+        $member = 'member@example.com';
+        $bank = PaymentMethod::BankTransfer;
+
+        $rows = [
+            ['INV-2026-007', 'marcus.chen@techcorp.io', 'TechCorp Security Audit', $test, 48000, $month(5, 20), $month(4, 19), InvoiceStatus::Sent, [['payment', '48000.00', $month(4, 15), $bank]], 'Security audit, full engagement.'],
+            ['INV-2026-008', 'sarah.johansson@cloudbase.dev', 'Cloudbase Kubernetes Migration', $admin, 36000, $month(5, 28), $month(4, 27), InvoiceStatus::Sent, [['payment', '18000.00', $month(4, 25), $bank], ['payment', '18000.00', $month(3, 10), $bank]], 'Kubernetes migration, paid in two instalments.'],
+            ['INV-2026-009', 'tom.whitfield@stackops.io', 'StackOps CI Pipeline Hardening', $member, 18000, $month(4, 10), $month(3, 10), InvoiceStatus::Sent, [['payment', '18000.00', $month(3, 8), $bank]], 'CI pipeline hardening.'],
+            ['INV-2026-010', 'james.okafor@cybernode.ng', null, $admin, 4500, $daysAgo(130), $daysAgo(100), InvoiceStatus::Overdue, [], 'Mobile app discovery workshop.'],
+            ['INV-2026-011', 'priya.nair@securepeak.com', 'SecurePeak Cloud Posture Review', $test, 27000, $month(3, 7), $month(2, 6), InvoiceStatus::Sent, [['payment', '27000.00', $month(2, 4), $bank]], 'Cloud posture review.'],
+            ['INV-2026-012', 'remy.bertrand@webscale.fr', null, $member, 2400, $daysAgo(105), $daysAgo(75), InvoiceStatus::Sent, [], 'Performance audit pre-study.'],
+            ['INV-2026-013', 'nadia.petrova@softbridge.eu', 'SoftBridge Laravel API Build', $test, 33000, $month(2, 12), $daysAgo(45), InvoiceStatus::Sent, [['payment', '10000.00', $month(2, 20), $bank]], 'Deposit received, balance overdue.'],
+            ['INV-2026-014', 'yasmin.alrashid@cloudshift.ae', 'CloudShift Managed Services Pilot', $test, 7500, $month(2, 27), $month(1, 27), InvoiceStatus::Sent, [['payment', '7500.00', $month(2, 28), $bank], ['cancel', $month(1, 20)], ['refund', '7500.00', $month(1, 24), $bank]], 'Pilot deposit, refunded after the pilot was postponed.'],
+            ['INV-2026-015', 'elena.vasquez@pixelcraft.studio', 'PixelCraft Design System Support', $member, 9500, $month(1, 9), $month(1, 28), InvoiceStatus::Sent, [['payment', '9500.00', $month(1, 26), PaymentMethod::Card]], 'Design system support.'],
+        ];
+
+        $users = User::query()->whereIn('email', [$test, $admin, $member])->get()->keyBy('email');
+        $contacts = Contact::query()->whereIn('email', array_column($rows, 1))->get()->keyBy('email');
+        $deals = Deal::query()->whereIn('title', array_filter(array_column($rows, 2)))->pluck('id', 'title');
+        $ledger = app(InvoiceLedger::class);
+
+        foreach ($rows as [$number, $email, $dealTitle, $creatorEmail, $amount, $issued, $due, $status, $steps, $notes]) {
+            if (Invoice::query()->where('organization_id', $org->id)->where('invoice_number', $number)->exists()) {
+                continue;
+            }
+
+            $creator = $users[$creatorEmail];
+
+            $invoice = Carbon::withTestNow($issued, fn (): Invoice => Invoice::create([
+                'organization_id' => $org->id,
+                'invoice_number' => $number,
+                'contact_id' => $contacts[$email]->id,
+                'deal_id' => $dealTitle === null ? null : $deals[$dealTitle],
+                'amount' => $amount,
+                'status' => $status,
+                'issued_at' => $issued->toDateString(),
+                'due_at' => $due->toDateString(),
+                'notes' => $notes,
+                'created_by' => $creator->id,
+            ]));
+
+            foreach ($steps as $step) {
+                Carbon::withTestNow($step[2] ?? $step[1], function () use ($step, $invoice, $ledger, $creator): void {
+                    if ($step[0] === 'cancel') {
+                        $invoice->update(['status' => InvoiceStatus::Cancelled]);
+
+                        return;
+                    }
+
+                    $ledger->record(
+                        $invoice,
+                        $step[0] === 'refund' ? InvoicePaymentKind::Refund : InvoicePaymentKind::Payment,
+                        $step[1],
+                        $step[2]->toDateString(),
+                        $step[3],
+                        null,
+                        $creator,
+                    );
+                });
+            }
         }
     }
 
