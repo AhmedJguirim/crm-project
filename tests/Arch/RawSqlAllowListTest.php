@@ -59,6 +59,9 @@ function rawSqlAllowList(): array
         'Services/Reports/Receivables.php' => [
             'constant' => 'constant CASE bucket select (COUNT, COALESCE(SUM(amount - amount_paid), 0)) for the invoice aging; dates and status are bindings',
         ],
+        'Services/Reports/TeamActivity.php' => [
+            'constant' => 'constant grouped aggregate selects (COUNT/SUM over CASE) for the team leaderboard, one per source; statuses, period bounds and now are bindings',
+        ],
         'Services/Segments/SegmentQueryBuilder.php' => [
             'constant' => 'whereRaw(\'1 = 0\') only, for a rule without usable conditions',
         ],
