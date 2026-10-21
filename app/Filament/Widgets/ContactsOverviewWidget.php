@@ -20,7 +20,7 @@ class ContactsOverviewWidget extends StatsOverviewWidget
 {
     use InteractsWithPageFilters;
 
-    protected ?string $pollingInterval = '30s';
+    protected ?string $pollingInterval = null;
 
     protected static ?int $sort = -17;
 

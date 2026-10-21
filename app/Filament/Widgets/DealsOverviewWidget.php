@@ -24,7 +24,7 @@ class DealsOverviewWidget extends BaseWidget
 {
     use InteractsWithPageFilters;
 
-    protected ?string $pollingInterval = '30s';
+    protected ?string $pollingInterval = null;
 
     protected static ?int $sort = -30;
 

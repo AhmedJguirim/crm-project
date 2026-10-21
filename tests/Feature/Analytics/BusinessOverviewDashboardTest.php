@@ -4,6 +4,7 @@ use App\Enums\ActivityType;
 use App\Enums\ContactStatus;
 use App\Enums\InvoiceStatus;
 use App\Enums\TaskStatus;
+use App\Filament\Pages\Dashboard;
 use App\Filament\Widgets\ContactsOverviewWidget;
 use App\Filament\Widgets\DealsOverviewWidget;
 use App\Filament\Widgets\KpiOverviewWidget;
@@ -19,8 +20,12 @@ use App\Models\Invoice;
 use App\Models\Task;
 use App\Models\User;
 use Filament\Facades\Filament;
+use Filament\Widgets\AccountWidget;
+use Filament\Widgets\FilamentInfoWidget;
 use Illuminate\Support\Carbon;
 use Livewire\Livewire;
+
+use function Livewire\invade;
 
 beforeEach(function () {
     Carbon::setTestNow('2026-02-21 12:15:00');
@@ -119,3 +124,21 @@ test('recent activities widget shows latest 10 items in descending order', funct
         ->assertDontSee('Activity 01')
         ->assertDontSee('Activity 02');
 });
+
+test('the Filament default cards are gone from the dashboard', function () {
+    $widgets = Livewire::test(Dashboard::class)->instance()->getWidgets();
+
+    expect($widgets)->not->toContain(AccountWidget::class)
+        ->and($widgets)->not->toContain(FilamentInfoWidget::class)
+        ->and($widgets)->toContain(KpiOverviewWidget::class)
+        ->and($widgets)->toContain(MyTasksWidget::class);
+});
+
+test('only my tasks refreshes on its own', function (string $widget) {
+    expect(invade(Livewire::test($widget)->instance())->getPollingInterval())->toBeNull();
+})->with([
+    DealsOverviewWidget::class,
+    ContactsOverviewWidget::class,
+    KpiOverviewWidget::class,
+    MoneyOwedWidget::class,
+]);

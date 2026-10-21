@@ -14,8 +14,6 @@ class RecentActivitiesWidget extends Widget
 
     protected int|string|array $columnSpan = 'full';
 
-    protected ?string $pollingInterval = '30s';
-
     protected function getViewData(): array
     {
         $activities = Activity::query()
