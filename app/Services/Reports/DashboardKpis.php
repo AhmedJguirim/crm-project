@@ -58,6 +58,48 @@ final class DashboardKpis
     }
 
     /**
+     * Per period, the figures of the sales results: deals won (status won and won in the period) with their total value
+     * and summed sales cycle in seconds (won_at minus created_at per deal, never below 0), and deals lost (status lost
+     * and lost in the period) with their total value. A null value adds 0. Periods without a deal are zeros.
+     *
+     * @param  list<ReportPeriod>  $periods
+     * @return list<array{won_count: int, won_value: float, won_cycle_seconds: float, lost_count: int, lost_value: float}>
+     */
+    public static function salesResultsByPeriod(array $periods, ?int $ownerId): array
+    {
+        $rows = self::rowsByPeriod($periods, function (ReportPeriod $period, int $index) use ($ownerId): Builder {
+            [$from, $to] = $period->bounds();
+
+            return Deal::query()
+                ->when($ownerId !== null, fn (Builder $query): Builder => $query->where('owner_id', $ownerId))
+                ->selectRaw(
+                    'COUNT(CASE WHEN status = ? AND won_at BETWEEN ? AND ? THEN 1 END) AS won_count, '.
+                    'COALESCE(SUM(CASE WHEN status = ? AND won_at BETWEEN ? AND ? THEN value END), 0) AS won_value, '.
+                    'COALESCE(SUM(CASE WHEN status = ? AND won_at BETWEEN ? AND ? THEN GREATEST(EXTRACT(EPOCH FROM (won_at - created_at)), 0) END), 0) AS won_cycle_seconds, '.
+                    'COUNT(CASE WHEN status = ? AND lost_at BETWEEN ? AND ? THEN 1 END) AS lost_count, '.
+                    'COALESCE(SUM(CASE WHEN status = ? AND lost_at BETWEEN ? AND ? THEN value END), 0) AS lost_value, '.
+                    'CAST(? AS integer) AS period_index',
+                    [
+                        DealStatus::Won->value, $from, $to,
+                        DealStatus::Won->value, $from, $to,
+                        DealStatus::Won->value, $from, $to,
+                        DealStatus::Lost->value, $from, $to,
+                        DealStatus::Lost->value, $from, $to,
+                        $index,
+                    ],
+                );
+        });
+
+        return array_map(fn (int $index): array => [
+            'won_count' => (int) ($rows[$index]?->getAttribute('won_count') ?? 0),
+            'won_value' => (float) ($rows[$index]?->getAttribute('won_value') ?? 0),
+            'won_cycle_seconds' => (float) ($rows[$index]?->getAttribute('won_cycle_seconds') ?? 0),
+            'lost_count' => (int) ($rows[$index]?->getAttribute('lost_count') ?? 0),
+            'lost_value' => (float) ($rows[$index]?->getAttribute('lost_value') ?? 0),
+        ], array_keys($periods));
+    }
+
+    /**
      * Per period, the contacts created in it (soft-deleted ones excluded by the model scope).
      *
      * @param  list<ReportPeriod>  $periods

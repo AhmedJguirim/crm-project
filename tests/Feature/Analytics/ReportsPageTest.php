@@ -4,6 +4,7 @@ use App\Enums\OrganizationRole;
 use App\Enums\ReportPeriodPreset;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\Reports;
+use App\Filament\Widgets\Reports\SalesResultsWidget;
 use App\Filament\Widgets\Reports\TeamActivityWidget;
 use App\Models\User;
 use Filament\Facades\Filament;
@@ -24,6 +25,7 @@ test('every role opens the Reports page', function (OrganizationRole $role) {
     $this->get(Reports::getUrl(tenant: $this->team->org))
         ->assertOk()
         ->assertSee('Reports')
+        ->assertSeeLivewire(SalesResultsWidget::class)
         ->assertSeeLivewire(TeamActivityWidget::class);
 })->with([OrganizationRole::Owner, OrganizationRole::Admin, OrganizationRole::Member, OrganizationRole::Viewer]);
 
@@ -55,7 +57,7 @@ test('the page has the shared filter form', function () {
         ->assertFormFieldVisible('from', 'filtersForm')
         ->assertFormFieldVisible('to', 'filtersForm');
 
-    expect(Livewire::test(Reports::class)->instance()->getWidgets())->toBe([TeamActivityWidget::class]);
+    expect(Livewire::test(Reports::class)->instance()->getWidgets())->toBe([SalesResultsWidget::class, TeamActivityWidget::class]);
 });
 
 test('the Reports filters are remembered separately from the dashboard', function () {
@@ -77,4 +79,32 @@ test('forged URL filters never break the page', function (array $filters) {
 
 test('the sidebar links to Reports', function () {
     $this->get(Filament::getUrl($this->team->org))->assertSee(Reports::getUrl(tenant: $this->team->org));
+});
+
+test('the page shows both tabs, Sales results first', function () {
+    $this->get(Reports::getUrl(tenant: $this->team->org))
+        ->assertOk()
+        ->assertSeeHtmlInOrder(['Sales results', 'Team activity'])
+        ->assertSeeLivewire(SalesResultsWidget::class)
+        ->assertSeeLivewire(TeamActivityWidget::class);
+});
+
+test('tab query strings never break the page', function (mixed $tab) {
+    $this->get(Reports::getUrl(['tab' => $tab], tenant: $this->team->org))
+        ->assertOk()
+        ->assertSeeLivewire(SalesResultsWidget::class);
+})->with([
+    'team activity' => 'team-activity',
+    'sales results' => 'sales-results',
+    'unknown' => 'unknown',
+    'array' => [['x']],
+    'nested array' => [['a' => ['b']]],
+]);
+
+test('the tabs have stable keys and are kept in the query string', function () {
+    $this->get(Reports::getUrl(tenant: $this->team->org))
+        ->assertOk()
+        ->assertSee('isTabPersistedInQueryString: true', false)
+        ->assertSee("tabQueryStringKey: 'tab'", false)
+        ->assertSee('value="[&quot;sales-results&quot;,&quot;team-activity&quot;]"', false);
 });
