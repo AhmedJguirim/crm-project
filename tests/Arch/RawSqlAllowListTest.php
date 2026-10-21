@@ -56,6 +56,9 @@ function rawSqlAllowList(): array
         'Services/Deals/DealForecast.php' => [
             'constant' => 'constant aggregate select (COUNT, COALESCE(SUM(value), 0)) for the forecast by close month',
         ],
+        'Services/Reports/DashboardKpis.php' => [
+            'constant' => 'constant conditional aggregate select (COUNT/SUM over CASE) for the dashboard KPIs; statuses and period bounds are bindings',
+        ],
         'Services/Segments/SegmentQueryBuilder.php' => [
             'constant' => 'whereRaw(\'1 = 0\') only, for a rule without usable conditions',
         ],

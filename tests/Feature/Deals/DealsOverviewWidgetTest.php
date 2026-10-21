@@ -4,8 +4,10 @@ use App\Enums\Currency;
 use App\Enums\DealStatus;
 use App\Enums\OrganizationRole;
 use App\Filament\Pages\Dashboard;
+use App\Filament\Widgets\ContactsOverviewWidget;
 use App\Filament\Widgets\DealForecastWidget;
 use App\Filament\Widgets\DealsOverviewWidget;
+use App\Filament\Widgets\KpiOverviewWidget;
 use App\Models\Deal;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -55,9 +57,9 @@ test('deals overview widget renders metrics and stage breakdown for current tena
         ->assertSee('2')
         ->assertSee('Pipeline Value')
         ->assertSee('$3,000.00')
-        ->assertSee('Won This Month')
-        ->assertSee('Revenue Won This Month')
-        ->assertSee('$700.00')
+        ->assertDontSee('Won This Month')
+        ->assertDontSee('Revenue Won This Month')
+        ->assertDontSee('$700.00')
         ->assertSee('Open Deals by Stage')
         ->assertSee('Lead: 1')
         ->assertSee('Negotiating: 1')
@@ -127,8 +129,10 @@ test('the cards use the currency of the organization', function () {
 
     Livewire::test(DealsOverviewWidget::class)
         ->assertSeeInOrder(['Pipeline Value', '€3,000.00'])
+        ->assertDontSee('$3,000.00');
+
+    Livewire::test(KpiOverviewWidget::class)
         ->assertSeeInOrder(['Revenue Won This Month', '€700.00'])
-        ->assertDontSee('$3,000.00')
         ->assertDontSee('$700.00');
 });
 
@@ -151,15 +155,17 @@ test('revenue won this month counts only won deals, not the open ones', function
         'won_at' => now()->subDays(2),
     ]);
 
-    Livewire::test(DealsOverviewWidget::class)
-        ->assertSeeInOrder(['Revenue Won This Month', '$700.00', 'Won deal value this month']);
+    Livewire::test(KpiOverviewWidget::class)
+        ->assertSeeInOrder(['Revenue Won This Month', '$700.00', 'Up from $0.00']);
 });
 
 test('an organization without deals shows zero amounts in its currency', function (Currency $currency, string $zero) {
     $this->org->update(['currency' => $currency]);
 
     Livewire::test(DealsOverviewWidget::class)
-        ->assertSeeInOrder(['Pipeline Value', $zero])
+        ->assertSeeInOrder(['Pipeline Value', $zero]);
+
+    Livewire::test(KpiOverviewWidget::class)
         ->assertSeeInOrder(['Revenue Won This Month', $zero]);
 })->with([
     'usd' => [Currency::Usd, '$0.00'],
@@ -185,7 +191,7 @@ test('the amounts of another organization do not leak into the overview', functi
         ->assertDontSee('€');
 });
 
-function dealsOverviewStatValues(DealsOverviewWidget $widget): array
+function dealsOverviewStatValues(DealsOverviewWidget|KpiOverviewWidget|ContactsOverviewWidget $widget): array
 {
     $stats = (fn (): array => $this->getStats())->call($widget);
 
@@ -214,11 +220,11 @@ test('the cards hold the counts of the open and of the won deals, not each other
     }
 
     $values = dealsOverviewStatValues(Livewire::test(DealsOverviewWidget::class)->instance());
+    $kpis = dealsOverviewStatValues(Livewire::test(KpiOverviewWidget::class)->instance());
 
-    expect($values['Open Deals'])->toBe('3')
-        ->and($values['Won This Month'])->toBe('2')
-        ->and($values['Pipeline Value'])->toBe('$600.00')
-        ->and($values['Revenue Won This Month'])->toBe('$12,000.00');
+    expect($values)->toBe(['Open Deals' => '3', 'Pipeline Value' => '$600.00'])
+        ->and($kpis['Deals Won This Month'])->toBe('2')
+        ->and($kpis['Revenue Won This Month'])->toBe('$12,000.00');
 });
 
 describe('dashboard filters', function () {
@@ -248,38 +254,40 @@ describe('dashboard filters', function () {
     });
 
     $statValues = fn (array $pageFilters): array => dealsOverviewStatValues(Livewire::test(DealsOverviewWidget::class, ['pageFilters' => $pageFilters])->instance());
+    $kpiValues = fn (array $pageFilters): array => dealsOverviewStatValues(Livewire::test(KpiOverviewWidget::class, ['pageFilters' => $pageFilters])->instance());
 
-    test('without filters the figures are the whole organization and this month', function () use ($statValues) {
+    test('without filters the figures are the whole organization and this month', function () use ($statValues, $kpiValues) {
         expect($statValues([]))->toBe([
             'Open Deals' => '3',
             'Pipeline Value' => '$3,500.00',
-            'Won This Month' => '2',
+        ])->and($kpiValues([]))->toMatchArray([
+            'Deals Won This Month' => '2',
             'Revenue Won This Month' => '$1,000.00',
         ]);
 
-        Livewire::test(DealsOverviewWidget::class)
-            ->assertSee('Deals closed as won this month')
-            ->assertSee('Won deal value this month');
+        Livewire::test(KpiOverviewWidget::class)
+            ->assertSee('Compared with the previous period, from Sep 1, 2026 to Sep 30, 2026.');
     });
 
-    test('the period moves the won figures and its wording, not the open ones', function () use ($statValues) {
+    test('the period moves the won figures and their wording, not the open ones', function () use ($statValues, $kpiValues) {
         expect($statValues(['period' => 'last_month']))->toBe([
             'Open Deals' => '3',
             'Pipeline Value' => '$3,500.00',
-            'Won Last Month' => '1',
+        ])->and($kpiValues(['period' => 'last_month']))->toMatchArray([
+            'Deals Won Last Month' => '1',
             'Revenue Won Last Month' => '$900.00',
         ]);
 
-        Livewire::test(DealsOverviewWidget::class, ['pageFilters' => ['period' => 'last_month']])
-            ->assertSee('Deals closed as won last month')
-            ->assertSee('Won deal value last month');
+        Livewire::test(KpiOverviewWidget::class, ['pageFilters' => ['period' => 'last_month']])
+            ->assertSee('Compared with the previous period, from Aug 1, 2026 to Aug 31, 2026.');
     });
 
-    test('the owner narrows every figure and the stage breakdown', function () use ($statValues) {
+    test('the owner narrows every figure and the stage breakdown', function () use ($statValues, $kpiValues) {
         expect($statValues(['owner' => 'me']))->toBe([
             'Open Deals' => '1',
             'Pipeline Value' => '$1,000.00',
-            'Won This Month' => '2',
+        ])->and($kpiValues(['owner' => 'me']))->toMatchArray([
+            'Deals Won This Month' => '2',
             'Revenue Won This Month' => '$1,000.00',
         ]);
 
@@ -288,18 +296,19 @@ describe('dashboard filters', function () {
             ->assertDontSee('Negotiating: 1');
     });
 
-    test('the owner narrows the won figures of the period too', function () use ($statValues) {
-        expect($statValues(['owner' => (string) $this->bob->id]))->toMatchArray(['Won This Month' => '0', 'Revenue Won This Month' => '$0.00'])
-            ->and($statValues(['owner' => 'me', 'period' => 'last_month']))->toMatchArray(['Won Last Month' => '0', 'Revenue Won Last Month' => '$0.00']);
+    test('the owner narrows the won figures of the period too', function () use ($kpiValues) {
+        expect($kpiValues(['owner' => (string) $this->bob->id]))->toMatchArray(['Deals Won This Month' => '0', 'Revenue Won This Month' => '$0.00'])
+            ->and($kpiValues(['owner' => 'me', 'period' => 'last_month']))->toMatchArray(['Deals Won Last Month' => '0', 'Revenue Won Last Month' => '$0.00']);
     });
 
-    test('an owner and a period combine', function () use ($statValues) {
+    test('an owner and a period combine', function () use ($statValues, $kpiValues) {
         $filters = ['owner' => (string) $this->bob->id, 'period' => 'last_month'];
 
         expect($statValues($filters))->toBe([
             'Open Deals' => '1',
             'Pipeline Value' => '$2,000.00',
-            'Won Last Month' => '1',
+        ])->and($kpiValues($filters))->toMatchArray([
+            'Deals Won Last Month' => '1',
             'Revenue Won Last Month' => '$900.00',
         ]);
 
@@ -308,22 +317,22 @@ describe('dashboard filters', function () {
             ->assertDontSee('Lead: 1');
     });
 
-    test('a custom range counts the won deals of its local days', function () use ($statValues) {
+    test('a custom range counts the won deals of its local days', function () use ($kpiValues) {
         $filters = ['period' => 'custom', 'from' => '2026-09-01', 'to' => '2026-10-31'];
 
-        expect($statValues($filters))->toMatchArray([
-            'Won In Period' => '3',
+        expect($kpiValues($filters))->toMatchArray([
+            'Deals Won In Period' => '3',
             'Revenue Won In Period' => '$1,900.00',
         ]);
 
-        Livewire::test(DealsOverviewWidget::class, ['pageFilters' => $filters])
-            ->assertSee('Won deal value from Sep 1, 2026 to Oct 31, 2026');
+        Livewire::test(KpiOverviewWidget::class, ['pageFilters' => $filters])
+            ->assertSee('Compared with the previous period, from Jul 2, 2026 to Aug 31, 2026.');
     });
 
-    test('the end of a custom range includes its whole last local day', function () use ($statValues) {
-        expect($statValues(['period' => 'custom', 'from' => '2026-10-01', 'to' => '2026-10-05']))->toMatchArray(['Won In Period' => '2'])
-            ->and($statValues(['period' => 'custom', 'from' => '2026-10-01', 'to' => '2026-10-04']))->toMatchArray(['Won In Period' => '1'])
-            ->and($statValues(['period' => 'custom', 'from' => '2026-09-30', 'to' => '2026-09-30']))->toMatchArray(['Won In Period' => '0']);
+    test('the end of a custom range includes its whole last local day', function () use ($kpiValues) {
+        expect($kpiValues(['period' => 'custom', 'from' => '2026-10-01', 'to' => '2026-10-05']))->toMatchArray(['Deals Won In Period' => '2'])
+            ->and($kpiValues(['period' => 'custom', 'from' => '2026-10-01', 'to' => '2026-10-04']))->toMatchArray(['Deals Won In Period' => '1'])
+            ->and($kpiValues(['period' => 'custom', 'from' => '2026-09-30', 'to' => '2026-09-30']))->toMatchArray(['Deals Won In Period' => '0']);
     });
 
     test('an owner of another organization or a forged value shows everyone', function (callable $owner) use ($statValues) {
@@ -347,7 +356,7 @@ describe('dashboard filters', function () {
     test('the dashboard hands its filters to the widgets', function () {
         $page = Livewire::test(Dashboard::class)->set('filters.owner', 'me')->set('filters.period', 'last_month');
 
-        foreach ([DealsOverviewWidget::class, DealForecastWidget::class] as $widget) {
+        foreach ([DealsOverviewWidget::class, DealForecastWidget::class, KpiOverviewWidget::class, ContactsOverviewWidget::class] as $widget) {
             $component = $page->instance()->getWidgetsSchemaComponents([$widget])[0];
 
             expect($component->getData()['pageFilters'])->toMatchArray(['owner' => 'me', 'period' => 'last_month']);

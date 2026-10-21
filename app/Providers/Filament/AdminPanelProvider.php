@@ -9,6 +9,7 @@ use App\Filament\Pages\Tenancy\RegisterOrganization;
 use App\Filament\Widgets\ContactsOverviewWidget;
 use App\Filament\Widgets\DealForecastWidget;
 use App\Filament\Widgets\DealsOverviewWidget;
+use App\Filament\Widgets\KpiOverviewWidget;
 use App\Filament\Widgets\MyDealsClosingWidget;
 use App\Filament\Widgets\MyTasksWidget;
 use App\Filament\Widgets\RecentActivitiesWidget;
@@ -147,6 +148,7 @@ class AdminPanelProvider extends PanelProvider
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
+                KpiOverviewWidget::class,
                 MyTasksWidget::class,
                 MyDealsClosingWidget::class,
                 DealsOverviewWidget::class,

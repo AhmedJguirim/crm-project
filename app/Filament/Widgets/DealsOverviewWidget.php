@@ -18,7 +18,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Number;
 
 /**
- * Dashboard deal figures. The page's owner filter applies to every figure and its period to the two "Won" figures.
+ * Dashboard open-deal figures. The page's owner filter applies to every figure.
  */
 class DealsOverviewWidget extends BaseWidget
 {
@@ -101,7 +101,6 @@ class DealsOverviewWidget extends BaseWidget
 
         $currency = CurrentOrganization::find()?->currencyCode() ?? 'USD';
         $filters = $this->dashboardFilters();
-        $period = $filters->period;
 
         $openAggregate = Deal::query()
             ->open()
@@ -109,18 +108,8 @@ class DealsOverviewWidget extends BaseWidget
             ->selectRaw('COUNT(*) as deals_count, COALESCE(SUM(value), 0) as total_value')
             ->first();
 
-        $wonAggregate = Deal::query()
-            ->won()
-            ->when($filters->ownerId !== null, fn (Builder $query): Builder => $query->where('owner_id', $filters->ownerId))
-            ->whereBetween('won_at', $period->bounds())
-            ->selectRaw('COUNT(*) as deals_count, COALESCE(SUM(value), 0) as total_value')
-            ->first();
-
         $openDealsCount = (int) ($openAggregate?->getAttribute('deals_count') ?? 0);
         $openPipelineValue = (float) ($openAggregate?->getAttribute('total_value') ?? 0);
-
-        $wonDealsInPeriod = (int) ($wonAggregate?->getAttribute('deals_count') ?? 0);
-        $wonRevenueInPeriod = (float) ($wonAggregate?->getAttribute('total_value') ?? 0);
 
         return [
             Stat::make('Open Deals', (string) $openDealsCount)
@@ -132,16 +121,6 @@ class DealsOverviewWidget extends BaseWidget
                 ->description('Total open pipeline value')
                 ->color('primary')
                 ->url(DealResource::getUrl('index').'?tableFilters[status][value]=open'),
-
-            Stat::make('Won '.$period->title(), (string) $wonDealsInPeriod)
-                ->description('Deals closed as won '.$period->phrase())
-                ->color('success')
-                ->url(DealResource::getUrl('index').'?tableFilters[status][value]=won'),
-
-            Stat::make('Revenue Won '.$period->title(), Number::currency($wonRevenueInPeriod, $currency))
-                ->description('Won deal value '.$period->phrase())
-                ->color('success')
-                ->url(DealResource::getUrl('index').'?tableFilters[status][value]=won'),
         ];
     }
 }

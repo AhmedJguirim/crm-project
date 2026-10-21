@@ -8,8 +8,7 @@ use App\Filament\Resources\Invoices\Pages\EditInvoice;
 use App\Filament\Resources\Invoices\Pages\ListInvoices;
 use App\Filament\Resources\Invoices\Pages\ViewInvoice;
 use App\Filament\Resources\Tasks\Pages\ListTasks;
-use App\Filament\Widgets\ContactsOverviewWidget;
-use App\Filament\Widgets\DealsOverviewWidget;
+use App\Filament\Widgets\KpiOverviewWidget;
 use App\Filament\Widgets\RevenueOverviewWidget;
 use App\Models\Contact;
 use App\Models\Deal;
@@ -177,8 +176,8 @@ test('the month widgets count the local month', function () {
     ($this->makeInvoice)(InvoiceStatus::Paid, '2026-11-30', ['amount' => 100, 'amount_paid' => 100, 'paid_at' => '2026-11-01']);
     ($this->makeInvoice)(InvoiceStatus::Paid, '2026-11-30', ['amount' => 40, 'amount_paid' => 40, 'paid_at' => '2026-10-31']);
 
-    expect(($this->stats)(ContactsOverviewWidget::class)['New This Month'])->toBe('1')
-        ->and(($this->stats)(DealsOverviewWidget::class)['Won This Month'])->toBe('1')
+    expect(($this->stats)(KpiOverviewWidget::class)['New Contacts This Month'])->toBe('1')
+        ->and(($this->stats)(KpiOverviewWidget::class)['Deals Won This Month'])->toBe('1')
         ->and(($this->stats)(RevenueOverviewWidget::class)['Paid This Month'])->toBe('$100.00');
 });
 

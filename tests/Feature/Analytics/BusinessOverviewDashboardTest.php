@@ -6,6 +6,7 @@ use App\Enums\InvoiceStatus;
 use App\Enums\TaskStatus;
 use App\Filament\Widgets\ContactsOverviewWidget;
 use App\Filament\Widgets\DealsOverviewWidget;
+use App\Filament\Widgets\KpiOverviewWidget;
 use App\Filament\Widgets\MyDealsClosingWidget;
 use App\Filament\Widgets\MyTasksWidget;
 use App\Filament\Widgets\RecentActivitiesWidget;
@@ -68,6 +69,9 @@ test('all business overview widgets render with organization data', function () 
         'subject' => 'Kickoff sync',
         'occurred_at' => now()->subHour(),
     ]);
+
+    Livewire::test(KpiOverviewWidget::class)
+        ->assertSee('Key figures');
 
     Livewire::test(DealsOverviewWidget::class)
         ->assertSee('Open Deals');
