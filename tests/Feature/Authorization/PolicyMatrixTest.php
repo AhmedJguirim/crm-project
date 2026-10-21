@@ -173,7 +173,8 @@ describe('policies', function () {
             ->and(Gate::forUser($user)->allows('export', Contact::class))->toBe($allowed)
             ->and(Gate::forUser($user)->allows('export', Company::class))->toBe($allowed)
             ->and(Gate::forUser($user)->allows('publish', authorizationRecord(Segment::class, $this->acme)))->toBe($allowed)
-            ->and(Gate::forUser($user)->allows('cancel', authorizationRecord(Invoice::class, $this->acme)))->toBe($allowed);
+            ->and(Gate::forUser($user)->allows('cancel', authorizationRecord(Invoice::class, $this->acme)))->toBe($allowed)
+            ->and(Gate::forUser($user)->allows('refund', authorizationRecord(Invoice::class, $this->acme)))->toBe($allowed);
     })->with([
         'viewer' => [OrganizationRole::Viewer, false],
         'member' => [OrganizationRole::Member, false],

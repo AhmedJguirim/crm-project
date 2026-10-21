@@ -3,7 +3,9 @@
 use App\Enums\CompanyIndustry;
 use App\Enums\Currency;
 use App\Enums\DealStatus;
+use App\Enums\InvoicePaymentKind;
 use App\Enums\OrganizationRole;
+use App\Enums\PaymentMethod;
 use App\Enums\SegmentRefreshFrequency;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
@@ -18,6 +20,7 @@ use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\Deal;
 use App\Models\Invoice;
+use App\Models\InvoicePayment;
 use App\Models\LostReason;
 use App\Models\Organization;
 use App\Models\PipelineStage;
@@ -389,6 +392,28 @@ test('it consulting seeder seeds one currency and the dashboard adds the amounts
     expect(Invoice::query()->where('invoice_number', 'INV-2026-003')->value('amount_paid'))->toBe('2000.00')
         ->and(Invoice::query()->where('invoice_number', 'INV-2026-001')->value('amount_paid'))->toBe('24000.00')
         ->and(Invoice::query()->where('invoice_number', 'INV-2026-005')->value('amount_paid'))->toBe('31000.00');
+});
+
+test('it consulting seeder records the seeded payments once in the ledger', function () {
+    $this->seed(ItConsultingSeeder::class);
+    $this->seed(ItConsultingSeeder::class);
+
+    $user = User::query()->where('email', 'test@example.com')->firstOrFail();
+    $this->actingAs($user);
+    Filament::setTenant($user->personalOrganization());
+
+    foreach (['INV-2026-001' => '24000.00', 'INV-2026-003' => '2000.00', 'INV-2026-005' => '31000.00'] as $number => $amount) {
+        $invoice = Invoice::query()->where('invoice_number', $number)->firstOrFail();
+        $entries = $invoice->payments()->get();
+
+        expect($entries)->toHaveCount(1)
+            ->and($entries->first()->kind)->toBe(InvoicePaymentKind::Payment)
+            ->and($entries->first()->amount)->toBe($amount)
+            ->and($entries->first()->paid_on->toDateString())->toBe($invoice->paid_at->toDateString())
+            ->and($entries->first()->method)->toBe(PaymentMethod::BankTransfer);
+    }
+
+    expect(InvoicePayment::query()->count())->toBe(3);
 });
 
 test('it consulting seeder gives the demo deals to test@example.com except one', function () {

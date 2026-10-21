@@ -9,8 +9,10 @@ use App\Enums\ActivityType;
 use App\Enums\CompanyIndustry;
 use App\Enums\ContactAttribute;
 use App\Enums\DealStatus;
+use App\Enums\InvoicePaymentKind;
 use App\Enums\InvoiceStatus;
 use App\Enums\OrganizationRole;
+use App\Enums\PaymentMethod;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentOperator;
 use App\Enums\TaskPriority;
@@ -26,6 +28,7 @@ use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\Deal;
 use App\Models\Invoice;
+use App\Models\InvoicePayment;
 use App\Models\LostReason;
 use App\Models\Organization;
 use App\Models\Segment;
@@ -594,7 +597,7 @@ class ItConsultingSeeder extends Seeder
                     ->first();
             }
 
-            Invoice::firstOrCreate(
+            $invoice = Invoice::firstOrCreate(
                 [
                     'organization_id' => $org->id,
                     'invoice_number' => $invoiceData['invoice_number'],
@@ -611,6 +614,19 @@ class ItConsultingSeeder extends Seeder
                     'notes' => $invoiceData['notes'] ?? null,
                 ]
             );
+
+            if ((float) $invoice->amount_paid > 0 && ! $invoice->payments()->exists()) {
+                InvoicePayment::create([
+                    'organization_id' => $org->id,
+                    'invoice_id' => $invoice->id,
+                    'kind' => InvoicePaymentKind::Payment,
+                    'amount' => $invoice->amount_paid,
+                    'paid_on' => $invoice->paid_at,
+                    'method' => PaymentMethod::BankTransfer,
+                    'reference' => null,
+                    'recorded_by_id' => null,
+                ]);
+            }
         }
 
         // ── Tasks ────────────────────────────────────────────────────────────

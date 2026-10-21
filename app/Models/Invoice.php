@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[ObservedBy([InvoiceObserver::class])]
 class Invoice extends Model
@@ -63,6 +64,16 @@ class Invoice extends Model
     public function deal(): BelongsTo
     {
         return $this->belongsTo(Deal::class);
+    }
+
+    /**
+     * The payment ledger of the invoice (callers order it).
+     *
+     * @return HasMany<InvoicePayment, $this>
+     */
+    public function payments(): HasMany
+    {
+        return $this->hasMany(InvoicePayment::class);
     }
 
     public function scopePaid(Builder $query): Builder
