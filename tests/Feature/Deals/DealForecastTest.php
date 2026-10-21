@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\DealStatus;
+use App\Enums\OrganizationRole;
 use App\Models\Deal;
 use App\Models\Organization;
 use App\Models\PipelineStage;
@@ -118,4 +119,23 @@ test("another organization's open deals are never counted", function () {
 
     expect($rows['total']['deals_count'])->toBe(0)
         ->and($rows['2026-10']['total'])->toBe(0.0);
+});
+
+test('an owner id keeps only the deals of that owner, and no owner keeps all of them', function () {
+    $bob = User::factory()->onboardingCompleted()->create();
+    $this->org->members()->attach($bob, ['role' => OrganizationRole::Member->value]);
+
+    ($this->forecastDeal)('Lead', '1000', '2026-10-30')->update(['owner_id' => $this->user->id]);
+    ($this->forecastDeal)('Negotiating', '2000', '2026-10-30')->update(['owner_id' => $bob->id]);
+    ($this->forecastDeal)('Lead', '400', '2026-10-30');
+
+    $mine = DealForecast::byCloseMonth('2026-10-21', 6, $this->user->id);
+    $everyone = DealForecast::byCloseMonth('2026-10-21');
+
+    expect($mine['total']['deals_count'])->toBe(1)
+        ->and($mine['total']['total'])->toBe(1000.0)
+        ->and($mine['2026-10']['deals_count'])->toBe(1)
+        ->and($everyone['total']['deals_count'])->toBe(3)
+        ->and($everyone['total']['total'])->toBe(3400.0)
+        ->and(DealForecast::byCloseMonth('2026-10-21', 6, $bob->id)['total']['total'])->toBe(2000.0);
 });

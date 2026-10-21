@@ -5,17 +5,21 @@ namespace App\Filament\Widgets;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Services\Deals\DealForecast;
 use App\Support\LocalTime;
+use App\Support\Reports\DashboardFilters;
 use App\Support\Tenancy\CurrentOrganization;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Filament\Widgets\Concerns\InteractsWithPageFilters;
 use Filament\Widgets\TableWidget;
 use Illuminate\Support\Number;
 
 /**
- * Dashboard table of the open deals' total and weighted value per expected close month (see DealForecast).
+ * Dashboard table of the open deals' total and weighted value per expected close month (see DealForecast). It follows the
+ * dashboard's owner filter; the period does not apply to a forecast.
  */
 class DealForecastWidget extends TableWidget
 {
+    use InteractsWithPageFilters;
     use SanitizesTableSearch;
 
     protected static ?int $sort = -18;
@@ -29,7 +33,7 @@ class DealForecastWidget extends TableWidget
         return $table
             ->heading('Forecast by close month')
             ->description('Open deals by expected close month. Weighted = value × the stage\'s win probability.')
-            ->records(fn (): array => DealForecast::byCloseMonth(LocalTime::todayDate()))
+            ->records(fn (): array => DealForecast::byCloseMonth(LocalTime::todayDate(), ownerId: DashboardFilters::fromPageFilters($this->pageFilters)->ownerId))
             ->paginated(false)
             ->columns([
                 TextColumn::make('label')

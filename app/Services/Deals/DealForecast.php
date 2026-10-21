@@ -5,19 +5,20 @@ namespace App\Services\Deals;
 use App\Models\Deal;
 use App\Models\PipelineStage;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
  * The forecast of the organization's open deals by expected close month: for a window of months starting with the
  * month of the given day, the deal count, the total value and the weighted value (value x the stage's current win
  * probability). Deals closing before the window, after it or without a date get their own rows, shown only when they
- * have deals. Won and Lost deals are never counted, and the tenant scope limits everything to the current organization.
+ * have deals. With an owner id only that owner's deals count. Won and Lost deals are never counted, and the tenant scope limits everything to the current organization.
  */
 final class DealForecast
 {
     /**
      * @return array<string, array{label: string, deals_count: int, total: float, weighted: float}> keyed `earlier`, `Y-m` per month, `later`, `none`, `total`
      */
-    public static function byCloseMonth(string $todayDate, int $months = 6): array
+    public static function byCloseMonth(string $todayDate, int $months = 6, ?int $ownerId = null): array
     {
         $first = CarbonImmutable::createFromFormat('!Y-m-d', $todayDate)->startOfMonth();
 
@@ -41,6 +42,7 @@ final class DealForecast
 
         $groups = Deal::query()
             ->open()
+            ->when($ownerId !== null, fn (Builder $query): Builder => $query->where('owner_id', $ownerId))
             ->select(['expected_close_date', 'pipeline_stage_id'])
             ->selectRaw('COUNT(*) as deals_count, COALESCE(SUM(value), 0) as total_value')
             ->groupBy('expected_close_date', 'pipeline_stage_id')

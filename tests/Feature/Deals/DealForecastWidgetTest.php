@@ -89,3 +89,21 @@ test('a forged array table search is turned into an empty search', function () {
         ->assertSuccessful()
         ->assertSet('tableSearch', '');
 });
+
+test('the owner filter narrows the forecast and a forged one shows everyone', function (callable $owner, string $seen, string $notSeen) {
+    $bob = User::factory()->onboardingCompleted()->create();
+    $this->org->members()->attach($bob, ['role' => OrganizationRole::Member->value]);
+    $carol = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
+
+    ($this->widgetDeal)('Lead', '1000', '2026-10-30')->update(['owner_id' => $this->owner->id]);
+    ($this->widgetDeal)('Negotiating', '2000', '2026-10-30')->update(['owner_id' => $bob->id]);
+
+    Livewire::test(DealForecastWidget::class, ['pageFilters' => ['owner' => $owner($bob, $carol)]])
+        ->assertSee($seen)
+        ->assertDontSee($notSeen);
+})->with([
+    'me' => [fn (): string => 'me', '$1,000.00', '$3,000.00'],
+    'a member' => [fn (User $bob): string => (string) $bob->id, '$2,000.00', '$3,000.00'],
+    'a user of another organization' => [fn (User $bob, User $carol): string => (string) $carol->id, '$3,000.00', '$1,000.00'],
+    'an injection' => [fn (): string => '1 OR 1=1', '$3,000.00', '$1,000.00'],
+]);
