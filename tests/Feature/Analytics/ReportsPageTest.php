@@ -4,6 +4,7 @@ use App\Enums\OrganizationRole;
 use App\Enums\ReportPeriodPreset;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\Reports;
+use App\Filament\Widgets\Reports\LostReasonsWidget;
 use App\Filament\Widgets\Reports\SalesResultsWidget;
 use App\Filament\Widgets\Reports\TeamActivityWidget;
 use App\Models\User;
@@ -26,6 +27,7 @@ test('every role opens the Reports page', function (OrganizationRole $role) {
         ->assertOk()
         ->assertSee('Reports')
         ->assertSeeLivewire(SalesResultsWidget::class)
+        ->assertSeeLivewire(LostReasonsWidget::class)
         ->assertSeeLivewire(TeamActivityWidget::class);
 })->with([OrganizationRole::Owner, OrganizationRole::Admin, OrganizationRole::Member, OrganizationRole::Viewer]);
 
@@ -57,7 +59,7 @@ test('the page has the shared filter form', function () {
         ->assertFormFieldVisible('from', 'filtersForm')
         ->assertFormFieldVisible('to', 'filtersForm');
 
-    expect(Livewire::test(Reports::class)->instance()->getWidgets())->toBe([SalesResultsWidget::class, TeamActivityWidget::class]);
+    expect(Livewire::test(Reports::class)->instance()->getWidgets())->toBe([SalesResultsWidget::class, LostReasonsWidget::class, TeamActivityWidget::class]);
 });
 
 test('the Reports filters are remembered separately from the dashboard', function () {
@@ -86,6 +88,7 @@ test('the page shows both tabs, Sales results first', function () {
         ->assertOk()
         ->assertSeeHtmlInOrder(['Sales results', 'Team activity'])
         ->assertSeeLivewire(SalesResultsWidget::class)
+        ->assertSeeLivewire(LostReasonsWidget::class)
         ->assertSeeLivewire(TeamActivityWidget::class);
 });
 

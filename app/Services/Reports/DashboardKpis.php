@@ -100,6 +100,53 @@ final class DashboardKpis
     }
 
     /**
+     * Per period, the deals lost in it (status lost and lost in the period) counted by lost reason id, and those without
+     * a reason. One UNION ALL query of one grouped part per period.
+     *
+     * @param  list<ReportPeriod>  $periods
+     * @return list<array{by_reason: array<int, int>, no_reason: int}>
+     */
+    public static function lostReasonCountsByPeriod(array $periods, ?int $ownerId): array
+    {
+        $union = null;
+
+        foreach ($periods as $index => $period) {
+            $part = Deal::query()
+                ->when($ownerId !== null, fn (Builder $query): Builder => $query->where('owner_id', $ownerId))
+                ->where('status', DealStatus::Lost)
+                ->whereBetween('lost_at', $period->bounds())
+                ->select('lost_reason_id')
+                ->selectRaw('COUNT(*) AS lost_count, CAST(? AS integer) AS period_index', [$index])
+                ->groupBy('lost_reason_id');
+
+            if ($union === null) {
+                $union = $part;
+
+                continue;
+            }
+
+            $union->unionAll($part);
+        }
+
+        $counts = array_map(fn (): array => ['by_reason' => [], 'no_reason' => 0], array_keys($periods));
+
+        foreach ($union?->get() ?? [] as $row) {
+            $index = (int) $row->getAttribute('period_index');
+            $reasonId = $row->getAttribute('lost_reason_id');
+
+            if ($reasonId === null) {
+                $counts[$index]['no_reason'] = (int) $row->getAttribute('lost_count');
+
+                continue;
+            }
+
+            $counts[$index]['by_reason'][(int) $reasonId] = (int) $row->getAttribute('lost_count');
+        }
+
+        return $counts;
+    }
+
+    /**
      * Per period, the contacts created in it (soft-deleted ones excluded by the model scope).
      *
      * @param  list<ReportPeriod>  $periods
