@@ -7,8 +7,10 @@ use App\Enums\TaskStatus;
 use App\Filament\Widgets\ContactsOverviewWidget;
 use App\Filament\Widgets\DealsOverviewWidget;
 use App\Filament\Widgets\KpiOverviewWidget;
+use App\Filament\Widgets\MoneyOwedWidget;
 use App\Filament\Widgets\MyDealsClosingWidget;
 use App\Filament\Widgets\MyTasksWidget;
+use App\Filament\Widgets\OverdueInvoicesWidget;
 use App\Filament\Widgets\RecentActivitiesWidget;
 use App\Filament\Widgets\RevenueOverviewWidget;
 use App\Models\Activity;
@@ -78,6 +80,12 @@ test('all business overview widgets render with organization data', function () 
 
     Livewire::test(RevenueOverviewWidget::class)
         ->assertSee('Paid This Month');
+
+    Livewire::test(MoneyOwedWidget::class)
+        ->assertSee('Money owed');
+
+    Livewire::test(OverdueInvoicesWidget::class)
+        ->assertSee('Oldest overdue invoices');
 
     Livewire::test(ContactsOverviewWidget::class)
         ->assertSee('Total Contacts');
