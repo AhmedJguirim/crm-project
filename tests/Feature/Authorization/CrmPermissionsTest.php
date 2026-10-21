@@ -33,6 +33,7 @@ use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\Deal;
 use App\Models\Invoice;
+use App\Models\InvoicePayment;
 use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\Task;
@@ -241,7 +242,7 @@ describe('deals and invoices', function () {
             'status' => DealStatus::Open, 'position' => '1000.0000000000',
         ]);
         $this->invoice = Invoice::factory()->create([
-            'organization_id' => $this->org->id, 'contact_id' => $this->contact->id, 'deal_id' => $this->deal->id, 'status' => InvoiceStatus::Sent,
+            'organization_id' => $this->org->id, 'contact_id' => $this->contact->id, 'deal_id' => $this->deal->id, 'status' => InvoiceStatus::Sent, 'amount_paid' => 0,
         ]);
     });
 
@@ -319,10 +320,18 @@ describe('deals and invoices', function () {
 
     it('gives each role its actions on an invoice', function (OrganizationRole $role, bool $edit, bool $cancel) {
         ($this->actAs)($role);
-        $page = Livewire::test(ViewInvoice::class, ['record' => $this->invoice->getRouteKey()])->assertActionVisible('downloadPdf');
+        $partial = Invoice::factory()->create([
+            'organization_id' => $this->org->id, 'contact_id' => $this->contact->id, 'status' => InvoiceStatus::Partial, 'amount' => '5600.00', 'amount_paid' => '2000.00',
+        ]);
+        InvoicePayment::factory()->create(['invoice_id' => $partial->id, 'amount' => '2000.00']);
 
-        $edit ? $page->assertActionVisible('markAsPaid') : $page->assertActionHidden('markAsPaid');
+        $page = Livewire::test(ViewInvoice::class, ['record' => $this->invoice->getRouteKey()])->assertActionVisible('downloadPdf');
+        $partialPage = Livewire::test(ViewInvoice::class, ['record' => $partial->getRouteKey()]);
+
+        $edit ? $page->assertActionVisible('recordPayment') : $page->assertActionHidden('recordPayment');
         $cancel ? $page->assertActionVisible('cancelInvoice') : $page->assertActionHidden('cancelInvoice');
+        $page->assertActionHidden('recordRefund');
+        $cancel ? $partialPage->assertActionVisible('recordRefund') : $partialPage->assertActionHidden('recordRefund');
     })->with([
         'viewer' => [OrganizationRole::Viewer, false, false],
         'member' => [OrganizationRole::Member, true, false],

@@ -45,8 +45,13 @@ test('the invoice forms have no currency field and prefix the amounts with the o
 
     $edit = Livewire::test(EditInvoice::class, ['record' => $this->invoice->id])->assertFormFieldDoesNotExist('currency');
 
-    expect(invoiceFormComponent($edit, 'amount_paid')->getPrefixLabel())->toBe('EUR');
-    $edit->assertSee('Balance remaining: 1,500.00 EUR');
+    expect(invoiceFormComponent($edit, 'amount')->getPrefixLabel())->toBe('EUR');
+
+    $payment = Livewire::test(ViewInvoice::class, ['record' => $this->invoice->id])
+        ->callAction('recordPayment', data: ['amount' => '1500.01', 'paid_on' => today()->toDateString()])
+        ->assertHasActionErrors(['amount']);
+
+    expect($payment->errors()->get('mountedActions.0.data.amount'))->toContain("The payment can't be more than the balance due (€1,500.00).");
 });
 
 test('choosing a deal fills the amount from its value and the invoice carries no currency', function () {

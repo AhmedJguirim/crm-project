@@ -4,7 +4,6 @@ use App\Enums\InvoiceStatus;
 use App\Enums\TaskStatus;
 use App\Filament\Resources\Deals\Pages\ListDeals;
 use App\Filament\Resources\Invoices\Pages\CreateInvoice;
-use App\Filament\Resources\Invoices\Pages\EditInvoice;
 use App\Filament\Resources\Invoices\Pages\ListInvoices;
 use App\Filament\Resources\Invoices\Pages\ViewInvoice;
 use App\Filament\Resources\Tasks\Pages\ListTasks;
@@ -137,7 +136,7 @@ test('an invoice is overdue from the local day after its due date', function (In
     'paid' => [InvoiceStatus::Paid, '2026-10-01', false, false],
 ]);
 
-test('invoice dates default to the local day and mark as paid stamps it', function () {
+test('invoice dates default to the local day and recording a payment stamps it', function () {
     ($this->inZone)('Asia/Tokyo', '2026-10-12 23:30:00');
 
     Livewire::test(CreateInvoice::class)
@@ -146,25 +145,25 @@ test('invoice dates default to the local day and mark as paid stamps it', functi
 
     $invoice = ($this->makeInvoice)(InvoiceStatus::Sent, '2026-10-20');
 
-    Livewire::test(ListInvoices::class)->callAction(TestAction::make('markAsPaid')->table($invoice));
+    Livewire::test(ListInvoices::class)->callAction(TestAction::make('recordPayment')->table($invoice));
 
     expect($invoice->refresh()->paid_at->toDateString())->toBe('2026-10-13');
 });
 
-test('the invoice view and edit pages stamp the paid date with the local day', function () {
+test('the invoice view page stamps the payment date with the local day and refuses a later date', function () {
     ($this->inZone)('Asia/Tokyo', '2026-10-12 23:30:00');
 
     $viewed = ($this->makeInvoice)(InvoiceStatus::Sent, '2026-10-20');
-    Livewire::test(ViewInvoice::class, ['record' => $viewed->id])->callAction('markAsPaid');
+    $page = Livewire::test(ViewInvoice::class, ['record' => $viewed->id])
+        ->mountAction('recordPayment')
+        ->assertActionDataSet(['paid_on' => '2026-10-13']);
 
-    $edited = ($this->makeInvoice)(InvoiceStatus::Sent, '2026-10-20');
-    Livewire::test(EditInvoice::class, ['record' => $edited->id])
-        ->fillForm(['status' => InvoiceStatus::Paid, 'paid_at' => null])
-        ->call('save')
-        ->assertHasNoFormErrors();
+    $page->setActionData(['paid_on' => '2026-10-14'])->callMountedAction()->assertHasActionErrors(['paid_on' => 'before_or_equal']);
+    expect($viewed->refresh()->status)->toBe(InvoiceStatus::Sent);
 
-    expect($viewed->refresh()->paid_at->toDateString())->toBe('2026-10-13')
-        ->and($edited->refresh()->paid_at->toDateString())->toBe('2026-10-13');
+    $page->setActionData(['paid_on' => '2026-10-13'])->callMountedAction()->assertHasNoActionErrors();
+
+    expect($viewed->refresh()->paid_at->toDateString())->toBe('2026-10-13');
 });
 
 test('the month widgets count the local month', function () {

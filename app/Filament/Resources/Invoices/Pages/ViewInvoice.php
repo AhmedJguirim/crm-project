@@ -4,8 +4,8 @@ namespace App\Filament\Resources\Invoices\Pages;
 
 use App\Enums\InvoiceStatus;
 use App\Filament\Resources\Invoices\InvoiceResource;
+use App\Filament\Resources\Invoices\Tables\InvoicesTable;
 use App\Models\Invoice;
-use App\Support\LocalTime;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Resources\Pages\ViewRecord;
@@ -41,18 +41,9 @@ class ViewInvoice extends ViewRecord
                     ]);
                 }),
 
-            Action::make('markAsPaid')
-                ->authorize('update')
-                ->label('Mark as Paid')
-                ->icon(Heroicon::OutlinedCheckCircle)
-                ->color('success')
-                ->visible(fn (): bool => in_array($this->getRecord()->status, [InvoiceStatus::Sent, InvoiceStatus::Partial, InvoiceStatus::Overdue], true))
-                ->action(function (): void {
-                    $this->getRecord()->update([
-                        'status' => InvoiceStatus::Paid,
-                        'paid_at' => LocalTime::todayDate(),
-                    ]);
-                }),
+            InvoicesTable::recordPaymentAction(),
+
+            InvoicesTable::recordRefundAction(),
 
             Action::make('cancelInvoice')
                 ->authorize('cancel')

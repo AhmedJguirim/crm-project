@@ -1,11 +1,13 @@
 <?php
 
+use App\Enums\InvoicePaymentKind;
 use App\Enums\InvoiceStatus;
 use App\Filament\Resources\Invoices\Pages\EditInvoice;
 use App\Filament\Resources\Invoices\Pages\ListInvoices;
 use App\Filament\Resources\Invoices\Pages\ViewInvoice;
 use App\Models\Contact;
 use App\Models\Invoice;
+use App\Models\InvoicePayment;
 use App\Models\User;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
@@ -66,105 +68,83 @@ test('a cleared amount paid is saved as zero', function () {
     expect($invoice->refresh()->amount_paid)->toBe('0.00');
 });
 
-test('editing a partial invoice to paid fills the amount paid and keeps the payment date', function () {
-    $invoice = ($this->makePaymentInvoice)(InvoiceStatus::Partial, '5600.00', '2000.00', '2026-02-10');
-
-    Livewire::test(EditInvoice::class, ['record' => $invoice->id])
-        ->fillForm(['status' => InvoiceStatus::Paid])
-        ->assertSet('data.amount_paid', fn ($value) => (float) $value === 5600.0)
-        ->assertFormFieldIsDisabled('amount_paid')
-        ->call('save')
-        ->assertHasNoFormErrors();
-
-    expect($invoice->refresh()->amount_paid)->toBe('5600.00')
-        ->and($invoice->paid_at->toDateString())->toBe('2026-02-10');
-});
-
-test('a paid invoice keeps amount paid equal to the amount when the amount changes', function () {
-    $invoice = ($this->makePaymentInvoice)(InvoiceStatus::Paid, '1000.00', '1000.00', '2026-02-10');
-
-    Livewire::test(EditInvoice::class, ['record' => $invoice->id])
-        ->fillForm(['amount' => 1500])
-        ->call('save')
-        ->assertHasNoFormErrors();
-
-    expect($invoice->refresh()->amount_paid)->toBe('1500.00');
-});
-
-test('the edit form refuses inconsistent amounts', function (InvoiceStatus $status, int|string $paid, string $message) {
+test('the edit form no longer has the amount paid and the paid date', function () {
     $invoice = ($this->makePaymentInvoice)(InvoiceStatus::Sent, '5600.00', 0);
 
-    $page = Livewire::test(EditInvoice::class, ['record' => $invoice->id])
-        ->fillForm(['status' => $status, 'amount_paid' => $paid])
-        ->call('save');
+    Livewire::test(EditInvoice::class, ['record' => $invoice->id])
+        ->assertFormFieldDoesNotExist('amount_paid')
+        ->assertFormFieldDoesNotExist('paid_at');
+});
 
-    expect($page->errors()->get('data.amount_paid'))->toContain($message);
+test('the status options leave out paid and partial on an unpaid invoice', function () {
+    $invoice = ($this->makePaymentInvoice)(InvoiceStatus::Sent, '5600.00', 0);
+
+    $page = Livewire::test(EditInvoice::class, ['record' => $invoice->id]);
+    $options = $page->instance()->getSchema('form')->getComponent('status')->getOptions();
+
+    expect(array_keys($options))->toBe(['draft', 'sent', 'overdue', 'cancelled'])
+        ->and($options['sent'])->toBe('Sent');
+});
+
+test('a forged paid or partial status is refused by the in rule', function (InvoiceStatus $status) {
+    $invoice = ($this->makePaymentInvoice)(InvoiceStatus::Sent, '5600.00', 0);
+
+    Livewire::test(EditInvoice::class, ['record' => $invoice->id])
+        ->fillForm(['status' => $status])
+        ->call('save')
+        ->assertHasFormErrors(['status' => 'in']);
 
     expect($invoice->refresh()->status)->toBe(InvoiceStatus::Sent)
         ->and($invoice->amount_paid)->toBe('0.00');
-})->with([
-    'partial without payment' => [InvoiceStatus::Partial, 0, 'A partial invoice needs the amount already paid.'],
-    'partial equal to the amount' => [InvoiceStatus::Partial, 5600, 'A partial payment must be less than the invoice amount. Set the status to Paid if the invoice is fully paid.'],
-    'partial above the amount' => [InvoiceStatus::Partial, 6000, 'A partial payment must be less than the invoice amount. Set the status to Paid if the invoice is fully paid.'],
-    'sent with money' => [InvoiceStatus::Sent, 100, 'Only a partial or paid invoice can have an amount paid. Set the status to Partial, or the amount paid to 0.'],
-    'overdue with money' => [InvoiceStatus::Overdue, 100, 'Only a partial or paid invoice can have an amount paid. Set the status to Partial, or the amount paid to 0.'],
-    'draft with money' => [InvoiceStatus::Draft, 100, 'Only a partial or paid invoice can have an amount paid. Set the status to Partial, or the amount paid to 0.'],
-]);
+})->with([InvoiceStatus::Paid, InvoiceStatus::Partial]);
 
-test('the edit form accepts consistent combinations', function (InvoiceStatus $status, int|string $paid, string $stored) {
+test('a partial or paid invoice has its status locked and shows the payments helper', function (InvoiceStatus $status) {
+    $invoice = ($this->makePaymentInvoice)($status, '5600.00', '2000.00', '2026-02-10');
+    InvoicePayment::factory()->create(['invoice_id' => $invoice->id, 'amount' => '2000.00', 'paid_on' => '2026-02-10']);
+
+    $page = Livewire::test(EditInvoice::class, ['record' => $invoice->id])
+        ->assertFormFieldIsDisabled('status')
+        ->assertFormFieldIsDisabled('amount');
+
+    $field = $page->instance()->getSchema('form')->getComponent('status');
+    $helper = collect($field->getChildComponents($field::BELOW_CONTENT_SCHEMA_KEY))->map(fn ($component): string => (string) $component->getContent())->implode(' ');
+
+    expect($helper)->toBe('Set by the payments recorded.')
+        ->and(array_keys($field->getOptions()))->toBe(['draft', 'sent', 'paid', 'partial', 'overdue', 'cancelled']);
+
+    $page->call('save')->assertHasNoFormErrors();
+
+    expect($invoice->refresh()->status)->toBe($status)
+        ->and($invoice->amount)->toBe('5600.00');
+})->with([InvoiceStatus::Paid, InvoiceStatus::Partial]);
+
+test('the amount stays editable until a payment is recorded', function () {
     $invoice = ($this->makePaymentInvoice)(InvoiceStatus::Sent, '5600.00', 0);
 
     Livewire::test(EditInvoice::class, ['record' => $invoice->id])
-        ->fillForm(['status' => $status, 'amount_paid' => $paid])
+        ->assertFormFieldIsEnabled('amount')
+        ->fillForm(['amount' => 6000])
         ->call('save')
         ->assertHasNoFormErrors();
 
-    expect($invoice->refresh()->amount_paid)->toBe($stored);
-})->with([
-    'partial' => [InvoiceStatus::Partial, 2000, '2000.00'],
-    'partial just under the amount' => [InvoiceStatus::Partial, '5599.99', '5599.99'],
-    'sent without money' => [InvoiceStatus::Sent, 0, '0.00'],
-    'cancelled keeps what was paid' => [InvoiceStatus::Cancelled, 100, '100.00'],
-]);
-
-test('a forged non numeric amount paid is reported once by the numeric rule', function () {
-    $invoice = ($this->makePaymentInvoice)(InvoiceStatus::Sent, '5600.00', 0);
-
-    Livewire::test(EditInvoice::class, ['record' => $invoice->id])
-        ->fillForm(['status' => InvoiceStatus::Partial, 'amount_paid' => 'abc'])
-        ->call('save')
-        ->assertHasFormErrors(['amount_paid' => 'numeric']);
-
-    expect($invoice->refresh()->status)->toBe(InvoiceStatus::Sent);
+    expect($invoice->refresh()->amount)->toBe('6000.00');
 });
 
-test('the paid date helper text follows the status', function () {
-    $invoice = ($this->makePaymentInvoice)(InvoiceStatus::Partial, '5600.00', '2000.00', '2026-02-10');
-
-    $page = Livewire::test(EditInvoice::class, ['record' => $invoice->id]);
-    $helper = function () use ($page): string {
-        $field = $page->instance()->getSchema('form')->getComponent('paid_at');
-
-        return collect($field->getChildComponents($field::BELOW_CONTENT_SCHEMA_KEY))->map(fn ($component): string => (string) $component->getContent())->implode(' ');
-    };
-
-    expect($helper())->toBe('The date of the last payment received. Today if left empty.');
-
-    $page->fillForm(['status' => InvoiceStatus::Paid]);
-
-    expect($helper())->toBe('The date the invoice was fully paid. Today if left empty.');
-});
-
-test('mark as paid stamps today and fills the amount paid', function () {
+test('recording the balance from the view page and the table marks the invoice paid today', function () {
     $viewed = ($this->makePaymentInvoice)(InvoiceStatus::Partial, '5600.00', '2000.00', '2026-02-10');
     $listed = ($this->makePaymentInvoice)(InvoiceStatus::Partial, '5600.00', '2000.00', '2026-02-10');
 
-    Livewire::test(ViewInvoice::class, ['record' => $viewed->id])->callAction('markAsPaid');
-    Livewire::test(ListInvoices::class)->callAction(TestAction::make('markAsPaid')->table($listed));
+    foreach ([$viewed, $listed] as $invoice) {
+        InvoicePayment::factory()->create(['invoice_id' => $invoice->id, 'amount' => '2000.00', 'paid_on' => '2026-02-10']);
+    }
+
+    Livewire::test(ViewInvoice::class, ['record' => $viewed->id])->callAction('recordPayment');
+    Livewire::test(ListInvoices::class)->callAction(TestAction::make('recordPayment')->table($listed));
 
     foreach ([$viewed, $listed] as $invoice) {
         expect($invoice->refresh()->status)->toBe(InvoiceStatus::Paid)
             ->and($invoice->amount_paid)->toBe('5600.00')
-            ->and($invoice->paid_at->toDateString())->toBe('2026-02-21');
+            ->and($invoice->paid_at->toDateString())->toBe('2026-02-21')
+            ->and($invoice->payments()->where('kind', InvoicePaymentKind::Payment)->count())->toBe(2);
     }
 });

@@ -7,10 +7,10 @@ use App\Filament\Support\RecordKeyField;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Invoice;
+use App\Services\Invoices\InvoiceLedger;
 use App\Support\LocalTime;
 use App\Support\MoneyLimit;
 use App\Support\Tenancy\CurrentOrganization;
-use Closure;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -110,7 +110,11 @@ class InvoiceForm
                     ->minValue(0)
                     ->maxValue(MoneyLimit::MAX)
                     ->step(0.01)
-                    ->prefix(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD'),
+                    ->prefix(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD')
+                    ->disabled(fn (?Invoice $record): bool => $record?->payments()->exists() ?? false)
+                    ->helperText(fn (?Invoice $record): ?string => $record?->payments()->exists()
+                        ? "The amount can't change once a payment is recorded."
+                        : null),
 
                 Select::make('payment_terms')
                     ->label('Payment Terms')
@@ -138,47 +142,11 @@ class InvoiceForm
                     }),
 
                 Select::make('status')
-                    ->options(InvoiceStatus::class)
+                    ->options(fn (?Invoice $record): array => self::statusOptions($record))
                     ->default(InvoiceStatus::Draft)
                     ->required()
-                    ->live()
-                    ->afterStateUpdated(function (Set $set, Get $get): void {
-                        if (self::statusOf($get) === InvoiceStatus::Paid) {
-                            $set('amount_paid', $get('amount'));
-                        }
-                    })
-                    ->hiddenOn('create'),
-
-                TextInput::make('amount_paid')
-                    ->label('Amount Paid')
-                    ->numeric()
-                    ->minValue(0)
-                    ->maxValue(MoneyLimit::MAX)
-                    ->step(0.01)
-                    ->default(0)
-                    ->disabled(fn (Get $get): bool => self::statusOf($get) === InvoiceStatus::Paid)
-                    ->rule(fn (Get $get): Closure => function (string $attribute, mixed $value, Closure $fail) use ($get): void {
-                        if ($value !== null && ! is_numeric($value)) {
-                            return;
-                        }
-
-                        $paid = round((float) ($value ?? 0), 2);
-                        $amount = round((float) ($get('amount') ?? 0), 2);
-
-                        match (self::statusOf($get)) {
-                            InvoiceStatus::Partial => match (true) {
-                                $paid <= 0 => $fail('A partial invoice needs the amount already paid.'),
-                                $paid >= $amount => $fail('A partial payment must be less than the invoice amount. Set the status to Paid if the invoice is fully paid.'),
-                                default => null,
-                            },
-                            InvoiceStatus::Draft, InvoiceStatus::Sent, InvoiceStatus::Overdue => $paid > 0
-                                ? $fail('Only a partial or paid invoice can have an amount paid. Set the status to Partial, or the amount paid to 0.')
-                                : null,
-                            default => null,
-                        };
-                    })
-                    ->prefix(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD')
-                    ->helperText(fn (Get $get): ?string => self::balanceHelper($get))
+                    ->disabled(fn (?Invoice $record): bool => self::isSetByPayments($record))
+                    ->helperText(fn (?Invoice $record): ?string => self::isSetByPayments($record) ? 'Set by the payments recorded.' : null)
                     ->hiddenOn('create'),
 
                 DatePicker::make('issued_at')
@@ -200,15 +168,6 @@ class InvoiceForm
                     ->required()
                     ->default(fn (): string => LocalTime::now()->addDays(30)->toDateString()),
 
-                DatePicker::make('paid_at')
-                    ->label('Paid')
-                    ->visible(fn (Get $get): bool => in_array(self::statusOf($get), [InvoiceStatus::Paid, InvoiceStatus::Partial], true))
-                    ->helperText(fn (Get $get): ?string => match (self::statusOf($get)) {
-                        InvoiceStatus::Paid => 'The date the invoice was fully paid. Today if left empty.',
-                        InvoiceStatus::Partial => 'The date of the last payment received. Today if left empty.',
-                        default => null,
-                    }),
-
                 Textarea::make('notes')
                     ->rows(4)
                     ->nullable()
@@ -216,34 +175,28 @@ class InvoiceForm
             ]);
     }
 
-    private static function statusOf(Get $get): ?InvoiceStatus
+    /**
+     * The statuses a person can pick: Paid and Partial are set by the payments recorded, so they are only offered (and
+     * the field locked) when the payments decide the status of the invoice.
+     *
+     * @return array<string, string>
+     */
+    private static function statusOptions(?Invoice $record): array
     {
-        $status = $get('status');
-
-        if ($status instanceof InvoiceStatus) {
-            return $status;
-        }
-
-        return is_string($status) ? InvoiceStatus::tryFrom($status) : null;
+        return collect(InvoiceStatus::cases())
+            ->reject(fn (InvoiceStatus $status): bool => ! self::isSetByPayments($record) && in_array($status, [InvoiceStatus::Paid, InvoiceStatus::Partial], true))
+            ->mapWithKeys(fn (InvoiceStatus $status): array => [$status->value => $status->getLabel()])
+            ->all();
     }
 
-    private static function balanceHelper(Get $get): ?string
+    /**
+     * Whether the payments recorded decide the status of the invoice: it is Paid or Partial, or it holds money (such as
+     * a cancelled invoice not fully refunded), so a person can't move it to a status that contradicts its ledger.
+     */
+    private static function isSetByPayments(?Invoice $record): bool
     {
-        $amount = (float) ($get('amount') ?? 0);
-        $paid = (float) ($get('amount_paid') ?? 0);
-        $balance = $amount - $paid;
-
-        if ($balance <= 0 && $amount > 0) {
-            return 'Fully paid';
-        }
-
-        if ($paid > 0) {
-            $currency = CurrentOrganization::find()?->currencyCode() ?? 'USD';
-
-            return 'Balance remaining: '.number_format($balance, 2)." {$currency}";
-        }
-
-        return null;
+        return in_array($record?->status, [InvoiceStatus::Paid, InvoiceStatus::Partial], true)
+            || InvoiceLedger::cents($record?->amount_paid) > 0;
     }
 
     public static function nextInvoiceNumber(): string

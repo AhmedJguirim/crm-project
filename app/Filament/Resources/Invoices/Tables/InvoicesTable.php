@@ -3,27 +3,39 @@
 namespace App\Filament\Resources\Invoices\Tables;
 
 use App\Enums\DealStatus;
+use App\Enums\InvoicePaymentKind;
 use App\Enums\InvoiceStatus;
+use App\Enums\PaymentMethod;
+use App\Exceptions\InvoicePaymentRefused;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Deals\DealResource;
 use App\Filament\Support\Filters\OptionSelectFilter;
 use App\Filament\Support\Filters\RecordKeySelectFilter;
 use App\Models\Invoice;
+use App\Services\Invoices\InvoiceLedger;
 use App\Support\LocalTime;
+use App\Support\MoneyLimit;
+use App\Support\NotificationText;
 use App\Support\Tenancy\CurrentOrganization;
 use Carbon\CarbonImmutable;
+use Closure;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Component;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\Indicator;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Number;
 
 class InvoicesTable
 {
@@ -131,18 +143,7 @@ class InvoicesTable
                     }),
             ])
             ->recordActions([
-                Action::make('markAsPaid')
-                    ->authorize('update')
-                    ->label('Mark as Paid')
-                    ->icon(Heroicon::OutlinedCheckCircle)
-                    ->color('success')
-                    ->visible(fn (Invoice $record): bool => in_array($record->status, [InvoiceStatus::Sent, InvoiceStatus::Partial, InvoiceStatus::Overdue], true))
-                    ->action(function (Invoice $record): void {
-                        $record->update([
-                            'status' => InvoiceStatus::Paid,
-                            'paid_at' => LocalTime::todayDate(),
-                        ]);
-                    }),
+                self::recordPaymentAction(),
 
                 Action::make('downloadPdf')
                     ->authorize('view')
@@ -163,5 +164,148 @@ class InvoicesTable
             ->defaultSort('due_at')
             ->emptyStateHeading('No invoices yet')
             ->emptyStateDescription('Create your first invoice from a deal or start from scratch.');
+    }
+
+    /**
+     * Records a payment on the invoice, the balance being prefilled so that settling an invoice takes one confirmation.
+     */
+    public static function recordPaymentAction(): Action
+    {
+        return Action::make('recordPayment')
+            ->authorize('update')
+            ->label('Record payment')
+            ->icon(Heroicon::OutlinedBanknotes)
+            ->color('success')
+            ->visible(fn (Invoice $record): bool => in_array($record->status, [InvoiceStatus::Sent, InvoiceStatus::Partial, InvoiceStatus::Overdue], true))
+            ->modalHeading('Record a payment')
+            ->modalSubmitActionLabel('Record payment')
+            ->fillForm(fn (Invoice $record): array => self::ledgerFormDefaults(
+                number_format(max(0, InvoiceLedger::cents($record->amount) - InvoiceLedger::cents($record->amount_paid)) / 100, 2, '.', ''),
+            ))
+            ->schema(self::ledgerFields(InvoicePaymentKind::Payment))
+            ->action(fn (Invoice $record, array $data, Action $action) => self::recordLedgerEntry($record, InvoicePaymentKind::Payment, $data, $action));
+    }
+
+    /**
+     * Records a refund on the invoice, for the admins and the owner. Recorded entries can't be edited or deleted.
+     */
+    public static function recordRefundAction(): Action
+    {
+        return Action::make('recordRefund')
+            ->authorize('refund')
+            ->label('Record refund')
+            ->icon(Heroicon::OutlinedArrowUturnLeft)
+            ->color('danger')
+            ->visible(fn (Invoice $record): bool => (float) $record->amount_paid > 0)
+            ->modalHeading('Record a refund')
+            ->modalDescription("Refunds can't be edited or deleted once recorded.")
+            ->modalSubmitActionLabel('Record refund')
+            ->fillForm(fn (Invoice $record): array => self::ledgerFormDefaults(number_format((float) $record->amount_paid, 2, '.', '')))
+            ->schema(self::ledgerFields(InvoicePaymentKind::Refund))
+            ->action(fn (Invoice $record, array $data, Action $action) => self::recordLedgerEntry($record, InvoicePaymentKind::Refund, $data, $action));
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private static function ledgerFormDefaults(string $amount): array
+    {
+        return [
+            'amount' => $amount,
+            'paid_on' => LocalTime::todayDate(),
+            'method' => null,
+            'reference' => null,
+        ];
+    }
+
+    /**
+     * @return array<int, Component>
+     */
+    private static function ledgerFields(InvoicePaymentKind $kind): array
+    {
+        return [
+            TextInput::make('amount')
+                ->numeric()
+                ->required()
+                ->minValue(0.01)
+                ->maxValue(MoneyLimit::MAX)
+                ->step(0.01)
+                ->prefix(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD')
+                ->rule(fn (Invoice $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($record, $kind): void {
+                    if (! is_numeric($value)) {
+                        return;
+                    }
+
+                    $cents = InvoiceLedger::cents($value);
+                    $currency = CurrentOrganization::find()?->currencyCode() ?? 'USD';
+
+                    if ($kind === InvoicePaymentKind::Payment) {
+                        $balance = InvoiceLedger::cents($record->amount) - InvoiceLedger::cents($record->amount_paid);
+
+                        if ($cents > $balance) {
+                            $fail("The payment can't be more than the balance due (".Number::currency($balance / 100, $currency).').');
+                        }
+
+                        return;
+                    }
+
+                    $paid = InvoiceLedger::cents($record->amount_paid);
+
+                    if ($cents > $paid) {
+                        $fail("The refund can't be more than the amount paid (".Number::currency($paid / 100, $currency).').');
+                    }
+                }),
+
+            DatePicker::make('paid_on')
+                ->label('Date')
+                ->required()
+                ->maxDate(fn (): string => LocalTime::todayDate()),
+
+            Select::make('method')
+                ->label('Method')
+                ->options(PaymentMethod::class)
+                ->nullable(),
+
+            TextInput::make('reference')
+                ->label('Reference')
+                ->maxLength(255)
+                ->nullable()
+                ->helperText('Transfer reference, cheque number…'),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private static function recordLedgerEntry(Invoice $record, InvoicePaymentKind $kind, array $data, Action $action): void
+    {
+        $isPayment = $kind === InvoicePaymentKind::Payment;
+
+        try {
+            app(InvoiceLedger::class)->record(
+                $record,
+                $kind,
+                number_format((float) $data['amount'], 2, '.', ''),
+                (string) $data['paid_on'],
+                $data['method'] instanceof PaymentMethod ? $data['method'] : PaymentMethod::tryFrom((string) ($data['method'] ?? '')),
+                filled($data['reference'] ?? null) ? (string) $data['reference'] : null,
+                auth()->user(),
+            );
+        } catch (InvoicePaymentRefused $exception) {
+            Notification::make()
+                ->danger()
+                ->title(NotificationText::plain($isPayment ? 'Payment not recorded' : 'Refund not recorded'))
+                ->body(NotificationText::plain($exception->getMessage()))
+                ->send();
+
+            $action->halt();
+
+            return;
+        }
+
+        Notification::make()
+            ->success()
+            ->title(NotificationText::plain($isPayment ? 'Payment recorded' : 'Refund recorded'))
+            ->send();
     }
 }

@@ -2,10 +2,11 @@
 
 use App\Enums\InvoiceStatus;
 use App\Filament\Resources\Invoices\Pages\CreateInvoice;
-use App\Filament\Resources\Invoices\Pages\EditInvoice;
+use App\Filament\Resources\Invoices\Pages\ViewInvoice;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Invoice;
+use App\Models\InvoicePayment;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
@@ -54,7 +55,7 @@ test('the invoice form accepts the largest amount the column holds', function ()
     expect(Invoice::query()->firstOrFail()->amount)->toBe('99999999.99');
 });
 
-test('the amount paid is limited too', function () {
+test('the payment modal limits the amount too', function () {
     $invoice = Invoice::factory()->create([
         'organization_id' => $this->org->id,
         'contact_id' => $this->contact->id,
@@ -63,10 +64,10 @@ test('the amount paid is limited too', function () {
         'status' => InvoiceStatus::Sent,
     ]);
 
-    Livewire::test(EditInvoice::class, ['record' => $invoice->id])
-        ->fillForm(['amount_paid' => 100000000])
-        ->call('save')
-        ->assertHasFormErrors(['amount_paid' => 'max']);
+    Livewire::test(ViewInvoice::class, ['record' => $invoice->id])
+        ->callAction('recordPayment', data: ['amount' => 100000000, 'paid_on' => today()->toDateString()])
+        ->assertHasActionErrors(['amount' => 'max']);
 
-    expect($invoice->refresh()->amount_paid)->toBe('0.00');
+    expect($invoice->refresh()->amount_paid)->toBe('0.00')
+        ->and(InvoicePayment::query()->count())->toBe(0);
 });

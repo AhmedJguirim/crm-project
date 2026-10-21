@@ -54,18 +54,19 @@ test('invoices view page loads', function () {
         ->assertOk();
 });
 
-test('mark as paid action sets status and paid date', function () {
+test('record payment action with the prefilled balance sets status and paid date', function () {
     $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
 
     $invoice = Invoice::factory()->create([
         'organization_id' => $this->org->id,
         'contact_id' => $contact->id,
         'status' => InvoiceStatus::Sent,
+        'amount_paid' => 0,
         'paid_at' => null,
     ]);
 
     Livewire::test(ViewInvoice::class, ['record' => $invoice->id])
-        ->callAction('markAsPaid')
+        ->callAction('recordPayment')
         ->assertHasNoActionErrors();
 
     $invoice->refresh();
