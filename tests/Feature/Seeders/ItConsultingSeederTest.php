@@ -1,12 +1,16 @@
 <?php
 
+use App\Enums\ActivityOutcome;
+use App\Enums\ActivityType;
 use App\Enums\CompanyIndustry;
 use App\Enums\Currency;
 use App\Enums\DealStatus;
 use App\Enums\InvoicePaymentKind;
 use App\Enums\OrganizationRole;
 use App\Enums\PaymentMethod;
+use App\Enums\ReportPeriodPreset;
 use App\Enums\SegmentRefreshFrequency;
+use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
 use App\Filament\Widgets\DealsOverviewWidget;
@@ -30,9 +34,12 @@ use App\Models\Tag;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\Deals\DefaultPipeline;
+use App\Services\Reports\TeamActivity;
+use App\Support\Reports\ReportPeriod;
 use App\Support\Tenancy\TenantContext;
 use Database\Seeders\ItConsultingSeeder;
 use Filament\Facades\Filament;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Livewire\Livewire;
@@ -69,15 +76,15 @@ test('it consulting seeder seeds core crm modules data', function () {
     expect(Tag::query()->where('organization_id', $organization->id)->count())->toBe(10)
         ->and(CustomField::query()->where('organization_id', $organization->id)->count())->toBe(9)
         ->and(Contact::query()->where('organization_id', $organization->id)->count())->toBe(15)
-        ->and(Activity::query()->where('organization_id', $organization->id)->count())->toBe(20)
+        ->and(Activity::query()->where('organization_id', $organization->id)->count())->toBe(44)
         ->and(Deal::query()->count())->toBe(18)
-        ->and(Task::query()->count())->toBe(6);
+        ->and(Task::query()->count())->toBe(18);
 
     expect(Deal::query()->where('status', DealStatus::Open)->count())->toBe(4)
         ->and(Deal::query()->where('status', DealStatus::Won)->count())->toBe(8)
         ->and(Deal::query()->where('status', DealStatus::Lost)->count())->toBe(6)
-        ->and(Task::query()->where('status', TaskStatus::Done)->count())->toBe(1)
-        ->and(Task::query()->where('type', TaskType::Invoice)->count())->toBe(1);
+        ->and(Task::query()->where('status', TaskStatus::Done)->count())->toBe(13)
+        ->and(Task::query()->where('type', TaskType::Invoice)->count())->toBe(2);
 });
 
 test('it consulting seeder is idempotent for deals and tasks', function () {
@@ -92,7 +99,8 @@ test('it consulting seeder is idempotent for deals and tasks', function () {
 
     expect(Deal::query()->count())->toBe(18)
         ->and(DealStageChange::query()->count())->toBe(54)
-        ->and(Task::query()->count())->toBe(6);
+        ->and(Task::query()->count())->toBe(18)
+        ->and(Activity::query()->count())->toBe(44);
 });
 
 test('it consulting seeder seeds companies with types, custom fields, addresses and contacts', function () {
@@ -270,7 +278,7 @@ test('it consulting seeder seeds synced segments for every kind of condition and
         'Won customers' => 7,
         'Agency contacts' => 4,
         'Never contacted' => 2,
-        'Gone quiet (hourly)' => 13,
+        'Gone quiet (hourly)' => 5,
         'Added recently (daily)' => 15,
         'High rate (draft)' => 0,
     ])
@@ -279,6 +287,7 @@ test('it consulting seeder seeds synced segments for every kind of condition and
         ->and(Segment::query()->where('name', 'Won customers')->sole()->workingRules()->sole()->conditions[0]->value)
         ->toBe(['deal_stages' => [DefaultPipeline::stageOfType($user->personalOrganization()->id, DealStatus::Won)->id]])
         ->and($members['Never contacted'])->toBe(['Florian Dupont', 'Hugo Fernandes'])
+        ->and($members['Gone quiet (hourly)'])->toBe(['Amara Diallo', 'Ingrid Svensson', 'James Okafor', 'Nadia Petrova', 'Remy Bertrand'])
         ->and(Segment::query()->where('name', 'Gone quiet (hourly)')->sole()->refreshFrequency())->toBe(SegmentRefreshFrequency::Hourly)
         ->and(Segment::query()->where('name', 'Added recently (daily)')->sole()->refreshFrequency())->toBe(SegmentRefreshFrequency::Daily)
         ->and(Segment::query()->where('name', 'High rate (draft)')->sole())
@@ -460,7 +469,8 @@ test('it consulting seeder assigns the demo tasks to test@example.com except one
     $this->actingAs($user);
     Filament::setTenant($user->personalOrganization());
 
-    $owners = Task::query()->pluck('owner_id', 'title');
+    $originals = ['Finalize TechCorp contract redlines', 'Call Sarah for proposal approval', 'Prepare HexaSys discovery workshop agenda', 'Send SecurePeak kickoff summary', 'Invoice StackOps sprint support', 'Follow up with Yasmin on budget confirmation'];
+    $owners = Task::query()->whereIn('title', $originals)->pluck('owner_id', 'title');
 
     expect($owners['Invoice StackOps sprint support'])->toBeNull()
         ->and($owners->except('Invoice StackOps sprint support')->unique()->values()->all())->toBe([$user->id]);
@@ -676,6 +686,99 @@ test('it consulting seeder adds no history twice and gives Globex Demo none', fu
 
     expect(Deal::query()->count())->toBe(18)
         ->and(DealStageChange::query()->count())->toBe(54)
+        ->and(Activity::query()->count())->toBe(44)
+        ->and(Task::query()->count())->toBe(18)
         ->and(Deal::query()->forOrganization($globex->id)->count())->toBe(0)
-        ->and(DealStageChange::query()->forOrganization($globex->id)->count())->toBe(0);
+        ->and(DealStageChange::query()->forOrganization($globex->id)->count())->toBe(0)
+        ->and(Activity::query()->forOrganization($globex->id)->count())->toBe(0)
+        ->and(Task::query()->forOrganization($globex->id)->count())->toBe(0);
+});
+
+/**
+ * The 24 activities and 12 tasks of FEAT-79, found by their dates: everything on or after 90 days before the test clock.
+ */
+function recentSeededActivities(): Builder
+{
+    return Activity::query()->where('occurred_at', '>=', '2026-07-23 00:00:00');
+}
+
+test('it consulting seeder seeds recent activities and completed tasks of the three role users', function () {
+    seedHistoryAt($this);
+
+    $recent = recentSeededActivities();
+    $perUser = (clone $recent)->with('user')->get()->countBy(fn (Activity $activity): string => $activity->user->email)->sortKeys()->all();
+    $recentTasks = Task::query()->where('completed_at', '>=', '2026-07-23 00:00:00')->where('title', '!=', 'Send SecurePeak kickoff summary');
+
+    expect(Activity::query()->count())->toBe(44)
+        ->and(Task::query()->count())->toBe(18)
+        ->and((clone $recent)->count())->toBe(24)
+        ->and($perUser)->toBe(['admin@example.com' => 8, 'member@example.com' => 6, 'test@example.com' => 10])
+        ->and(Activity::query()->where('user_id', User::query()->where('email', 'viewer@example.com')->value('id'))->count())->toBe(0)
+        ->and((clone $recent)->whereNotNull('deal_id')->count())->toBe(0)
+        ->and((clone $recent)->where('occurred_at', '>', now())->count())->toBe(0)
+        ->and((clone $recentTasks)->count())->toBe(12)
+        ->and((clone $recentTasks)->where('status', TaskStatus::Done)->count())->toBe(12)
+        ->and((clone $recentTasks)->whereNotNull('deal_id')->count())->toBe(0)
+        ->and((clone $recentTasks)->where('completed_at', '>', now())->count())->toBe(0)
+        ->and(Task::query()->where('status', TaskStatus::Pending)->count())->toBe(5)
+        ->and(Activity::query()->whereIn('contact_id', Contact::query()->whereIn('name', ['Hugo Fernandes', 'Florian Dupont'])->pluck('id'))->count())->toBe(0);
+});
+
+test('it consulting seeder keeps the exact values of a recent activity and a late task', function () {
+    $organization = seedHistoryAt($this);
+
+    $activity = Activity::query()->where('subject', 'Contract redlines walkthrough')->sole();
+    $task = Task::query()->where('title', 'Follow up SecurePeak posture findings')->sole();
+    $test = User::query()->where('email', 'test@example.com')->sole();
+
+    expect($activity->type)->toBe(ActivityType::Call)
+        ->and($activity->user_id)->toBe($test->id)
+        ->and($activity->contact->name)->toBe('Marcus Chen')
+        ->and($activity->occurred_at->utc()->toDateTimeString())->toBe('2026-10-19 09:30:00')
+        ->and($activity->duration_minutes)->toBe(30)
+        ->and($activity->outcome)->toBe(ActivityOutcome::Positive)
+        ->and($activity->organization_id)->toBe($organization->id)
+        ->and($task->contact->name)->toBe('Priya Nair')
+        ->and(Task::query()->where('title', 'Call NordicSec about the extension')->sole()->contact->name)->toBe('Ingrid Svensson')
+        ->and($task->status)->toBe(TaskStatus::Done)
+        ->and($task->priority)->toBe(TaskPriority::Medium)
+        ->and($task->type)->toBe(TaskType::FollowUp)
+        ->and($task->owner_id)->toBe($test->id)
+        ->and($task->created_by)->toBe($test->id)
+        ->and($task->due_at->utc()->toDateTimeString())->toBe('2026-08-25 17:00:00')
+        ->and($task->completed_at->utc()->toDateTimeString())->toBe('2026-08-27 11:00:00');
+});
+
+test('it consulting seeder gives the team activity leaderboard figures for this and last month', function () {
+    seedHistoryAt($this);
+
+    $rowsOf = fn (ReportPeriodPreset $preset): array => collect(TeamActivity::forPeriod(ReportPeriod::forPreset($preset), null))
+        ->map(fn (array $row): array => [$row['member'], $row['activities'], $row['activities_breakdown'], $row['tasks_completed']])
+        ->values()
+        ->all();
+
+    expect($rowsOf(ReportPeriodPreset::ThisMonth))->toBe([
+        ['Test User', 4, 'Call 2 · Email 1 · Meeting 1', 3],
+        ['Demo Admin', 3, 'Call 1 · Meeting 1 · WhatsApp 1', 2],
+        ['Demo Member', 2, 'Call 1 · Email 1', 2],
+        ['Total', 9, 'Call 4 · Email 2 · Meeting 2 · WhatsApp 1', 7],
+    ])
+        ->and($rowsOf(ReportPeriodPreset::LastMonth))->toBe([
+            ['Demo Admin', 3, 'Call 1 · Email 1 · Meeting 1', 2],
+            ['Demo Member', 1, 'WhatsApp 1', 0],
+            ['Test User', 2, 'Email 1 · Meeting 1', 1],
+            ['Total', 6, 'Call 1 · Email 2 · Meeting 2 · WhatsApp 1', 3],
+        ]);
+});
+
+test('it consulting seeder adds no recent activity or task when it runs again later', function () {
+    $this->seed(ItConsultingSeeder::class);
+    seedHistoryAt($this);
+
+    $globex = Organization::query()->where('slug', 'globex-demo')->sole();
+
+    expect(Activity::query()->count())->toBe(44)
+        ->and(Task::query()->count())->toBe(18)
+        ->and(Activity::query()->forOrganization($globex->id)->count())->toBe(0)
+        ->and(Task::query()->forOrganization($globex->id)->count())->toBe(0);
 });

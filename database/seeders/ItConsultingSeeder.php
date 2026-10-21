@@ -673,8 +673,111 @@ class ItConsultingSeeder extends Seeder
             );
         }
 
+        $this->seedRecentActivitiesAndTasks($org);
+
         // ── Segments ─────────────────────────────────────────────────────────
         $this->seedSegments($org, $tags, $linkedin, $techStack, $hourlyRate);
+    }
+
+    /**
+     * Activities and completed tasks of the three role users over the last 90 days, dated from today, so the team and period reports have figures.
+     */
+    private function seedRecentActivitiesAndTasks(Organization $org): void
+    {
+        $today = now()->toImmutable();
+        $at = fn (int $daysAgo, string $time): CarbonImmutable => $today->subDays($daysAgo)->setTimeFromTimeString($time);
+
+        $test = 'test@example.com';
+        $admin = 'admin@example.com';
+        $member = 'member@example.com';
+
+        $activities = [
+            [2, '09:30', $test, 'marcus.chen@techcorp.io', ActivityType::Call, 30, 'Contract redlines walkthrough', 'Went through the last legal comments line by line.', ActivityOutcome::Positive],
+            [6, '14:00', $test, 'sarah.johansson@cloudbase.dev', ActivityType::Email, null, 'Finance sign-off reminder', 'Asked for the expected date of the finance sign-off.', null],
+            [11, '10:00', $test, 'yasmin.alrashid@cloudshift.ae', ActivityType::Meeting, 45, 'Budget owner introduction', 'Met the budget owner; procurement steps still unclear.', ActivityOutcome::FollowUpNeeded],
+            [19, '16:30', $test, 'priya.nair@securepeak.com', ActivityType::Call, 20, 'Onboarding check-in', 'First month of the annual program going to plan.', ActivityOutcome::Positive],
+            [37, '11:00', $test, 'nadia.petrova@softbridge.eu', ActivityType::Meeting, 60, 'API build kickoff', 'Kickoff of the Laravel API build with their backend team.', ActivityOutcome::Positive],
+            [44, '09:00', $test, 'marcus.chen@techcorp.io', ActivityType::Email, null, 'Security audit follow-up', 'Sent the remediation checklist from the audit.', ActivityOutcome::Neutral],
+            [53, '15:00', $test, 'priya.nair@securepeak.com', ActivityType::InPerson, 90, 'Cloud posture review workshop', 'On-site workshop on the posture review findings.', ActivityOutcome::Positive],
+            [61, '10:30', $test, 'yasmin.alrashid@cloudshift.ae', ActivityType::Call, 40, 'Pilot scope discussion', 'Discussed the scope of the managed services pilot.', ActivityOutcome::FollowUpNeeded],
+            [72, '13:00', $test, 'james.okafor@cybernode.ng', ActivityType::Email, null, 'Q3 plans follow-up', 'No project planned before next year.', ActivityOutcome::Negative],
+            [84, '11:30', $test, 'remy.bertrand@webscale.fr', ActivityType::Note, null, 'Performance audit interest', 'Asked about a performance audit; to be qualified.', null],
+            [3, '10:00', $admin, 'damien.leroy@hexasys.fr', ActivityType::Call, 25, 'Workshop agenda review', 'Agreed on the agenda of the discovery workshops.', ActivityOutcome::Positive],
+            [8, '15:30', $admin, 'lars.muller@devstudio.de', ActivityType::WhatsApp, null, 'Partnership check-in', 'Quick check-in on the front-end partnership.', null],
+            [15, '09:00', $admin, 'sarah.johansson@cloudbase.dev', ActivityType::Meeting, 60, 'Kubernetes migration retrospective', 'Retrospective of the migration; two follow-up items.', ActivityOutcome::Positive],
+            [24, '11:00', $admin, 'damien.leroy@hexasys.fr', ActivityType::Email, null, 'Code review retainer recap', 'Recap of why the retainer was declined.', ActivityOutcome::Neutral],
+            [40, '14:00', $admin, 'lars.muller@devstudio.de', ActivityType::Meeting, 45, 'Partnership terms review', 'Reviewed rates and capacity for the partnership.', ActivityOutcome::Positive],
+            [47, '10:00', $admin, 'james.okafor@cybernode.ng', ActivityType::Call, 30, 'Mobile app proposal call', 'Walked through the mobile app proposal.', ActivityOutcome::FollowUpNeeded],
+            [66, '16:00', $admin, 'sarah.johansson@cloudbase.dev', ActivityType::Email, null, 'Migration status report', 'Sent the weekly migration status report.', null],
+            [79, '09:30', $admin, 'damien.leroy@hexasys.fr', ActivityType::Message, null, 'Code review offer', 'Introduced the code review retainer offer.', null],
+            [4, '11:00', $member, 'tom.whitfield@stackops.io', ActivityType::Call, 20, 'Pipeline hardening follow-up', 'Checked the hardened CI pipeline after a month.', ActivityOutcome::Positive],
+            [13, '14:30', $member, 'elena.vasquez@pixelcraft.studio', ActivityType::Email, null, 'Support hours summary', 'Sent the design system support hours of the month.', ActivityOutcome::Neutral],
+            [26, '10:00', $member, 'tom.whitfield@stackops.io', ActivityType::WhatsApp, null, 'Sprint planning confirmation', 'Confirmed the next sprint planning slot.', null],
+            [51, '13:30', $member, 'elena.vasquez@pixelcraft.studio', ActivityType::Meeting, 30, 'Design system support kickoff', 'Kickoff of the design system support.', ActivityOutcome::Positive],
+            [69, '09:00', $member, 'ingrid.svensson@nordicsec.com', ActivityType::Call, 15, 'Pen test extension follow-up', 'They keep the extension in-house.', ActivityOutcome::Negative],
+            [87, '15:00', $member, 'tom.whitfield@stackops.io', ActivityType::Email, null, 'CI hardening proposal', 'Sent the CI pipeline hardening proposal.', null],
+        ];
+
+        $tasks = [
+            ['Send TechCorp redlined contract', 'marcus.chen@techcorp.io', $test, TaskType::Email, TaskPriority::High, 2, 2, '10:15', 'Redlined contract sent to legal.'],
+            ['Book CloudShift budget meeting', 'yasmin.alrashid@cloudshift.ae', $test, TaskType::Meeting, TaskPriority::Medium, 12, 12, '09:00', 'Meeting booked with the budget owner.'],
+            ['Prepare SoftBridge kickoff deck', 'nadia.petrova@softbridge.eu', $test, TaskType::Meeting, TaskPriority::High, 38, 38, '16:00', 'Deck shared before the kickoff.'],
+            ['Follow up SecurePeak posture findings', 'priya.nair@securepeak.com', $test, TaskType::FollowUp, TaskPriority::Medium, 57, 55, '11:00', 'Findings sent two days late.'],
+            ['Call CyberNode about Q3 plans', 'james.okafor@cybernode.ng', $test, TaskType::Call, TaskPriority::Low, 72, 72, '14:00', 'No project before next year.'],
+            ['Share HexaSys architecture questionnaire', 'damien.leroy@hexasys.fr', $admin, TaskType::Email, TaskPriority::High, 5, 5, '09:45', 'Questionnaire sent ahead of the workshops.'],
+            ['Invoice Cloudbase migration milestone', 'sarah.johansson@cloudbase.dev', $admin, TaskType::Invoice, TaskPriority::Medium, 16, 15, '15:00', 'Milestone invoice prepared.'],
+            ['Review DevStudio partnership terms', 'lars.muller@devstudio.de', $admin, TaskType::FollowUp, TaskPriority::Medium, 41, 41, '12:30', 'Terms reviewed with their lead developer.'],
+            ['Send CyberNode mobile app estimate', 'james.okafor@cybernode.ng', $admin, TaskType::Email, TaskPriority::High, 48, 46, '10:00', 'Estimate sent after the proposal call.'],
+            ['Confirm StackOps sprint planning', 'tom.whitfield@stackops.io', $member, TaskType::Call, TaskPriority::Low, 4, 4, '11:30', 'Sprint planning confirmed.'],
+            ['Send PixelCraft support hours summary', 'elena.vasquez@pixelcraft.studio', $member, TaskType::Email, TaskPriority::Medium, 14, 13, '14:45', 'Summary sent one day after the due date.'],
+            ['Call NordicSec about the extension', 'ingrid.svensson@nordicsec.com', $member, TaskType::Call, TaskPriority::Medium, 70, 69, '09:15', 'Extension kept in-house.'],
+        ];
+
+        $users = User::query()->whereIn('email', [$test, $admin, $member])->pluck('id', 'email');
+        $contacts = Contact::query()
+            ->whereIn('email', [...array_column($activities, 3), ...array_column($tasks, 1)])
+            ->get()
+            ->keyBy('email');
+
+        foreach ($activities as [$daysAgo, $time, $userEmail, $contactEmail, $type, $duration, $subject, $notes, $outcome]) {
+            Activity::firstOrCreate(
+                [
+                    'organization_id' => $org->id,
+                    'contact_id' => $contacts[$contactEmail]->id,
+                    'subject' => $subject,
+                ],
+                [
+                    'user_id' => $users[$userEmail],
+                    'deal_id' => null,
+                    'type' => $type,
+                    'occurred_at' => $at($daysAgo, $time),
+                    'duration_minutes' => $duration,
+                    'notes' => $notes,
+                    'outcome' => $outcome,
+                ]
+            );
+        }
+
+        foreach ($tasks as [$title, $contactEmail, $userEmail, $type, $priority, $dueDaysAgo, $completedDaysAgo, $completedTime, $notes]) {
+            Task::firstOrCreate(
+                [
+                    'organization_id' => $org->id,
+                    'title' => $title,
+                ],
+                [
+                    'contact_id' => $contacts[$contactEmail]->id,
+                    'deal_id' => null,
+                    'created_by' => $users[$userEmail],
+                    'owner_id' => $users[$userEmail],
+                    'type' => $type,
+                    'priority' => $priority,
+                    'status' => TaskStatus::Done,
+                    'due_at' => $at($dueDaysAgo, '17:00'),
+                    'completed_at' => $at($completedDaysAgo, $completedTime),
+                    'notes' => $notes,
+                ]
+            );
+        }
     }
 
     /**
