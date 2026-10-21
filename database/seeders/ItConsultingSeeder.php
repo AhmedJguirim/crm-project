@@ -612,6 +612,7 @@ class ItConsultingSeeder extends Seeder
                     'due_at' => $invoiceData['due_at'],
                     'paid_at' => $invoiceData['paid_at'] ?? null,
                     'notes' => $invoiceData['notes'] ?? null,
+                    'created_by' => $user->id,
                 ]
             );
 

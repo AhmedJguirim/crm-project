@@ -73,6 +73,10 @@ class InvoiceInfolist
                             ->label('Created')
                             ->dateTime('M j, Y g:i A'),
 
+                        TextEntry::make('creator.name')
+                            ->label('Created by')
+                            ->placeholder('—'),
+
                         TextEntry::make('notes')
                             ->placeholder('—')
                             ->columnSpanFull(),

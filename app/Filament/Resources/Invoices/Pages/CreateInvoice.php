@@ -9,6 +9,7 @@ use App\Models\Contact;
 use App\Models\Deal;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Support\Enums\Width;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Url;
 
 class CreateInvoice extends CreateRecord
@@ -23,8 +24,12 @@ class CreateInvoice extends CreateRecord
     #[Url(as: 'deal')]
     public ?string $prefillDealId = null;
 
+    /**
+     * Forces Draft status, no paid date, the next invoice number when empty, and the authenticated user as creator (overriding anything forged into the form data).
+     */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        $data['created_by'] = Auth::id();
         $data['status'] = InvoiceStatus::Draft;
         $data['paid_at'] = null;
         $data['invoice_number'] ??= InvoiceForm::nextInvoiceNumber();

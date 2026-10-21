@@ -6,6 +6,7 @@ use App\Enums\InvoiceStatus;
 use App\Models\Invoice;
 use App\Support\LocalTime;
 use App\Support\Tenancy\TenantContext;
+use Illuminate\Support\Facades\Auth;
 
 class InvoiceObserver
 {
@@ -31,8 +32,13 @@ class InvoiceObserver
         $invoice->paid_at = null;
     }
 
+    /**
+     * Fills the organization, the Draft status and, when empty, the creator (the authenticated user).
+     */
     public function creating(Invoice $invoice): void
     {
+        $invoice->created_by ??= Auth::id();
+
         if (! $invoice->organization_id && $organizationId = app(TenantContext::class)->id()) {
             $invoice->organization_id = $organizationId;
         }

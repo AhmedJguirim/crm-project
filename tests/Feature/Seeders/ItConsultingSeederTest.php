@@ -376,7 +376,8 @@ test('it consulting seeder seeds one currency and the dashboard adds the amounts
     $this->actingAs($user);
     Filament::setTenant($organization);
 
-    expect($organization->currency)->toBe(Currency::Usd);
+    expect($organization->currency)->toBe(Currency::Usd)
+        ->and(Invoice::query()->pluck('created_by')->unique()->all())->toBe([$user->id]);
 
     Livewire::test(DealsOverviewWidget::class)
         ->assertSeeInOrder(['Pipeline Value', '$222,000.00']);

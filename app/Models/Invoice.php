@@ -35,6 +35,7 @@ class Invoice extends Model
         'due_at',
         'paid_at',
         'notes',
+        'created_by',
     ];
 
     protected function casts(): array
@@ -56,6 +57,16 @@ class Invoice extends Model
     public function contact(): BelongsTo
     {
         return $this->belongsTo(Contact::class);
+    }
+
+    /**
+     * The user who created the invoice (null for older rows or when that user was deleted).
+     *
+     * @return BelongsTo<User, $this>
+     */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
     }
 
     /**
