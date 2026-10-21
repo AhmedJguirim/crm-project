@@ -16,12 +16,15 @@ use Illuminate\Support\Number;
 
 /**
  * The dashboard key figures (revenue won, deals won, win rate, new deals, cash collected, new contacts) of the page's period and owner
- * filters, each compared with the previous period of the same length. Every figure is "more is better"; cash
- * collected (payments minus refunds of the invoice ledger) can be negative.
+ * filters, each compared with the previous period of the same length and drawn as a sparkline of the last 6 periods
+ * (the current one last). Every figure is "more is better"; cash collected (payments minus refunds of the invoice
+ * ledger) can be negative.
  */
 class KpiOverviewWidget extends StatsOverviewWidget
 {
     use InteractsWithPageFilters;
+
+    private const int TREND_PERIODS = 6;
 
     protected ?string $pollingInterval = null;
 
@@ -54,57 +57,83 @@ class KpiOverviewWidget extends StatsOverviewWidget
         $currency = CurrentOrganization::find()?->currencyCode() ?? 'USD';
         $filters = $this->dashboardFilters();
         $period = $filters->period;
-        $previousPeriod = $period->previous();
         $ownerId = $filters->ownerId;
 
-        $current = DashboardKpis::dealFigures($period, $ownerId);
-        $previous = DashboardKpis::dealFigures($previousPeriod, $ownerId);
-        $newContacts = DashboardKpis::newContactsCount($period, $ownerId);
-        $previousNewContacts = DashboardKpis::newContactsCount($previousPeriod, $ownerId);
-        $cash = DashboardKpis::cashCollected($period, $ownerId);
-        $previousCash = DashboardKpis::cashCollected($previousPeriod, $ownerId);
+        $periods = $period->trail(self::TREND_PERIODS);
+        $deals = DashboardKpis::dealFiguresByPeriod($periods, $ownerId);
+        $contacts = DashboardKpis::newContactsCountByPeriod($periods, $ownerId);
+        $cashByPeriod = DashboardKpis::cashCollectedByPeriod($periods, $ownerId);
+
+        $current = $deals[self::TREND_PERIODS - 1];
+        $previous = $deals[self::TREND_PERIODS - 2];
+        $newContacts = $contacts[self::TREND_PERIODS - 1];
+        $previousNewContacts = $contacts[self::TREND_PERIODS - 2];
+        $cash = $cashByPeriod[self::TREND_PERIODS - 1];
+        $previousCash = $cashByPeriod[self::TREND_PERIODS - 2];
 
         $title = $period->title();
         $wonUrl = DealResource::getUrl('index').'?tableFilters[status][value]=won';
 
         return [
-            $this->compared(
+            $this->withTrend($this->compared(
                 Stat::make('Revenue Won '.$title, Number::currency($current['won_value'], $currency)),
                 $current['won_value'],
                 $previous['won_value'],
                 Number::currency($previous['won_value'], $currency),
-            )->url($wonUrl),
+            )->url($wonUrl), array_column($deals, 'won_value')),
 
-            $this->compared(
+            $this->withTrend($this->compared(
                 Stat::make('Deals Won '.$title, (string) $current['won_count']),
                 $current['won_count'],
                 $previous['won_count'],
                 (string) $previous['won_count'],
-            )->url($wonUrl),
+            )->url($wonUrl), array_column($deals, 'won_count')),
 
-            $this->winRate($title, $current, $previous),
+            $this->withTrend($this->winRate($title, $current, $previous), array_map($this->winRatePoints(...), $deals)),
 
-            $this->compared(
+            $this->withTrend($this->compared(
                 Stat::make('New Deals '.$title, (string) $current['created_count']),
                 $current['created_count'],
                 $previous['created_count'],
                 (string) $previous['created_count'],
-            )->url(DealResource::getUrl('index')),
+            )->url(DealResource::getUrl('index')), array_column($deals, 'created_count')),
 
-            $this->compared(
+            $this->withTrend($this->compared(
                 Stat::make('Cash Collected '.$title, Number::currency($cash, $currency)),
                 $cash,
                 $previousCash,
                 Number::currency($previousCash, $currency),
-            )->url(InvoiceResource::getUrl('index')),
+            )->url(InvoiceResource::getUrl('index')), $cashByPeriod),
 
-            $this->compared(
+            $this->withTrend($this->compared(
                 Stat::make('New Contacts '.$title, (string) $newContacts),
                 $newContacts,
                 $previousNewContacts,
                 (string) $previousNewContacts,
-            )->url(ContactResource::getUrl('index')),
+            )->url(ContactResource::getUrl('index')), $contacts),
         ];
+    }
+
+    /**
+     * Draws the values of the last periods (oldest first) as the stat's sparkline.
+     *
+     * @param  list<int|float>  $values
+     */
+    private function withTrend(Stat $stat, array $values): Stat
+    {
+        return $stat->chart(array_values($values))->chartColor('primary');
+    }
+
+    /**
+     * The win rate of one period as a whole percentage for the sparkline, 0 when no deal was closed in it.
+     *
+     * @param  array{won_count: int, won_value: float, lost_count: int, created_count: int}  $figures
+     */
+    private function winRatePoints(array $figures): int
+    {
+        $closed = $figures['won_count'] + $figures['lost_count'];
+
+        return $closed === 0 ? 0 : (int) round($figures['won_count'] * 100 / $closed);
     }
 
     /**

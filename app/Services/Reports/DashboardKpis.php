@@ -9,75 +9,126 @@ use App\Models\Deal;
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
 use App\Support\Reports\ReportPeriod;
+use Closure;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 /**
- * The figures of the dashboard KPI row for one period and an optional owner, one aggregate query per table.
+ * The figures of the dashboard KPI row for a list of periods (oldest first) and an optional owner, one UNION ALL query
+ * per table for all the periods.
  */
 final class DashboardKpis
 {
     /**
-     * Deals won (status won and won in the period), lost (status lost and lost in the period) and created in the
-     * period, with the total value of the won ones.
+     * Per period: deals won (status won and won in the period), lost (status lost and lost in the period) and created
+     * in the period, with the total value of the won ones. Periods without a deal are zeros.
      *
-     * @return array{won_count: int, won_value: float, lost_count: int, created_count: int}
+     * @param  list<ReportPeriod>  $periods
+     * @return list<array{won_count: int, won_value: float, lost_count: int, created_count: int}>
      */
-    public static function dealFigures(ReportPeriod $period, ?int $ownerId): array
+    public static function dealFiguresByPeriod(array $periods, ?int $ownerId): array
     {
-        [$from, $to] = $period->bounds();
+        $rows = self::rowsByPeriod($periods, function (ReportPeriod $period, int $index) use ($ownerId): Builder {
+            [$from, $to] = $period->bounds();
 
-        $aggregate = Deal::query()
-            ->when($ownerId !== null, fn (Builder $query): Builder => $query->where('owner_id', $ownerId))
-            ->selectRaw(
-                'COUNT(CASE WHEN status = ? AND won_at BETWEEN ? AND ? THEN 1 END) AS won_count, '.
-                'COALESCE(SUM(CASE WHEN status = ? AND won_at BETWEEN ? AND ? THEN value END), 0) AS won_value, '.
-                'COUNT(CASE WHEN status = ? AND lost_at BETWEEN ? AND ? THEN 1 END) AS lost_count, '.
-                'COUNT(CASE WHEN created_at BETWEEN ? AND ? THEN 1 END) AS created_count',
-                [
-                    DealStatus::Won->value, $from, $to,
-                    DealStatus::Won->value, $from, $to,
-                    DealStatus::Lost->value, $from, $to,
-                    $from, $to,
-                ],
-            )
-            ->first();
+            return Deal::query()
+                ->when($ownerId !== null, fn (Builder $query): Builder => $query->where('owner_id', $ownerId))
+                ->selectRaw(
+                    'COUNT(CASE WHEN status = ? AND won_at BETWEEN ? AND ? THEN 1 END) AS won_count, '.
+                    'COALESCE(SUM(CASE WHEN status = ? AND won_at BETWEEN ? AND ? THEN value END), 0) AS won_value, '.
+                    'COUNT(CASE WHEN status = ? AND lost_at BETWEEN ? AND ? THEN 1 END) AS lost_count, '.
+                    'COUNT(CASE WHEN created_at BETWEEN ? AND ? THEN 1 END) AS created_count, '.
+                    'CAST(? AS integer) AS period_index',
+                    [
+                        DealStatus::Won->value, $from, $to,
+                        DealStatus::Won->value, $from, $to,
+                        DealStatus::Lost->value, $from, $to,
+                        $from, $to,
+                        $index,
+                    ],
+                );
+        });
 
-        return [
-            'won_count' => (int) ($aggregate?->getAttribute('won_count') ?? 0),
-            'won_value' => (float) ($aggregate?->getAttribute('won_value') ?? 0),
-            'lost_count' => (int) ($aggregate?->getAttribute('lost_count') ?? 0),
-            'created_count' => (int) ($aggregate?->getAttribute('created_count') ?? 0),
-        ];
+        return array_map(fn (int $index): array => [
+            'won_count' => (int) ($rows[$index]?->getAttribute('won_count') ?? 0),
+            'won_value' => (float) ($rows[$index]?->getAttribute('won_value') ?? 0),
+            'lost_count' => (int) ($rows[$index]?->getAttribute('lost_count') ?? 0),
+            'created_count' => (int) ($rows[$index]?->getAttribute('created_count') ?? 0),
+        ], array_keys($periods));
     }
 
     /**
-     * The contacts created in the period (soft-deleted ones excluded by the model scope).
+     * Per period, the contacts created in it (soft-deleted ones excluded by the model scope).
+     *
+     * @param  list<ReportPeriod>  $periods
+     * @return list<int>
      */
-    public static function newContactsCount(ReportPeriod $period, ?int $ownerId): int
+    public static function newContactsCountByPeriod(array $periods, ?int $ownerId): array
     {
-        return Contact::query()
+        $rows = self::rowsByPeriod($periods, fn (ReportPeriod $period, int $index): Builder => Contact::query()
             ->when($ownerId !== null, fn (Builder $query): Builder => $query->where('owner_id', $ownerId))
             ->whereBetween('created_at', $period->bounds())
-            ->count();
+            ->selectRaw('COUNT(*) AS contacts_count, CAST(? AS integer) AS period_index', [$index]));
+
+        return array_map(
+            fn (int $index): int => (int) ($rows[$index]?->getAttribute('contacts_count') ?? 0),
+            array_keys($periods),
+        );
     }
 
     /**
-     * Payments minus refunds of the invoice ledger dated in the period, optionally for the invoices one user created.
+     * Per period, payments minus refunds of the invoice ledger dated in it, optionally for the invoices one user created.
+     *
+     * @param  list<ReportPeriod>  $periods
+     * @return list<float>
      */
-    public static function cashCollected(ReportPeriod $period, ?int $ownerId): float
+    public static function cashCollectedByPeriod(array $periods, ?int $ownerId): array
     {
-        $row = InvoicePayment::query()
+        $rows = self::rowsByPeriod($periods, fn (ReportPeriod $period, int $index): Builder => InvoicePayment::query()
             ->when($ownerId !== null, fn (Builder $query): Builder => $query->whereIn(
                 'invoice_id',
                 Invoice::query()->select('id')->where('created_by', $ownerId),
             ))
             ->whereBetween('paid_on', $period->dates())
             ->selectRaw(
-                'COALESCE(SUM(CASE WHEN kind = ? THEN amount ELSE -amount END), 0) AS cash_collected',
-                [InvoicePaymentKind::Payment->value],
-            )
-            ->first();
+                'COALESCE(SUM(CASE WHEN kind = ? THEN amount ELSE -amount END), 0) AS cash_collected, '.
+                'CAST(? AS integer) AS period_index',
+                [InvoicePaymentKind::Payment->value, $index],
+            ));
 
-        return (float) ($row?->getAttribute('cash_collected') ?? 0);
+        return array_map(
+            fn (int $index): float => (float) ($rows[$index]?->getAttribute('cash_collected') ?? 0),
+            array_keys($periods),
+        );
+    }
+
+    /**
+     * Runs one UNION ALL query made of one part per period and returns its rows keyed by the period's index.
+     *
+     * @param  list<ReportPeriod>  $periods
+     * @param  Closure(ReportPeriod, int): Builder  $queryForPeriod  an aggregate query that selects `period_index`
+     * @return array<int, Model>
+     */
+    private static function rowsByPeriod(array $periods, Closure $queryForPeriod): array
+    {
+        $union = null;
+
+        foreach ($periods as $index => $period) {
+            $part = $queryForPeriod($period, $index);
+
+            if ($union === null) {
+                $union = $part;
+
+                continue;
+            }
+
+            $union->unionAll($part);
+        }
+
+        if ($union === null) {
+            return [];
+        }
+
+        return $union->get()->keyBy(fn (Model $row): int => (int) $row->getAttribute('period_index'))->all();
     }
 }

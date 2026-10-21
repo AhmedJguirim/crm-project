@@ -76,6 +76,17 @@ beforeEach(function () {
         return $stats;
     };
 
+    $this->kpiCharts = function (array $pageFilters = []): array {
+        $charts = [];
+
+        foreach (invade(Livewire::test(KpiOverviewWidget::class, ['pageFilters' => $pageFilters])->instance())->getStats() as $stat) {
+            /** @var Stat $stat */
+            $charts[(string) $stat->getLabel()] = ['chart' => $stat->getChart(), 'color' => $stat->getChartColor()];
+        }
+
+        return $charts;
+    };
+
     $this->kpiSummary = fn (array $stats): array => array_map(fn (array $stat): array => [$stat['value'], $stat['description']], $stats);
 });
 
@@ -226,7 +237,47 @@ describe('with the mixed deals and contacts of two months', function () {
         'an array' => [fn (): array => ['1']],
     ]);
 
-    test('the figures take six queries, two each on deals, contacts and the invoice ledger', function () {
+    test('everyone this month draws May to October', function () {
+        $charts = ($this->kpiCharts)();
+
+        expect(array_map(fn (array $stat): array => $stat['chart'], $charts))->toBe([
+            'Revenue Won This Month' => [0.0, 0.0, 0.0, 0.0, 900.0, 1000.0],
+            'Deals Won This Month' => [0, 0, 0, 0, 1, 2],
+            'Win Rate This Month' => [0, 0, 0, 0, 33, 67],
+            'New Deals This Month' => [0, 0, 0, 2, 4, 3],
+            'Cash Collected This Month' => [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+            'New Contacts This Month' => [0, 0, 0, 0, 2, 2],
+        ])
+            ->and(collect($charts)->pluck('color')->unique()->all())->toBe(['primary']);
+    });
+
+    test('the owner narrows the lines too', function () {
+        expect(($this->kpiCharts)(['owner' => 'me'])['Revenue Won This Month']['chart'])->toBe([0.0, 0.0, 0.0, 0.0, 0.0, 1000.0])
+            ->and(($this->kpiCharts)(['owner' => (string) $this->bob->id])['New Contacts This Month']['chart'])->toBe([0, 0, 0, 0, 0, 1]);
+    });
+
+    test('another organization is not on the lines', function () {
+        $carol = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
+        ($this->kpiDeal)(DealStatus::Won, '9000', null, '2026-09-10 10:00:00', '2026-09-10 10:00:00', $carol->personalOrganization());
+        ($this->kpiContact)(null, '2026-09-10 10:00:00', $carol->personalOrganization());
+
+        $charts = ($this->kpiCharts)();
+
+        expect($charts['Revenue Won This Month']['chart'])->toBe([0.0, 0.0, 0.0, 0.0, 900.0, 1000.0])
+            ->and($charts['New Contacts This Month']['chart'])->toBe([0, 0, 0, 0, 2, 2]);
+    });
+
+    test('a soft-deleted contact is not on the line', function () {
+        $this->contactC1->delete();
+
+        expect(($this->kpiCharts)()['New Contacts This Month']['chart'])->toBe([0, 0, 0, 0, 2, 1]);
+    });
+
+    test('the lines follow the period type', function () {
+        expect(($this->kpiCharts)(['period' => 'last_month'])['Deals Won Last Month']['chart'])->toBe([0, 0, 0, 0, 0, 1]);
+    });
+
+    test('the figures take three queries, one each on deals, contacts and the invoice ledger', function () {
         $widget = Livewire::test(KpiOverviewWidget::class)->instance();
 
         DB::enableQueryLog();
@@ -234,9 +285,9 @@ describe('with the mixed deals and contacts of two months', function () {
         $queries = collect(DB::getQueryLog())->pluck('query');
         DB::disableQueryLog();
 
-        expect($queries->filter(fn (string $sql): bool => str_contains($sql, 'from "deals"')))->toHaveCount(2)
-            ->and($queries->filter(fn (string $sql): bool => str_contains($sql, 'from "contacts"')))->toHaveCount(2)
-            ->and($queries->filter(fn (string $sql): bool => str_contains($sql, 'from "invoice_payments"')))->toHaveCount(2);
+        expect($queries->filter(fn (string $sql): bool => str_contains($sql, 'from "deals"')))->toHaveCount(1)
+            ->and($queries->filter(fn (string $sql): bool => str_contains($sql, 'from "contacts"')))->toHaveCount(1)
+            ->and($queries->filter(fn (string $sql): bool => str_contains($sql, 'from "invoice_payments"')))->toHaveCount(1);
     });
 
     test('the dashboard hands its filters to the widget', function () {

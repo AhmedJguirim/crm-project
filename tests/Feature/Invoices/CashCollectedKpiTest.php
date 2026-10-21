@@ -232,3 +232,29 @@ test('the revenue overview widget is gone', function () {
     expect(file_exists(app_path('Filament/Widgets/RevenueOverviewWidget.php')))->toBeFalse()
         ->and(view()->exists('filament.widgets.revenue-overview-footer'))->toBeFalse();
 });
+
+test('a refund month dips below zero on the cash line', function () {
+    $invoice = ($this->cashInvoice)($this->user);
+    ($this->cashEntry)($invoice, '200.00', '2026-08-20');
+    ($this->cashEntry)($invoice, '200.00', '2026-09-10', refund: true);
+    ($this->cashEntry)($invoice, '100.00', '2026-10-04');
+
+    $stat = invade(Livewire::test(KpiOverviewWidget::class)->instance())->getStats()[4];
+
+    expect($stat->getLabel())->toBe('Cash Collected This Month')
+        ->and($stat->getChart())->toBe([0.0, 0.0, 0.0, 200.0, -200.0, 100.0]);
+});
+
+test('the cash line follows the owner and leaves out the ledger of another organization', function () {
+    $mine = ($this->cashInvoice)($this->user);
+    ($this->cashEntry)($mine, '40.00', '2026-10-04');
+    ($this->cashEntry)(($this->cashInvoice)($this->bob), '70.00', '2026-10-05');
+
+    $carol = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
+    ($this->cashEntry)(($this->cashInvoice)(null, InvoiceStatus::Sent, $carol->personalOrganization()), '9000.00', '2026-09-10');
+
+    $cash = fn (array $filters): array => invade(Livewire::test(KpiOverviewWidget::class, ['pageFilters' => $filters])->instance())->getStats()[4]->getChart();
+
+    expect($cash([]))->toBe([0.0, 0.0, 0.0, 0.0, 0.0, 110.0])
+        ->and($cash(['owner' => 'me']))->toBe([0.0, 0.0, 0.0, 0.0, 0.0, 40.0]);
+});
