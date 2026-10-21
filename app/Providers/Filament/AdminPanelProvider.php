@@ -15,7 +15,6 @@ use App\Filament\Widgets\MyDealsClosingWidget;
 use App\Filament\Widgets\MyTasksWidget;
 use App\Filament\Widgets\OverdueInvoicesWidget;
 use App\Filament\Widgets\RecentActivitiesWidget;
-use App\Filament\Widgets\RevenueOverviewWidget;
 use App\Models\Organization;
 use App\Models\OrganizationInvite;
 use App\Models\User;
@@ -156,7 +155,6 @@ class AdminPanelProvider extends PanelProvider
                 DealsOverviewWidget::class,
                 MoneyOwedWidget::class,
                 OverdueInvoicesWidget::class,
-                RevenueOverviewWidget::class,
                 DealForecastWidget::class,
                 ContactsOverviewWidget::class,
                 RecentActivitiesWidget::class,

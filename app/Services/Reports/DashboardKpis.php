@@ -3,8 +3,11 @@
 namespace App\Services\Reports;
 
 use App\Enums\DealStatus;
+use App\Enums\InvoicePaymentKind;
 use App\Models\Contact;
 use App\Models\Deal;
+use App\Models\Invoice;
+use App\Models\InvoicePayment;
 use App\Support\Reports\ReportPeriod;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -56,5 +59,25 @@ final class DashboardKpis
             ->when($ownerId !== null, fn (Builder $query): Builder => $query->where('owner_id', $ownerId))
             ->whereBetween('created_at', $period->bounds())
             ->count();
+    }
+
+    /**
+     * Payments minus refunds of the invoice ledger dated in the period, optionally for the invoices one user created.
+     */
+    public static function cashCollected(ReportPeriod $period, ?int $ownerId): float
+    {
+        $row = InvoicePayment::query()
+            ->when($ownerId !== null, fn (Builder $query): Builder => $query->whereIn(
+                'invoice_id',
+                Invoice::query()->select('id')->where('created_by', $ownerId),
+            ))
+            ->whereBetween('paid_on', $period->dates())
+            ->selectRaw(
+                'COALESCE(SUM(CASE WHEN kind = ? THEN amount ELSE -amount END), 0) AS cash_collected',
+                [InvoicePaymentKind::Payment->value],
+            )
+            ->first();
+
+        return (float) ($row?->getAttribute('cash_collected') ?? 0);
     }
 }

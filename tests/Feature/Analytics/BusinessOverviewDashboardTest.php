@@ -12,7 +12,6 @@ use App\Filament\Widgets\MyDealsClosingWidget;
 use App\Filament\Widgets\MyTasksWidget;
 use App\Filament\Widgets\OverdueInvoicesWidget;
 use App\Filament\Widgets\RecentActivitiesWidget;
-use App\Filament\Widgets\RevenueOverviewWidget;
 use App\Models\Activity;
 use App\Models\Contact;
 use App\Models\Deal;
@@ -78,8 +77,8 @@ test('all business overview widgets render with organization data', function () 
     Livewire::test(DealsOverviewWidget::class)
         ->assertSee('Open Deals');
 
-    Livewire::test(RevenueOverviewWidget::class)
-        ->assertSee('Paid This Month');
+    Livewire::test(KpiOverviewWidget::class)
+        ->assertSee('Cash Collected This Month');
 
     Livewire::test(MoneyOwedWidget::class)
         ->assertSee('Money owed');

@@ -8,10 +8,10 @@ use App\Filament\Resources\Invoices\Pages\ListInvoices;
 use App\Filament\Resources\Invoices\Pages\ViewInvoice;
 use App\Filament\Resources\Tasks\Pages\ListTasks;
 use App\Filament\Widgets\KpiOverviewWidget;
-use App\Filament\Widgets\RevenueOverviewWidget;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Invoice;
+use App\Models\InvoicePayment;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\Deals\DealStageMover;
@@ -172,20 +172,25 @@ test('the month widgets count the local month', function () {
     Contact::factory()->create(['organization_id' => $this->org->id, 'created_at' => '2026-10-31 22:50:00']);
     Deal::factory()->create(['organization_id' => $this->org->id, 'created_by' => $this->alice->id, 'value' => 300, ...DealStageMover::attributesFor(pipelineStageNamed($this->org->id, 'Won')), 'won_at' => '2026-10-31 23:10:00']);
     Deal::factory()->create(['organization_id' => $this->org->id, 'created_by' => $this->alice->id, 'value' => 200, ...DealStageMover::attributesFor(pipelineStageNamed($this->org->id, 'Won')), 'won_at' => '2026-10-31 22:50:00']);
-    ($this->makeInvoice)(InvoiceStatus::Paid, '2026-11-30', ['amount' => 100, 'amount_paid' => 100, 'paid_at' => '2026-11-01']);
-    ($this->makeInvoice)(InvoiceStatus::Paid, '2026-11-30', ['amount' => 40, 'amount_paid' => 40, 'paid_at' => '2026-10-31']);
+    $invoice = ($this->makeInvoice)(InvoiceStatus::Sent, '2026-11-30', ['amount' => 500]);
+    InvoicePayment::factory()->create(['invoice_id' => $invoice->id, 'amount' => '100.00', 'paid_on' => '2026-11-01']);
+    InvoicePayment::factory()->create(['invoice_id' => $invoice->id, 'amount' => '40.00', 'paid_on' => '2026-10-31']);
 
     expect(($this->stats)(KpiOverviewWidget::class)['New Contacts This Month'])->toBe('1')
         ->and(($this->stats)(KpiOverviewWidget::class)['Deals Won This Month'])->toBe('1')
-        ->and(($this->stats)(RevenueOverviewWidget::class)['Paid This Month'])->toBe('$100.00');
+        ->and(($this->stats)(KpiOverviewWidget::class)['Cash Collected This Month'])->toBe('$100.00');
 });
 
-test('YTD revenue counts the local year', function () {
+test('cash collected this year counts the local year', function () {
     ($this->inZone)('Europe/Paris', '2026-12-31 23:30:00');
-    ($this->makeInvoice)(InvoiceStatus::Paid, '2027-01-30', ['amount' => 70, 'amount_paid' => 70, 'paid_at' => '2027-01-01']);
-    ($this->makeInvoice)(InvoiceStatus::Paid, '2027-01-30', ['amount' => 30, 'amount_paid' => 30, 'paid_at' => '2026-12-31']);
+    $invoice = ($this->makeInvoice)(InvoiceStatus::Sent, '2027-01-30', ['amount' => 500]);
+    InvoicePayment::factory()->create(['invoice_id' => $invoice->id, 'amount' => '70.00', 'paid_on' => '2027-01-01']);
+    InvoicePayment::factory()->create(['invoice_id' => $invoice->id, 'amount' => '30.00', 'paid_on' => '2026-12-31']);
 
-    expect(($this->stats)(RevenueOverviewWidget::class)['YTD Revenue'])->toBe('$70.00');
+    $stats = collect(invade(Livewire::test(KpiOverviewWidget::class, ['pageFilters' => ['period' => 'this_year']])->instance())->getStats())
+        ->mapWithKeys(fn (Stat $stat): array => [(string) $stat->getLabel() => (string) $stat->getValue()]);
+
+    expect($stats['Cash Collected This Year'])->toBe('$70.00');
 });
 
 test('an organization in UTC keeps the server day', function () {

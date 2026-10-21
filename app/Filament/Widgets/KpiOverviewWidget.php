@@ -4,6 +4,7 @@ namespace App\Filament\Widgets;
 
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Deals\DealResource;
+use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Services\Reports\DashboardKpis;
 use App\Support\Reports\DashboardFilters;
 use App\Support\Tenancy\CurrentOrganization;
@@ -14,8 +15,9 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Number;
 
 /**
- * The dashboard key figures (revenue won, deals won, win rate, new deals, new contacts) of the page's period and owner
- * filters, each compared with the previous period of the same length. Every figure is "more is better".
+ * The dashboard key figures (revenue won, deals won, win rate, new deals, cash collected, new contacts) of the page's period and owner
+ * filters, each compared with the previous period of the same length. Every figure is "more is better"; cash
+ * collected (payments minus refunds of the invoice ledger) can be negative.
  */
 class KpiOverviewWidget extends StatsOverviewWidget
 {
@@ -27,7 +29,7 @@ class KpiOverviewWidget extends StatsOverviewWidget
 
     protected int|string|array $columnSpan = 'full';
 
-    protected int|array|null $columns = ['@xl' => 5, '!@lg' => 5];
+    protected int|array|null $columns = ['@xl' => 3, '@5xl' => 6, '!@lg' => 3, '!@xl' => 6];
 
     protected function getHeading(): ?string
     {
@@ -59,6 +61,8 @@ class KpiOverviewWidget extends StatsOverviewWidget
         $previous = DashboardKpis::dealFigures($previousPeriod, $ownerId);
         $newContacts = DashboardKpis::newContactsCount($period, $ownerId);
         $previousNewContacts = DashboardKpis::newContactsCount($previousPeriod, $ownerId);
+        $cash = DashboardKpis::cashCollected($period, $ownerId);
+        $previousCash = DashboardKpis::cashCollected($previousPeriod, $ownerId);
 
         $title = $period->title();
         $wonUrl = DealResource::getUrl('index').'?tableFilters[status][value]=won';
@@ -88,6 +92,13 @@ class KpiOverviewWidget extends StatsOverviewWidget
             )->url(DealResource::getUrl('index')),
 
             $this->compared(
+                Stat::make('Cash Collected '.$title, Number::currency($cash, $currency)),
+                $cash,
+                $previousCash,
+                Number::currency($previousCash, $currency),
+            )->url(InvoiceResource::getUrl('index')),
+
+            $this->compared(
                 Stat::make('New Contacts '.$title, (string) $newContacts),
                 $newContacts,
                 $previousNewContacts,
@@ -97,7 +108,8 @@ class KpiOverviewWidget extends StatsOverviewWidget
     }
 
     /**
-     * Adds the comparison with the previous period to a stat: same, up from zero, or the percentage change.
+     * Adds the comparison with the previous period to a stat: same, up or down from zero, or the percentage change
+     * (relative to the absolute previous value, so a negative previous period still reads right).
      */
     private function compared(Stat $stat, int|float $current, int|float $previous, string $previousText): Stat
     {
@@ -106,10 +118,15 @@ class KpiOverviewWidget extends StatsOverviewWidget
         }
 
         if ($previous == 0) {
-            return $stat->description('Up from '.$previousText)->descriptionIcon(Heroicon::ArrowTrendingUp)->descriptionColor('success');
+            $isUp = $current > 0;
+
+            return $stat
+                ->description(($isUp ? 'Up' : 'Down').' from '.$previousText)
+                ->descriptionIcon($isUp ? Heroicon::ArrowTrendingUp : Heroicon::ArrowTrendingDown)
+                ->descriptionColor($isUp ? 'success' : 'danger');
         }
 
-        $change = ($current - $previous) / $previous * 100;
+        $change = ($current - $previous) / abs($previous) * 100;
         $isUp = $change > 0;
 
         return $stat

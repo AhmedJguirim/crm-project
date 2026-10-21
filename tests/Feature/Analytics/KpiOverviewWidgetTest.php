@@ -7,10 +7,13 @@ use App\Enums\OrganizationRole;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Deals\DealResource;
+use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Filament\Widgets\ContactsOverviewWidget;
 use App\Filament\Widgets\KpiOverviewWidget;
 use App\Models\Contact;
 use App\Models\Deal;
+use App\Models\Invoice;
+use App\Models\InvoicePayment;
 use App\Models\Organization;
 use App\Models\User;
 use Carbon\CarbonImmutable;
@@ -106,6 +109,7 @@ describe('with the mixed deals and contacts of two months', function () {
             'Deals Won This Month' => ['2', '+100% from 1'],
             'Win Rate This Month' => ['67%', '2 of 3 won · +34 pts from 33%'],
             'New Deals This Month' => ['3', '-25% from 4'],
+            'Cash Collected This Month' => ['$0.00', 'Same as previous period'],
             'New Contacts This Month' => ['2', 'Same as previous period'],
         ])
             ->and($stats['Revenue Won This Month']['icon'])->toBe(Heroicon::ArrowTrendingUp)
@@ -129,6 +133,7 @@ describe('with the mixed deals and contacts of two months', function () {
             DealResource::getUrl('index').'?tableFilters[status][value]=won',
             null,
             DealResource::getUrl('index'),
+            InvoiceResource::getUrl('index'),
             ContactResource::getUrl('index'),
         ]);
     });
@@ -139,6 +144,7 @@ describe('with the mixed deals and contacts of two months', function () {
             'Deals Won This Month' => ['2', 'Up from 0'],
             'Win Rate This Month' => ['67%', '2 of 3 won · No closed deals in the previous period'],
             'New Deals This Month' => ['2', 'Same as previous period'],
+            'Cash Collected This Month' => ['$0.00', 'Same as previous period'],
             'New Contacts This Month' => ['1', 'Same as previous period'],
         ]);
 
@@ -149,6 +155,7 @@ describe('with the mixed deals and contacts of two months', function () {
             'Deals Won This Month' => ['0', '-100% from 1'],
             'Win Rate This Month' => ['—', 'No deals closed this month'],
             'New Deals This Month' => ['1', '-50% from 2'],
+            'Cash Collected This Month' => ['$0.00', 'Same as previous period'],
             'New Contacts This Month' => ['1', 'Up from 0'],
         ])
             ->and($bob['Revenue Won This Month']['icon'])->toBe(Heroicon::ArrowTrendingDown)
@@ -161,6 +168,7 @@ describe('with the mixed deals and contacts of two months', function () {
             'Deals Won Last Month' => ['1', 'Up from 0'],
             'Win Rate Last Month' => ['33%', '1 of 3 won · No closed deals in the previous period'],
             'New Deals Last Month' => ['4', '+100% from 2'],
+            'Cash Collected Last Month' => ['$0.00', 'Same as previous period'],
             'New Contacts Last Month' => ['2', 'Up from 0'],
         ]);
 
@@ -201,18 +209,24 @@ describe('with the mixed deals and contacts of two months', function () {
 
     test('a forged owner shows everyone', function (callable $owner) {
         $carol = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
+        InvoicePayment::factory()->create([
+            'invoice_id' => Invoice::factory()->create(['organization_id' => $this->org->id, 'created_by' => $this->bob->id])->id,
+            'amount' => '250.00',
+            'paid_on' => '2026-10-02',
+        ]);
 
         $stats = ($this->kpiStats)(['owner' => $owner($carol)]);
 
         expect($stats['Deals Won This Month']['value'])->toBe('2')
-            ->and($stats['New Deals This Month']['value'])->toBe('3');
+            ->and($stats['New Deals This Month']['value'])->toBe('3')
+            ->and($stats['Cash Collected This Month']['value'])->toBe('$250.00');
     })->with([
         'a user of another organization' => [fn (User $carol): string => (string) $carol->id],
         'an injection' => [fn (): string => '1 OR 1=1'],
         'an array' => [fn (): array => ['1']],
     ]);
 
-    test('the figures take four queries, two on deals and two on contacts', function () {
+    test('the figures take six queries, two each on deals, contacts and the invoice ledger', function () {
         $widget = Livewire::test(KpiOverviewWidget::class)->instance();
 
         DB::enableQueryLog();
@@ -221,7 +235,8 @@ describe('with the mixed deals and contacts of two months', function () {
         DB::disableQueryLog();
 
         expect($queries->filter(fn (string $sql): bool => str_contains($sql, 'from "deals"')))->toHaveCount(2)
-            ->and($queries->filter(fn (string $sql): bool => str_contains($sql, 'from "contacts"')))->toHaveCount(2);
+            ->and($queries->filter(fn (string $sql): bool => str_contains($sql, 'from "contacts"')))->toHaveCount(2)
+            ->and($queries->filter(fn (string $sql): bool => str_contains($sql, 'from "invoice_payments"')))->toHaveCount(2);
     });
 
     test('the dashboard hands its filters to the widget', function () {
@@ -284,7 +299,7 @@ test('the key figures are first, full width and not polled', function () {
     expect(invade($widget)->getPollingInterval())->toBeNull()
         ->and(KpiOverviewWidget::getSort())->toBe(-45)
         ->and($widget->getColumnSpan())->toBe('full')
-        ->and(invade($widget)->getColumns())->toBe(['@xl' => 5, '!@lg' => 5]);
+        ->and(invade($widget)->getColumns())->toBe(['@xl' => 3, '@5xl' => 6, '!@lg' => 3, '!@xl' => 6]);
 });
 
 test('every role sees the key figures', function (OrganizationRole $role) {

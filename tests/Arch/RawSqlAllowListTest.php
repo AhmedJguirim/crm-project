@@ -54,7 +54,7 @@ function rawSqlAllowList(): array
             'constant' => 'constant aggregate select (COUNT, COALESCE(SUM(value), 0)) for the forecast by close month',
         ],
         'Services/Reports/DashboardKpis.php' => [
-            'constant' => 'constant conditional aggregate select (COUNT/SUM over CASE) for the dashboard KPIs; statuses and period bounds are bindings',
+            'constant' => 'constant conditional aggregate select (COUNT/SUM over CASE) for the dashboard KPIs; statuses, ledger kind and period bounds are bindings',
         ],
         'Services/Reports/Receivables.php' => [
             'constant' => 'constant CASE bucket select (COUNT, COALESCE(SUM(amount - amount_paid), 0)) for the invoice aging; dates and status are bindings',
