@@ -7,8 +7,8 @@ use App\Filament\Resources\Deals\DealResource;
 use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Services\Reports\DashboardKpis;
 use App\Support\Reports\DashboardFilters;
+use App\Support\Reports\ReportStats;
 use App\Support\Tenancy\CurrentOrganization;
-use Filament\Support\Icons\Heroicon;
 use Filament\Widgets\Concerns\InteractsWithPageFilters;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -75,37 +75,37 @@ class KpiOverviewWidget extends StatsOverviewWidget
         $wonUrl = DealResource::getUrl('index').'?tableFilters[status][value]=won';
 
         return [
-            $this->withTrend($this->compared(
+            $this->withTrend(ReportStats::compared(
                 Stat::make('Revenue Won '.$title, Number::currency($current['won_value'], $currency)),
                 $current['won_value'],
                 $previous['won_value'],
                 Number::currency($previous['won_value'], $currency),
             )->url($wonUrl), array_column($deals, 'won_value')),
 
-            $this->withTrend($this->compared(
+            $this->withTrend(ReportStats::compared(
                 Stat::make('Deals Won '.$title, (string) $current['won_count']),
                 $current['won_count'],
                 $previous['won_count'],
                 (string) $previous['won_count'],
             )->url($wonUrl), array_column($deals, 'won_count')),
 
-            $this->withTrend($this->winRate($title, $current, $previous), array_map($this->winRatePoints(...), $deals)),
+            $this->withTrend(ReportStats::winRate($title, $period->phrase(), $current['won_count'], $current['lost_count'], $previous['won_count'], $previous['lost_count']), array_map($this->winRatePoints(...), $deals)),
 
-            $this->withTrend($this->compared(
+            $this->withTrend(ReportStats::compared(
                 Stat::make('New Deals '.$title, (string) $current['created_count']),
                 $current['created_count'],
                 $previous['created_count'],
                 (string) $previous['created_count'],
             )->url(DealResource::getUrl('index')), array_column($deals, 'created_count')),
 
-            $this->withTrend($this->compared(
+            $this->withTrend(ReportStats::compared(
                 Stat::make('Cash Collected '.$title, Number::currency($cash, $currency)),
                 $cash,
                 $previousCash,
                 Number::currency($previousCash, $currency),
             )->url(InvoiceResource::getUrl('index')), $cashByPeriod),
 
-            $this->withTrend($this->compared(
+            $this->withTrend(ReportStats::compared(
                 Stat::make('New Contacts '.$title, (string) $newContacts),
                 $newContacts,
                 $previousNewContacts,
@@ -134,72 +134,5 @@ class KpiOverviewWidget extends StatsOverviewWidget
         $closed = $figures['won_count'] + $figures['lost_count'];
 
         return $closed === 0 ? 0 : (int) round($figures['won_count'] * 100 / $closed);
-    }
-
-    /**
-     * Adds the comparison with the previous period to a stat: same, up or down from zero, or the percentage change
-     * (relative to the absolute previous value, so a negative previous period still reads right).
-     */
-    private function compared(Stat $stat, int|float $current, int|float $previous, string $previousText): Stat
-    {
-        if ($current == $previous) {
-            return $stat->description('Same as previous period')->descriptionIcon(Heroicon::Minus)->descriptionColor('gray');
-        }
-
-        if ($previous == 0) {
-            $isUp = $current > 0;
-
-            return $stat
-                ->description(($isUp ? 'Up' : 'Down').' from '.$previousText)
-                ->descriptionIcon($isUp ? Heroicon::ArrowTrendingUp : Heroicon::ArrowTrendingDown)
-                ->descriptionColor($isUp ? 'success' : 'danger');
-        }
-
-        $change = ($current - $previous) / abs($previous) * 100;
-        $isUp = $change > 0;
-
-        return $stat
-            ->description(($isUp ? '+' : '-').Number::format(abs($change), maxPrecision: 1).'% from '.$previousText)
-            ->descriptionIcon($isUp ? Heroicon::ArrowTrendingUp : Heroicon::ArrowTrendingDown)
-            ->descriptionColor($isUp ? 'success' : 'danger');
-    }
-
-    /**
-     * The share of the period's closed deals that were won, compared in points with the previous period.
-     *
-     * @param  array{won_count: int, won_value: float, lost_count: int, created_count: int}  $current
-     * @param  array{won_count: int, won_value: float, lost_count: int, created_count: int}  $previous
-     */
-    private function winRate(string $title, array $current, array $previous): Stat
-    {
-        $closed = $current['won_count'] + $current['lost_count'];
-
-        if ($closed === 0) {
-            return Stat::make('Win Rate '.$title, '—')
-                ->description('No deals closed '.$this->dashboardFilters()->period->phrase());
-        }
-
-        $rate = (int) round($current['won_count'] * 100 / $closed);
-        $summary = $current['won_count'].' of '.$closed.' won · ';
-        $stat = Stat::make('Win Rate '.$title, $rate.'%');
-        $previousClosed = $previous['won_count'] + $previous['lost_count'];
-
-        if ($previousClosed === 0) {
-            return $stat->description($summary.'No closed deals in the previous period')->descriptionColor('gray');
-        }
-
-        $previousRate = (int) round($previous['won_count'] * 100 / $previousClosed);
-        $points = $rate - $previousRate;
-
-        if ($points === 0) {
-            return $stat->description($summary.'Same as previous period')->descriptionIcon(Heroicon::Minus)->descriptionColor('gray');
-        }
-
-        $isUp = $points > 0;
-
-        return $stat
-            ->description($summary.($isUp ? '+' : '-').abs($points).' pts from '.$previousRate.'%')
-            ->descriptionIcon($isUp ? Heroicon::ArrowTrendingUp : Heroicon::ArrowTrendingDown)
-            ->descriptionColor($isUp ? 'success' : 'danger');
     }
 }
