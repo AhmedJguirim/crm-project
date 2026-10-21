@@ -8,6 +8,7 @@ use App\Filament\Pages\Tenancy\EditOrganization;
 use App\Filament\Pages\Tenancy\RegisterOrganization;
 use App\Filament\Widgets\ContactsOverviewWidget;
 use App\Filament\Widgets\DealForecastWidget;
+use App\Filament\Widgets\DealsNeedingAttentionWidget;
 use App\Filament\Widgets\DealsOverviewWidget;
 use App\Filament\Widgets\KpiOverviewWidget;
 use App\Filament\Widgets\MoneyOwedWidget;
@@ -151,6 +152,7 @@ class AdminPanelProvider extends PanelProvider
                 MyTasksWidget::class,
                 MyDealsClosingWidget::class,
                 DealsOverviewWidget::class,
+                DealsNeedingAttentionWidget::class,
                 MoneyOwedWidget::class,
                 OverdueInvoicesWidget::class,
                 DealForecastWidget::class,

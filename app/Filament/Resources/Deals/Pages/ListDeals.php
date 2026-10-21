@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Deals\Pages;
 
 use App\Filament\Resources\Deals\DealResource;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
+use App\Services\Reports\DealsNeedingAttention;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
@@ -27,6 +28,8 @@ class ListDeals extends ListRecords
             'all' => Tab::make('All deals'),
             'mine' => Tab::make('My deals')
                 ->modifyQueryUsing(fn (Builder $query): Builder => $query->where('owner_id', Auth::id())),
+            'attention' => Tab::make('Needs attention')
+                ->modifyQueryUsing(fn (Builder $query): Builder => DealsNeedingAttention::constrain($query)),
         ];
     }
 

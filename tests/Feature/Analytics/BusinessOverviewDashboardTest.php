@@ -6,6 +6,7 @@ use App\Enums\InvoiceStatus;
 use App\Enums\TaskStatus;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Widgets\ContactsOverviewWidget;
+use App\Filament\Widgets\DealsNeedingAttentionWidget;
 use App\Filament\Widgets\DealsOverviewWidget;
 use App\Filament\Widgets\KpiOverviewWidget;
 use App\Filament\Widgets\MoneyOwedWidget;
@@ -131,7 +132,8 @@ test('the Filament default cards are gone from the dashboard', function () {
     expect($widgets)->not->toContain(AccountWidget::class)
         ->and($widgets)->not->toContain(FilamentInfoWidget::class)
         ->and($widgets)->toContain(KpiOverviewWidget::class)
-        ->and($widgets)->toContain(MyTasksWidget::class);
+        ->and($widgets)->toContain(MyTasksWidget::class)
+        ->and($widgets)->toContain(DealsNeedingAttentionWidget::class);
 });
 
 test('only my tasks refreshes on its own', function (string $widget) {
