@@ -64,14 +64,11 @@ test('revenue overview widget shows expected revenue metrics', function () {
         ->assertSuccessful()
         ->assertSee('Paid This Month')
         ->assertSee('$5,000.00')
-        ->assertSee('Outstanding')
-        ->assertSee('$2,000.00')
-        ->assertSee('Overdue Invoices')
-        ->assertSee('1 invoice')
-        ->assertSee('$800.00')
         ->assertSee('YTD Revenue')
         ->assertSee('$8,000.00')
-        ->assertSee('View Invoices');
+        ->assertSee('View Invoices')
+        ->assertDontSee('Outstanding')
+        ->assertDontSee('Overdue Invoices');
 });
 
 test('revenue overview widget is tenant scoped', function () {
@@ -129,8 +126,6 @@ test('revenue overview widget shows every card in the currency of the organizati
 
     Livewire::test(RevenueOverviewWidget::class)
         ->assertSeeInOrder(['Paid This Month', '€8,000.00', 'Paid invoices this month'])
-        ->assertSeeInOrder(['Outstanding', '€2,200.00', 'Sent, partial, and overdue'])
-        ->assertSeeInOrder(['Overdue Invoices', '1 invoice', '€800.00'])
         ->assertSeeInOrder(['YTD Revenue', '€9,000.00', 'Paid invoices this year'])
         ->assertDontSee('Mixed currencies')
         ->assertDontSee('$8,000.00')
@@ -139,81 +134,5 @@ test('revenue overview widget shows every card in the currency of the organizati
 
 test('revenue overview widget shows dollars for a default organization without invoices', function () {
     Livewire::test(RevenueOverviewWidget::class)
-        ->assertSeeInOrder(['Paid This Month', '$0.00'])
-        ->assertSeeInOrder(['Overdue Invoices', '0 invoices', '$0.00']);
-});
-
-test('a partly paid invoice counts for its balance', function () {
-    $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
-
-    $rows = [
-        [InvoiceStatus::Sent, 1200, 0, '2026-02-26'],
-        [InvoiceStatus::Partial, 5600, 2000, '2026-02-26'],
-        [InvoiceStatus::Overdue, 800, 0, '2026-02-18'],
-    ];
-
-    foreach ($rows as [$status, $amount, $paid, $dueAt]) {
-        Invoice::factory()->create([
-            'organization_id' => $this->org->id,
-            'contact_id' => $contact->id,
-            'status' => $status,
-            'amount' => $amount,
-            'amount_paid' => $paid,
-            'paid_at' => null,
-            'due_at' => $dueAt,
-        ]);
-    }
-
-    Livewire::test(RevenueOverviewWidget::class)
-        ->assertSeeInOrder(['Outstanding', '$5,600.00'])
-        ->assertSeeInOrder(['Overdue Invoices', '1 invoice', '$800.00']);
-});
-
-test('a past due partial invoice adds only its balance to the overdue value', function () {
-    $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
-
-    foreach ([[InvoiceStatus::Partial, 5600, 2000, '2026-02-19'], [InvoiceStatus::Overdue, 9200, 0, '2026-02-13']] as [$status, $amount, $paid, $dueAt]) {
-        Invoice::factory()->create([
-            'organization_id' => $this->org->id,
-            'contact_id' => $contact->id,
-            'status' => $status,
-            'amount' => $amount,
-            'amount_paid' => $paid,
-            'paid_at' => null,
-            'due_at' => $dueAt,
-        ]);
-    }
-
-    Livewire::test(RevenueOverviewWidget::class)
-        ->assertSeeInOrder(['Overdue Invoices', '2 invoices', '$12,800.00'])
-        ->assertSeeInOrder(['Outstanding', '$12,800.00']);
-});
-
-test('another organization balances are not counted in the outstanding total', function () {
-    $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
-
-    Invoice::factory()->create([
-        'organization_id' => $this->org->id,
-        'contact_id' => $contact->id,
-        'status' => InvoiceStatus::Partial,
-        'amount' => 1000,
-        'amount_paid' => 400,
-        'due_at' => '2026-02-26',
-    ]);
-
-    $otherOrg = User::factory()->onboardingCompleted()->withPersonalOrganization()->create()->personalOrganization();
-
-    Invoice::factory()->create([
-        'organization_id' => $otherOrg->id,
-        'contact_id' => Contact::factory()->create(['organization_id' => $otherOrg->id])->id,
-        'status' => InvoiceStatus::Sent,
-        'amount' => 9000,
-        'amount_paid' => 0,
-        'due_at' => '2026-02-26',
-    ]);
-
-    Livewire::test(RevenueOverviewWidget::class)
-        ->assertSeeInOrder(['Outstanding', '$600.00'])
-        ->assertDontSee('$9,600.00')
-        ->assertDontSee('$9,000.00');
+        ->assertSeeInOrder(['Paid This Month', '$0.00']);
 });

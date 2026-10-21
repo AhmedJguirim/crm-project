@@ -41,9 +41,6 @@ function rawSqlAllowList(): array
         'Filament/Widgets/DealsOverviewWidget.php' => [
             'constant' => 'constant aggregate selects',
         ],
-        'Filament/Widgets/RevenueOverviewWidget.php' => [
-            'constant' => 'constant aggregate selects',
-        ],
         'Models/Concerns/BelongsToOrganization.php' => [
             'constant' => 'whereRaw(\'false\') of the fail-closed tenant scope',
         ],
