@@ -5,8 +5,9 @@ use App\Enums\ContactStatus;
 use App\Enums\InvoiceStatus;
 use App\Enums\TaskStatus;
 use App\Filament\Widgets\ContactsOverviewWidget;
-use App\Filament\Widgets\DashboardTasksWidget;
 use App\Filament\Widgets\DealsOverviewWidget;
+use App\Filament\Widgets\MyDealsClosingWidget;
+use App\Filament\Widgets\MyTasksWidget;
 use App\Filament\Widgets\RecentActivitiesWidget;
 use App\Filament\Widgets\RevenueOverviewWidget;
 use App\Models\Activity;
@@ -77,8 +78,11 @@ test('all business overview widgets render with organization data', function () 
     Livewire::test(ContactsOverviewWidget::class)
         ->assertSee('Total Contacts');
 
-    Livewire::test(DashboardTasksWidget::class)
-        ->assertSee('Overdue');
+    Livewire::test(MyTasksWidget::class)
+        ->assertSee('My tasks');
+
+    Livewire::test(MyDealsClosingWidget::class)
+        ->assertSee('My deals closing');
 
     Livewire::test(RecentActivitiesWidget::class)
         ->assertSee('Recent Activities')

@@ -9,7 +9,6 @@ use App\Filament\Resources\Invoices\Pages\ListInvoices;
 use App\Filament\Resources\Invoices\Pages\ViewInvoice;
 use App\Filament\Resources\Tasks\Pages\ListTasks;
 use App\Filament\Widgets\ContactsOverviewWidget;
-use App\Filament\Widgets\DashboardTasksWidget;
 use App\Filament\Widgets\DealsOverviewWidget;
 use App\Filament\Widgets\RevenueOverviewWidget;
 use App\Models\Contact;
@@ -100,8 +99,6 @@ test('due this week uses the local Monday to Sunday', function () {
     Livewire::test(ListTasks::class)
         ->filterTable('this_week')
         ->assertCountTableRecords(2);
-
-    expect(($this->stats)(DashboardTasksWidget::class)['Due this week'])->toBe('2');
 });
 
 test('closing this week uses local dates', function () {
@@ -217,7 +214,7 @@ test('the periods of one organization do not leak to another', function () {
     ]);
 
     Livewire::test(ListTasks::class)->filterTable('today')->assertCountTableRecords(0);
-    expect(($this->stats)(DashboardTasksWidget::class)['Due this week'])->toBe('0');
+    Livewire::test(ListTasks::class)->filterTable('this_week')->assertCountTableRecords(0);
 });
 
 test('a local day is bounded in UTC, DST included', function (string $date, string $timezone, string $start, string $end) {
