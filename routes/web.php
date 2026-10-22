@@ -4,11 +4,15 @@ use App\Http\Controllers\Contacts\DownloadFailedImportRowsController;
 use App\Http\Controllers\DownloadExportController;
 use App\Http\Controllers\InviteAcceptController;
 use App\Http\Controllers\InvoicePdfController;
+use App\Http\Controllers\RobotsTxtController;
+use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TagsController;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Support\Facades\Route;
 
 Route::view('/', 'landing')->name('home');
+Route::get('robots.txt', RobotsTxtController::class)->name('robots');
+Route::get('sitemap.xml', SitemapController::class)->name('sitemap');
 
 Route::view('dashboard', 'dashboard')
     ->middleware(['auth', 'verified'])
