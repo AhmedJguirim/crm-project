@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets\Reports;
 
+use App\Filament\Actions\ExportReportTableAction;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Services\Reports\RevenueByClient;
 use App\Support\Reports\DashboardFilters;
@@ -47,6 +48,14 @@ class RevenueByClientWidget extends TableWidget
             ->paginated(false)
             ->emptyStateHeading('No revenue')
             ->emptyStateDescription('No money was collected '.$phrase.' and no invoice is unpaid.')
+            ->headerActions([
+                ExportReportTableAction::make(
+                    'revenue-by-client',
+                    'revenue by client',
+                    $filters,
+                    fn (): array => $this->exportSheet($rows, $currency),
+                ),
+            ])
             ->columns([
                 TextColumn::make('client')
                     ->label('Client')
@@ -64,5 +73,25 @@ class RevenueByClientWidget extends TableWidget
                     ->alignEnd()
                     ->formatStateUsing(fn (float $state): string => Number::currency($state, $currency)),
             ]);
+    }
+
+    /**
+     * The export file of the table: the rows as the table shows them, money as plain numbers with the currency in the header.
+     *
+     * @param  array<string, array{client: string, kind: ?string, is_total: bool, collected: float, share: string, outstanding: float}>  $rows
+     * @return array{headers: list<string>, rows: list<list<string|int|float>>}
+     */
+    private function exportSheet(array $rows, string $currency): array
+    {
+        return [
+            'headers' => ['Client', 'Type', "Collected ({$currency})", 'Share', "Outstanding ({$currency})"],
+            'rows' => array_values(array_map(fn (array $row): array => [
+                $row['client'],
+                $row['kind'] ?? '',
+                round($row['collected'], 2),
+                $row['share'],
+                round($row['outstanding'], 2),
+            ], $rows)),
+        ];
     }
 }

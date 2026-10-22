@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets\Reports;
 
+use App\Filament\Actions\ExportReportTableAction;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Services\Reports\TeamActivity;
 use App\Support\Reports\DashboardFilters;
@@ -36,6 +37,14 @@ class TeamActivityWidget extends TableWidget
             ->description('Per member, '.$filters->period->phrase().'. Overdue tasks are counted as of now; unassigned records are not counted.')
             ->records(fn (): array => TeamActivity::forPeriod($filters->period, $filters->ownerId))
             ->paginated(false)
+            ->headerActions([
+                ExportReportTableAction::make(
+                    'team-activity',
+                    'team activity',
+                    $filters,
+                    fn (): array => $this->exportSheet(TeamActivity::forPeriod($filters->period, $filters->ownerId), $currency),
+                ),
+            ])
             ->columns([
                 TextColumn::make('member')
                     ->label('Member')
@@ -64,5 +73,29 @@ class TeamActivityWidget extends TableWidget
                     ->label('Win rate')
                     ->alignEnd(),
             ]);
+    }
+
+    /**
+     * The export file of the table: the rows as the table shows them, money as plain numbers with the currency in the header.
+     *
+     * @param  array<string, array{member: string, is_total: bool, activities: int, activities_breakdown: string, tasks_completed: int, tasks_overdue: int, deals_created: int, deals_won: int, won_value: float, deals_lost: int, win_rate: string}>  $rows
+     * @return array{headers: list<string>, rows: list<list<string|int|float>>}
+     */
+    private function exportSheet(array $rows, string $currency): array
+    {
+        return [
+            'headers' => ['Member', 'Activities', 'Activities by type', 'Tasks done', 'Overdue tasks', 'New deals', 'Deals won', "Won value ({$currency})", 'Win rate'],
+            'rows' => array_values(array_map(fn (array $row): array => [
+                $row['member'],
+                $row['activities'],
+                $row['activities_breakdown'],
+                $row['tasks_completed'],
+                $row['tasks_overdue'],
+                $row['deals_created'],
+                $row['deals_won'],
+                round($row['won_value'], 2),
+                $row['win_rate'],
+            ], $rows)),
+        ];
     }
 }
