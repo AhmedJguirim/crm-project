@@ -13,6 +13,9 @@
         <x-landing.features />
         <x-landing.pipeline />
         <x-landing.reports />
+        <x-landing.teams />
+        <x-landing.import />
+        <x-landing.cta :login-url="$loginUrl" :register-url="$registerUrl" :app-url="$appUrl" />
     </main>
 
     <x-landing.footer :login-url="$loginUrl" :register-url="$registerUrl" :app-url="$appUrl" />

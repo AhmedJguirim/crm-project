@@ -4,6 +4,7 @@ use App\Enums\Currency;
 use App\Enums\OrganizationRole;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\ContactImportFileReader;
 use App\Services\Deals\DefaultPipeline;
 use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
@@ -124,8 +125,8 @@ test('a guest sees the navbar links, the drawer and the guest CTAs', function ()
         $response->assertSee($label);
     }
 
-    expect(substr_count($content, 'href="'.$loginUrl.'"'))->toBe(3)
-        ->and(substr_count($content, 'href="'.$registerUrl.'"'))->toBe(4)
+    expect(substr_count($content, 'href="'.$loginUrl.'"'))->toBe(4)
+        ->and(substr_count($content, 'href="'.$registerUrl.'"'))->toBe(5)
         ->and(substr_count($content, 'data-theme-toggle'))->toBe(1)
         ->and(substr_count($content, 'href="#features"'))->toBe(5)
         ->and(substr_count($content, 'href="#pipeline"'))->toBe(3)
@@ -170,8 +171,8 @@ test('a logged-in user gets Open the app everywhere and no guest CTA', function 
 
     $response = $this->get('/')->assertOk();
 
-    expect(substr_count($response->getContent(), 'href="'.$appUrl.'"'))->toBe(4);
-    $response->assertDontSee('Sign up');
+    expect(substr_count($response->getContent(), 'href="'.$appUrl.'"'))->toBe(5);
+    $response->assertDontSee('>Sign up<', false);
     $response->assertDontSee('Get started');
     $response->assertDontSee('Log in');
     $response->assertDontSee('href="'.$panel->getRegistrationUrl().'"', false);
@@ -218,7 +219,7 @@ test('a guest sees the features section with six cards and the exact copy', func
     expect(substr_count($content, 'id="features"'))->toBe(1)
         ->and(substr_count(landingSectionHtml($content, 'features'), '<article'))->toBe(6)
         ->and(substr_count(landingSectionHtml($content, 'features'), '<h3'))->toBe(6)
-        ->and(substr_count($content, '<h2'))->toBe(4)
+        ->and(substr_count($content, '<h2'))->toBe(7)
         ->and(substr_count($content, '<h1'))->toBe(1);
     $response->assertSeeInOrder([
         'Contacts and companies',
@@ -251,7 +252,8 @@ test('the facts on the page match the code', function () {
         ->and(array_map(fn (Currency $currency) => $currency->value, Currency::cases()))->toBe(['USD', 'EUR', 'GBP', 'CAD', 'AUD'])
         ->and(DefaultPipeline::stagesOf($organization->id)->pluck('name')->all())->toBe(['Lead', 'Discovery', 'Proposal Sent', 'Negotiating', 'Won', 'Lost'])
         ->and(DefaultPipeline::stagesOf($organization->id)->firstWhere('name', 'Proposal Sent')->probability)->toBe(50)
-        ->and(substr_count(file_get_contents(app_path('Filament/Pages/Reports.php')), "Tab::make('"))->toBe(6);
+        ->and(substr_count(file_get_contents(app_path('Filament/Pages/Reports.php')), "Tab::make('"))->toBe(6)
+        ->and(ContactImportFileReader::MAX_UPLOAD_KILOBYTES)->toBe(10240);
 });
 
 test('a logged-in user sees the same facts and features', function () {
@@ -339,8 +341,8 @@ test('the page outline stays in order', function () {
     $content = $response->getContent();
 
     expect(substr_count($content, '<h1'))->toBe(1)
-        ->and(substr_count($content, '<h2'))->toBe(4);
-    $response->assertSeeInOrder(['id="facts"', 'id="features"', 'id="pipeline"', 'id="reports"'], false);
+        ->and(substr_count($content, '<h2'))->toBe(7);
+    $response->assertSeeInOrder(['id="facts"', 'id="features"', 'id="pipeline"', 'id="reports"', 'id="teams"', 'id="import"', 'id="get-started"', '<footer'], false);
 });
 
 test('the pipeline and reports sections add no link, no image and no Alpine', function () {
@@ -360,4 +362,81 @@ test('a logged-in user sees the pipeline and reports sections', function () {
 
     expect($content)->toContain('id="pipeline"')->toContain('id="reports"')
         ->and(substr_count(landingSectionHtml($content, 'reports'), '<article'))->toBe(6);
+});
+
+test('a guest sees the teams section with the four roles and the exact copy', function () {
+    $response = $this->get('/')->assertOk();
+    $content = $response->getContent();
+    $section = landingSectionHtml($content, 'teams');
+
+    expect($content)->toContain('<section id="teams"')->toContain('id="teams-heading"')
+        ->and(substr_count($content, 'id="teams"'))->toBe(1)
+        ->and(substr_count($section, '<li'))->toBe(4)
+        ->and(substr_count($section, '<h2'))->toBe(1)
+        ->and(substr_count($section, '<h3'))->toBe(0)
+        ->and(substr_count($section, '<article'))->toBe(0)
+        ->and($section)->not->toContain('href=')->not->toContain('<img')
+        ->and($content)->not->toContain('manage settings')->not->toContain('admins also import');
+    $response->assertSee('Work alone or', false);
+    $response->assertSee('as a team', false);
+    $response->assertSee('Sign up and you get your own workspace. Create an organization for your team, invite people by email and give each one a role.', false);
+    $response->assertSeeInOrder([
+        '>Viewers</span> see everything and change nothing.',
+        '>Members</span> also add and edit contacts, companies, deals, tasks and invoices.',
+        '>Admins</span> also delete, import and export, invite people and change their roles.',
+        ">The owner</span> also sets the organization's name, time zone, currency and logo.",
+    ], false);
+    $response->assertSee("Each organization keeps its own data, separate from every other organization's. Belong to several organizations and switch between them in one click.", false);
+});
+
+test('a guest sees the import and export section with the exact copy', function () {
+    $response = $this->get('/')->assertOk();
+    $content = $response->getContent();
+    $section = landingSectionHtml($content, 'import');
+
+    expect($content)->toContain('<section id="import"')->toContain('id="import-heading"')
+        ->and(substr_count($content, 'id="import"'))->toBe(1)
+        ->and(substr_count($section, '<li'))->toBe(4)
+        ->and(substr_count($section, '<h2'))->toBe(1)
+        ->and($section)->not->toContain('href=')->not->toContain('<img');
+    $response->assertSee('Move in', false);
+    $response->assertSee('in minutes', false);
+    $response->assertSee('Admins can import contacts and companies from Excel or CSV, and export them again at any time.', false);
+    $response->assertSeeInOrder([
+        'A ready-made Excel template to download',
+        'CSV files separated by semicolons work too',
+        'Choose to create, update or both',
+        'Rows that fail come back in a file you can fix and upload again',
+    ], false);
+    $response->assertSee('Excel (.xlsx) or CSV, up to 10 MB per file.', false);
+});
+
+test('a guest sees the final call to action with Get started and Log in', function () {
+    $panel = Filament::getPanel('admin');
+
+    $content = $this->get('/')->assertOk()->getContent();
+    $cta = landingSectionHtml($content, 'get-started');
+
+    expect($content)->toContain('<section id="get-started"')->toContain('id="get-started-heading"')
+        ->and($cta)->toContain('Ready when you are.')->toContain('Create your account and your pipeline is waiting.')
+        ->and(substr_count($cta, 'href="'.$panel->getRegistrationUrl().'"'))->toBe(1)
+        ->and(substr_count($cta, 'href="'.$panel->getLoginUrl().'"'))->toBe(1)
+        ->and($cta)->toContain('>Get started<')->toContain('>Log in<')->not->toContain('Open the app');
+});
+
+test('a logged-in user sees Open the app in the final call to action', function () {
+    $this->actingAs(User::factory()->withPersonalOrganization()->create());
+    $panel = Filament::getPanel('admin');
+
+    $content = $this->get('/')->assertOk()->getContent();
+    $cta = landingSectionHtml($content, 'get-started');
+
+    expect(substr_count($cta, 'href="'.$panel->getUrl().'"'))->toBe(1)
+        ->and($cta)->toContain('Your pipeline is waiting.')
+        ->not->toContain('Create your account')
+        ->not->toContain('Get started')
+        ->not->toContain('Log in')
+        ->not->toContain($panel->getLoginUrl())
+        ->not->toContain($panel->getRegistrationUrl())
+        ->and($content)->toContain('id="teams"')->toContain('id="import"');
 });
