@@ -37,6 +37,7 @@ use App\Models\Task;
 use App\Models\User;
 use App\Services\Deals\DefaultPipeline;
 use App\Services\Reports\DashboardKpis;
+use App\Services\Reports\LeadSources;
 use App\Services\Reports\StageConversion;
 use App\Services\Reports\TeamActivity;
 use App\Services\Reports\TimeInStage;
@@ -933,6 +934,44 @@ test('it consulting seeder gives stable stage conversion figures', function () {
         ->and($figures(ReportPeriodPreset::Last12Months, 'member@example.com')[0])->toBe(4)
         ->and($figures(ReportPeriodPreset::Last12Months, 'member@example.com')[1])->toBe([4, 3, 2, 2, 2])
         ->and($figures(ReportPeriodPreset::Last12Months, 'member@example.com')[3])->toBe(['—', '75%', '67%', '100%', '100%']);
+});
+
+test('it consulting seeder gives stable lead source figures', function () {
+    seedHistoryAt($this);
+
+    $figures = function (ReportPeriodPreset $preset, ?string $ownerEmail = null): array {
+        $ownerId = $ownerEmail === null ? null : User::query()->where('email', $ownerEmail)->value('id');
+
+        return array_map(
+            fn (array $row): array => [$row['source'], $row['new_contacts'], $row['won_count'], $row['won_value'], $row['share']],
+            array_values(LeadSources::forPeriod(ReportPeriod::forPreset($preset, 'UTC'), $ownerId)),
+        );
+    };
+
+    expect($figures(ReportPeriodPreset::Last12Months))->toBe([
+        ['LinkedIn', 2, 3, 183000.0, '55%'],
+        ['Upwork', 2, 2, 51000.0, '15%'],
+        ['Referral', 3, 2, 50500.0, '15%'],
+        ['Inbound', 1, 1, 48000.0, '14%'],
+        ['Cold Outreach', 2, 0, 0.0, '0%'],
+        ['Conference', 2, 0, 0.0, '0%'],
+        ['Website', 1, 0, 0.0, '0%'],
+        ['Unknown source', 2, 0, 0.0, '0%'],
+        ['Total', 15, 8, 332500.0, '100%'],
+    ])
+        ->and(array_column($figures(ReportPeriodPreset::ThisMonth), 0))->toBe(['LinkedIn', 'Referral', 'Cold Outreach', 'Conference', 'Upwork', 'Inbound', 'Website', 'Unknown source', 'Total'])
+        ->and($figures(ReportPeriodPreset::ThisMonth)[0])->toBe(['LinkedIn', 2, 1, 120000.0, '100%'])
+        ->and(array_slice($figures(ReportPeriodPreset::LastQuarter), 0, 3))->toBe([
+            ['Referral', 0, 2, 50500.0, '46%'],
+            ['Upwork', 0, 1, 33000.0, '30%'],
+            ['LinkedIn', 0, 1, 27000.0, '24%'],
+        ])
+        ->and(array_slice($figures(ReportPeriodPreset::LastQuarter), -1))->toBe([['Total', 0, 4, 110500.0, '100%']])
+        ->and($figures(ReportPeriodPreset::Last12Months, 'member@example.com'))->toBe([
+            ['Upwork', 0, 1, 18000.0, '65%'],
+            ['Referral', 0, 1, 9500.0, '35%'],
+            ['Total', 0, 2, 27500.0, '100%'],
+        ]);
 });
 
 test('it consulting seeder gives stable time in stage figures', function () {

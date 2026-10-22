@@ -56,6 +56,9 @@ function rawSqlAllowList(): array
         'Services/Reports/DashboardKpis.php' => [
             'constant' => 'constant conditional aggregate select (COUNT/SUM over CASE, EXTRACT(EPOCH) for the sales cycle) for the dashboard KPIs and the sales results, and the lost deals counted per lost reason (grouped COUNT), one UNION ALL part per period; statuses, ledger kind, period bounds and the period index are bindings',
         ],
+        'Services/Reports/LeadSources.php' => [
+            'constant' => 'constant grouped aggregate selects (COUNT, COALESCE(SUM(deals.value), 0)) for the new contacts and won deals by lead source; status, period bounds and owner id are bindings',
+        ],
         'Services/Reports/Receivables.php' => [
             'constant' => 'constant CASE bucket select (COUNT, COALESCE(SUM(amount - amount_paid), 0)) for the invoice aging; dates and status are bindings',
         ],

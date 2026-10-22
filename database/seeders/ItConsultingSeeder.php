@@ -11,6 +11,7 @@ use App\Enums\ContactAttribute;
 use App\Enums\DealStatus;
 use App\Enums\InvoicePaymentKind;
 use App\Enums\InvoiceStatus;
+use App\Enums\LeadSource;
 use App\Enums\OrganizationRole;
 use App\Enums\PaymentMethod;
 use App\Enums\SegmentConditionType;
@@ -217,6 +218,7 @@ class ItConsultingSeeder extends Seeder
         $contactsData = [
             [
                 'name' => 'Marcus Chen',
+                'source' => LeadSource::Inbound,
                 'email' => 'marcus.chen@techcorp.io',
                 'phone' => '+33 6 12 34 56 78',
                 'tags' => ['Client', 'VIP', 'Technical'],
@@ -235,6 +237,7 @@ class ItConsultingSeeder extends Seeder
             ],
             [
                 'name' => 'Sarah Johansson',
+                'source' => LeadSource::LinkedIn,
                 'email' => 'sarah.johansson@cloudbase.dev',
                 'phone' => '+46 70 234 5678',
                 'tags' => ['Client', 'DevOps'],
@@ -253,6 +256,7 @@ class ItConsultingSeeder extends Seeder
             ],
             [
                 'name' => 'Damien Leroy',
+                'source' => LeadSource::ColdOutreach,
                 'email' => 'damien.leroy@hexasys.fr',
                 'phone' => '+33 1 42 86 57 30',
                 'tags' => ['Prospect', 'Management'],
@@ -269,6 +273,7 @@ class ItConsultingSeeder extends Seeder
             ],
             [
                 'name' => 'Priya Nair',
+                'source' => LeadSource::LinkedIn,
                 'email' => 'priya.nair@securepeak.com',
                 'phone' => '+44 7700 900 123',
                 'tags' => ['Client', 'Security', 'VIP'],
@@ -287,6 +292,7 @@ class ItConsultingSeeder extends Seeder
             ],
             [
                 'name' => 'Lars Müller',
+                'source' => LeadSource::Referral,
                 'email' => 'lars.muller@devstudio.de',
                 'phone' => '+49 30 1234 5678',
                 'tags' => ['Lead', 'Technical'],
@@ -302,6 +308,7 @@ class ItConsultingSeeder extends Seeder
             ],
             [
                 'name' => 'Amara Diallo',
+                'source' => LeadSource::Website,
                 'email' => 'amara.diallo@innotech-sa.com',
                 'phone' => '+41 76 543 2100',
                 'tags' => ['Prospect', 'Management'],
@@ -317,6 +324,7 @@ class ItConsultingSeeder extends Seeder
             ],
             [
                 'name' => 'Tom Whitfield',
+                'source' => LeadSource::Upwork,
                 'email' => 'tom.whitfield@stackops.io',
                 'phone' => '+44 20 7946 0958',
                 'tags' => ['Client', 'DevOps', 'Technical'],
@@ -332,6 +340,7 @@ class ItConsultingSeeder extends Seeder
             ],
             [
                 'name' => 'Nadia Petrova',
+                'source' => LeadSource::Upwork,
                 'email' => 'nadia.petrova@softbridge.eu',
                 'phone' => '+31 6 87654321',
                 'tags' => ['Lead', 'Technical'],
@@ -348,6 +357,7 @@ class ItConsultingSeeder extends Seeder
             ],
             [
                 'name' => 'James Okafor',
+                'source' => LeadSource::Conference,
                 'email' => 'james.okafor@cybernode.ng',
                 'phone' => '+234 802 345 6789',
                 'tags' => ['Cold'],
@@ -362,6 +372,7 @@ class ItConsultingSeeder extends Seeder
             ],
             [
                 'name' => 'Elena Vasquez',
+                'source' => LeadSource::Referral,
                 'email' => 'elena.vasquez@pixelcraft.studio',
                 'phone' => '+34 612 345 678',
                 'tags' => ['Partner'],
@@ -377,6 +388,7 @@ class ItConsultingSeeder extends Seeder
             ],
             [
                 'name' => 'Hugo Fernandes',
+                'source' => null,
                 'email' => 'hugo.fernandes@datalab.pt',
                 'phone' => '+351 91 234 5678',
                 'tags' => ['Prospect', 'Technical'],
@@ -391,6 +403,7 @@ class ItConsultingSeeder extends Seeder
             ],
             [
                 'name' => 'Yasmin Al-Rashid',
+                'source' => LeadSource::Referral,
                 'email' => 'yasmin.alrashid@cloudshift.ae',
                 'phone' => '+971 50 123 4567',
                 'tags' => ['Lead', 'Management', 'VIP'],
@@ -407,6 +420,7 @@ class ItConsultingSeeder extends Seeder
             ],
             [
                 'name' => 'Florian Dupont',
+                'source' => null,
                 'email' => 'florian.dupont@freelance.io',
                 'phone' => '+32 475 123 456',
                 'tags' => ['Partner', 'DevOps'],
@@ -422,6 +436,7 @@ class ItConsultingSeeder extends Seeder
             ],
             [
                 'name' => 'Ingrid Svensson',
+                'source' => LeadSource::ColdOutreach,
                 'email' => 'ingrid.svensson@nordicsec.com',
                 'phone' => '+46 8 123 456 78',
                 'tags' => ['Client', 'Security'],
@@ -439,6 +454,7 @@ class ItConsultingSeeder extends Seeder
             ],
             [
                 'name' => 'Remy Bertrand',
+                'source' => LeadSource::Conference,
                 'email' => 'remy.bertrand@webscale.fr',
                 'phone' => null,
                 'tags' => ['Cold'],
@@ -462,6 +478,7 @@ class ItConsultingSeeder extends Seeder
                 'name' => $data['name'],
                 'email' => $data['email'],
                 'phone' => $data['phone'],
+                'lead_source' => $data['source'],
                 'owner_id' => $data['email'] === 'amara.diallo@innotech-sa.com' ? null : $user->id,
                 'custom_field_values' => $data['cf'],
             ]);
