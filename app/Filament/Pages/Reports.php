@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Filament\Support\Concerns\HasReportFilters;
+use App\Filament\Widgets\Reports\LeadSourcesWidget;
 use App\Filament\Widgets\Reports\LostReasonsWidget;
 use App\Filament\Widgets\Reports\RevenueByClientWidget;
 use App\Filament\Widgets\Reports\SalesResultsWidget;
@@ -19,9 +20,9 @@ use Filament\Support\Icons\Heroicon;
 
 /**
  * The Reports page: a second dashboard with the same period and owner filter bar as the home dashboard, listing the
- * reports in five tabs, "Sales results" (won and lost deals compared with the previous period, and a chart of the lost
+ * reports in six tabs, "Sales results" (won and lost deals compared with the previous period, and a chart of the lost
  * reasons), "Conversion" (how far the deals created in the period got through the pipeline), "Velocity" (the sales
- * velocity figure and how long deals stay in each stage), "Money" (the revenue by client) and "Team activity" (the
+ * velocity figure and how long deals stay in each stage), "Money" (the revenue by client), "Sources" (new contacts and won deals by lead source) and "Team activity" (the
  * leaderboard). The widgets of a tab load lazily, so a hidden tab runs no query until it is opened. Every role can
  * open it; the panel home stays the dashboard because the page sorts after it in the navigation.
  */
@@ -42,7 +43,7 @@ class Reports extends BaseDashboard
      */
     public function getWidgets(): array
     {
-        return [SalesResultsWidget::class, LostReasonsWidget::class, StageConversionWidget::class, SalesVelocityWidget::class, TimeInStageWidget::class, RevenueByClientWidget::class, TeamActivityWidget::class];
+        return [SalesResultsWidget::class, LostReasonsWidget::class, StageConversionWidget::class, SalesVelocityWidget::class, TimeInStageWidget::class, RevenueByClientWidget::class, LeadSourcesWidget::class, TeamActivityWidget::class];
     }
 
     public function getWidgetsContentComponent(): Component
@@ -63,6 +64,9 @@ class Reports extends BaseDashboard
                 Tab::make('Money')
                     ->key('money')
                     ->schema(fn (): array => $this->getWidgetsSchemaComponents([RevenueByClientWidget::class])),
+                Tab::make('Sources')
+                    ->key('sources')
+                    ->schema(fn (): array => $this->getWidgetsSchemaComponents([LeadSourcesWidget::class])),
                 Tab::make('Team activity')
                     ->key('team-activity')
                     ->schema(fn (): array => $this->getWidgetsSchemaComponents([TeamActivityWidget::class])),
