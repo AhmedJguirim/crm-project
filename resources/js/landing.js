@@ -74,6 +74,13 @@ document.addEventListener('DOMContentLoaded', () => {
             const first = items[0];
             const last = items[items.length - 1];
 
+            if (!menu.contains(document.activeElement)) {
+                event.preventDefault();
+                (event.shiftKey ? last : first).focus();
+
+                return;
+            }
+
             if (event.shiftKey && document.activeElement === first) {
                 event.preventDefault();
                 last.focus();
