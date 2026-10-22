@@ -39,6 +39,7 @@ use App\Services\Deals\DefaultPipeline;
 use App\Services\Reports\DashboardKpis;
 use App\Services\Reports\StageConversion;
 use App\Services\Reports\TeamActivity;
+use App\Services\Reports\TimeInStage;
 use App\Support\Reports\ReportPeriod;
 use App\Support\Tenancy\TenantContext;
 use Database\Seeders\ItConsultingSeeder;
@@ -932,4 +933,25 @@ test('it consulting seeder gives stable stage conversion figures', function () {
         ->and($figures(ReportPeriodPreset::Last12Months, 'member@example.com')[0])->toBe(4)
         ->and($figures(ReportPeriodPreset::Last12Months, 'member@example.com')[1])->toBe([4, 3, 2, 2, 2])
         ->and($figures(ReportPeriodPreset::Last12Months, 'member@example.com')[3])->toBe(['—', '75%', '67%', '100%', '100%']);
+});
+
+test('it consulting seeder gives stable time in stage figures', function () {
+    seedHistoryAt($this);
+
+    $figures = function (ReportPeriodPreset $preset, ?string $ownerEmail = null): array {
+        $ownerId = $ownerEmail === null ? null : User::query()->where('email', $ownerEmail)->value('id');
+        $rows = array_values(TimeInStage::forPeriod(ReportPeriod::forPreset($preset, 'UTC'), $ownerId));
+
+        return [
+            array_column($rows, 'average_days'),
+            array_column($rows, 'stays'),
+            array_column($rows, 'in_stage_now'),
+            array_column($rows, 'over_average'),
+        ];
+    };
+
+    expect($figures(ReportPeriodPreset::Last12Months))->toBe([['9.2', '12.4', '13.9', '13.3'], [12, 9, 9, 6], [1, 1, 1, 1], ['0', '0', '0', '0']])
+        ->and($figures(ReportPeriodPreset::LastQuarter))->toBe([['9.2', '10.2', '14.0', '13.3'], [6, 5, 5, 4], [1, 1, 1, 1], ['0', '0', '0', '0']])
+        ->and($figures(ReportPeriodPreset::ThisMonth))->toBe([['—', '—', '—', '—'], [0, 0, 0, 0], [1, 1, 1, 1], ['—', '—', '—', '—']])
+        ->and($figures(ReportPeriodPreset::Last12Months, 'member@example.com'))->toBe([['9.5', '23.0', '16.0', '16.0'], [4, 1, 2, 1], [0, 0, 0, 0], ['0', '0', '0', '0']]);
 });

@@ -65,6 +65,9 @@ function rawSqlAllowList(): array
         'Services/Reports/TeamActivity.php' => [
             'constant' => 'constant grouped aggregate selects (COUNT/SUM over CASE) for the team leaderboard, one per source; statuses, period bounds and now are bindings',
         ],
+        'Services/Reports/TimeInStage.php' => [
+            'constant' => 'constant window (LEAD over changed_at per deal) and grouped aggregate selects (COUNT, AVG of EXTRACT(EPOCH)) for the time in stage; period bounds and owner id are bindings',
+        ],
         'Services/Segments/SegmentQueryBuilder.php' => [
             'constant' => 'whereRaw(\'1 = 0\') only, for a rule without usable conditions',
         ],
