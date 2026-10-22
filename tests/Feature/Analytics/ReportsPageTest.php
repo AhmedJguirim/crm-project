@@ -6,6 +6,7 @@ use App\Filament\Pages\Dashboard;
 use App\Filament\Pages\Reports;
 use App\Filament\Widgets\Reports\LostReasonsWidget;
 use App\Filament\Widgets\Reports\SalesResultsWidget;
+use App\Filament\Widgets\Reports\SalesVelocityWidget;
 use App\Filament\Widgets\Reports\StageConversionWidget;
 use App\Filament\Widgets\Reports\TeamActivityWidget;
 use App\Filament\Widgets\Reports\TimeInStageWidget;
@@ -31,6 +32,7 @@ test('every role opens the Reports page', function (OrganizationRole $role) {
         ->assertSeeLivewire(SalesResultsWidget::class)
         ->assertSeeLivewire(LostReasonsWidget::class)
         ->assertSeeLivewire(StageConversionWidget::class)
+        ->assertSeeLivewire(SalesVelocityWidget::class)
         ->assertSeeLivewire(TimeInStageWidget::class)
         ->assertSeeLivewire(TeamActivityWidget::class);
 })->with([OrganizationRole::Owner, OrganizationRole::Admin, OrganizationRole::Member, OrganizationRole::Viewer]);
@@ -63,7 +65,7 @@ test('the page has the shared filter form', function () {
         ->assertFormFieldVisible('from', 'filtersForm')
         ->assertFormFieldVisible('to', 'filtersForm');
 
-    expect(Livewire::test(Reports::class)->instance()->getWidgets())->toBe([SalesResultsWidget::class, LostReasonsWidget::class, StageConversionWidget::class, TimeInStageWidget::class, TeamActivityWidget::class]);
+    expect(Livewire::test(Reports::class)->instance()->getWidgets())->toBe([SalesResultsWidget::class, LostReasonsWidget::class, StageConversionWidget::class, SalesVelocityWidget::class, TimeInStageWidget::class, TeamActivityWidget::class]);
 });
 
 test('the Reports filters are remembered separately from the dashboard', function () {
@@ -94,6 +96,7 @@ test('the page shows four tabs, Sales results first', function () {
         ->assertSeeLivewire(SalesResultsWidget::class)
         ->assertSeeLivewire(LostReasonsWidget::class)
         ->assertSeeLivewire(StageConversionWidget::class)
+        ->assertSeeLivewire(SalesVelocityWidget::class)
         ->assertSeeLivewire(TimeInStageWidget::class)
         ->assertSeeLivewire(TeamActivityWidget::class);
 });
