@@ -2,6 +2,7 @@
 
 use App\Enums\Currency;
 use App\Enums\DealStatus;
+use App\Enums\InvoiceStatus;
 use App\Filament\Resources\Deals\Pages\CreateDeal;
 use App\Filament\Resources\Deals\Pages\DealPipeline;
 use App\Filament\Resources\Deals\Pages\EditDeal;
@@ -83,6 +84,7 @@ test('the invoices widget of a deal shows amounts and totals in the currency of 
         'deal_id' => $this->deal->id,
         'amount' => 2000,
         'amount_paid' => 500,
+        'status' => InvoiceStatus::Partial,
     ]);
 
     $widget = Livewire::test(DealInvoicesWidget::class, ['record' => $this->deal]);
