@@ -99,3 +99,15 @@
     background-color: var(--color-primary-50);
     color: var(--color-primary-700);
 }
+
+@layer base {
+    html {
+        scroll-padding-top: 6rem;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+        html {
+            scroll-behavior: smooth;
+        }
+    }
+}
