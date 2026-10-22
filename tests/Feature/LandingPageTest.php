@@ -1,6 +1,7 @@
 <?php
 
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\DB;
 
@@ -76,4 +77,101 @@ test('the theme toggle and the no-flash script are present', function () {
 
 test('the home route keeps its name', function () {
     expect(route('home'))->toBe(url('/'));
+});
+
+test('a guest sees the navbar links, the drawer and the guest CTAs', function () {
+    $panel = Filament::getPanel('admin');
+    $loginUrl = $panel->getLoginUrl();
+    $registerUrl = $panel->getRegistrationUrl();
+
+    $response = $this->get('/')->assertOk();
+    $content = $response->getContent();
+
+    foreach ([
+        'data-landing-navbar',
+        'data-scrolled="false"',
+        '<nav aria-label="Main"',
+        'href="#features"',
+        'href="#pipeline"',
+        'href="#reports"',
+        'href="#teams"',
+        'id="mobile-menu"',
+        'role="dialog"',
+        'aria-modal="true"',
+        'aria-controls="mobile-menu"',
+        'aria-expanded="false"',
+        'aria-label="Open menu"',
+        'aria-label="Close menu"',
+        'data-menu-open',
+        'data-menu-backdrop',
+    ] as $needle) {
+        $response->assertSee($needle, false);
+    }
+
+    foreach (['Features', 'Pipeline', 'Reports', 'Teams'] as $label) {
+        $response->assertSee($label);
+    }
+
+    expect(substr_count($content, 'href="'.$loginUrl.'"'))->toBe(3)
+        ->and(substr_count($content, 'href="'.$registerUrl.'"'))->toBe(4)
+        ->and(substr_count($content, 'data-theme-toggle'))->toBe(1)
+        ->and(substr_count($content, 'href="#features"'))->toBe(5)
+        ->and(substr_count($content, 'href="#pipeline"'))->toBe(3)
+        ->and(substr_count($content, 'href="#reports"'))->toBe(3)
+        ->and(substr_count($content, 'href="#teams"'))->toBe(3)
+        ->and(substr_count($content, 'href="#import"'))->toBe(1);
+});
+
+test('the hero has the headline, the lead and both CTAs', function () {
+    $response = $this->get('/')->assertOk();
+
+    $response->assertSee('<section id="top"', false);
+    $response->assertSee('Your clients, deals and invoices,', false);
+    $response->assertSee('in one place.', false);
+    $response->assertSee('without a spreadsheet in sight.', false);
+    $response->assertSee('See the features');
+    $response->assertSee('aria-label="Scroll to the features"', false);
+    $response->assertSee('data-hero-visual', false);
+    expect(substr_count($response->getContent(), '<h1'))->toBe(1);
+});
+
+test('the footer shows the brand, the links and the copyright only', function () {
+    $this->travelTo(CarbonImmutable::parse('2027-03-01 12:00:00', 'UTC'));
+
+    $response = $this->get('/')->assertOk();
+
+    expect(substr_count($response->getContent(), '<footer'))->toBe(1);
+    $response->assertSee('A simple CRM for consultants, freelancers and small sales teams.');
+    $response->assertSee('Product');
+    $response->assertSee('Account');
+    $response->assertSee('Import and export');
+    $response->assertSee('href="#import"', false);
+    $response->assertSee('Sign up');
+    $response->assertSee('© 2027 CRM');
+});
+
+test('a logged-in user gets Open the app everywhere and no guest CTA', function () {
+    $user = User::factory()->withPersonalOrganization()->create();
+    $this->actingAs($user);
+    $panel = Filament::getPanel('admin');
+    $appUrl = $panel->getUrl();
+
+    $response = $this->get('/')->assertOk();
+
+    expect(substr_count($response->getContent(), 'href="'.$appUrl.'"'))->toBe(4);
+    $response->assertDontSee('Sign up');
+    $response->assertDontSee('Get started');
+    $response->assertDontSee('Log in');
+    $response->assertDontSee('href="'.$panel->getRegistrationUrl().'"', false);
+    $response->assertDontSee('href="'.$panel->getLoginUrl().'"', false);
+    $response->assertSee('See the features');
+});
+
+test('the page ships no Alpine and no forbidden script attributes', function () {
+    $content = $this->get('/')->assertOk()->getContent();
+
+    expect($content)
+        ->not->toContain('x-data')
+        ->not->toContain('x-show')
+        ->not->toContain('@click');
 });
