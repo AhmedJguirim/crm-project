@@ -59,6 +59,9 @@ function rawSqlAllowList(): array
         'Services/Reports/Receivables.php' => [
             'constant' => 'constant CASE bucket select (COUNT, COALESCE(SUM(amount - amount_paid), 0)) for the invoice aging; dates and status are bindings',
         ],
+        'Services/Reports/RevenueByClient.php' => [
+            'constant' => 'constant grouped aggregate selects (SUM over CASE of the ledger kind, SUM(amount - amount_paid)) for the revenue by client; kind, period dates and owner id are bindings',
+        ],
         'Services/Reports/StageConversion.php' => [
             'constant' => 'constant aggregate selects (COUNT over CASE, MAX(position), grouped COUNT) for the stage conversion; status and period bounds are bindings',
         ],
