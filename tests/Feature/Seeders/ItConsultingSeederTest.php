@@ -37,6 +37,7 @@ use App\Models\Task;
 use App\Models\User;
 use App\Services\Deals\DefaultPipeline;
 use App\Services\Reports\DashboardKpis;
+use App\Services\Reports\StageConversion;
 use App\Services\Reports\TeamActivity;
 use App\Support\Reports\ReportPeriod;
 use App\Support\Tenancy\TenantContext;
@@ -908,4 +909,27 @@ test('it consulting seeder adds no invoice or payment twice and gives Globex Dem
         ->and(InvoicePayment::query()->count())->toBe(12)
         ->and(Invoice::query()->forOrganization($globex->id)->count())->toBe(0)
         ->and(InvoicePayment::query()->forOrganization($globex->id)->count())->toBe(0);
+});
+
+test('it consulting seeder gives stable stage conversion figures', function () {
+    seedHistoryAt($this);
+
+    $figures = function (ReportPeriodPreset $preset, ?string $ownerEmail = null): array {
+        $ownerId = $ownerEmail === null ? null : User::query()->where('email', $ownerEmail)->value('id');
+        $result = StageConversion::forPeriod(ReportPeriod::forPreset($preset, 'UTC'), $ownerId);
+
+        return [
+            $result['deals_created'],
+            array_column($result['rows'], 'deals'),
+            array_column($result['rows'], 'of_created'),
+            array_column($result['rows'], 'from_previous'),
+        ];
+    };
+
+    expect($figures(ReportPeriodPreset::Last12Months))->toBe([18, [17, 15, 12, 10, 8], ['94%', '83%', '67%', '56%', '44%'], ['—', '88%', '80%', '83%', '80%']])
+        ->and($figures(ReportPeriodPreset::ThisMonth))->toBe([6, [5, 4, 3, 2, 1], ['83%', '67%', '50%', '33%', '17%'], ['—', '80%', '75%', '67%', '50%']])
+        ->and($figures(ReportPeriodPreset::LastQuarter))->toBe([6, [6, 5, 4, 4, 3], ['100%', '83%', '67%', '67%', '50%'], ['—', '83%', '80%', '100%', '75%']])
+        ->and($figures(ReportPeriodPreset::Last12Months, 'member@example.com')[0])->toBe(4)
+        ->and($figures(ReportPeriodPreset::Last12Months, 'member@example.com')[1])->toBe([4, 3, 2, 2, 2])
+        ->and($figures(ReportPeriodPreset::Last12Months, 'member@example.com')[3])->toBe(['—', '75%', '67%', '100%', '100%']);
 });
