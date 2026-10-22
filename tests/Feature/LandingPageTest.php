@@ -443,20 +443,23 @@ test('a logged-in user sees Open the app in the final call to action', function 
         ->and($content)->toContain('id="teams"')->toContain('id="import"');
 });
 
-test('the hero shows the deals board screenshot, loaded first', function () {
+test('the hero shows the deals board screenshot with art direction, loaded first', function () {
     $content = $this->get('/')->assertOk()->getContent();
     $hero = landingSectionHtml($content, 'top');
 
-    expect(substr_count($hero, '<img'))->toBe(1)
-        ->and($hero)->toContain('src="'.asset('images/landing/board-720.webp').'"')
-        ->toContain('srcset="'.asset('images/landing/board-720.webp').' 720w, '.asset('images/landing/board-1440.webp').' 1440w"')
-        ->toContain('sizes="(min-width: 1280px) 600px, 47vw"')
+    preg_match('/<img\b[^>]*>/', $hero, $img);
+
+    expect(substr_count($hero, '<picture'))->toBe(1)
+        ->and(substr_count($hero, '<img'))->toBe(1)
+        ->and($hero)->toContain('<source media="(min-width: 64rem)" srcset="'.asset('images/landing/board-720.webp').' 720w, '.asset('images/landing/board-1440.webp').' 1440w" sizes="(min-width: 1280px) 600px, 47vw">')
+        ->and($img[0])->toContain('src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"')
         ->toContain('width="720"')
         ->toContain('height="450"')
         ->toContain('fetchpriority="high"')
         ->toContain('decoding="async"')
         ->toContain('alt="The deals board, with a column per pipeline stage and a card for each deal."')
-        ->not->toContain('loading="lazy"')
+        ->not->toContain('srcset')
+        ->and($hero)->not->toContain('loading="lazy"')
         ->not->toContain('aria-hidden="true" data-hero-visual')
         ->and(substr_count($content, 'data-hero-visual'))->toBe(1);
 });

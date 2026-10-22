@@ -8,7 +8,7 @@
 
 <section id="get-started" aria-labelledby="get-started-heading" class="landing-section">
     <div class="landing-container">
-        <div class="relative overflow-hidden rounded-[2rem] bg-linear-to-br from-primary-700 via-primary-600 to-primary-800 px-6 py-14 text-center shadow-2xl shadow-primary-950/20 sm:px-12 sm:py-20">
+        <div class="relative overflow-hidden rounded-[2rem] bg-linear-to-br from-primary-800 via-primary-700 to-primary-900 px-6 py-14 text-center shadow-2xl shadow-primary-950/20 sm:px-12 sm:py-20">
             <div aria-hidden="true" class="pointer-events-none absolute inset-0">
                 <div class="absolute -top-16 start-1/4 h-48 w-48 rounded-full bg-white/10 blur-3xl"></div>
                 <div class="absolute -bottom-20 end-1/4 h-56 w-56 rounded-full bg-primary-300/20 blur-3xl"></div>
@@ -17,7 +17,7 @@
             <div class="relative mx-auto max-w-2xl">
                 <h2 id="get-started-heading" class="text-[2rem] font-extrabold leading-tight text-white sm:text-[2.5rem]">Ready when you are.</h2>
 
-                <p class="mt-4 text-base leading-7 text-white/80 sm:text-lg">{{ $appUrl ? 'Your pipeline is waiting.' : 'Create your account and your pipeline is waiting.' }}</p>
+                <p class="mt-4 text-base leading-7 text-white/90 sm:text-lg">{{ $appUrl ? 'Your pipeline is waiting.' : 'Create your account and your pipeline is waiting.' }}</p>
 
                 <div class="mt-8 flex flex-wrap justify-center gap-3 sm:gap-4">
                     @if ($appUrl)

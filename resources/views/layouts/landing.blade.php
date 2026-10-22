@@ -37,6 +37,7 @@
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
         <link rel="preload" href="/fonts/landing/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+        <link rel="preload" as="image" href="{{ asset('images/landing/board-720.webp') }}" imagesrcset="{{ asset('images/landing/board-720.webp') }} 720w, {{ asset('images/landing/board-1440.webp') }} 1440w" imagesizes="(min-width: 1280px) 600px, 47vw" media="(min-width: 64rem)" fetchpriority="high">
         <script>(() => { let theme = null; try { theme = localStorage.getItem('theme'); } catch (e) {} if (theme === 'dark' || ((theme === null || theme === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches)) { document.documentElement.classList.add('dark'); } })();</script>
         @vite(['resources/css/landing.css', 'resources/js/landing.js'])
     </head>

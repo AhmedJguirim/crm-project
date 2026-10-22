@@ -2,7 +2,7 @@
 
 @php
     $ring = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white';
-    $solid = 'inline-flex w-1/2 items-center justify-center rounded-full bg-primary-500 px-4 py-4 text-center text-sm font-bold text-white shadow-lg shadow-primary-950/30 transition hover:bg-primary-400 sm:w-auto sm:px-8 sm:text-base '.$ring;
+    $solid = 'inline-flex w-1/2 items-center justify-center rounded-full bg-primary-600 px-4 py-4 text-center text-sm font-bold text-white shadow-lg shadow-primary-950/30 transition hover:bg-primary-700 sm:w-auto sm:px-8 sm:text-base '.$ring;
     $glass = 'inline-flex w-1/2 items-center justify-center rounded-full border border-white/25 bg-white/10 px-4 py-4 text-center text-sm font-bold text-white transition hover:bg-white/15 sm:w-auto sm:px-8 sm:text-base sm:backdrop-blur-sm '.$ring;
 @endphp
 
@@ -39,7 +39,10 @@
                         <span class="h-2.5 w-2.5 rounded-full bg-white/30"></span>
                         <span class="h-2.5 w-2.5 rounded-full bg-white/30"></span>
                     </div>
-                    <img src="{{ asset('images/landing/board-720.webp') }}" srcset="{{ asset('images/landing/board-720.webp') }} 720w, {{ asset('images/landing/board-1440.webp') }} 1440w" sizes="(min-width: 1280px) 600px, 47vw" width="720" height="450" alt="The deals board, with a column per pipeline stage and a card for each deal." fetchpriority="high" decoding="async" class="block h-auto w-full rounded-[1.2rem] bg-white">
+                    <picture class="block">
+                        <source media="(min-width: 64rem)" srcset="{{ asset('images/landing/board-720.webp') }} 720w, {{ asset('images/landing/board-1440.webp') }} 1440w" sizes="(min-width: 1280px) 600px, 47vw">
+                        <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" width="720" height="450" alt="The deals board, with a column per pipeline stage and a card for each deal." fetchpriority="high" decoding="async" class="block h-auto w-full rounded-[1.2rem] bg-white">
+                    </picture>
                 </div>
             </div>
         </div>
