@@ -11,28 +11,8 @@
             <p class="mt-3 text-sm leading-7 text-gray-600 sm:text-[15px] dark:text-gray-300">Open the dashboard to see your day; open Reports to see the trend. Filter both by period and, in a team, by owner.</p>
         </div>
 
-        <div aria-hidden="true" data-reports-visual class="mt-10 rounded-[2rem] border border-gray-200/70 bg-white p-4 shadow-sm shadow-primary-950/5 sm:p-6 dark:border-white/10 dark:bg-gray-950">
-            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                    <div class="h-20 rounded-2xl bg-gray-50 dark:bg-white/5"></div>
-                    <div class="h-20 rounded-2xl bg-gray-50 dark:bg-white/5"></div>
-                    <div class="h-20 rounded-2xl bg-gray-50 dark:bg-white/5"></div>
-                    <div class="h-20 rounded-2xl bg-gray-50 dark:bg-white/5"></div>
-            </div>
-
-            <div class="mt-4 flex h-32 items-end gap-2">
-                    <div class="h-[35%] flex-1 rounded-t-md bg-primary-200 dark:bg-primary-500/30"></div>
-                    <div class="h-[50%] flex-1 rounded-t-md bg-primary-200 dark:bg-primary-500/30"></div>
-                    <div class="h-[45%] flex-1 rounded-t-md bg-primary-200 dark:bg-primary-500/30"></div>
-                    <div class="h-[60%] flex-1 rounded-t-md bg-primary-200 dark:bg-primary-500/30"></div>
-                    <div class="h-[55%] flex-1 rounded-t-md bg-primary-200 dark:bg-primary-500/30"></div>
-                    <div class="h-[70%] flex-1 rounded-t-md bg-primary-200 dark:bg-primary-500/30"></div>
-                    <div class="h-[65%] flex-1 rounded-t-md bg-primary-200 dark:bg-primary-500/30"></div>
-                    <div class="h-[80%] flex-1 rounded-t-md bg-primary-200 dark:bg-primary-500/30"></div>
-                    <div class="h-[60%] flex-1 rounded-t-md bg-primary-200 dark:bg-primary-500/30"></div>
-                    <div class="h-[75%] flex-1 rounded-t-md bg-primary-200 dark:bg-primary-500/30"></div>
-                    <div class="h-[85%] flex-1 rounded-t-md bg-primary-200 dark:bg-primary-500/30"></div>
-                    <div class="h-[95%] flex-1 rounded-t-md bg-primary-200 dark:bg-primary-500/30"></div>
-            </div>
+        <div data-reports-visual class="mt-10 rounded-[2rem] border border-gray-200/70 bg-white p-2 shadow-sm shadow-primary-950/5 sm:p-3 dark:border-white/10 dark:bg-gray-950">
+            <img src="{{ asset('images/landing/dashboard-1440.webp') }}" srcset="{{ asset('images/landing/dashboard-1440.webp') }} 1440w, {{ asset('images/landing/dashboard-2880.webp') }} 2880w" sizes="(min-width: 1280px) 1248px, 100vw" width="1440" height="900" alt="The dashboard, with the key figures compared with the previous period." loading="lazy" decoding="async" class="block h-auto w-full rounded-[1.5rem]">
         </div>
 
         <div class="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">

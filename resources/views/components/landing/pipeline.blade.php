@@ -2,24 +2,8 @@
     <div class="landing-container">
         <div class="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
             <div class="relative">
-                <div aria-hidden="true" data-pipeline-visual class="rounded-[2.5rem] bg-linear-to-br from-primary-100 via-white to-primary-50 p-3 shadow-xl shadow-primary-950/5 sm:p-4 dark:from-primary-500/10 dark:via-gray-900 dark:to-gray-950">
-                    <div class="grid grid-cols-3 gap-3 rounded-[2rem] bg-white/90 p-4 dark:bg-gray-950/80">
-                        <div class="space-y-3">
-                            <div class="h-3 w-2/3 rounded-full bg-gray-200 dark:bg-white/15"></div>
-                            <div class="h-16 rounded-xl border border-gray-200/70 bg-gray-50 dark:border-white/10 dark:bg-white/5"></div>
-                            <div class="h-16 rounded-xl border border-gray-200/70 bg-gray-50 dark:border-white/10 dark:bg-white/5"></div>
-                            <div class="h-16 rounded-xl border border-gray-200/70 bg-gray-50 dark:border-white/10 dark:bg-white/5"></div>
-                        </div>
-                        <div class="space-y-3">
-                            <div class="h-3 w-2/3 rounded-full bg-gray-200 dark:bg-white/15"></div>
-                            <div class="h-16 rounded-xl border border-gray-200/70 bg-gray-50 dark:border-white/10 dark:bg-white/5"></div>
-                            <div class="h-16 rounded-xl border border-gray-200/70 bg-gray-50 dark:border-white/10 dark:bg-white/5"></div>
-                        </div>
-                        <div class="space-y-3">
-                            <div class="h-3 w-2/3 rounded-full bg-gray-200 dark:bg-white/15"></div>
-                            <div class="h-16 rounded-xl border border-gray-200/70 bg-gray-50 dark:border-white/10 dark:bg-white/5"></div>
-                        </div>
-                    </div>
+                <div data-pipeline-visual class="rounded-[2.5rem] bg-linear-to-br from-primary-100 via-white to-primary-50 p-3 shadow-xl shadow-primary-950/5 sm:p-4 dark:from-primary-500/10 dark:via-gray-900 dark:to-gray-950">
+                    <img src="{{ asset('images/landing/deal-720.webp') }}" srcset="{{ asset('images/landing/deal-720.webp') }} 720w, {{ asset('images/landing/deal-1440.webp') }} 1440w" sizes="(min-width: 1280px) 600px, (min-width: 1024px) 47vw, 100vw" width="720" height="450" alt="A deal page showing the deal's stage, time in stage, value and expected close date." loading="lazy" decoding="async" class="block h-auto w-full rounded-[2rem] border border-gray-200/70 bg-white dark:border-white/10">
                 </div>
 
                 <div class="relative mx-4 -mt-10 rounded-[1.5rem] border border-gray-200/70 bg-white/95 p-4 shadow-lg shadow-primary-950/10 sm:mx-8 sm:p-5 dark:border-white/10 dark:bg-gray-900/95">

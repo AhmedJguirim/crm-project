@@ -1,14 +1,26 @@
-@props(['title' => 'CRM — for consultants, freelancers and small sales teams'])
+@props(['title' => 'CRM — for consultants, freelancers and small sales teams', 'description' => "Keep every contact and company organized, move deals through your pipeline, follow up on time and see what you're owed."])
 <!DOCTYPE html>
 <html lang="en">
     <head>
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>{{ $title }}</title>
-        <meta name="description" content="Keep every contact and company organized, move deals through your pipeline, follow up on time and see what you're owed.">
+        <meta name="description" content="{{ $description }}">
         <link rel="canonical" href="{{ url('/') }}">
         <meta name="robots" content="index,follow">
         <meta name="theme-color" content="#2563eb">
+        <meta property="og:type" content="website">
+        <meta property="og:site_name" content="CRM">
+        <meta property="og:locale" content="en_US">
+        <meta property="og:title" content="{{ $title }}">
+        <meta property="og:description" content="{{ $description }}">
+        <meta property="og:url" content="{{ url('/') }}">
+        <meta property="og:image" content="{{ asset('images/landing/og.png') }}">
+        <meta property="og:image:type" content="image/png">
+        <meta property="og:image:width" content="1200">
+        <meta property="og:image:height" content="630">
+        <meta property="og:image:alt" content="CRM: your clients, deals and invoices, in one place.">
+        <meta name="twitter:card" content="summary_large_image">
         <link rel="icon" href="/favicon.ico" sizes="any">
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">

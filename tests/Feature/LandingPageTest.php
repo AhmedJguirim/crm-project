@@ -345,13 +345,15 @@ test('the page outline stays in order', function () {
     $response->assertSeeInOrder(['id="facts"', 'id="features"', 'id="pipeline"', 'id="reports"', 'id="teams"', 'id="import"', 'id="get-started"', '<footer'], false);
 });
 
-test('the pipeline and reports sections add no link, no image and no Alpine', function () {
+test('the pipeline and reports sections add no link and no Alpine, and one image each', function () {
     $content = $this->get('/')->assertOk()->getContent();
 
     expect(substr_count($content, 'href="#pipeline"'))->toBe(3)
         ->and(substr_count($content, 'href="#reports"'))->toBe(3)
-        ->and(landingSectionHtml($content, 'pipeline'))->not->toContain('href=')->not->toContain('<img')
-        ->and(landingSectionHtml($content, 'reports'))->not->toContain('href=')->not->toContain('<img')
+        ->and(landingSectionHtml($content, 'pipeline'))->not->toContain('href=')
+        ->and(substr_count(landingSectionHtml($content, 'pipeline'), '<img'))->toBe(1)
+        ->and(landingSectionHtml($content, 'reports'))->not->toContain('href=')
+        ->and(substr_count(landingSectionHtml($content, 'reports'), '<img'))->toBe(1)
         ->and($content)->not->toContain('x-data')->not->toContain('@click');
 });
 
@@ -439,4 +441,121 @@ test('a logged-in user sees Open the app in the final call to action', function 
         ->not->toContain($panel->getLoginUrl())
         ->not->toContain($panel->getRegistrationUrl())
         ->and($content)->toContain('id="teams"')->toContain('id="import"');
+});
+
+test('the hero shows the deals board screenshot, loaded first', function () {
+    $content = $this->get('/')->assertOk()->getContent();
+    $hero = landingSectionHtml($content, 'top');
+
+    expect(substr_count($hero, '<img'))->toBe(1)
+        ->and($hero)->toContain('src="'.asset('images/landing/board-720.webp').'"')
+        ->toContain('srcset="'.asset('images/landing/board-720.webp').' 720w, '.asset('images/landing/board-1440.webp').' 1440w"')
+        ->toContain('sizes="(min-width: 1280px) 600px, 47vw"')
+        ->toContain('width="720"')
+        ->toContain('height="450"')
+        ->toContain('fetchpriority="high"')
+        ->toContain('decoding="async"')
+        ->toContain('alt="The deals board, with a column per pipeline stage and a card for each deal."')
+        ->not->toContain('loading="lazy"')
+        ->not->toContain('aria-hidden="true" data-hero-visual')
+        ->and(substr_count($content, 'data-hero-visual'))->toBe(1);
+});
+
+test('the pipeline and reports frames show a lazy screenshot', function (string $section, string $hook, string $small, int $smallWidth, string $large, int $largeWidth, int $width, int $height, string $alt) {
+    $content = $this->get('/')->assertOk()->getContent();
+    $html = landingSectionHtml($content, $section);
+
+    expect(substr_count($html, '<img'))->toBe(1)
+        ->and(substr_count($html, $hook))->toBe(1)
+        ->and($html)->toContain('src="'.asset('images/landing/'.$small).'"')
+        ->toContain('srcset="'.asset('images/landing/'.$small).' '.$smallWidth.'w, '.asset('images/landing/'.$large).' '.$largeWidth.'w"')
+        ->toContain('width="'.$width.'"')
+        ->toContain('height="'.$height.'"')
+        ->toContain('loading="lazy"')
+        ->toContain('decoding="async"')
+        ->and(html_entity_decode($html, ENT_QUOTES))->toContain('alt="'.$alt.'"')
+        ->and($html)->not->toContain('aria-hidden="true" '.$hook);
+})->with([
+    'pipeline' => ['pipeline', 'data-pipeline-visual', 'deal-720.webp', 720, 'deal-1440.webp', 1440, 720, 450, "A deal page showing the deal's stage, time in stage, value and expected close date."],
+    'reports' => ['reports', 'data-reports-visual', 'dashboard-1440.webp', 1440, 'dashboard-2880.webp', 2880, 1440, 900, 'The dashboard, with the key figures compared with the previous period.'],
+]);
+
+test('the page has exactly three images, each fully described', function () {
+    $content = $this->get('/')->assertOk()->getContent();
+
+    preg_match_all('/<img\b[^>]*>/', $content, $tags);
+
+    expect($tags[0])->toHaveCount(3);
+
+    foreach ($tags[0] as $tag) {
+        expect($tag)->toMatch('/\salt="[^"]+"/')
+            ->toMatch('/\swidth="\d+"/')
+            ->toMatch('/\sheight="\d+"/')
+            ->toMatch('/\sdecoding="async"/');
+    }
+});
+
+test('every committed landing image exists with the declared size and within budget', function (string $file, int $width, int $height, string $mime, int $maxKb) {
+    $path = public_path('images/landing/'.$file);
+
+    expect($path)->toBeFile();
+
+    $info = getimagesize($path);
+
+    expect($info[0])->toBe($width)
+        ->and($info[1])->toBe($height)
+        ->and($info['mime'])->toBe($mime)
+        ->and(filesize($path))->toBeLessThanOrEqual($maxKb * 1024);
+})->with([
+    ['board-720.webp', 720, 450, 'image/webp', 150],
+    ['board-1440.webp', 1440, 900, 'image/webp', 400],
+    ['deal-720.webp', 720, 450, 'image/webp', 400],
+    ['deal-1440.webp', 1440, 900, 'image/webp', 400],
+    ['dashboard-1440.webp', 1440, 900, 'image/webp', 400],
+    ['dashboard-2880.webp', 2880, 1800, 'image/webp', 600],
+    ['og.png', 1200, 630, 'image/png', 1024],
+]);
+
+test('the page declares its Open Graph and Twitter card tags', function () {
+    $description = "Keep every contact and company organized, move deals through your pipeline, follow up on time and see what you're owed.";
+    $content = $this->get('/')->assertOk()->getContent();
+
+    foreach ([
+        '<meta property="og:type" content="website">',
+        '<meta property="og:site_name" content="CRM">',
+        '<meta property="og:locale" content="en_US">',
+        '<meta property="og:title" content="CRM — for consultants, freelancers and small sales teams">',
+        '<meta property="og:url" content="'.url('/').'">',
+        '<meta property="og:image" content="'.asset('images/landing/og.png').'">',
+        '<meta property="og:image:type" content="image/png">',
+        '<meta property="og:image:width" content="1200">',
+        '<meta property="og:image:height" content="630">',
+        '<meta property="og:image:alt" content="CRM: your clients, deals and invoices, in one place.">',
+        '<meta name="twitter:card" content="summary_large_image">',
+        '<meta property="og:description" content="'.e($description).'">',
+        '<meta name="description" content="'.e($description).'">',
+    ] as $tag) {
+        expect($content)->toContain($tag);
+    }
+
+    expect(asset('images/landing/og.png'))->toStartWith('http');
+});
+
+test('a logged-in user gets the same images and tags', function () {
+    $this->actingAs(User::factory()->withPersonalOrganization()->create());
+
+    $content = $this->get('/')->assertOk()->getContent();
+
+    expect(substr_count($content, '<img'))->toBe(3)
+        ->and($content)->toContain('<meta property="og:image"');
+});
+
+test('the reports frame is padded tightly around the screenshot', function () {
+    $html = landingSectionHtml($this->get('/')->assertOk()->getContent(), 'reports');
+
+    preg_match('/<div data-reports-visual class="([^"]*)"/', $html, $match);
+
+    $classes = explode(' ', $match[1]);
+
+    expect($classes)->toContain('p-2')->toContain('sm:p-3')->not->toContain('p-4')->not->toContain('sm:p-6');
 });

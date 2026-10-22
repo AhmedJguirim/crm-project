@@ -33,29 +33,13 @@
                     </div>
                 </div>
 
-                <div aria-hidden="true" data-hero-visual class="hidden rotate-2 rounded-[1.6rem] border border-white/15 bg-white/10 p-3 shadow-2xl shadow-primary-950/40 backdrop-blur-md lg:block">
-                    <div class="flex gap-1.5 px-2 pb-3">
+                <div data-hero-visual class="hidden rotate-2 rounded-[1.6rem] border border-white/15 bg-white/10 p-3 shadow-2xl shadow-primary-950/40 backdrop-blur-md lg:block">
+                    <div aria-hidden="true" class="flex gap-1.5 px-2 pb-3">
                         <span class="h-2.5 w-2.5 rounded-full bg-white/30"></span>
                         <span class="h-2.5 w-2.5 rounded-full bg-white/30"></span>
                         <span class="h-2.5 w-2.5 rounded-full bg-white/30"></span>
                     </div>
-                    <div class="grid grid-cols-3 gap-3 rounded-[1.2rem] bg-primary-950/40 p-3">
-                        <div class="space-y-3">
-                            <div class="h-3 w-2/3 rounded-full bg-white/30"></div>
-                            <div class="h-16 rounded-xl border border-white/10 bg-white/10"></div>
-                            <div class="h-16 rounded-xl border border-white/10 bg-white/10"></div>
-                            <div class="h-16 rounded-xl border border-white/10 bg-white/10"></div>
-                        </div>
-                        <div class="space-y-3">
-                            <div class="h-3 w-2/3 rounded-full bg-white/30"></div>
-                            <div class="h-16 rounded-xl border border-white/10 bg-white/10"></div>
-                            <div class="h-16 rounded-xl border border-white/10 bg-white/10"></div>
-                        </div>
-                        <div class="space-y-3">
-                            <div class="h-3 w-2/3 rounded-full bg-white/30"></div>
-                            <div class="h-16 rounded-xl border border-white/10 bg-white/10"></div>
-                        </div>
-                    </div>
+                    <img src="{{ asset('images/landing/board-720.webp') }}" srcset="{{ asset('images/landing/board-720.webp') }} 720w, {{ asset('images/landing/board-1440.webp') }} 1440w" sizes="(min-width: 1280px) 600px, 47vw" width="720" height="450" alt="The deals board, with a column per pipeline stage and a card for each deal." fetchpriority="high" decoding="async" class="block h-auto w-full rounded-[1.2rem] bg-white">
                 </div>
             </div>
         </div>
