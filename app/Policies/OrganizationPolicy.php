@@ -37,6 +37,14 @@ class OrganizationPolicy
         return $organization->isAdminOrOwner($user);
     }
 
+    /**
+     * Export the tables of the Reports page: admins and the owner (PO, Q3).
+     */
+    public function exportReports(User $user, Organization $organization): bool
+    {
+        return $organization->isAdminOrOwner($user);
+    }
+
     public function transferOwnership(User $user, Organization $organization): bool
     {
         return $organization->isOwner($user);
