@@ -8,6 +8,7 @@ use App\Filament\Widgets\Reports\LostReasonsWidget;
 use App\Filament\Widgets\Reports\SalesResultsWidget;
 use App\Filament\Widgets\Reports\StageConversionWidget;
 use App\Filament\Widgets\Reports\TeamActivityWidget;
+use App\Filament\Widgets\Reports\TimeInStageWidget;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
@@ -30,6 +31,7 @@ test('every role opens the Reports page', function (OrganizationRole $role) {
         ->assertSeeLivewire(SalesResultsWidget::class)
         ->assertSeeLivewire(LostReasonsWidget::class)
         ->assertSeeLivewire(StageConversionWidget::class)
+        ->assertSeeLivewire(TimeInStageWidget::class)
         ->assertSeeLivewire(TeamActivityWidget::class);
 })->with([OrganizationRole::Owner, OrganizationRole::Admin, OrganizationRole::Member, OrganizationRole::Viewer]);
 
@@ -61,7 +63,7 @@ test('the page has the shared filter form', function () {
         ->assertFormFieldVisible('from', 'filtersForm')
         ->assertFormFieldVisible('to', 'filtersForm');
 
-    expect(Livewire::test(Reports::class)->instance()->getWidgets())->toBe([SalesResultsWidget::class, LostReasonsWidget::class, StageConversionWidget::class, TeamActivityWidget::class]);
+    expect(Livewire::test(Reports::class)->instance()->getWidgets())->toBe([SalesResultsWidget::class, LostReasonsWidget::class, StageConversionWidget::class, TimeInStageWidget::class, TeamActivityWidget::class]);
 });
 
 test('the Reports filters are remembered separately from the dashboard', function () {
@@ -85,13 +87,14 @@ test('the sidebar links to Reports', function () {
     $this->get(Filament::getUrl($this->team->org))->assertSee(Reports::getUrl(tenant: $this->team->org));
 });
 
-test('the page shows three tabs, Sales results first', function () {
+test('the page shows four tabs, Sales results first', function () {
     $this->get(Reports::getUrl(tenant: $this->team->org))
         ->assertOk()
-        ->assertSeeHtmlInOrder(['Sales results', 'Conversion', 'Team activity'])
+        ->assertSeeHtmlInOrder(['Sales results', 'Conversion', 'Velocity', 'Team activity'])
         ->assertSeeLivewire(SalesResultsWidget::class)
         ->assertSeeLivewire(LostReasonsWidget::class)
         ->assertSeeLivewire(StageConversionWidget::class)
+        ->assertSeeLivewire(TimeInStageWidget::class)
         ->assertSeeLivewire(TeamActivityWidget::class);
 });
 
@@ -103,6 +106,7 @@ test('tab query strings never break the page', function (mixed $tab) {
     'team activity' => 'team-activity',
     'sales results' => 'sales-results',
     'conversion' => 'conversion',
+    'velocity' => 'velocity',
     'unknown' => 'unknown',
     'array' => [['x']],
     'nested array' => [['a' => ['b']]],
@@ -113,5 +117,5 @@ test('the tabs have stable keys and are kept in the query string', function () {
         ->assertOk()
         ->assertSee('isTabPersistedInQueryString: true', false)
         ->assertSee("tabQueryStringKey: 'tab'", false)
-        ->assertSee('value="[&quot;sales-results&quot;,&quot;conversion&quot;,&quot;team-activity&quot;]"', false);
+        ->assertSee('value="[&quot;sales-results&quot;,&quot;conversion&quot;,&quot;velocity&quot;,&quot;team-activity&quot;]"', false);
 });
