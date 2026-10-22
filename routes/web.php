@@ -8,9 +8,7 @@ use App\Http\Controllers\TagsController;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function () {
-    return redirect('/admin');
-})->name('home');
+Route::view('/', 'landing')->name('home');
 
 Route::view('dashboard', 'dashboard')
     ->middleware(['auth', 'verified'])
