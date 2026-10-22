@@ -11,6 +11,8 @@
         <x-landing.hero :login-url="$loginUrl" :register-url="$registerUrl" :app-url="$appUrl" />
         <x-landing.facts />
         <x-landing.features />
+        <x-landing.pipeline />
+        <x-landing.reports />
     </main>
 
     <x-landing.footer :login-url="$loginUrl" :register-url="$registerUrl" :app-url="$appUrl" />

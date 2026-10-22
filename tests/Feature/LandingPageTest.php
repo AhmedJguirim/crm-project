@@ -13,6 +13,14 @@ beforeEach(function () {
     $this->withoutVite();
 });
 
+function landingSectionHtml(string $content, string $id): string
+{
+    $start = strpos($content, '<section id="'.$id.'"');
+    expect($start)->not->toBeFalse();
+
+    return substr($content, $start, strpos($content, '</section>', $start) - $start);
+}
+
 test('a guest sees the landing page instead of a redirect', function () {
     $response = $this->get('/');
 
@@ -208,9 +216,9 @@ test('a guest sees the features section with six cards and the exact copy', func
     $response->assertSee('id="features-heading"', false);
     $response->assertSee('Six tools that work together, from the first contact to the last payment.', false);
     expect(substr_count($content, 'id="features"'))->toBe(1)
-        ->and(substr_count($content, '<article'))->toBe(6)
-        ->and(substr_count($content, '<h3'))->toBe(6)
-        ->and(substr_count($content, '<h2'))->toBe(2)
+        ->and(substr_count(landingSectionHtml($content, 'features'), '<article'))->toBe(6)
+        ->and(substr_count(landingSectionHtml($content, 'features'), '<h3'))->toBe(6)
+        ->and(substr_count($content, '<h2'))->toBe(4)
         ->and(substr_count($content, '<h1'))->toBe(1);
     $response->assertSeeInOrder([
         'Contacts and companies',
@@ -242,6 +250,7 @@ test('the facts on the page match the code', function () {
     expect(count(OrganizationRole::cases()))->toBe(4)
         ->and(array_map(fn (Currency $currency) => $currency->value, Currency::cases()))->toBe(['USD', 'EUR', 'GBP', 'CAD', 'AUD'])
         ->and(DefaultPipeline::stagesOf($organization->id)->pluck('name')->all())->toBe(['Lead', 'Discovery', 'Proposal Sent', 'Negotiating', 'Won', 'Lost'])
+        ->and(DefaultPipeline::stagesOf($organization->id)->firstWhere('name', 'Proposal Sent')->probability)->toBe(50)
         ->and(substr_count(file_get_contents(app_path('Filament/Pages/Reports.php')), "Tab::make('"))->toBe(6);
 });
 
@@ -252,7 +261,7 @@ test('a logged-in user sees the same facts and features', function () {
     $content = $response->getContent();
 
     expect(substr_count($content, 'data-counter'))->toBe(4)
-        ->and(substr_count($content, '<article'))->toBe(6);
+        ->and(substr_count(landingSectionHtml($content, 'features'), '<article'))->toBe(6);
     $response->assertSee('Search everything');
 });
 
@@ -273,4 +282,82 @@ test('each counter renders its final value on the server', function () {
 
     expect($matches)->toHaveCount(4)
         ->and(array_map(fn (array $match) => [$match[1], $match[2]], $matches))->toBe([['6', '6'], ['4', '4'], ['5', '5'], ['6', '6']]);
+});
+
+test('a guest sees the pipeline section with its three rows and the win-probability card', function () {
+    $response = $this->get('/')->assertOk();
+    $content = $response->getContent();
+    $section = landingSectionHtml($content, 'pipeline');
+
+    $response->assertSee('<section id="pipeline"', false);
+    $response->assertSee('id="pipeline-heading"', false);
+    $response->assertSee('A pipeline you can', false);
+    $response->assertSee('See where every deal stands and what it needs next.', false);
+    expect(substr_count($content, 'id="pipeline"'))->toBe(1)
+        ->and(substr_count($section, '<h3'))->toBe(3)
+        ->and(substr_count($section, '<article'))->toBe(0)
+        ->and(substr_count($section, 'data-pipeline-visual'))->toBe(1)
+        ->and($section)
+        ->toContain('Proposal Sent')
+        ->toContain('50% win probability')
+        ->toContain('w-1/2');
+    $response->assertSeeInOrder(['Drag deals across stages', 'Stages that fit your process', 'Know why deals stall or slip away'], false);
+    $response->assertSee('A board with a column per stage, the total and weighted value under each header, and a side drawer to move, edit or log activity without leaving the board.', false);
+    $response->assertSee('Admins can rename, recolor, reorder or add stages, each with a win probability. Every new workspace starts with Lead, Discovery, Proposal Sent, Negotiating, Won and Lost.', false);
+    $response->assertSee('Time in stage on each card, a stage history on each deal, a "Needs attention" list, and an optional lost reason when a deal is lost.', false);
+    $response->assertSee('Admins can rename, recolor, reorder or add stages', false);
+    expect($content)
+        ->not->toContain('Rename, recolor')
+        ->not->toContain('on every card');
+});
+
+test('a guest sees the reports section with six cards and the exact copy', function () {
+    $response = $this->get('/')->assertOk();
+    $content = $response->getContent();
+    $section = landingSectionHtml($content, 'reports');
+
+    $response->assertSee('<section id="reports"', false);
+    $response->assertSee('id="reports-heading"', false);
+    $response->assertSee('Numbers you can', false);
+    $response->assertSee('Open the dashboard to see your day; open Reports to see the trend. Filter both by period and, in a team, by owner.', false);
+    expect(substr_count($content, 'id="reports"'))->toBe(1)
+        ->and(substr_count($section, '<article'))->toBe(6)
+        ->and(substr_count($section, '<h3'))->toBe(6)
+        ->and(substr_count($section, 'data-reports-visual'))->toBe(1);
+    $response->assertSeeInOrder(['My day', 'Key figures', "What you're owed", 'Revenue and forecast', 'Reports', 'Export for your accountant'], false);
+    $response->assertSee('Your overdue tasks, tasks due today and your deals closing this week.', false);
+    $response->assertSee('Won revenue, deals won, win rate, new deals, cash collected and new contacts, each compared with the previous period, with a small trend line.', false);
+    $response->assertSee('Unpaid balances by how late they are, and the oldest overdue invoices.', false);
+    $response->assertSee('Cash collected and won value by month for the last 12 months, and open deals by expected close month, weighted by probability.', false);
+    $response->assertSee('Win rate and lost reasons, stage conversion, time in stage and sales velocity, revenue by client, leads and won deals by source, and a team activity leaderboard.', false);
+    $response->assertSee('Admins can export the team leaderboard and revenue by client to Excel or CSV.', false);
+    expect($content)->not->toContain('by period and by owner');
+});
+
+test('the page outline stays in order', function () {
+    $response = $this->get('/')->assertOk();
+    $content = $response->getContent();
+
+    expect(substr_count($content, '<h1'))->toBe(1)
+        ->and(substr_count($content, '<h2'))->toBe(4);
+    $response->assertSeeInOrder(['id="facts"', 'id="features"', 'id="pipeline"', 'id="reports"'], false);
+});
+
+test('the pipeline and reports sections add no link, no image and no Alpine', function () {
+    $content = $this->get('/')->assertOk()->getContent();
+
+    expect(substr_count($content, 'href="#pipeline"'))->toBe(3)
+        ->and(substr_count($content, 'href="#reports"'))->toBe(3)
+        ->and(landingSectionHtml($content, 'pipeline'))->not->toContain('href=')->not->toContain('<img')
+        ->and(landingSectionHtml($content, 'reports'))->not->toContain('href=')->not->toContain('<img')
+        ->and($content)->not->toContain('x-data')->not->toContain('@click');
+});
+
+test('a logged-in user sees the pipeline and reports sections', function () {
+    $this->actingAs(User::factory()->withPersonalOrganization()->create());
+
+    $content = $this->get('/')->assertOk()->getContent();
+
+    expect($content)->toContain('id="pipeline"')->toContain('id="reports"')
+        ->and(substr_count(landingSectionHtml($content, 'reports'), '<article'))->toBe(6);
 });
