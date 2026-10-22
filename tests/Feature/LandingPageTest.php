@@ -1,6 +1,10 @@
 <?php
 
+use App\Enums\Currency;
+use App\Enums\OrganizationRole;
+use App\Models\Organization;
 use App\Models\User;
+use App\Services\Deals\DefaultPipeline;
 use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\DB;
@@ -174,4 +178,99 @@ test('the page ships no Alpine and no forbidden script attributes', function () 
         ->not->toContain('x-data')
         ->not->toContain('x-show')
         ->not->toContain('@click');
+});
+
+test('a guest sees the facts slab with four tiles and their real values', function () {
+    $response = $this->get('/')->assertOk();
+    $content = $response->getContent();
+
+    $response->assertSee('<section id="facts"', false);
+    $response->assertSee('id="facts-heading"', false);
+    $response->assertSee('Built in', false);
+    $response->assertSee('Ready the day you sign up', false);
+    $response->assertSee('Every new workspace comes with these. Nothing to install, nothing to configure first.', false);
+    expect(substr_count($content, 'data-counter'))->toBe(4)
+        ->and(substr_count($content, 'data-target="6"'))->toBe(2)
+        ->and(substr_count($content, 'data-target="4"'))->toBe(1)
+        ->and(substr_count($content, 'data-target="5"'))->toBe(1);
+    $response->assertSeeInOrder(['Report tabs', 'Roles', 'Currencies', 'Pipeline stages ready on day one'], false);
+    $response->assertSee('Sales results, Conversion, Velocity, Money, Sources, Team activity', false);
+    $response->assertSee('Owner, Admin, Member, Viewer', false);
+    $response->assertSee('USD, EUR, GBP, CAD, AUD', false);
+    $response->assertSee('Lead, Discovery, Proposal Sent, Negotiating, Won, Lost', false);
+});
+
+test('a guest sees the features section with six cards and the exact copy', function () {
+    $response = $this->get('/')->assertOk();
+    $content = $response->getContent();
+
+    $response->assertSee('<section id="features"', false);
+    $response->assertSee('id="features-heading"', false);
+    $response->assertSee('Six tools that work together, from the first contact to the last payment.', false);
+    expect(substr_count($content, 'id="features"'))->toBe(1)
+        ->and(substr_count($content, '<article'))->toBe(6)
+        ->and(substr_count($content, '<h3'))->toBe(6)
+        ->and(substr_count($content, '<h2'))->toBe(2)
+        ->and(substr_count($content, '<h1'))->toBe(1);
+    $response->assertSeeInOrder([
+        'Contacts and companies',
+        'Activity history',
+        'Smart segments',
+        'Tasks and reminders',
+        'Invoices and payments',
+        'Search everything',
+    ], false);
+    $response->assertSee('Store people and the companies they work for, with tags, an owner, a status and a lead source. Admins can add custom fields — text, numbers, dates, dropdowns — to match how you work.', false);
+    $response->assertSee('Log calls, emails, meetings, WhatsApp messages and notes on a contact or a deal, and read them back in one timeline.', false);
+    $response->assertSee('Build lists with rules — a tag, a field, a company, recent activity or an open deal. Once an admin publishes a list, it stays up to date by itself, and admins can export its members.', false);
+    $response->assertSee("Assign follow-ups, snooze them or mark them done in one click, and get a reminder before they're due plus a daily digest by email.", false);
+    $response->assertSee('Create an invoice from a won deal, download it as a PDF, and record each payment as it comes in — the balance and status follow. Admins can record refunds.', false);
+    $response->assertSee('Find any contact, company, deal, task or invoice from the search bar.', false);
+    $response->assertSee('Admins can add custom fields', false);
+    $response->assertSee('Admins can record refunds', false);
+    $response->assertSee('Once an admin publishes a list, it stays up to date by itself', false);
+    $response->assertSee('admins can export its members.', false);
+    expect($content)
+        ->not->toContain('payment or refund')
+        ->not->toContain('stay up to date by themselves')
+        ->not->toContain('export any segment');
+});
+
+test('the facts on the page match the code', function () {
+    $organization = Organization::factory()->create();
+
+    expect(count(OrganizationRole::cases()))->toBe(4)
+        ->and(array_map(fn (Currency $currency) => $currency->value, Currency::cases()))->toBe(['USD', 'EUR', 'GBP', 'CAD', 'AUD'])
+        ->and(DefaultPipeline::stagesOf($organization->id)->pluck('name')->all())->toBe(['Lead', 'Discovery', 'Proposal Sent', 'Negotiating', 'Won', 'Lost'])
+        ->and(substr_count(file_get_contents(app_path('Filament/Pages/Reports.php')), "Tab::make('"))->toBe(6);
+});
+
+test('a logged-in user sees the same facts and features', function () {
+    $this->actingAs(User::factory()->withPersonalOrganization()->create());
+
+    $response = $this->get('/')->assertOk();
+    $content = $response->getContent();
+
+    expect(substr_count($content, 'data-counter'))->toBe(4)
+        ->and(substr_count($content, '<article'))->toBe(6);
+    $response->assertSee('Search everything');
+});
+
+test('the new sections add no link, no Alpine and no clamped text', function () {
+    $content = $this->get('/')->assertOk()->getContent();
+
+    expect(substr_count($content, 'href="#features"'))->toBe(5)
+        ->and($content)
+        ->not->toContain('x-data')
+        ->not->toContain('@click')
+        ->not->toContain('line-clamp');
+});
+
+test('each counter renders its final value on the server', function () {
+    $content = $this->get('/')->assertOk()->getContent();
+
+    preg_match_all('/data-counter data-target="(\d+)"[^>]*>\s*(\d+)\s*</', $content, $matches, PREG_SET_ORDER);
+
+    expect($matches)->toHaveCount(4)
+        ->and(array_map(fn (array $match) => [$match[1], $match[2]], $matches))->toBe([['6', '6'], ['4', '4'], ['5', '5'], ['6', '6']]);
 });
