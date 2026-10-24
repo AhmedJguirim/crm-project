@@ -2,17 +2,24 @@
 
 namespace App\Filament\Resources\Contacts\Schemas;
 
+use App\Enums\CompanyIndustry;
 use App\Enums\ContactStatus;
 use App\Enums\LeadSource;
+use App\Filament\Resources\CompanyTypes\Schemas\CompanyTypeForm;
+use App\Filament\Support\AbilityCheck;
 use App\Filament\Support\CustomFields\CustomFieldValuesSection;
 use App\Filament\Support\RecordKeyField;
+use App\Models\Company;
+use App\Models\CompanyType;
 use App\Models\Contact;
 use App\Models\CustomField;
 use App\Services\Owners\OwnerOptions;
 use App\Support\Tenancy\CurrentOrganization;
+use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 
@@ -71,7 +78,35 @@ class ContactForm
                     ->relationship('companies', 'name')
                     ->preload()
                     ->searchable()
-                    ->helperText('Companies this contact works for'),
+                    ->helperText('Companies this contact works for')
+                    ->createOptionForm([
+                        TextInput::make('name')
+                            ->required()
+                            ->maxLength(255),
+
+                        TextInput::make('website')
+                            ->url()
+                            ->maxLength(255)
+                            ->nullable(),
+
+                        Select::make('industry')
+                            ->options(CompanyIndustry::class)
+                            ->searchable(),
+
+                        Select::make('type')
+                            ->label('Company type')
+                            ->relationship('companyType', 'name')
+                            ->searchable()
+                            ->preload()
+                            ->getOptionLabelUsing(fn (mixed $value, ?Company $record): ?string => CompanyType::query()
+                                ->when($record !== null && (int) $value === $record->company_type_id, fn (Builder $query): Builder => $query->withTrashed())
+                                ->find($value)
+                                ?->companyTypeLabel())
+                            ->createOptionAction(fn (Action $action): Action => $action->authorize(AbilityCheck::for('create', CompanyType::class)))
+                            ->createOptionForm([
+                                CompanyTypeForm::nameInput(),
+                            ]),
+                    ]),
 
                 CustomFieldValuesSection::make(
                     fn (): Collection => CustomField::query()->orderBy('order')->get(),
