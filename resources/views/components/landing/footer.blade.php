@@ -17,7 +17,7 @@
                 <div class="text-sm font-black tracking-widest text-white uppercase">Product</div>
                 <ul class="mt-5 flex flex-col gap-3 text-sm">
                     <li><a href="#features" class="{{ $link }}">Features</a></li>
-                    <li><a href="#pipeline" class="{{ $link }}">Pipeline</a></li>
+                    {{-- <li><a href="#pipeline" class="{{ $link }}">Pipeline</a></li> --}}
                     <li><a href="#reports" class="{{ $link }}">Reports</a></li>
                     <li><a href="#teams" class="{{ $link }}">Teams</a></li>
                     <li><a href="#import" class="{{ $link }}">Import and export</a></li>

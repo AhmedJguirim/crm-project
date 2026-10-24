@@ -16,12 +16,12 @@
                 <div class="max-w-2xl">
                     <span class="landing-section-label dark:bg-primary-500/10 dark:text-primary-300">
                         <span class="h-1.5 w-1.5 rounded-full bg-primary-500" aria-hidden="true"></span>
-                        CRM for consultants, freelancers and small sales teams
+                        CRM Software for small teams and solo entrepreneurs
                     </span>
 
                     <h1 class="mt-6 text-4xl font-black leading-tight tracking-tight text-white sm:text-6xl">Your clients, deals and invoices, <span class="text-primary-400">in one place.</span></h1>
 
-                    <p class="mt-5 max-w-xl text-base leading-7 text-white/75 sm:mt-6 sm:text-lg sm:leading-8">Keep every contact and company organized, move deals through your pipeline, follow up on time and see what you're owed — without a spreadsheet in sight.</p>
+                    <p class="mt-5 max-w-xl text-base leading-7 text-white/75 sm:mt-6 sm:text-lg sm:leading-8">Keep your data centralized and organized in the CRM that is made for you. If you're a freelancer, a solo entrepreneur or a small development team. This solution is made and maintained with your needs in mind.</p>
 
                     <div class="mt-8 flex flex-nowrap gap-3 sm:mt-10 sm:flex-wrap sm:gap-4">
                         @if ($appUrl)

@@ -9,12 +9,13 @@
 
     <main id="main" tabindex="-1" class="outline-none">
         <x-landing.hero :login-url="$loginUrl" :register-url="$registerUrl" :app-url="$appUrl" />
-        <x-landing.facts />
+        {{-- <x-landing.facts /> --}}
         <x-landing.features />
-        <x-landing.pipeline />
+        {{-- <x-landing.pipeline /> --}}
         <x-landing.reports />
         <x-landing.teams />
         <x-landing.import />
+        <x-landing.developer-note />
         <x-landing.cta :login-url="$loginUrl" :register-url="$registerUrl" :app-url="$appUrl" />
     </main>
 
