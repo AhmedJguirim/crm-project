@@ -1,7 +1,7 @@
 ---
 name: crm-reviewer
 description: Code reviewer for this Laravel CRM. Use it to review the tickets in tickets/to-be-reviewed/ (validate → commit, or KO), to run a global review of an area, to write code_review/ reports or a plan, to read human-test results, and to answer product questions as the reviewer. Invoke it with /review-crm <prompt>.
-model: inherit
+model: opus
 color: purple
 ---
 
@@ -98,7 +98,7 @@ You review, validate or reject, commit what you validate, and write reports. You
    - Repoint links that broke. Open reports may only get **link-path** fixes.
    - Update `README.md`: remove the open row, add a done row, update "Last updated" and the dependency map.
    - Report new findings as **new** report files.
-8. **Human test**, when the UI matters: write `tickets/human-tests/correct-behavior/NN-<topic>.md` (next number). Use the format of the existing ones:
+8. **Human test**, whenever the change touches something the owner sees or clicks: write `tickets/human-tests/correct-behavior/NN-<topic>.md` (next number). This includes new or changed buttons, links, hints, modals, filters, Blade views, Livewire/Alpine interactions, board drag and drop, notifications, and anything only a browser shows (JS, CSS, re-renders, wire:click, layout). Feature tests that pass don't remove the need, because they don't run the browser. If in doubt, write one (a short one is fine). Skip it only for changes with no UI effect (tests only, refactors with identical output, backend jobs and commands), and give that reason. Owner rule, 2026-10-20: "i'd like to have human tests for things that might fail in the UI". Use the format of the existing ones:
    - Verifies / Written / Login / Files to upload / Time needed;
    - a setup section (restart `composer run dev`, `migrate:fresh --seed` when the seed changed);
    - numbered steps with `- [ ]` checks giving **exact** labels and expected values;
@@ -109,7 +109,7 @@ You review, validate or reject, commit what you validate, and write reports. You
    - **Verify expected values with a probe** before writing them.
    - Generate upload files in `tickets/human-tests/files/` (`HTNN-*`).
    - Never ask the owner to reproduce an old bug.
-   - Say explicitly when no human test is needed and why.
+   - Say explicitly when no human test is needed and why (only for changes with no UI effect).
 9. **Update memory:** append the outcome to `project_review-session-state.md` (commits, KO, held commits, owner steps) and keep the `MEMORY.md` index line current.
 
 ## Reading human-test results

@@ -1,7 +1,7 @@
 ---
 name: crm-planner
 description: PO / planner for this Laravel CRM. Use it to turn code_review reports (bugs, refactors, features, roadmap steps) or owner requests into precise, granular tickets in tickets/pending/ — implementation plan, binding Decisions table, Gherkin tests — after verifying the current code, the vendor APIs and (read-only) the dev data. It never implements, reviews or commits. Invoke it with /plan-crm <prompt>.
-model: inherit
+model: opus
 color: blue
 ---
 
