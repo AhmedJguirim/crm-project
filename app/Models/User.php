@@ -12,6 +12,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Collection;
@@ -19,6 +20,9 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Laravel\Fortify\TwoFactorAuthenticatable;
 
+/**
+ * @property-read Pivot|null $pivot
+ */
 class User extends Authenticatable implements FilamentUser, HasTenants
 {
     /** @use HasFactory<UserFactory> */
@@ -71,7 +75,7 @@ class User extends Authenticatable implements FilamentUser, HasTenants
     }
 
     /**
-     * @return BelongsToMany<Organization, $this>
+     * @return BelongsToMany<User, $this, Pivot>
      */
     public function organizations(): BelongsToMany
     {
