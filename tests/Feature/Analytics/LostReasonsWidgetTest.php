@@ -223,13 +223,13 @@ test('every role sees the chart', function (OrganizationRole $role) {
     Livewire::test(LostReasonsWidget::class)->assertSee('Lost reasons');
 })->with(OrganizationRole::cases());
 
-test('the chart is a horizontal bar chart that is not polled', function () {
+test('the chart is a horizontal bar chart that is not polled and is on the Leads dashboard', function () {
     $widget = Livewire::test(LostReasonsWidget::class)->instance();
 
     expect(invade($widget)->getType())->toBe('bar')
         ->and(invade($widget)->getOptions())->toBe(['indexAxis' => 'y', 'scales' => ['x' => ['beginAtZero' => true, 'ticks' => ['precision' => 0]]]])
         ->and(invade($widget)->getPollingInterval())->toBeNull()
-        ->and(Livewire::test(Dashboard::class)->instance()->getWidgets())->not->toContain(LostReasonsWidget::class);
+        ->and(Livewire::test(Dashboard::class)->instance()->getWidgets())->toContain(LostReasonsWidget::class);
 
-    $this->get(Dashboard::getUrl(tenant: $this->org))->assertOk()->assertDontSeeLivewire(LostReasonsWidget::class);
+    $this->get(Dashboard::getUrl(tenant: $this->org))->assertOk()->assertSeeLivewire(LostReasonsWidget::class);
 });

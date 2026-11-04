@@ -11,7 +11,6 @@ use App\Filament\Resources\Deals\Widgets\DealActivityFeed;
 use App\Filament\Resources\Deals\Widgets\DealDetailsWidget;
 use App\Filament\Resources\Tasks\Pages\EditTask;
 use App\Filament\Resources\Tasks\Pages\ListTasks;
-use App\Filament\Widgets\RecentActivitiesWidget;
 use App\Models\Activity;
 use App\Models\Contact;
 use App\Models\Deal;
@@ -178,7 +177,6 @@ test('the deal page and the activity feeds print local time', function () {
     Livewire::test(DealDetailsWidget::class, ['record' => $lost])->assertSee('Oct 11, 2026 at 11:00 PM');
     Livewire::test(DealActivityFeed::class, ['record' => $deal])->assertSee('Oct 11, 2026 at 11:00 PM');
     Livewire::test(ContactActivityFeed::class, ['record' => $this->contact])->assertSee('Oct 11, 2026 at 11:00 PM');
-    Livewire::test(RecentActivitiesWidget::class)->assertSee('Oct 11, 2026 11:00 PM');
 });
 
 test('the contact page prints the created date in local time', function () {

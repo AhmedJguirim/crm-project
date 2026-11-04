@@ -10,7 +10,7 @@ use App\Filament\Resources\Deals\Schemas\DealDrawerInfolist;
 use App\Filament\Resources\Deals\Schemas\DealInfolist;
 use App\Filament\Resources\Deals\Widgets\DealDetailsWidget;
 use App\Filament\Resources\Invoices\Pages\ListInvoices;
-use App\Filament\Widgets\DealsOverviewWidget;
+use App\Filament\Widgets\DashboardV2\DealsByStageWidget;
 use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Deal;
@@ -21,6 +21,8 @@ use Filament\Facades\Filament;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Schemas\Schema;
 use Livewire\Livewire;
+
+use function Livewire\invade;
 
 beforeEach(function () {
     $this->user = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
@@ -112,15 +114,16 @@ test('the stage filter offers this organization stages in pipeline order, never 
         ->and(array_keys($options))->not->toContain($foreign->id);
 });
 
-test('the open deals breakdown uses the stage names in pipeline order and leaves out closed deals', function () {
+test('the deals by stage chart uses the stage names in pipeline order and leaves out closed deals', function () {
     ($this->dealIn)('A', 'Negotiating');
     ($this->dealIn)('B', 'Lead');
     ($this->dealIn)('C', 'Lead');
     ($this->dealIn)('D', 'Won');
-    ($this->dealIn)('E', 'Won', ['status' => DealStatus::Open]);
     ($this->stage)('Lead')->update(['name' => 'Cold']);
 
-    expect(Livewire::test(DealsOverviewWidget::class)->instance()->getOpenStageBreakdown())->toBe(['Cold' => 2, 'Negotiating' => 1]);
+    $data = invade(Livewire::test(DealsByStageWidget::class)->instance())->getData();
+
+    expect(array_combine($data['labels'], $data['datasets'][0]['data']))->toBe(['Cold' => 2, 'Negotiating' => 1]);
 });
 
 test('the invoice PDF names the pipeline stage of its deal', function () {

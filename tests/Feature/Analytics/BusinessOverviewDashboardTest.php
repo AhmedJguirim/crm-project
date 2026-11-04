@@ -5,15 +5,12 @@ use App\Enums\ContactStatus;
 use App\Enums\InvoiceStatus;
 use App\Enums\TaskStatus;
 use App\Filament\Pages\Dashboard;
-use App\Filament\Widgets\ContactsOverviewWidget;
 use App\Filament\Widgets\DealsNeedingAttentionWidget;
-use App\Filament\Widgets\DealsOverviewWidget;
 use App\Filament\Widgets\KpiOverviewWidget;
 use App\Filament\Widgets\MoneyOwedWidget;
 use App\Filament\Widgets\MyDealsClosingWidget;
 use App\Filament\Widgets\MyTasksWidget;
 use App\Filament\Widgets\OverdueInvoicesWidget;
-use App\Filament\Widgets\RecentActivitiesWidget;
 use App\Filament\Widgets\RevenueByMonthWidget;
 use App\Models\Activity;
 use App\Models\Contact;
@@ -81,9 +78,6 @@ test('all business overview widgets render with organization data', function () 
     Livewire::test(KpiOverviewWidget::class)
         ->assertSee('Key figures');
 
-    Livewire::test(DealsOverviewWidget::class)
-        ->assertSee('Open Deals');
-
     Livewire::test(KpiOverviewWidget::class)
         ->assertSee('Cash Collected This Month');
 
@@ -93,38 +87,11 @@ test('all business overview widgets render with organization data', function () 
     Livewire::test(OverdueInvoicesWidget::class)
         ->assertSee('Oldest overdue invoices');
 
-    Livewire::test(ContactsOverviewWidget::class)
-        ->assertSee('Total Contacts');
-
     Livewire::test(MyTasksWidget::class)
         ->assertSee('My tasks');
 
     Livewire::test(MyDealsClosingWidget::class)
         ->assertSee('My deals closing');
-
-    Livewire::test(RecentActivitiesWidget::class)
-        ->assertSee('Recent Activities')
-        ->assertSee('Kickoff sync');
-});
-
-test('recent activities widget shows latest 10 items in descending order', function () {
-    $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
-
-    foreach (range(1, 12) as $index) {
-        Activity::factory()->create([
-            'organization_id' => $this->org->id,
-            'contact_id' => $contact->id,
-            'user_id' => $this->user->id,
-            'type' => ActivityType::Note,
-            'subject' => sprintf('Activity %02d', $index),
-            'occurred_at' => now()->subMinutes(12 - $index),
-        ]);
-    }
-
-    Livewire::test(RecentActivitiesWidget::class)
-        ->assertSeeInOrder(['Activity 12', 'Activity 11', 'Activity 10'])
-        ->assertDontSee('Activity 01')
-        ->assertDontSee('Activity 02');
 });
 
 test('the Filament default cards are gone from the dashboard', function () {
@@ -141,8 +108,6 @@ test('the Filament default cards are gone from the dashboard', function () {
 test('only my tasks refreshes on its own', function (string $widget) {
     expect(invade(Livewire::test($widget)->instance())->getPollingInterval())->toBeNull();
 })->with([
-    DealsOverviewWidget::class,
-    ContactsOverviewWidget::class,
     KpiOverviewWidget::class,
     MoneyOwedWidget::class,
     RevenueByMonthWidget::class,

@@ -6,17 +6,6 @@ use App\Filament\Pages\Auth\Login;
 use App\Filament\Pages\Auth\Register;
 use App\Filament\Pages\Tenancy\EditOrganization;
 use App\Filament\Pages\Tenancy\RegisterOrganization;
-use App\Filament\Widgets\ContactsOverviewWidget;
-use App\Filament\Widgets\DealForecastWidget;
-use App\Filament\Widgets\DealsNeedingAttentionWidget;
-use App\Filament\Widgets\DealsOverviewWidget;
-use App\Filament\Widgets\KpiOverviewWidget;
-use App\Filament\Widgets\MoneyOwedWidget;
-use App\Filament\Widgets\MyDealsClosingWidget;
-use App\Filament\Widgets\MyTasksWidget;
-use App\Filament\Widgets\OverdueInvoicesWidget;
-use App\Filament\Widgets\RecentActivitiesWidget;
-use App\Filament\Widgets\RevenueByMonthWidget;
 use App\Models\Organization;
 use App\Models\OrganizationInvite;
 use App\Models\User;
@@ -148,19 +137,6 @@ class AdminPanelProvider extends PanelProvider
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
-            ->widgets([
-                KpiOverviewWidget::class,
-                MyTasksWidget::class,
-                MyDealsClosingWidget::class,
-                DealsOverviewWidget::class,
-                DealsNeedingAttentionWidget::class,
-                MoneyOwedWidget::class,
-                OverdueInvoicesWidget::class,
-                RevenueByMonthWidget::class,
-                DealForecastWidget::class,
-                ContactsOverviewWidget::class,
-                RecentActivitiesWidget::class,
-            ])
             ->middleware([
                 EncryptCookies::class,
                 AddQueuedCookiesToResponse::class,

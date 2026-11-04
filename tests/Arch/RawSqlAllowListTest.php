@@ -38,9 +38,6 @@ function rawSqlAllowList(): array
         'Filament/Support/OrganizationNameInput.php' => [
             'constant' => 'lower(trim(name)) = ? with the name as a binding',
         ],
-        'Filament/Widgets/DealsOverviewWidget.php' => [
-            'constant' => 'constant aggregate selects',
-        ],
         'Models/Concerns/BelongsToOrganization.php' => [
             'constant' => 'whereRaw(\'false\') of the fail-closed tenant scope',
         ],
@@ -55,6 +52,9 @@ function rawSqlAllowList(): array
         ],
         'Services/Reports/DashboardKpis.php' => [
             'constant' => 'constant conditional aggregate select (COUNT/SUM over CASE, EXTRACT(EPOCH) for the sales cycle) for the dashboard KPIs and the sales results, and the lost deals counted per lost reason (grouped COUNT), one UNION ALL part per period; statuses, ledger kind, period bounds and the period index are bindings',
+        ],
+        'Services/Reports/DashboardBreakdowns.php' => [
+            'constant' => 'constant grouped COUNT selects, and a date_trunc of the local created_at; the bucket unit and the timezone are bindings',
         ],
         'Services/Reports/LeadSources.php' => [
             'constant' => 'constant grouped aggregate selects (COUNT, COALESCE(SUM(deals.value), 0)) for the new contacts and won deals by lead source; status, period bounds and owner id are bindings',

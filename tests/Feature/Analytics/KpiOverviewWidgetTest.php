@@ -1,6 +1,5 @@
 <?php
 
-use App\Enums\ContactStatus;
 use App\Enums\Currency;
 use App\Enums\DealStatus;
 use App\Enums\OrganizationRole;
@@ -8,7 +7,6 @@ use App\Filament\Pages\Dashboard;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Deals\DealResource;
 use App\Filament\Resources\Invoices\InvoiceResource;
-use App\Filament\Widgets\ContactsOverviewWidget;
 use App\Filament\Widgets\KpiOverviewWidget;
 use App\Models\Contact;
 use App\Models\Deal;
@@ -293,11 +291,9 @@ describe('with the mixed deals and contacts of two months', function () {
     test('the dashboard hands its filters to the widget', function () {
         $page = Livewire::test(Dashboard::class)->set('filters.owner', 'me')->set('filters.period', 'last_month');
 
-        foreach ([KpiOverviewWidget::class, ContactsOverviewWidget::class] as $widget) {
-            $component = $page->instance()->getWidgetsSchemaComponents([$widget])[0];
+        $component = $page->instance()->getWidgetsSchemaComponents([KpiOverviewWidget::class])[0];
 
-            expect($component->getData()['pageFilters'])->toMatchArray(['owner' => 'me', 'period' => 'last_month']);
-        }
+        expect($component->getData()['pageFilters'])->toMatchArray(['owner' => 'me', 'period' => 'last_month']);
     });
 });
 
@@ -362,41 +358,3 @@ test('every role sees the key figures', function (OrganizationRole $role) {
 
     Livewire::test(KpiOverviewWidget::class)->assertSee('Key figures');
 })->with(OrganizationRole::cases());
-
-describe('the contacts overview', function () {
-    beforeEach(function () {
-        $this->overviewContact = fn (?User $owner, ?ContactStatus $status): Contact => Contact::factory()->create([
-            'organization_id' => $this->org->id,
-            'owner_id' => $owner?->id,
-            'status' => $status,
-        ]);
-
-        ($this->overviewContact)($this->user, ContactStatus::Lead);
-        ($this->overviewContact)($this->user, ContactStatus::ActiveClient);
-        ($this->overviewContact)($this->bob, ContactStatus::Lead);
-        ($this->overviewContact)(null, null);
-    });
-
-    test('counts every contact without a filter', function () {
-        $stats = ($this->kpiStats)([], ContactsOverviewWidget::class);
-
-        expect(array_keys($stats))->toBe(['Total Contacts', 'Active Clients', 'Leads'])
-            ->and($stats['Total Contacts']['value'])->toBe('4')
-            ->and($stats['Active Clients']['value'])->toBe('1')
-            ->and($stats['Leads']['value'])->toBe('2')
-            ->and($stats['Total Contacts']['description'])->toBe('All contacts in this organization');
-    });
-
-    test('follows the owner filter', function () {
-        $stats = ($this->kpiStats)(['owner' => 'me'], ContactsOverviewWidget::class);
-
-        expect($stats['Total Contacts']['value'])->toBe('2')
-            ->and($stats['Active Clients']['value'])->toBe('1')
-            ->and($stats['Leads']['value'])->toBe('1')
-            ->and($stats['Total Contacts']['description'])->toBe('Contacts of the selected owner');
-    });
-
-    test('shows everyone for a forged owner', function () {
-        expect(($this->kpiStats)(['owner' => '1 OR 1=1'], ContactsOverviewWidget::class)['Total Contacts']['value'])->toBe('4');
-    });
-});

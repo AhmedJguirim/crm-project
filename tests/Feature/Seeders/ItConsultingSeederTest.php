@@ -15,7 +15,6 @@ use App\Enums\SegmentRefreshFrequency;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
-use App\Filament\Widgets\DealsOverviewWidget;
 use App\Filament\Widgets\KpiOverviewWidget;
 use App\Filament\Widgets\MoneyOwedWidget;
 use App\Filament\Widgets\OverdueInvoicesWidget;
@@ -398,9 +397,6 @@ test('it consulting seeder seeds one currency and the dashboard adds the amounts
 
     expect($organization->currency)->toBe(Currency::Usd)
         ->and(Invoice::query()->whereIn('invoice_number', ['INV-2026-001', 'INV-2026-002', 'INV-2026-003', 'INV-2026-004', 'INV-2026-005', 'INV-2026-006'])->pluck('created_by')->unique()->all())->toBe([$user->id]);
-
-    Livewire::test(DealsOverviewWidget::class)
-        ->assertSeeInOrder(['Pipeline Value', '$222,000.00']);
 
     Livewire::test(MoneyOwedWidget::class)
         ->assertSeeInOrder(['Outstanding', '$50,500.00', '6 unpaid invoices · $42,700.00 overdue'])

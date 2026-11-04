@@ -30,8 +30,6 @@ use App\Filament\Resources\Segments\Pages\SegmentRuleEngine;
 use App\Filament\Resources\Segments\Pages\ViewSegment;
 use App\Filament\Resources\Tags\Pages\ListTags;
 use App\Filament\Resources\Tasks\Pages\ListTasks;
-use App\Filament\Widgets\DealsOverviewWidget;
-use App\Filament\Widgets\RecentActivitiesWidget;
 use App\Models\Activity;
 use App\Models\Company;
 use App\Models\CompanyType;
@@ -191,7 +189,6 @@ describe('record pages', function () {
         SecurityPayloads::assertHtmlIsInert(Livewire::test(DealsRelationManager::class, ['ownerRecord' => $company, 'pageClass' => EditCompany::class])->html(), $payload);
         SecurityPayloads::assertHtmlIsInert(Livewire::test(DealDetailsWidget::class, ['record' => $deal])->html(), $payload);
         SecurityPayloads::assertHtmlIsInert(Livewire::test(DealStageHistoryWidget::class, ['record' => $deal])->html(), $payload);
-        SecurityPayloads::assertHtmlIsInert(Livewire::test(DealsOverviewWidget::class)->html(), $payload);
         SecurityPayloads::assertHtmlIsInert(Livewire::test(ManagePipelineStages::class)->assertSuccessful()->html(), $payload);
     })->with(SecurityPayloads::xss());
 
@@ -255,7 +252,6 @@ describe('activity feeds', function () {
 
         SecurityPayloads::assertHtmlIsInert(Livewire::test(ContactActivityFeed::class, ['record' => $contact])->html(), $payload);
         SecurityPayloads::assertHtmlIsInert(Livewire::test(DealActivityFeed::class, ['record' => $deal])->html(), $payload);
-        SecurityPayloads::assertHtmlIsInert(Livewire::test(RecentActivitiesWidget::class)->html(), $payload);
     })->with(SecurityPayloads::xss());
 });
 

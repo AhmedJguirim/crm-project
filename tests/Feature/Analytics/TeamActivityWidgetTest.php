@@ -59,10 +59,10 @@ test('forged filters reach no SQL text', function (string $payload) {
     expect($sql)->not->toBeEmpty();
 })->with(SecurityPayloads::sql());
 
-test('the widget is not on the dashboard', function () {
+test('the widget is on the dashboard', function () {
     $widgets = Livewire::test(Dashboard::class)->instance()->getWidgets();
 
-    expect($widgets)->not->toContain(TeamActivityWidget::class);
+    expect($widgets)->toContain(TeamActivityWidget::class);
 
-    $this->get(Dashboard::getUrl(tenant: $this->team->org))->assertOk()->assertDontSee('Team activity');
+    $this->get(Dashboard::getUrl(tenant: $this->team->org))->assertOk()->assertSeeLivewire(TeamActivityWidget::class);
 });
