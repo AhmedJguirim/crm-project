@@ -3,6 +3,7 @@
 use App\Enums\ActivityOutcome;
 use App\Enums\ActivityType;
 use App\Enums\CompanyIndustry;
+use App\Enums\ContactStatus;
 use App\Enums\Currency;
 use App\Enums\DealStatus;
 use App\Enums\InvoicePaymentKind;
@@ -81,13 +82,13 @@ test('it consulting seeder seeds core crm modules data', function () {
 
     expect(Tag::query()->where('organization_id', $organization->id)->count())->toBe(10)
         ->and(CustomField::query()->where('organization_id', $organization->id)->count())->toBe(9)
-        ->and(Contact::query()->where('organization_id', $organization->id)->count())->toBe(15)
-        ->and(Activity::query()->where('organization_id', $organization->id)->count())->toBe(44)
-        ->and(Deal::query()->count())->toBe(18)
-        ->and(Task::query()->count())->toBe(18);
+        ->and(Contact::query()->where('organization_id', $organization->id)->count())->toBe(20)
+        ->and(Activity::query()->where('organization_id', $organization->id)->count())->toBe(48)
+        ->and(Deal::query()->count())->toBe(19)
+        ->and(Task::query()->count())->toBe(19);
 
     expect(Deal::query()->where('status', DealStatus::Open)->count())->toBe(4)
-        ->and(Deal::query()->where('status', DealStatus::Won)->count())->toBe(8)
+        ->and(Deal::query()->where('status', DealStatus::Won)->count())->toBe(9)
         ->and(Deal::query()->where('status', DealStatus::Lost)->count())->toBe(6)
         ->and(Task::query()->where('status', TaskStatus::Done)->count())->toBe(13)
         ->and(Task::query()->where('type', TaskType::Invoice)->count())->toBe(2);
@@ -103,10 +104,10 @@ test('it consulting seeder is idempotent for deals and tasks', function () {
     $this->actingAs($user);
     Filament::setTenant($organization);
 
-    expect(Deal::query()->count())->toBe(18)
-        ->and(DealStageChange::query()->count())->toBe(54)
-        ->and(Task::query()->count())->toBe(18)
-        ->and(Activity::query()->count())->toBe(44);
+    expect(Deal::query()->count())->toBe(19)
+        ->and(DealStageChange::query()->count())->toBe(58)
+        ->and(Task::query()->count())->toBe(19)
+        ->and(Activity::query()->count())->toBe(48);
 });
 
 test('it consulting seeder seeds companies with types, custom fields, addresses and contacts', function () {
@@ -283,16 +284,17 @@ test('it consulting seeder seeds synced segments for every kind of condition and
         'Open deals' => 4,
         'Won customers' => 7,
         'Agency contacts' => 4,
-        'Never contacted' => 2,
+        'Never contacted' => 4,
         'Gone quiet (hourly)' => 5,
-        'Added recently (daily)' => 15,
+        'Added recently (daily)' => 5,
         'High rate (draft)' => 0,
     ])
         ->and($members['VIP'])->toBe(['Marcus Chen', 'Priya Nair', 'Yasmin Al-Rashid'])
         ->and(collect($members['Won customers'])->sort(SORT_STRING)->values()->all())->toBe(['Elena Vasquez', 'Lars Müller', 'Marcus Chen', 'Nadia Petrova', 'Priya Nair', 'Sarah Johansson', 'Tom Whitfield'])
         ->and(Segment::query()->where('name', 'Won customers')->sole()->workingRules()->sole()->conditions[0]->value)
         ->toBe(['deal_stages' => [DefaultPipeline::stageOfType($user->personalOrganization()->id, DealStatus::Won)->id]])
-        ->and($members['Never contacted'])->toBe(['Florian Dupont', 'Hugo Fernandes'])
+        ->and($members['Never contacted'])->toBe(['Chloé Martin', 'Florian Dupont', 'Hugo Fernandes', 'Sofia Rossi'])
+        ->and($members['Added recently (daily)'])->toBe(['Chloé Martin', 'Kenji Watanabe', 'Mateo García', 'Olivia Bennett', 'Sofia Rossi'])
         ->and($members['Gone quiet (hourly)'])->toBe(['Amara Diallo', 'Ingrid Svensson', 'James Okafor', 'Nadia Petrova', 'Remy Bertrand'])
         ->and(Segment::query()->where('name', 'Gone quiet (hourly)')->sole()->refreshFrequency())->toBe(SegmentRefreshFrequency::Hourly)
         ->and(Segment::query()->where('name', 'Added recently (daily)')->sole()->refreshFrequency())->toBe(SegmentRefreshFrequency::Daily)
@@ -329,7 +331,7 @@ test('it consulting seeder seeds a second organization with lookalike data for c
 
     Filament::setTenant($testUser->personalOrganization());
 
-    expect(Contact::query()->count())->toBe(15)
+    expect(Contact::query()->count())->toBe(20)
         ->and(Segment::query()->where('name', 'VIP')->sole()->contacts()->pluck('name')->all())->not->toContain('Globex Alice');
 });
 
@@ -566,20 +568,20 @@ test('it consulting seeder seeds closed deals whose totals and months are stable
     seedHistoryAt($this);
 
     $sum = fn (DealStatus $status): string => number_format((float) Deal::query()->where('status', $status)->sum('value'), 2, '.', '');
-    $original = ['TechCorp Infra Expansion', 'Cloudbase Cost Optimization Retainer', 'HexaSys React Platform Migration', 'SecurePeak Annual Security Program', 'InnoTech Transformation Advisory', 'NordicSec Pen Testing Extension'];
+    $original = ['TechCorp Infra Expansion', 'Cloudbase Cost Optimization Retainer', 'HexaSys React Platform Migration', 'SecurePeak Annual Security Program', 'InnoTech Transformation Advisory', 'NordicSec Pen Testing Extension', 'DevStudio Nuxt Upgrade'];
     $october = Deal::query()->whereNotIn('title', $original)
         ->where(fn ($query) => $query->whereBetween('created_at', ['2026-10-01', '2026-11-01'])
             ->orWhereBetween('won_at', ['2026-10-01', '2026-11-01'])
             ->orWhereBetween('lost_at', ['2026-10-01', '2026-11-01']))
         ->count();
 
-    expect(Deal::query()->count())->toBe(18)
+    expect(Deal::query()->count())->toBe(19)
         ->and(Deal::query()->where('status', DealStatus::Open)->count())->toBe(4)
-        ->and(Deal::query()->where('status', DealStatus::Won)->count())->toBe(8)
+        ->and(Deal::query()->where('status', DealStatus::Won)->count())->toBe(9)
         ->and(Deal::query()->where('status', DealStatus::Lost)->count())->toBe(6)
-        ->and($sum(DealStatus::Won))->toBe('332500.00')
+        ->and($sum(DealStatus::Won))->toBe('356500.00')
         ->and($sum(DealStatus::Lost))->toBe('216000.00')
-        ->and(DealStageChange::query()->count())->toBe(54)
+        ->and(DealStageChange::query()->count())->toBe(58)
         ->and($october)->toBe(0);
 });
 
@@ -646,7 +648,7 @@ test('it consulting seeder keeps the reason, note and date of the lost history d
 test('it consulting seeder dates every history deal like its history', function () {
     seedHistoryAt($this);
 
-    $original = ['TechCorp Infra Expansion', 'Cloudbase Cost Optimization Retainer', 'HexaSys React Platform Migration', 'SecurePeak Annual Security Program', 'InnoTech Transformation Advisory', 'NordicSec Pen Testing Extension'];
+    $original = ['TechCorp Infra Expansion', 'Cloudbase Cost Optimization Retainer', 'HexaSys React Platform Migration', 'SecurePeak Annual Security Program', 'InnoTech Transformation Advisory', 'NordicSec Pen Testing Extension', 'DevStudio Nuxt Upgrade'];
     $deals = Deal::query()->whereNotIn('title', $original)->get();
 
     expect($deals)->toHaveCount(12);
@@ -672,10 +674,10 @@ test('it consulting seeder splits the won value and lost reasons of the history 
         ->countBy(fn (Deal $deal): string => $deal->lostReason?->name ?? 'none')->sortKeys()->all();
 
     expect($wonPerOwner[$ownerId('test@example.com')])->toBe('228000.00')
-        ->and($wonPerOwner[$ownerId('admin@example.com')])->toBe('77000.00')
+        ->and($wonPerOwner[$ownerId('admin@example.com')])->toBe('101000.00')
         ->and($wonPerOwner[$ownerId('member@example.com')])->toBe('27500.00')
         ->and(Deal::query()->where('status', DealStatus::Won)->where('owner_id', $ownerId('test@example.com'))->count())->toBe(4)
-        ->and(Deal::query()->where('status', DealStatus::Won)->where('owner_id', $ownerId('admin@example.com'))->count())->toBe(2)
+        ->and(Deal::query()->where('status', DealStatus::Won)->where('owner_id', $ownerId('admin@example.com'))->count())->toBe(3)
         ->and(Deal::query()->where('status', DealStatus::Won)->where('owner_id', $ownerId('member@example.com'))->count())->toBe(2)
         ->and($lostPerReason)->toBe(['Bad timing' => 1, 'No budget' => 2, 'Price too high' => 1, 'Went with a competitor' => 1, 'none' => 1]);
 });
@@ -693,10 +695,10 @@ test('it consulting seeder adds no history twice and gives Globex Demo none', fu
 
     $globex = Organization::query()->where('slug', 'globex-demo')->sole();
 
-    expect(Deal::query()->count())->toBe(18)
-        ->and(DealStageChange::query()->count())->toBe(54)
-        ->and(Activity::query()->count())->toBe(44)
-        ->and(Task::query()->count())->toBe(18)
+    expect(Deal::query()->count())->toBe(19)
+        ->and(DealStageChange::query()->count())->toBe(58)
+        ->and(Activity::query()->count())->toBe(48)
+        ->and(Task::query()->count())->toBe(19)
         ->and(Deal::query()->forOrganization($globex->id)->count())->toBe(0)
         ->and(DealStageChange::query()->forOrganization($globex->id)->count())->toBe(0)
         ->and(Activity::query()->forOrganization($globex->id)->count())->toBe(0)
@@ -718,10 +720,10 @@ test('it consulting seeder seeds recent activities and completed tasks of the th
     $perUser = (clone $recent)->with('user')->get()->countBy(fn (Activity $activity): string => $activity->user->email)->sortKeys()->all();
     $recentTasks = Task::query()->where('completed_at', '>=', '2026-07-23 00:00:00')->where('title', '!=', 'Send SecurePeak kickoff summary');
 
-    expect(Activity::query()->count())->toBe(44)
-        ->and(Task::query()->count())->toBe(18)
-        ->and((clone $recent)->count())->toBe(24)
-        ->and($perUser)->toBe(['admin@example.com' => 8, 'member@example.com' => 6, 'test@example.com' => 10])
+    expect(Activity::query()->count())->toBe(48)
+        ->and(Task::query()->count())->toBe(19)
+        ->and((clone $recent)->count())->toBe(28)
+        ->and($perUser)->toBe(['admin@example.com' => 8, 'member@example.com' => 6, 'test@example.com' => 14])
         ->and(Activity::query()->where('user_id', User::query()->where('email', 'viewer@example.com')->value('id'))->count())->toBe(0)
         ->and((clone $recent)->whereNotNull('deal_id')->count())->toBe(0)
         ->and((clone $recent)->where('occurred_at', '>', now())->count())->toBe(0)
@@ -729,7 +731,7 @@ test('it consulting seeder seeds recent activities and completed tasks of the th
         ->and((clone $recentTasks)->where('status', TaskStatus::Done)->count())->toBe(12)
         ->and((clone $recentTasks)->whereNotNull('deal_id')->count())->toBe(0)
         ->and((clone $recentTasks)->where('completed_at', '>', now())->count())->toBe(0)
-        ->and(Task::query()->where('status', TaskStatus::Pending)->count())->toBe(5)
+        ->and(Task::query()->where('status', TaskStatus::Pending)->count())->toBe(6)
         ->and(Activity::query()->whereIn('contact_id', Contact::query()->whereIn('name', ['Hugo Fernandes', 'Florian Dupont'])->pluck('id'))->count())->toBe(0);
 });
 
@@ -767,10 +769,10 @@ test('it consulting seeder gives the team activity leaderboard figures for this 
         ->all();
 
     expect($rowsOf(ReportPeriodPreset::ThisMonth))->toBe([
-        ['Test User', 4, 'Call 2 · Email 1 · Meeting 1', 3],
+        ['Test User', 8, 'Call 3 · Email 2 · Meeting 2 · Message 1', 3],
         ['Demo Admin', 3, 'Call 1 · Meeting 1 · WhatsApp 1', 2],
         ['Demo Member', 2, 'Call 1 · Email 1', 2],
-        ['Total', 9, 'Call 4 · Email 2 · Meeting 2 · WhatsApp 1', 7],
+        ['Total', 13, 'Call 5 · Email 3 · Meeting 3 · WhatsApp 1 · Message 1', 7],
     ])
         ->and($rowsOf(ReportPeriodPreset::LastMonth))->toBe([
             ['Demo Admin', 3, 'Call 1 · Email 1 · Meeting 1', 2],
@@ -786,8 +788,8 @@ test('it consulting seeder adds no recent activity or task when it runs again la
 
     $globex = Organization::query()->where('slug', 'globex-demo')->sole();
 
-    expect(Activity::query()->count())->toBe(44)
-        ->and(Task::query()->count())->toBe(18)
+    expect(Activity::query()->count())->toBe(48)
+        ->and(Task::query()->count())->toBe(19)
         ->and(Activity::query()->forOrganization($globex->id)->count())->toBe(0)
         ->and(Task::query()->forOrganization($globex->id)->count())->toBe(0);
 });
@@ -928,9 +930,9 @@ test('it consulting seeder gives stable stage conversion figures', function () {
         ];
     };
 
-    expect($figures(ReportPeriodPreset::Last12Months))->toBe([18, [17, 15, 12, 10, 8], ['94%', '83%', '67%', '56%', '44%'], ['—', '88%', '80%', '83%', '80%']])
-        ->and($figures(ReportPeriodPreset::ThisMonth))->toBe([6, [5, 4, 3, 2, 1], ['83%', '67%', '50%', '33%', '17%'], ['—', '80%', '75%', '67%', '50%']])
-        ->and($figures(ReportPeriodPreset::LastQuarter))->toBe([6, [6, 5, 4, 4, 3], ['100%', '83%', '67%', '67%', '50%'], ['—', '83%', '80%', '100%', '75%']])
+    expect($figures(ReportPeriodPreset::Last12Months))->toBe([19, [19, 16, 13, 11, 9], ['100%', '84%', '68%', '58%', '47%'], ['—', '84%', '81%', '85%', '82%']])
+        ->and($figures(ReportPeriodPreset::ThisMonth))->toBe([3, [3, 2, 1, 1, 1], ['100%', '67%', '33%', '33%', '33%'], ['—', '67%', '50%', '100%', '100%']])
+        ->and($figures(ReportPeriodPreset::LastQuarter))->toBe([10, [10, 8, 7, 6, 4], ['100%', '80%', '70%', '60%', '40%'], ['—', '80%', '88%', '86%', '67%']])
         ->and($figures(ReportPeriodPreset::Last12Months, 'member@example.com')[0])->toBe(4)
         ->and($figures(ReportPeriodPreset::Last12Months, 'member@example.com')[1])->toBe([4, 3, 2, 2, 2])
         ->and($figures(ReportPeriodPreset::Last12Months, 'member@example.com')[3])->toBe(['—', '75%', '67%', '100%', '100%']);
@@ -949,24 +951,31 @@ test('it consulting seeder gives stable lead source figures', function () {
     };
 
     expect($figures(ReportPeriodPreset::Last12Months))->toBe([
-        ['LinkedIn', 2, 3, 183000.0, '55%'],
-        ['Upwork', 2, 2, 51000.0, '15%'],
-        ['Referral', 3, 2, 50500.0, '15%'],
-        ['Inbound', 1, 1, 48000.0, '14%'],
+        ['LinkedIn', 3, 3, 183000.0, '51%'],
+        ['Referral', 4, 3, 74500.0, '21%'],
+        ['Upwork', 2, 2, 51000.0, '14%'],
+        ['Inbound', 2, 1, 48000.0, '13%'],
         ['Cold Outreach', 2, 0, 0.0, '0%'],
         ['Conference', 2, 0, 0.0, '0%'],
-        ['Website', 1, 0, 0.0, '0%'],
+        ['Website', 2, 0, 0.0, '0%'],
+        ['Social Media', 1, 0, 0.0, '0%'],
         ['Unknown source', 2, 0, 0.0, '0%'],
-        ['Total', 15, 8, 332500.0, '100%'],
+        ['Total', 20, 9, 356500.0, '100%'],
     ])
-        ->and(array_column($figures(ReportPeriodPreset::ThisMonth), 0))->toBe(['LinkedIn', 'Referral', 'Cold Outreach', 'Conference', 'Upwork', 'Inbound', 'Website', 'Unknown source', 'Total'])
-        ->and($figures(ReportPeriodPreset::ThisMonth)[0])->toBe(['LinkedIn', 2, 1, 120000.0, '100%'])
+        ->and($figures(ReportPeriodPreset::ThisMonth))->toBe([
+            ['LinkedIn', 1, 1, 120000.0, '83%'],
+            ['Referral', 0, 1, 24000.0, '17%'],
+            ['Inbound', 1, 0, 0.0, '0%'],
+            ['Social Media', 1, 0, 0.0, '0%'],
+            ['Website', 1, 0, 0.0, '0%'],
+            ['Total', 4, 2, 144000.0, '100%'],
+        ])
         ->and(array_slice($figures(ReportPeriodPreset::LastQuarter), 0, 3))->toBe([
-            ['Referral', 0, 2, 50500.0, '46%'],
+            ['Referral', 3, 2, 50500.0, '46%'],
             ['Upwork', 0, 1, 33000.0, '30%'],
             ['LinkedIn', 0, 1, 27000.0, '24%'],
         ])
-        ->and(array_slice($figures(ReportPeriodPreset::LastQuarter), -1))->toBe([['Total', 0, 4, 110500.0, '100%']])
+        ->and(array_slice($figures(ReportPeriodPreset::LastQuarter), -1))->toBe([['Total', 5, 4, 110500.0, '100%']])
         ->and($figures(ReportPeriodPreset::Last12Months, 'member@example.com'))->toBe([
             ['Upwork', 0, 1, 18000.0, '65%'],
             ['Referral', 0, 1, 9500.0, '35%'],
@@ -989,8 +998,26 @@ test('it consulting seeder gives stable time in stage figures', function () {
         ];
     };
 
-    expect($figures(ReportPeriodPreset::Last12Months))->toBe([['9.2', '12.4', '13.9', '13.3'], [12, 9, 9, 6], [1, 1, 1, 1], ['0', '0', '0', '0']])
-        ->and($figures(ReportPeriodPreset::LastQuarter))->toBe([['9.2', '10.2', '14.0', '13.3'], [6, 5, 5, 4], [1, 1, 1, 1], ['0', '0', '0', '0']])
-        ->and($figures(ReportPeriodPreset::ThisMonth))->toBe([['—', '—', '—', '—'], [0, 0, 0, 0], [1, 1, 1, 1], ['—', '—', '—', '—']])
+    expect($figures(ReportPeriodPreset::Last12Months))->toBe([['12.8', '12.4', '13.9', '13.3'], [15, 9, 9, 6], [1, 1, 1, 1], ['1', '1', '1', '1']])
+        ->and($figures(ReportPeriodPreset::LastQuarter))->toBe([['9.2', '10.2', '14.0', '13.3'], [6, 5, 5, 4], [1, 1, 1, 1], ['1', '1', '1', '1']])
+        ->and($figures(ReportPeriodPreset::ThisMonth))->toBe([['27.2', '—', '—', '—'], [3, 0, 0, 0], [1, 1, 1, 1], ['0', '—', '—', '—']])
         ->and($figures(ReportPeriodPreset::Last12Months, 'member@example.com'))->toBe([['9.5', '23.0', '16.0', '16.0'], [4, 1, 2, 1], [0, 0, 0, 0], ['0', '0', '0', '0']]);
+});
+
+test('it consulting seeder gives every dashboard figure of the current month data, with consistent dates', function () {
+    seedHistoryAt($this);
+
+    $month = ReportPeriod::forPreset(ReportPeriodPreset::ThisMonth)->bounds();
+    $deals = Deal::query()->with('contact')->get();
+
+    expect(Contact::query()->whereNull('status')->count())->toBe(0)
+        ->and(Contact::query()->where('status', ContactStatus::Lead)->whereBetween('created_at', $month)->pluck('name')->sort()->values()->all())->toBe(['Kenji Watanabe', 'Olivia Bennett', 'Sofia Rossi'])
+        ->and(Contact::query()->where('status', ContactStatus::Lead)->whereHas('activities', fn (Builder $query): Builder => $query->whereBetween('occurred_at', $month))->count())->toBe(2)
+        ->and(Deal::query()->where('status', DealStatus::Won)->whereBetween('won_at', $month)->pluck('title')->sort()->values()->all())->toBe(['DevStudio Nuxt Upgrade', 'SecurePeak Annual Security Program'])
+        ->and(Deal::query()->where('status', DealStatus::Lost)->whereBetween('lost_at', $month)->sole()->title)->toBe('NordicSec Pen Testing Extension')
+        ->and(Deal::query()->whereBetween('created_at', $month)->count())->toBe(3)
+        ->and(Task::query()->overdue()->sole()->title)->toBe('Send Kenji our platform engineering deck')
+        ->and($deals->filter(fn (Deal $deal): bool => $deal->created_at->lt($deal->contact->created_at))->pluck('title')->all())->toBe([])
+        ->and($deals->filter(fn (Deal $deal): bool => ($deal->won_at ?? $deal->lost_at)?->lt($deal->created_at) ?? false)->pluck('title')->all())->toBe([])
+        ->and(Contact::query()->where('created_at', '>', now())->count())->toBe(0);
 });

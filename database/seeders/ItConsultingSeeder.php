@@ -8,6 +8,7 @@ use App\Enums\ActivityOutcome;
 use App\Enums\ActivityType;
 use App\Enums\CompanyIndustry;
 use App\Enums\ContactAttribute;
+use App\Enums\ContactStatus;
 use App\Enums\DealStatus;
 use App\Enums\InvoicePaymentKind;
 use App\Enums\InvoiceStatus;
@@ -50,6 +51,13 @@ use RuntimeException;
 
 class ItConsultingSeeder extends Seeder
 {
+    /**
+     * The users the demo data is spread over: the organization owner, an admin and a member.
+     *
+     * @var array{owner: User, admin: User, member: User}
+     */
+    private array $team;
+
     public function run(): void
     {
         $user = User::firstOrCreate(
@@ -68,25 +76,41 @@ class ItConsultingSeeder extends Seeder
 
         $org = $user->personalOrganization() ?? $user->createPersonalOrganization();
 
-        $this->seedRoleUsers($org);
+        $roleUsers = $this->seedRoleUsers($org);
 
-        app(TenantContext::class)->run($org->getKey(), fn () => $this->seedOrganization($user, $org));
+        $this->seedDemoOrganization($org, $user, $roleUsers['admin@example.com'], $roleUsers['member@example.com']);
 
         $this->seedSecondOrganization($user);
     }
 
     /**
+     * Fills an organization with the IT consulting demo data (contacts, companies, deals and their history, invoices,
+     * tasks, activities, segments), spread over its owner and two of its members, an admin and a member. Used by the
+     * dev seed and by `crm:demo-account`.
+     */
+    public function seedDemoOrganization(Organization $org, User $owner, User $admin, User $member): void
+    {
+        $this->team = ['owner' => $owner, 'admin' => $admin, 'member' => $member];
+
+        app(TenantContext::class)->run($org->getKey(), fn () => $this->seedOrganization($owner, $org));
+    }
+
+    /**
      * One user per role in the demo organization, to try what each role can do (all with the password of the test
      * user).
+     *
+     * @return array<string, User> the users by email
      */
-    private function seedRoleUsers(Organization $organization): void
+    private function seedRoleUsers(Organization $organization): array
     {
+        $users = [];
+
         foreach ([
             'admin@example.com' => ['Demo Admin', OrganizationRole::Admin],
             'member@example.com' => ['Demo Member', OrganizationRole::Member],
             'viewer@example.com' => ['Demo Viewer', OrganizationRole::Viewer],
         ] as $email => [$name, $role]) {
-            $user = User::firstOrCreate(
+            $users[$email] = User::firstOrCreate(
                 ['email' => $email],
                 [
                     'name' => $name,
@@ -96,8 +120,20 @@ class ItConsultingSeeder extends Seeder
                 ]
             );
 
-            $organization->members()->syncWithoutDetaching([$user->id => ['role' => $role->value]]);
+            $organization->members()->syncWithoutDetaching([$users[$email]->id => ['role' => $role->value]]);
         }
+
+        return $users;
+    }
+
+    /**
+     * The id of each team user, keyed by its role in the team (owner, admin, member).
+     *
+     * @return array<string, int>
+     */
+    private function teamIds(): array
+    {
+        return array_map(fn (User $user): int => $user->id, $this->team);
     }
 
     /**
@@ -466,6 +502,78 @@ class ItConsultingSeeder extends Seeder
                     $notes->key => 'Met at Paris JS conference. No immediate need.',
                 ],
             ],
+            [
+                'name' => 'Chloé Martin',
+                'source' => LeadSource::Referral,
+                'email' => 'chloe.martin@lumiere-digital.fr',
+                'phone' => '+33 6 12 34 56 78',
+                'tags' => ['Lead'],
+                'cf' => [$jobTitle->key => 'Product Owner'],
+            ],
+            [
+                'name' => 'Olivia Bennett',
+                'source' => LeadSource::Website,
+                'email' => 'olivia.bennett@brightlabs.io',
+                'phone' => '+44 20 7946 0321',
+                'tags' => ['Lead'],
+                'cf' => [$jobTitle->key => 'Head of Engineering'],
+            ],
+            [
+                'name' => 'Kenji Watanabe',
+                'source' => LeadSource::LinkedIn,
+                'email' => 'kenji.watanabe@tokyoware.jp',
+                'phone' => null,
+                'tags' => ['Lead', 'Technical'],
+                'cf' => [$jobTitle->key => 'Platform Architect'],
+            ],
+            [
+                'name' => 'Sofia Rossi',
+                'source' => LeadSource::Inbound,
+                'email' => 'sofia.rossi@milanotech.it',
+                'phone' => null,
+                'tags' => ['Lead'],
+                'cf' => [],
+            ],
+            [
+                'name' => 'Mateo García',
+                'source' => LeadSource::SocialMedia,
+                'email' => 'mateo.garcia@andesdata.co',
+                'phone' => '+57 1 234 5678',
+                'tags' => ['Prospect'],
+                'cf' => [$jobTitle->key => 'Data Lead'],
+            ],
+        ];
+
+        $today = now()->toImmutable();
+        $monthsAgo = fn (int $months, int $day): CarbonImmutable => $today->startOfMonth()->subMonthsNoOverflow($months)->setDay($day)->setTime(10, 0);
+
+        /**
+         * The status and creation moment of every contact: the clients and partners joined months before their first
+         * deal, the leads are recent (four of them this month, one last month) so the lead reports have figures.
+         *
+         * @var array<string, array{0: ContactStatus, 1: CarbonImmutable}> $contactHistory
+         */
+        $contactHistory = [
+            'marcus.chen@techcorp.io' => [ContactStatus::ActiveClient, $monthsAgo(9, 3)],
+            'sarah.johansson@cloudbase.dev' => [ContactStatus::ActiveClient, $monthsAgo(8, 14)],
+            'damien.leroy@hexasys.fr' => [ContactStatus::Prospect, $monthsAgo(3, 5)],
+            'priya.nair@securepeak.com' => [ContactStatus::ActiveClient, $monthsAgo(7, 20)],
+            'lars.muller@devstudio.de' => [ContactStatus::Partner, $monthsAgo(4, 9)],
+            'amara.diallo@innotech-sa.com' => [ContactStatus::Prospect, $monthsAgo(2, 18)],
+            'tom.whitfield@stackops.io' => [ContactStatus::ActiveClient, $monthsAgo(6, 7)],
+            'nadia.petrova@softbridge.eu' => [ContactStatus::ActiveClient, $monthsAgo(5, 11)],
+            'james.okafor@cybernode.ng' => [ContactStatus::Lead, $monthsAgo(5, 25)],
+            'elena.vasquez@pixelcraft.studio' => [ContactStatus::ActiveClient, $monthsAgo(3, 21)],
+            'hugo.fernandes@datalab.pt' => [ContactStatus::Lead, $monthsAgo(6, 15)],
+            'yasmin.alrashid@cloudshift.ae' => [ContactStatus::Prospect, $monthsAgo(3, 12)],
+            'florian.dupont@freelance.io' => [ContactStatus::Partner, $monthsAgo(10, 8)],
+            'ingrid.svensson@nordicsec.com' => [ContactStatus::PastClient, $monthsAgo(8, 2)],
+            'remy.bertrand@webscale.fr' => [ContactStatus::Lead, $monthsAgo(4, 16)],
+            'chloe.martin@lumiere-digital.fr' => [ContactStatus::Lead, $monthsAgo(1, 10)],
+            'olivia.bennett@brightlabs.io' => [ContactStatus::Lead, $this->thisMonth(1, '09:00')],
+            'kenji.watanabe@tokyoware.jp' => [ContactStatus::Lead, $this->thisMonth(2, '11:00')],
+            'sofia.rossi@milanotech.it' => [ContactStatus::Lead, $this->thisMonth(3, '08:30')],
+            'mateo.garcia@andesdata.co' => [ContactStatus::Prospect, $this->thisMonth(1, '14:00')],
         ];
 
         foreach ($contactsData as $data) {
@@ -473,15 +581,18 @@ class ItConsultingSeeder extends Seeder
                 continue;
             }
 
-            $contact = Contact::create([
+            [$status, $createdAt] = $contactHistory[$data['email']];
+
+            $contact = Carbon::withTestNow($createdAt, fn (): Contact => Contact::create([
                 'organization_id' => $org->id,
                 'name' => $data['name'],
                 'email' => $data['email'],
                 'phone' => $data['phone'],
+                'status' => $status,
                 'lead_source' => $data['source'],
                 'owner_id' => $data['email'] === 'amara.diallo@innotech-sa.com' ? null : $user->id,
                 'custom_field_values' => $data['cf'],
-            ]);
+            ]));
 
             $tagIds = collect($data['tags'])
                 ->map(fn (string $name) => $tags[$name]->id)
@@ -553,47 +664,81 @@ class ItConsultingSeeder extends Seeder
             );
         }
 
-        // ── Deals ────────────────────────────────────────────────────────────
-        $dealsData = [
-            ['title' => 'TechCorp Infra Expansion', 'email' => 'marcus.chen@techcorp.io', 'stage' => 'Negotiating', 'status' => DealStatus::Open, 'value' => 85000, 'expected_close_date' => now()->addDays(9)->toDateString(), 'notes' => 'Final legal review before signature.'],
-            ['title' => 'Cloudbase Cost Optimization Retainer', 'email' => 'sarah.johansson@cloudbase.dev', 'stage' => 'Proposal Sent', 'status' => DealStatus::Open, 'value' => 42000, 'expected_close_date' => now()->addDays(5)->toDateString(), 'notes' => 'Proposal sent, waiting for finance sign-off.'],
-            ['title' => 'HexaSys React Platform Migration', 'email' => 'damien.leroy@hexasys.fr', 'stage' => 'Discovery', 'status' => DealStatus::Open, 'value' => 65000, 'expected_close_date' => now()->addDays(18)->toDateString(), 'notes' => 'Technical workshops scheduled next week.'],
-            ['title' => 'SecurePeak Annual Security Program', 'email' => 'priya.nair@securepeak.com', 'stage' => 'Won', 'status' => DealStatus::Won, 'value' => 120000, 'expected_close_date' => now()->subDays(12)->toDateString(), 'won_at' => now()->subDays(10), 'notes' => 'Contract signed and onboarded.'],
-            ['title' => 'InnoTech Transformation Advisory', 'email' => 'amara.diallo@innotech-sa.com', 'stage' => 'Lead', 'status' => DealStatus::Open, 'no_owner' => true, 'value' => 30000, 'expected_close_date' => now()->addDays(24)->toDateString(), 'notes' => 'Initial qualification in progress.'],
-            ['title' => 'NordicSec Pen Testing Extension', 'email' => 'ingrid.svensson@nordicsec.com', 'stage' => 'Lost', 'status' => DealStatus::Lost, 'value' => 38000, 'expected_close_date' => now()->subDays(20)->toDateString(), 'lost_at' => now()->subDays(18), 'notes' => 'Budget reallocated to internal team.'],
+        // The new contacts of this month: two of the leads already worked, one not yet, and the prospect met once.
+        $newContactActivities = [
+            ['olivia.bennett@brightlabs.io', ActivityType::Call, $this->thisMonth(2, '10:00'), 30, 'Website enquiry call', 'Wants a team to rebuild their customer portal.', ActivityOutcome::FollowUpNeeded],
+            ['olivia.bennett@brightlabs.io', ActivityType::Email, $this->thisMonth(3, '09:00'), null, 'Portal rebuild questions', 'Sent the questions about their current stack.', null],
+            ['kenji.watanabe@tokyoware.jp', ActivityType::Message, $this->thisMonth(3, '08:00'), null, 'LinkedIn introduction', 'Introduced our platform engineering services.', ActivityOutcome::Neutral],
+            ['mateo.garcia@andesdata.co', ActivityType::Meeting, $this->thisMonth(3, '15:00'), 45, 'Data platform discovery', 'Qualified quickly: budget and timeline confirmed.', ActivityOutcome::Positive],
         ];
 
-        $stages = DefaultPipeline::stagesOf($org->id)->keyBy('name');
-
-        foreach ($dealsData as $dealData) {
-            $contact = $contacts[$dealData['email']] ?? null;
-
-            if (! $contact) {
-                continue;
-            }
-
-            Deal::firstOrCreate(
+        foreach ($newContactActivities as [$email, $type, $occurredAt, $duration, $subject, $activityNotes, $outcome]) {
+            Activity::firstOrCreate(
+                ['organization_id' => $org->id, 'contact_id' => $contacts[$email]->id, 'subject' => $subject],
                 [
-                    'organization_id' => $org->id,
-                    'title' => $dealData['title'],
-                ],
-                [
-                    'contact_id' => $contact->id,
-                    'company_id' => DealCompany::defaultIdFor($contact->id),
-                    'pipeline_stage_id' => $stages[$dealData['stage']]->getKey(),
-                    'status' => $dealData['status'],
-                    'value' => $dealData['value'],
-                    'expected_close_date' => $dealData['expected_close_date'],
-                    'notes' => $dealData['notes'],
-                    'won_at' => $dealData['won_at'] ?? null,
-                    'lost_at' => $dealData['lost_at'] ?? null,
-                    'created_by' => $user->id,
-                    'owner_id' => ($dealData['no_owner'] ?? false) ? null : $user->id,
+                    'user_id' => $user->id,
+                    'type' => $type,
+                    'occurred_at' => $occurredAt,
+                    'duration_minutes' => $duration,
+                    'notes' => $activityNotes,
+                    'outcome' => $outcome,
                 ]
             );
         }
 
+        // ── Deals ────────────────────────────────────────────────────────────
+        // The open deals are created in their stage; the closed ones are created in Lead and closed this month through
+        // the stage mover, so the current month has won and lost deals and every deal is created before it closes.
+        $dealsData = [
+            ['title' => 'TechCorp Infra Expansion', 'email' => 'marcus.chen@techcorp.io', 'stage' => 'Negotiating', 'value' => 85000, 'created_at' => $monthsAgo(1, 6), 'expected_close_date' => now()->addDays(9)->toDateString(), 'notes' => 'Final legal review before signature.'],
+            ['title' => 'Cloudbase Cost Optimization Retainer', 'email' => 'sarah.johansson@cloudbase.dev', 'stage' => 'Proposal Sent', 'value' => 42000, 'created_at' => $monthsAgo(1, 20), 'expected_close_date' => now()->addDays(5)->toDateString(), 'notes' => 'Proposal sent, waiting for finance sign-off.'],
+            ['title' => 'HexaSys React Platform Migration', 'email' => 'damien.leroy@hexasys.fr', 'stage' => 'Discovery', 'value' => 65000, 'created_at' => $this->thisMonth(2, '15:00'), 'expected_close_date' => now()->addDays(18)->toDateString(), 'notes' => 'Technical workshops scheduled next week.'],
+            ['title' => 'SecurePeak Annual Security Program', 'email' => 'priya.nair@securepeak.com', 'stage' => 'Won', 'value' => 120000, 'created_at' => $monthsAgo(2, 3), 'closed_at' => $this->thisMonth(2, '10:00'), 'notes' => 'Contract signed and onboarded.'],
+            ['title' => 'InnoTech Transformation Advisory', 'email' => 'amara.diallo@innotech-sa.com', 'stage' => 'Lead', 'no_owner' => true, 'value' => 30000, 'created_at' => $this->thisMonth(1, '11:00'), 'expected_close_date' => now()->addDays(24)->toDateString(), 'notes' => 'Initial qualification in progress.'],
+            ['title' => 'NordicSec Pen Testing Extension', 'email' => 'ingrid.svensson@nordicsec.com', 'stage' => 'Lost', 'value' => 38000, 'created_at' => $monthsAgo(1, 12), 'closed_at' => $this->thisMonth(1, '16:00'), 'lost_reason' => 'No budget', 'notes' => 'Budget reallocated to internal team.'],
+            ['title' => 'DevStudio Nuxt Upgrade', 'email' => 'lars.muller@devstudio.de', 'stage' => 'Won', 'owner' => 'admin', 'value' => 24000, 'created_at' => $this->thisMonth(1, '09:30'), 'closed_at' => $this->thisMonth(3, '17:00'), 'notes' => 'Small upgrade signed within days.'],
+        ];
+
         $this->seedLostReasons($org);
+
+        $stages = DefaultPipeline::stagesOf($org->id)->keyBy('name');
+        $reasons = LostReason::query()->pluck('id', 'name');
+        $owners = $this->teamIds();
+
+        foreach ($dealsData as $dealData) {
+            $contact = $contacts[$dealData['email']] ?? null;
+
+            if (! $contact || Deal::query()->where('organization_id', $org->id)->where('title', $dealData['title'])->exists()) {
+                continue;
+            }
+
+            $ownerId = match (true) {
+                $dealData['no_owner'] ?? false => null,
+                isset($dealData['owner']) => $owners[$dealData['owner']],
+                default => $user->id,
+            };
+            $closedAt = $dealData['closed_at'] ?? null;
+
+            $deal = Carbon::withTestNow($dealData['created_at'], fn (): Deal => Deal::create([
+                ...DealStageMover::attributesFor($stages[$closedAt === null ? $dealData['stage'] : 'Lead']),
+                'organization_id' => $org->id,
+                'contact_id' => $contact->id,
+                'company_id' => DealCompany::defaultIdFor($contact->id),
+                'title' => $dealData['title'],
+                'value' => $dealData['value'],
+                'expected_close_date' => $dealData['expected_close_date'] ?? $closedAt?->toDateString(),
+                'notes' => $dealData['notes'],
+                'created_by' => $user->id,
+                'owner_id' => $ownerId,
+            ]));
+
+            if ($closedAt !== null) {
+                Carbon::withTestNow($closedAt, fn (): Deal => $dealData['stage'] === 'Lost'
+                    ? DealStageMover::moveToLost($deal, $reasons[$dealData['lost_reason']], $dealData['notes'])
+                    : DealStageMover::move($deal, $stages[$dealData['stage']]));
+            }
+        }
+
         $this->seedClosedDealHistory($org);
 
         // ── Invoices ─────────────────────────────────────────────────────────
@@ -665,6 +810,7 @@ class ItConsultingSeeder extends Seeder
             ['title' => 'Send SecurePeak kickoff summary', 'email' => 'priya.nair@securepeak.com', 'type' => TaskType::Email, 'priority' => TaskPriority::Low, 'status' => TaskStatus::Done, 'due_at' => now()->subDays(2), 'completed_at' => now()->subDay(), 'notes' => 'Kickoff notes and next milestones sent.'],
             ['title' => 'Invoice StackOps sprint support', 'email' => 'tom.whitfield@stackops.io', 'type' => TaskType::Invoice, 'priority' => TaskPriority::Medium, 'status' => TaskStatus::Pending, 'due_at' => now()->addDays(5), 'notes' => 'Prepare invoice for February sprint support.', 'no_owner' => true],
             ['title' => 'Follow up with Yasmin on budget confirmation', 'email' => 'yasmin.alrashid@cloudshift.ae', 'type' => TaskType::FollowUp, 'priority' => TaskPriority::High, 'status' => TaskStatus::Pending, 'due_at' => now()->addDays(4), 'notes' => 'Clarify budget owner and procurement steps.'],
+            ['title' => 'Send Kenji our platform engineering deck', 'email' => 'kenji.watanabe@tokyoware.jp', 'type' => TaskType::Email, 'priority' => TaskPriority::Medium, 'status' => TaskStatus::Pending, 'due_at' => now()->subHours(3), 'notes' => 'Promised after the LinkedIn introduction; late.'],
         ];
 
         foreach ($tasksData as $taskData) {
@@ -707,9 +853,9 @@ class ItConsultingSeeder extends Seeder
         $today = now()->toImmutable();
         $at = fn (int $daysAgo, string $time): CarbonImmutable => $today->subDays($daysAgo)->setTimeFromTimeString($time);
 
-        $test = 'test@example.com';
-        $admin = 'admin@example.com';
-        $member = 'member@example.com';
+        $test = 'owner';
+        $admin = 'admin';
+        $member = 'member';
 
         $activities = [
             [2, '09:30', $test, 'marcus.chen@techcorp.io', ActivityType::Call, 30, 'Contract redlines walkthrough', 'Went through the last legal comments line by line.', ActivityOutcome::Positive],
@@ -753,7 +899,7 @@ class ItConsultingSeeder extends Seeder
             ['Call NordicSec about the extension', 'ingrid.svensson@nordicsec.com', $member, TaskType::Call, TaskPriority::Medium, 70, 69, '09:15', 'Extension kept in-house.'],
         ];
 
-        $users = User::query()->whereIn('email', [$test, $admin, $member])->pluck('id', 'email');
+        $users = $this->teamIds();
         $contacts = Contact::query()
             ->whereIn('email', [...array_column($activities, 3), ...array_column($tasks, 1)])
             ->get()
@@ -811,9 +957,9 @@ class ItConsultingSeeder extends Seeder
         $month = fn (int $monthsAgo, int $day): CarbonImmutable => $today->startOfMonth()->subMonthsNoOverflow($monthsAgo)->setDay($day)->setTime(12, 0);
         $daysAgo = fn (int $days): CarbonImmutable => $today->subDays($days)->setTime(12, 0);
 
-        $test = 'test@example.com';
-        $admin = 'admin@example.com';
-        $member = 'member@example.com';
+        $test = 'owner';
+        $admin = 'admin';
+        $member = 'member';
         $bank = PaymentMethod::BankTransfer;
 
         $rows = [
@@ -828,7 +974,7 @@ class ItConsultingSeeder extends Seeder
             ['INV-2026-015', 'elena.vasquez@pixelcraft.studio', 'PixelCraft Design System Support', $member, 9500, $month(1, 9), $month(1, 28), InvoiceStatus::Sent, [['payment', '9500.00', $month(1, 26), PaymentMethod::Card]], 'Design system support.'],
         ];
 
-        $users = User::query()->whereIn('email', [$test, $admin, $member])->get()->keyBy('email');
+        $users = $this->team;
         $contacts = Contact::query()->whereIn('email', array_column($rows, 1))->get()->keyBy('email');
         $deals = Deal::query()->whereIn('title', array_filter(array_column($rows, 2)))->pluck('id', 'title');
         $ledger = app(InvoiceLedger::class);
@@ -885,9 +1031,9 @@ class ItConsultingSeeder extends Seeder
         $today = now()->toImmutable();
         $at = fn (int $monthsAgo, int $day): CarbonImmutable => $today->startOfMonth()->subMonthsNoOverflow($monthsAgo)->setDay($day)->setTime(12, 0);
 
-        $test = 'test@example.com';
-        $admin = 'admin@example.com';
-        $member = 'member@example.com';
+        $test = 'owner';
+        $admin = 'admin';
+        $member = 'member';
 
         $rows = [
             ['TechCorp Security Audit', 'marcus.chen@techcorp.io', $test, 48000, [['Lead', 6, 4], ['Discovery', 6, 12], ['Proposal Sent', 6, 25], ['Negotiating', 5, 8], ['Won', 5, 19]], null, null],
@@ -905,7 +1051,7 @@ class ItConsultingSeeder extends Seeder
         ];
 
         $stages = DefaultPipeline::stagesOf($org->id)->keyBy('name');
-        $owners = User::query()->whereIn('email', [$test, $admin, $member])->pluck('id', 'email');
+        $owners = $this->teamIds();
         $contacts = Contact::query()->whereIn('email', array_column($rows, 1))->get()->keyBy('email');
         $reasons = LostReason::query()->pluck('id', 'name');
 
@@ -941,18 +1087,26 @@ class ItConsultingSeeder extends Seeder
     }
 
     /**
-     * The reasons the demo organization loses deals for, and the reason of its lost deal.
+     * The reasons the demo organization loses deals for.
      */
     private function seedLostReasons(Organization $org): void
     {
         foreach (['Price too high', 'Went with a competitor', 'No budget', 'Bad timing', 'No response'] as $name) {
             LostReason::firstOrCreate(['organization_id' => $org->id, 'name' => $name]);
         }
+    }
 
-        Deal::query()->where('title', 'NordicSec Pen Testing Extension')->firstOrFail()->update([
-            'lost_reason_id' => LostReason::query()->where('name', 'No budget')->firstOrFail()->id,
-            'lost_reason_note' => 'Budget reallocated to internal team.',
-        ]);
+    /**
+     * A moment on the given day of the current month, never in the future and never before the month starts, so the
+     * figures of "this month" exist whatever day the seeder runs.
+     */
+    private function thisMonth(int $day, string $time): CarbonImmutable
+    {
+        $today = now()->toImmutable();
+
+        return $today->startOfMonth()->addDays($day - 1)->setTimeFromTimeString($time)
+            ->min($today->subMinutes(5))
+            ->max($today->startOfMonth());
     }
 
     /**
