@@ -3,14 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ExportFormat;
+use App\Models\Company;
+use App\Models\Contact;
+use App\Support\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
- * Downloads an export file. The link is signed and carries the user who asked for the export, so only that user can
- * use it, and it only takes a file name, never a path.
+ * Downloads an export file. The link is signed and carries the user who asked for the export and the organization it
+ * was made in, so only that user can use it, only while they may still export from that organization, and it only takes
+ * a file name, never a path.
  */
 class DownloadExportController extends Controller
 {
@@ -23,6 +28,8 @@ class DownloadExportController extends Controller
         if (! is_string($file) || preg_match('/^(?:contacts|companies)-[A-Za-z0-9]{40}\.(xlsx|csv)$/', $file, $matches) !== 1) {
             abort(404);
         }
+
+        abort_unless($this->mayStillExport($request->query('organization'), $file), 403);
 
         $path = "exports/{$file}";
 
@@ -39,5 +46,20 @@ class DownloadExportController extends Controller
         return Storage::disk('local')->download($path, $name, [
             'Content-Type' => ExportFormat::from($matches[1])->contentType(),
         ]);
+    }
+
+    /**
+     * Whether the link names a valid organization and the logged-in user may still export contacts (for a `contacts-`
+     * file) or companies (for a `companies-` file) in it.
+     */
+    private function mayStillExport(mixed $organization, string $file): bool
+    {
+        if (! is_string($organization) || ! ctype_digit($organization) || (int) $organization < 1) {
+            return false;
+        }
+
+        $model = str_starts_with($file, 'contacts-') ? Contact::class : Company::class;
+
+        return app(TenantContext::class)->run((int) $organization, fn (): bool => Gate::allows('export', $model));
     }
 }

@@ -121,7 +121,8 @@ it('tells the user the export is ready with a signed download link', function ()
         ->and($url)->toContain('signature=')
         ->and($url)->toContain("file={$file}")
         ->and($url)->toContain('name=contacts-2026-10-06.xlsx')
-        ->and($url)->toContain("user={$this->user->id}");
+        ->and($url)->toContain("user={$this->user->id}")
+        ->and($url)->toContain("organization={$this->org->id}");
 
     $this->actingAs($this->user)->get($url)->assertOk()->assertDownload('contacts-2026-10-06.xlsx');
 });

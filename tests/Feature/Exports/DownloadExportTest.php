@@ -1,5 +1,7 @@
 <?php
 
+use App\Enums\OrganizationRole;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
@@ -21,7 +23,7 @@ beforeEach(function () {
     $this->link = fn (array $query, ?int $userId = null): string => URL::temporarySignedRoute(
         'exports.download',
         now()->addDays(7),
-        ['user' => $userId ?? $this->ann->id, ...$query],
+        ['user' => $userId ?? $this->ann->id, 'organization' => $this->ann->personalOrganization()->id, ...$query],
     );
 });
 
@@ -125,4 +127,105 @@ it('answers 404 when the file is gone', function () {
 
 it('needs the file parameter', function () {
     $this->actingAs($this->ann)->get(($this->link)([]))->assertNotFound();
+});
+
+describe('the access of the user at download time', function () {
+    beforeEach(function () {
+        $this->olga = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
+        $this->acme = $this->olga->personalOrganization();
+        $this->acme->members()->attach($this->ann->id, ['role' => OrganizationRole::Admin->value]);
+
+        $this->acmeLink = fn (string $file): string => ($this->link)(['file' => $file, 'organization' => $this->acme->id]);
+        $this->open = fn (string $url) => $this->actingAs($this->ann->fresh())->get($url);
+    });
+
+    it('lets an admin or an owner download a contacts or a companies file', function (OrganizationRole $role, string $prefix) {
+        $this->acme->members()->updateExistingPivot($this->ann->id, ['role' => $role->value]);
+        $file = ($this->stored)('xlsx', "{$prefix} bytes", $prefix);
+
+        $response = ($this->open)(($this->acmeLink)($file));
+
+        $response->assertOk();
+        expect($response->streamedContent())->toBe("{$prefix} bytes");
+    })->with([OrganizationRole::Admin, OrganizationRole::Owner])->with(['contacts', 'companies']);
+
+    it('refuses a user who was demoted after asking for the export', function (OrganizationRole $role, string $prefix) {
+        $file = ($this->stored)('xlsx', 'secret', $prefix);
+        $url = ($this->acmeLink)($file);
+
+        ($this->open)($url)->assertOk();
+
+        $this->acme->members()->updateExistingPivot($this->ann->id, ['role' => $role->value]);
+
+        ($this->open)($url)->assertForbidden();
+    })->with([OrganizationRole::Member, OrganizationRole::Viewer])->with(['contacts', 'companies']);
+
+    it('refuses a user who was removed from the organization', function (string $prefix) {
+        $file = ($this->stored)('xlsx', 'secret', $prefix);
+        $url = ($this->acmeLink)($file);
+
+        $this->acme->members()->detach($this->ann->id);
+
+        ($this->open)($url)->assertForbidden();
+    })->with(['contacts', 'companies']);
+
+    it('refuses a link signed without an organization', function () {
+        $file = ($this->stored)();
+
+        $url = URL::temporarySignedRoute('exports.download', now()->addDays(7), ['file' => $file, 'user' => $this->ann->id]);
+
+        $this->actingAs($this->ann)->get($url)->assertForbidden();
+    });
+
+    it('refuses to change the organization of a signed link', function () {
+        $file = ($this->stored)();
+        $url = ($this->acmeLink)($file);
+        $personal = $this->ann->personalOrganization()->id;
+
+        $this->actingAs($this->ann)->get($url)->assertOk();
+        $this->actingAs($this->ann)->get(preg_replace('/organization=\d+/', 'organization='.$personal, $url))->assertForbidden();
+    });
+
+    it('refuses a link for an organization the user never belonged to', function () {
+        $globex = Organization::factory()->create();
+        $file = ($this->stored)();
+
+        ($this->open)(($this->link)(['file' => $file, 'organization' => $globex->id]))->assertForbidden();
+    });
+
+    it('refuses a link for an organization that does not exist', function (string $organization) {
+        $file = ($this->stored)();
+
+        ($this->open)(($this->link)(['file' => $file, 'organization' => $organization]))->assertForbidden();
+    })->with(['zero' => '0', 'huge' => '99999999999999999999999', 'unknown' => '987654321']);
+
+    it('refuses a forged organization in a signed link without an error', function (string $suffix) {
+        $file = ($this->stored)();
+
+        ($this->open)(($this->link)(['file' => $file, 'organization' => $this->acme->id.$suffix]))->assertForbidden();
+    })->with([
+        'sql' => ' OR 1=1',
+        'decimal' => '.5',
+        'exponent' => 'e0',
+        'hex' => 'x',
+        'plus' => '+',
+    ]);
+
+    it('refuses a negative, a signed, a padded, an empty or an array organization', function (string|array $organization) {
+        $file = ($this->stored)();
+
+        ($this->open)(($this->link)(['file' => $file, 'organization' => $organization]))->assertForbidden();
+    })->with([
+        'negative' => '-'.'1',
+        'padded' => ' 1',
+        'empty' => '',
+        'array' => [['1', '2']],
+    ]);
+
+    it('checks the file name before the access, and the access before the file', function () {
+        $this->acme->members()->detach($this->ann->id);
+
+        ($this->open)(($this->link)(['file' => '../.env', 'organization' => $this->acme->id]))->assertNotFound();
+        ($this->open)(($this->link)(['file' => 'contacts-'.str_repeat('a', 40).'.xlsx', 'organization' => $this->acme->id]))->assertForbidden();
+    });
 });

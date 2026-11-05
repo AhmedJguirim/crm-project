@@ -18,7 +18,8 @@ use Throwable;
 /**
  * What every export job does around building the file: the queue and timeout settings, the tenant context, the
  * temporary file moved to the `exports/` folder of the local disk, the signed "Export ready" notification and the
- * "Export failed" one. The job using it must have the `$organizationId`, `$userId`, `$format` (a value of
+ * "Export failed" one. The signed link carries the user and the organization, so the download can check that the user
+ * may still export from that organization. The job using it must have the `$organizationId`, `$userId`, `$format` (a value of
  * {@see ExportFormat}) and `$downloadName` properties, call `prepareExportQueue()` in its constructor and implement
  * the three hooks below.
  */
@@ -93,7 +94,12 @@ trait DeliversExport
                     ->url(URL::temporarySignedRoute(
                         'exports.download',
                         now()->addDays(7),
-                        ['file' => basename($path), 'user' => $this->userId, 'name' => $this->downloadName],
+                        [
+                            'file' => basename($path),
+                            'user' => $this->userId,
+                            'organization' => $this->organizationId,
+                            'name' => $this->downloadName,
+                        ],
                     ))
                     ->openUrlInNewTab(),
             ])
