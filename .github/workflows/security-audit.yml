@@ -1,0 +1,48 @@
+name: security-audit
+
+on:
+  push:
+    branches:
+      - develop
+      - main
+      - master
+      - workos
+  pull_request:
+    branches:
+      - develop
+      - main
+      - master
+      - workos
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    environment: Testing
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          tools: composer:v2
+          coverage: none
+
+      - name: Add Flux Credentials Loaded From ENV
+        run: composer config http-basic.composer.fluxui.dev "${{ secrets.FLUX_USERNAME }}" "${{ secrets.FLUX_LICENSE_KEY }}"
+
+      - name: Audit Composer Dependencies
+        run: composer audit --locked
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Audit Node Dependencies
+        run: npm audit --omit=dev --audit-level=high
