@@ -92,20 +92,20 @@ class Register extends BaseRegister
     }
 
     /**
-     * If the session contains an invite_token (set by InviteAcceptController for guests),
-     * validate it and accept the invitation for the newly registered user.
-     * The token is cleared from session regardless of outcome.
+     * If the session contains an invite_id (set by InviteAcceptController for guests),
+     * validate the invite and accept the invitation for the newly registered user.
+     * The invite id is cleared from session regardless of outcome.
      */
     private function acceptPendingInviteIfExists(User $user): void
     {
-        $token = session()->pull('invite_token');
+        $inviteId = session()->pull('invite_id');
         session()->forget('invite_email');
 
-        if (! $token) {
+        if (! $inviteId) {
             return;
         }
 
-        $invite = OrganizationInvite::where('token', $token)->first();
+        $invite = OrganizationInvite::query()->find($inviteId);
 
         // Only accept if the invite is still valid and the email matches
         if (! $invite || ! $invite->isValid() || $invite->email !== $user->email) {

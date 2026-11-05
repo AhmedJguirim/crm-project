@@ -18,12 +18,15 @@ class OrganizationInvite extends Model
     protected $fillable = [
         'organization_id',
         'email',
-        'token',
+        'token_hash',
         'role',
         'status',
         'invited_by',
         'expires_at',
     ];
+
+    /** @var list<string> */
+    protected $hidden = ['token_hash'];
 
     protected function casts(): array
     {
@@ -102,32 +105,46 @@ class OrganizationInvite extends Model
     }
 
     /**
-     * Generate a new cryptographically-secure token and reset the expiry.
-     * Used when resending an invitation.
+     * Replace the token with a new one and reset the expiry. Used when resending an invitation.
+     * Only the hash of the new token is stored; the returned plain token goes into the mail link.
      */
-    public function regenerateToken(int $expiryDays = 7): self
+    public function regenerateToken(int $expiryDays = 7): string
     {
+        $token = static::generateToken();
+
         $this->update([
-            'token' => static::generateToken(),
+            'token_hash' => static::hashToken($token),
             'expires_at' => now()->addDays($expiryDays),
         ]);
 
-        return $this;
+        return $token;
     }
 
     // ──────────────────────────────────────────────
     // Static helpers
     // ──────────────────────────────────────────────
 
-    /** Generate a unique, unguessable 64-character token. */
+    /** Generate a unique, unguessable 64-character token (plain: it only lives in the mail link). */
     public static function generateToken(): string
     {
         return Str::random(64);
     }
 
+    /** The SHA-256 hex digest (64 characters) of a plain token: the only form stored in the table. */
+    public static function hashToken(string $token): string
+    {
+        return hash('sha256', $token);
+    }
+
+    /** Find the invite whose stored hash matches the plain token carried by an accept link. */
+    public static function findByToken(string $token): ?self
+    {
+        return static::query()->where('token_hash', static::hashToken($token))->first();
+    }
+
     /**
-     * Build the full accept URL for a given token.
-     * This is the link included in the invitation email.
+     * Build the full accept URL for a given plain token.
+     * This is the link included in the invitation email; the table only holds the token's hash.
      */
     public static function acceptUrl(string $token): string
     {

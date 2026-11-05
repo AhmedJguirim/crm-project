@@ -18,13 +18,13 @@ class InviteAcceptController extends Controller
      * Handle the invitation accept link clicked from the email.
      *
      * Three possible flows:
-     * 1. Guest user → store token in session, redirect to registration
+     * 1. Guest user → store the invite id in session, redirect to registration
      * 2. Logged-in user with matching email → accept immediately
      * 3. Logged-in user with non-matching email → show error
      */
     public function __invoke(Request $request, string $token): RedirectResponse
     {
-        $invite = OrganizationInvite::where('token', $token)->first();
+        $invite = OrganizationInvite::findByToken($token);
 
         // Invalid or tampered token
         if (! $invite) {
@@ -51,10 +51,10 @@ class InviteAcceptController extends Controller
             return $this->redirectWithError('This invitation has expired. Please request a new invite from the organization admin.');
         }
 
-        // ── Guest user: store token in session and redirect to registration ──
+        // ── Guest user: store the invite id in session and redirect to registration ──
         if (! auth()->check()) {
             session([
-                'invite_token' => $token,
+                'invite_id' => $invite->id,
                 'invite_email' => $invite->email,
             ]);
 

@@ -217,11 +217,12 @@ class OrganizationMembers extends Page implements HasTable
                             return;
                         }
 
-                        // Create the invite record with a secure token
+                        // Store only the token's hash; the plain token goes into the mail link
+                        $token = OrganizationInvite::generateToken();
                         $invite = OrganizationInvite::create([
                             'organization_id' => $organization->id,
                             'email' => $email,
-                            'token' => OrganizationInvite::generateToken(),
+                            'token_hash' => OrganizationInvite::hashToken($token),
                             'role' => $data['role'],
                             'status' => InviteStatus::Pending,
                             'invited_by' => auth()->id(),
@@ -229,7 +230,7 @@ class OrganizationMembers extends Page implements HasTable
                         ]);
 
                         // Queue the invitation email
-                        Mail::to($email)->send(new OrganizationInvitationMail($invite));
+                        Mail::to($email)->send(new OrganizationInvitationMail($invite, $token));
 
                         Notification::make()
                             ->success()

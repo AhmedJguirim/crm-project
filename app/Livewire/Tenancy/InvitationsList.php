@@ -70,10 +70,10 @@ class InvitationsList extends Component implements HasActions, HasSchemas, HasTa
                     ->icon('heroicon-o-envelope')
                     ->action(function (OrganizationInvite $invite) {
                         // Regenerate token and extend expiry by 7 days
-                        $invite->regenerateToken(7);
+                        $token = $invite->regenerateToken(7);
 
                         // Re-send the invitation email with the new token
-                        Mail::to($invite->email)->send(new OrganizationInvitationMail($invite->fresh()));
+                        Mail::to($invite->email)->send(new OrganizationInvitationMail($invite->fresh(), $token));
 
                         Notification::make()
                             ->success()

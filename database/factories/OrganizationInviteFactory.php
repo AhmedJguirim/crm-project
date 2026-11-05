@@ -21,12 +21,20 @@ class OrganizationInviteFactory extends Factory
         return [
             'organization_id' => Organization::factory(),
             'email' => fake()->unique()->safeEmail(),
-            'token' => OrganizationInvite::generateToken(),
+            'token_hash' => OrganizationInvite::hashToken(OrganizationInvite::generateToken()),
             'role' => OrganizationRole::Member,
             'status' => InviteStatus::Pending,
             'invited_by' => User::factory(),
             'expires_at' => now()->addDays(7),
         ];
+    }
+
+    /** Store the hash of a known plain token, so a test can open the accept link. */
+    public function withToken(string $token): static
+    {
+        return $this->state(fn () => [
+            'token_hash' => OrganizationInvite::hashToken($token),
+        ]);
     }
 
     /** Mark the invite as already accepted. */

@@ -59,12 +59,12 @@ test('a segment name does not render as a link', function () {
 
 test('the organization name in the welcome notification is escaped', function () {
     $user = User::factory()->onboardingCompleted()->withPersonalOrganization()->create(['email' => 'member@example.com']);
-    $invite = OrganizationInvite::factory()->create([
+    $invite = OrganizationInvite::factory()->withToken($token = Str::random(64))->create([
         'email' => 'member@example.com',
         'organization_id' => Organization::factory()->create(['name' => '<a href="https://evil.example">Acme</a>'])->id,
     ]);
 
-    $this->actingAs($user)->get(route('invite.accept', $invite->token));
+    $this->actingAs($user)->get(route('invite.accept', $token));
 
     $titles = collect(session('filament.notifications'))->pluck('title')->all();
 

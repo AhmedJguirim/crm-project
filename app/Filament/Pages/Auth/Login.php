@@ -51,14 +51,14 @@ class Login extends BaseLogin
 
     private function acceptPendingInviteIfExists(User $user): void
     {
-        $token = session()->pull('invite_token');
+        $inviteId = session()->pull('invite_id');
         session()->forget('invite_email');
 
-        if (! $token) {
+        if (! $inviteId) {
             return;
         }
 
-        $invite = OrganizationInvite::where('token', $token)->first();
+        $invite = OrganizationInvite::query()->find($inviteId);
 
         // Only accept if the invite is still valid and the email matches
         if (! $invite || ! $invite->isValid() || $invite->email !== $user->email) {

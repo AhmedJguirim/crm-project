@@ -32,20 +32,21 @@ function mailInjectionTask(Organization $organization, string $title): Task
 test('the invitation mail shows names as typed', function () {
     $this->acme->update(['name' => 'Acme](https://evil.example/login) [Accept here']);
     $inviter = User::factory()->create(['name' => '[Boss](https://evil.example/u) ![i](https://evil.example/p.png)']);
+    $token = OrganizationInvite::generateToken();
     $invite = OrganizationInvite::factory()->create([
         'organization_id' => $this->acme->id,
         'invited_by' => $inviter->id,
         'role' => OrganizationRole::Member,
     ]);
 
-    $html = (new OrganizationInvitationMail($invite))->render();
+    $html = (new OrganizationInvitationMail($invite, $token))->render();
 
     expect($html)
         ->not->toContain('href="https://evil.example')
         ->not->toContain('src="https://evil.example')
         ->toContain('Acme](https://evil.example/login) [Accept here')
         ->toContain('[Boss](https://evil.example/u)')
-        ->toContain('href="'.OrganizationInvite::acceptUrl($invite->token).'"');
+        ->toContain('href="'.OrganizationInvite::acceptUrl($token).'"');
 });
 
 test('task reminder mails show the title as typed', function (string $notification, string $line) {
@@ -98,7 +99,7 @@ function mailInjectionRender(string $mail, string $payload, Organization $organi
             'role' => OrganizationRole::Member,
         ]);
 
-        return (new OrganizationInvitationMail($invite))->render();
+        return (new OrganizationInvitationMail($invite, OrganizationInvite::generateToken()))->render();
     }
 
     $task = mailInjectionTask($organization, $payload);
