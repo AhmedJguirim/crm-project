@@ -27,7 +27,15 @@ class PipelineStage extends Model
      */
     public const COLORS = ['gray' => 'Gray', 'info' => 'Sky', 'primary' => 'Blue', 'success' => 'Green', 'warning' => 'Yellow', 'orange' => 'Orange', 'danger' => 'Red'];
 
-    protected $guarded = [];
+    protected $fillable = [
+        'organization_id',
+        'pipeline_id',
+        'name',
+        'type',
+        'color',
+        'position',
+        'probability',
+    ];
 
     protected function casts(): array
     {

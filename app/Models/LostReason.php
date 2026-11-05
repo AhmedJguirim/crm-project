@@ -19,7 +19,10 @@ class LostReason extends Model
     use PreventsForceDeletion;
     use SoftDeletes;
 
-    protected $guarded = [];
+    protected $fillable = [
+        'organization_id',
+        'name',
+    ];
 
     /**
      * The name, followed by " (deleted)" when the reason is deleted.

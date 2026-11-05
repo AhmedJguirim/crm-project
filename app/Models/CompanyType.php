@@ -22,7 +22,10 @@ class CompanyType extends Model
     use PreventsForceDeletion;
     use SoftDeletes;
 
-    protected $guarded = [];
+    protected $fillable = [
+        'organization_id',
+        'name',
+    ];
 
     /**
      * @return HasMany<Company, $this>

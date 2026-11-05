@@ -20,7 +20,13 @@ class Address extends Model
     use PreventsForceDeletion;
     use SoftDeletes;
 
-    protected $guarded = [];
+    protected $fillable = [
+        'organization_id',
+        'country',
+        'city',
+        'street',
+        'zip',
+    ];
 
     /**
      * @return HasMany<Company, $this>

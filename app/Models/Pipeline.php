@@ -15,7 +15,10 @@ class Pipeline extends Model
     /** @use HasFactory<PipelineFactory> */
     use HasFactory;
 
-    protected $guarded = [];
+    protected $fillable = [
+        'organization_id',
+        'name',
+    ];
 
     /**
      * The stages of the pipeline, in board order.
