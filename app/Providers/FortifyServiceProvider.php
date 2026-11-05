@@ -4,11 +4,13 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Http\Responses\PasswordResetLinkSentResponse;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
+use Laravel\Fortify\Contracts\FailedPasswordResetLinkRequestResponse;
 use Laravel\Fortify\Fortify;
 
 class FortifyServiceProvider extends ServiceProvider
@@ -18,7 +20,7 @@ class FortifyServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(FailedPasswordResetLinkRequestResponse::class, PasswordResetLinkSentResponse::class);
     }
 
     /**
@@ -55,7 +57,9 @@ class FortifyServiceProvider extends ServiceProvider
     }
 
     /**
-     * Configure rate limiting.
+     * Configure rate limiting: the two-factor challenge, the login (per email and IP, plus a looser
+     * per-IP cap across emails), and `password-reset`, which limits the POSTs of the forgot-password
+     * and reset-password routes per IP (5 a minute, 20 an hour) and lets every other Fortify route through.
      */
     private function configureRateLimiting(): void
     {
@@ -66,7 +70,21 @@ class FortifyServiceProvider extends ServiceProvider
         RateLimiter::for('login', function (Request $request) {
             $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
 
-            return Limit::perMinute(5)->by($throttleKey);
+            return [
+                Limit::perMinute(5)->by($throttleKey),
+                Limit::perMinute(10)->by('ip|'.$request->ip()),
+            ];
+        });
+
+        RateLimiter::for('password-reset', function (Request $request) {
+            if (! $request->isMethod('POST') || ! in_array($request->route()?->getName(), ['password.email', 'password.update'], true)) {
+                return Limit::none();
+            }
+
+            return [
+                Limit::perMinute(5)->by('minute|'.$request->ip()),
+                Limit::perHour(20)->by('hour|'.$request->ip()),
+            ];
         });
     }
 }
