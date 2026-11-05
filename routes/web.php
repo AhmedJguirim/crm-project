@@ -19,8 +19,13 @@ Route::view('dashboard', 'dashboard')
     ->name('dashboard');
 
 // Invitation acceptance — public route (handles both guest and authenticated users)
-Route::get('/invite/accept/{token}', InviteAcceptController::class)
+Route::get('/invite/accept/{token}', [InviteAcceptController::class, 'show'])
     ->name('invite.accept');
+
+// Accepting needs a click: the link only shows a confirmation page, this CSRF-protected POST joins the organization
+Route::post('/invite/accept/{token}', [InviteAcceptController::class, 'store'])
+    ->middleware('auth')
+    ->name('invite.accept.store');
 
 // Download failed CSV import rows: a signed link, for the user who ran the import only
 Route::get('/contacts/import/failed-rows', DownloadFailedImportRowsController::class)

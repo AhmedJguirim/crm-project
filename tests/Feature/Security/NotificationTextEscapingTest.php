@@ -64,7 +64,7 @@ test('the organization name in the welcome notification is escaped', function ()
         'organization_id' => Organization::factory()->create(['name' => '<a href="https://evil.example">Acme</a>'])->id,
     ]);
 
-    $this->actingAs($user)->get(route('invite.accept', $token));
+    $this->actingAs($user)->post(route('invite.accept.store', $token));
 
     $titles = collect(session('filament.notifications'))->pluck('title')->all();
 

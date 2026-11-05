@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Support\NotificationText;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -15,50 +16,27 @@ use Illuminate\Support\Facades\DB;
 class InviteAcceptController extends Controller
 {
     /**
-     * Handle the invitation accept link clicked from the email.
+     * Handle the invitation link clicked from the email. A GET never accepts: mail scanners and link prefetchers open links.
      *
      * Three possible flows:
-     * 1. Guest user → store the invite id in session, redirect to registration
-     * 2. Logged-in user with matching email → accept immediately
+     * 1. Guest user → store the invite id in session, redirect to login or registration
+     * 2. Logged-in user with matching email → show the confirmation page (store() accepts)
      * 3. Logged-in user with non-matching email → show error
      */
-    public function __invoke(Request $request, string $token): RedirectResponse
+    public function show(Request $request, string $token): RedirectResponse|View
     {
-        $invite = OrganizationInvite::findByToken($token);
+        $invite = $this->usableInvite($token);
 
-        // Invalid or tampered token
-        if (! $invite) {
-            return $this->redirectWithError('This invitation link is invalid.');
+        if ($invite instanceof RedirectResponse) {
+            return $invite;
         }
 
-        // Already accepted
-        if ($invite->status === InviteStatus::Accepted) {
-            return $this->redirectWithError('This invitation has already been accepted.');
-        }
-
-        // Revoked by the organization admin/owner
-        if ($invite->status === InviteStatus::Revoked) {
-            return $this->redirectWithError('This invitation has been revoked. Please contact the organization admin for a new invite.');
-        }
-
-        // Token is past its expiry date
-        if ($invite->isExpired()) {
-            // Auto-update status to expired if it was still pending
-            if ($invite->status === InviteStatus::Pending) {
-                $invite->update(['status' => InviteStatus::Expired]);
-            }
-
-            return $this->redirectWithError('This invitation has expired. Please request a new invite from the organization admin.');
-        }
-
-        // ── Guest user: store the invite id in session and redirect to registration ──
         if (! auth()->check()) {
             session([
                 'invite_id' => $invite->id,
                 'invite_email' => $invite->email,
             ]);
 
-            // check if user is already registered with this email
             $user = User::where('email', $invite->email)->first();
             if ($user) {
                 return redirect()->to(Filament::getLoginUrl())
@@ -72,41 +50,115 @@ class InviteAcceptController extends Controller
         /** @var User $user */
         $user = auth()->user();
 
-        // ── Logged-in user with non-matching email ──
         if ($user->email !== $invite->email) {
-            return $this->redirectWithError(
-                "This invitation was sent to {$invite->email}, but you are logged in as {$user->email}. Please log out and try again, or use the correct account."
-            );
+            return $this->redirectWithMismatch($invite, $user);
         }
 
-        // ── Logged-in user with matching email: accept immediately ──
-        $this->acceptInvite($invite, $user);
+        return view('invitations.accept', ['invite' => $invite, 'token' => $token]);
+    }
+
+    /**
+     * Accept the invitation for the logged-in user whose email matches it (CSRF-protected POST, `auth` middleware).
+     * An invitation accepted meanwhile by a concurrent request ends in the "already accepted" error, never a 500.
+     */
+    public function store(Request $request, string $token): RedirectResponse
+    {
+        $invite = $this->usableInvite($token);
+
+        if ($invite instanceof RedirectResponse) {
+            return $invite;
+        }
+
+        /** @var User $user */
+        $user = auth()->user();
+
+        if ($user->email !== $invite->email) {
+            return $this->redirectWithMismatch($invite, $user);
+        }
+
+        if (! $this->acceptInvite($invite, $user)) {
+            return $this->redirectWithError('This invitation has already been accepted.');
+        }
 
         return redirect()->to(Filament::getUrl($invite->organization))
             ->with('status', "Welcome to {$invite->organization->name}!");
     }
 
     /**
-     * Accept the invitation: add user to organization with the invited role,
-     * mark the invite as accepted. Wrapped in a transaction for atomicity.
+     * Accept the invitation: add user to organization with the invited role, mark the invite as accepted, all in one
+     * transaction. The invite row is re-read with a lock, so of two concurrent acceptances only the first one attaches;
+     * the other gets false and neither attaches nor notifies.
      */
-    public function acceptInvite(OrganizationInvite $invite, User $user): void
+    public function acceptInvite(OrganizationInvite $invite, User $user): bool
     {
-        DB::transaction(function () use ($invite, $user) {
-            // Add user to the organization with the role specified in the invite
-            $invite->organization->members()->attach($user->id, [
-                'role' => $invite->role->value,
+        $accepted = DB::transaction(function () use ($invite, $user): bool {
+            $locked = OrganizationInvite::query()->lockForUpdate()->find($invite->getKey());
+
+            if (! $locked || ! $locked->isValid()) {
+                return false;
+            }
+
+            $locked->organization->members()->attach($user->id, [
+                'role' => $locked->role->value,
             ]);
 
-            $invite->markAccepted();
+            $locked->markAccepted();
+
+            return true;
         });
 
-        // Send a Filament notification so it appears in the UI
+        if (! $accepted) {
+            return false;
+        }
+
         Notification::make()
             ->success()
             ->title(NotificationText::plain("Welcome to {$invite->organization->name}!"))
             ->body(NotificationText::plain("You've joined as {$invite->role->label()}."))
             ->send();
+
+        return true;
+    }
+
+    /**
+     * The invitation behind a token, or the error redirect when it is invalid, accepted, revoked or expired (an expired
+     * pending one is marked expired).
+     */
+    private function usableInvite(string $token): OrganizationInvite|RedirectResponse
+    {
+        $invite = OrganizationInvite::findByToken($token);
+
+        if (! $invite) {
+            return $this->redirectWithError('This invitation link is invalid.');
+        }
+
+        if ($invite->status === InviteStatus::Accepted) {
+            return $this->redirectWithError('This invitation has already been accepted.');
+        }
+
+        if ($invite->status === InviteStatus::Revoked) {
+            return $this->redirectWithError('This invitation has been revoked. Please contact the organization admin for a new invite.');
+        }
+
+        if ($invite->isExpired()) {
+            if ($invite->status === InviteStatus::Pending) {
+                $invite->update(['status' => InviteStatus::Expired]);
+            }
+
+            return $this->redirectWithError('This invitation has expired. Please request a new invite from the organization admin.');
+        }
+
+        return $invite;
+    }
+
+    /**
+     * The error redirect for a logged-in user whose email is not the one the invitation was sent to.
+     */
+    private function redirectWithMismatch(OrganizationInvite $invite, User $user): RedirectResponse
+    {
+        return $this->redirectWithError(
+            "This invitation was sent to {$invite->email}, but you are logged in as {$user->email}. Please log out and try again, or use the correct account."
+        );
     }
 
     /**

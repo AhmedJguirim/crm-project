@@ -37,6 +37,8 @@ use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\Deal;
 use App\Models\LostReason;
+use App\Models\Organization;
+use App\Models\OrganizationInvite;
 use App\Models\Segment;
 use App\Models\Tag;
 use App\Models\Task;
@@ -49,6 +51,7 @@ use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\Select;
 use Filament\Livewire\GlobalSearch;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Tests\Feature\Security\SecurityPayloads;
 
@@ -288,4 +291,19 @@ describe('the rule engine', function () {
 
         $page->call('selectRule', $forged)->assertSet('selectedRuleId', $forged);
     });
+});
+
+describe('the invitation page', function () {
+    test('the organization and inviter names are shown as text', function (string $payload) {
+        $bob = User::factory()->onboardingCompleted()->withPersonalOrganization()->create(['email' => 'bob@example.com']);
+        $invite = OrganizationInvite::factory()->withToken($token = Str::random(64))->create([
+            'organization_id' => Organization::factory()->create(['name' => $payload])->id,
+            'invited_by' => User::factory()->create(['name' => $payload])->id,
+            'email' => 'bob@example.com',
+        ]);
+
+        $html = $this->actingAs($bob)->get(route('invite.accept', $token))->assertOk()->getContent();
+
+        SecurityPayloads::assertHtmlIsInert($html, $payload);
+    })->with(SecurityPayloads::xss());
 });

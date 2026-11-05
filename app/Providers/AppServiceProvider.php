@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Filament\Http\Responses\LogoutResponse;
 use App\Filament\Support\SingleValueFieldState;
 use App\Filament\Support\StateCasts\ScalarDateTimeStateCast;
+use App\Http\Middleware\StartSession;
 use App\Mail\SecuredMarkdown;
 use App\Models\Organization;
 use App\Policies\SegmentPolicy;
@@ -16,8 +17,11 @@ use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Filament\Schemas\Components\StateCasts\DateTimeStateCast;
 use Filament\Support\Facades\FilamentTimezone;
+use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Database\Console\Seeds\SeedCommand;
 use Illuminate\Mail\Markdown;
+use Illuminate\Session\Middleware\StartSession as FrameworkStartSession;
+use Illuminate\Session\SessionManager;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
@@ -43,9 +47,23 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(SegmentUsageIndex::class);
         $this->app->scoped(SegmentPolicy::class);
 
+        $this->registerSessionMiddleware();
         $this->registerMailMarkdown();
         $this->registerTypeScriptTransformer();
         $this->registerFilamentStateCasts();
+    }
+
+    /**
+     * The `web` group and the panel both reference the framework session middleware; the app subclass takes its place so
+     * the invitation link, whose path holds the plain token, is never stored as the previous URL (BUG-62). The arguments
+     * are those of the framework's own binding.
+     */
+    protected function registerSessionMiddleware(): void
+    {
+        $this->app->singleton(FrameworkStartSession::class, fn ($app): StartSession => new StartSession(
+            $app->make(SessionManager::class),
+            fn () => $app->make(CacheFactory::class),
+        ));
     }
 
     /**
