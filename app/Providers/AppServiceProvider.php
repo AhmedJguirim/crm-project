@@ -16,6 +16,7 @@ use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Filament\Schemas\Components\StateCasts\DateTimeStateCast;
 use Filament\Support\Facades\FilamentTimezone;
+use Illuminate\Database\Console\Seeds\SeedCommand;
 use Illuminate\Mail\Markdown;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
@@ -133,7 +134,9 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Configure default behaviors for production-ready applications.
+     * Configure default behaviors for production-ready applications. In production the destructive database commands
+     * and db:seed (so also migrate --seed) are refused, because the dev seed creates logins with a known password;
+     * demo data goes through demo:create-account.
      */
     protected function configureDefaults(): void
     {
@@ -142,6 +145,8 @@ class AppServiceProvider extends ServiceProvider
         DB::prohibitDestructiveCommands(
             app()->isProduction(),
         );
+
+        SeedCommand::prohibit(app()->isProduction());
 
         Password::defaults(fn (): ?Password => app()->isProduction()
             ? Password::min(12)

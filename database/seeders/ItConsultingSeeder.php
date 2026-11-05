@@ -58,8 +58,18 @@ class ItConsultingSeeder extends Seeder
      */
     private array $team;
 
+    /**
+     * Seeds the dev data (logins with the known password "password"). Refused in production: demo data there goes
+     * through demo:create-account, which calls seedDemoOrganization() directly.
+     *
+     * @throws RuntimeException In production.
+     */
     public function run(): void
     {
+        if (app()->isProduction()) {
+            throw new RuntimeException('The dev seed creates logins with a known password and never runs in production. Use php artisan demo:create-account for demo data.');
+        }
+
         $user = User::firstOrCreate(
             ['email' => 'test@example.com'],
             [
