@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\AddSecurityHeaders;
 use App\Http\Middleware\SetTenantContextFromRoute;
 use App\Http\Middleware\StripNullBytes;
 use Illuminate\Foundation\Application;
@@ -17,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'tenant.context' => SetTenantContextFromRoute::class,
         ]);
         $middleware->append(StripNullBytes::class);
+        $middleware->append(AddSecurityHeaders::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
