@@ -12,6 +12,7 @@ use App\Policies\SegmentPolicy;
 use App\Services\Segments\SegmentUsageIndex;
 use App\Support\Auth\CaseInsensitiveEmailUserProvider;
 use App\Support\Livewire\RefuseMistypedCallArguments;
+use App\Support\Livewire\RefuseMistypedPropertyUpdates;
 use App\Support\Livewire\RefuseSubKeyUpdatesOfScalars;
 use App\Support\Tenancy\CurrentOrganization;
 use App\Support\Tenancy\TenantContext;
@@ -124,11 +125,12 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Refuses a Livewire update below a scalar, null or model property with a 419 before Livewire applies it (BUG-45, BUG-46).
+     * Refuses a Livewire update below a scalar, null or model property, or a forged array sent to a scalar-typed property, with a 419 before Livewire applies it (BUG-45, BUG-46, BUG-68).
      */
     protected function configureLivewireUpdateGuard(): void
     {
         before('update', new RefuseSubKeyUpdatesOfScalars);
+        before('update', new RefuseMistypedPropertyUpdates);
     }
 
     /**
