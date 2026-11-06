@@ -5,6 +5,8 @@ use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
+    $this->freezeSecond();
+
     Storage::fake('local');
 
     $this->exportModifiedDaysAgo = function (string $name, int $days): void {
@@ -28,6 +30,15 @@ it('keeps a file that is exactly 7 days old, as the link lasts 7 days', function
     $this->artisan('exports:prune')->expectsOutputToContain('Deleted 0 export files.')->assertSuccessful();
 
     expect(Storage::disk('local')->exists('exports/edge.xlsx'))->toBeTrue();
+});
+
+it('deletes a file that is 7 days and 1 second old', function () {
+    Storage::disk('local')->put('exports/edge.xlsx', 'x');
+    touch(Storage::disk('local')->path('exports/edge.xlsx'), now()->subDays(7)->subSecond()->getTimestamp());
+
+    $this->artisan('exports:prune')->expectsOutputToContain('Deleted 1 export file.')->assertSuccessful();
+
+    expect(Storage::disk('local')->exists('exports/edge.xlsx'))->toBeFalse();
 });
 
 it('pluralizes and leaves other folders alone', function () {
