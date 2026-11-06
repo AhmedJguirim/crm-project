@@ -3,10 +3,13 @@
 use App\Enums\ContactStatus;
 use App\Enums\LeadSource;
 use App\Filament\Resources\Contacts\Pages\CreateContact;
+use App\Models\Company;
+use App\Models\CompanyType;
 use App\Models\Contact;
 use App\Models\CustomField;
 use App\Models\Tag;
 use App\Models\User;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
 
@@ -220,4 +223,20 @@ test('multiselect custom field is stored as array', function () {
     $contact = Contact::where('email', 'multi@example.com')->first();
 
     expect($contact->custom_field_values[$field->key])->toBe(['sports', 'tech']);
+});
+
+test('an inline company create keeps the chosen company type', function () {
+    $type = CompanyType::factory()->create(['organization_id' => $this->org->id, 'name' => 'SME']);
+
+    Livewire::test(CreateContact::class)
+        ->callAction(TestAction::make('createOption')->schemaComponent('companies'), data: [
+            'name' => 'Nova Ltd',
+            'company_type_id' => (string) $type->id,
+        ])
+        ->assertHasNoActionErrors();
+
+    $company = Company::query()->where('name', 'Nova Ltd')->firstOrFail();
+
+    expect($company->organization_id)->toBe($this->org->id)
+        ->and($company->company_type_id)->toBe($type->id);
 });

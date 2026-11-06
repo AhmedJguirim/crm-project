@@ -14,12 +14,14 @@ use App\Filament\Support\StateCasts\RecordKeyIsReadable;
 use App\Livewire\Filament\QuickTaskFloatingButton;
 use App\Models\Activity;
 use App\Models\Company;
+use App\Models\CompanyType;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Invoice;
 use App\Models\Tag;
 use App\Models\Task;
 use App\Models\User;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Support\Carbon;
 use Livewire\Livewire;
@@ -293,4 +295,33 @@ test('a real list of ids still attaches the tags and companies', function () {
 
     expect($contact->tags()->pluck('tags.id')->all())->toBe([$tag->id])
         ->and($contact->companies()->pluck('companies.id')->all())->toBe([$acme->id]);
+});
+
+test('a forged company type in the inline company create of the contact form is refused', function (mixed $value, string $message) {
+    $component = Livewire::test(CreateContact::class)
+        ->callAction(TestAction::make('createOption')->schemaComponent('companies'), data: [
+            'name' => 'Forged Ltd',
+            'company_type_id' => $value,
+        ])
+        ->assertHasActionErrors(['company_type_id']);
+
+    expect($component->errors()->get('mountedActions.0.data.company_type_id'))->toBe([$message])
+        ->and(Company::query()->where('name', 'Forged Ltd')->exists())->toBeFalse();
+})->with([
+    'text' => ['abc', 'The company type field must be an integer.'],
+    'array' => [['1'], 'The company type field must be a single value.'],
+    'leading space' => [' 5', 'The company type field must be an integer.'],
+]);
+
+test('another organization company type in the inline company create of the contact form is refused', function () {
+    $otherType = CompanyType::factory()->create(['name' => 'Foreign']);
+
+    Livewire::test(CreateContact::class)
+        ->callAction(TestAction::make('createOption')->schemaComponent('companies'), data: [
+            'name' => 'Foreign Ltd',
+            'company_type_id' => (string) $otherType->id,
+        ])
+        ->assertHasActionErrors(['company_type_id']);
+
+    expect(Company::query()->where('name', 'Foreign Ltd')->exists())->toBeFalse();
 });

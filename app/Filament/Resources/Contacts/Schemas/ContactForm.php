@@ -93,7 +93,7 @@ class ContactForm
                             ->options(CompanyIndustry::class)
                             ->searchable(),
 
-                        Select::make('type')
+                        RecordKeyField::select('company_type_id')
                             ->label('Company type')
                             ->relationship('companyType', 'name')
                             ->searchable()
