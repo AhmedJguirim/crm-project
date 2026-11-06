@@ -133,7 +133,7 @@ test('registration fails with duplicate email', function () {
             'accept_terms' => true,
         ])
         ->call('register')
-        ->assertHasFormErrors(['email' => 'unique']);
+        ->assertHasFormErrors(['email']);
 
     $this->assertGuest();
     expect(User::where('email', 'existing@example.com')->count())->toBe(1);
@@ -244,4 +244,24 @@ test('the registration email is left as typed when lower-casing is turned off', 
         ->assertHasNoFormErrors();
 
     expect(User::query()->pluck('email')->all())->toBe(['Bob@Example.com']);
+});
+
+// BUG-65: an address stored with capitals is taken
+test('sign-up refuses an address stored in another case', function () {
+    User::factory()->create(['email' => 'Ann.Lee@Example.com']);
+
+    $page = Livewire::test(Register::class)
+        ->fillForm([
+            'name' => 'New Ann',
+            'email' => 'ann.lee@example.com',
+            'password' => 'password',
+            'passwordConfirmation' => 'password',
+            'accept_terms' => true,
+        ])
+        ->call('register')
+        ->assertHasFormErrors(['email']);
+
+    expect($page->errors()->get('data.email'))->toBe(['The email address has already been taken.']);
+    $this->assertGuest();
+    expect(User::query()->whereRaw('lower(email) = ?', ['ann.lee@example.com'])->count())->toBe(1);
 });

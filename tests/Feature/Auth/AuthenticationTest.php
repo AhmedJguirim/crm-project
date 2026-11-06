@@ -181,3 +181,57 @@ test('login handles case-insensitive email', function () {
 
     $this->assertAuthenticated();
 });
+
+// BUG-65: a user stored with capitals can log in with the address in any case
+test('the Filament login finds a user stored with capitals in any case', function (string $typed) {
+    $ann = User::factory()->onboardingCompleted()->create(['email' => 'Ann.Lee@Example.com']);
+
+    Livewire::test(Login::class)
+        ->fillForm(['email' => $typed, 'password' => 'password'])
+        ->call('authenticate')
+        ->assertHasNoFormErrors()
+        ->assertRedirect(Filament::getUrl());
+
+    $this->assertAuthenticatedAs($ann);
+})->with(['ann.lee@example.com', 'ANN.LEE@EXAMPLE.COM', 'Ann.Lee@Example.com']);
+
+test('a wrong password is still refused for a user stored with capitals', function () {
+    User::factory()->onboardingCompleted()->create(['email' => 'Ann.Lee@Example.com']);
+
+    Livewire::test(Login::class)
+        ->fillForm(['email' => 'ann.lee@example.com', 'password' => 'wrong-password'])
+        ->call('authenticate')
+        ->assertHasFormErrors(['email']);
+
+    $this->assertGuest();
+});
+
+test('the exact-case row wins when two rows differ only by case', function () {
+    User::factory()->onboardingCompleted()->create(['email' => 'Ann.Lee@Example.com']);
+    $lower = User::factory()->onboardingCompleted()->create(['email' => 'ann.lee@example.com', 'password' => 'other-password']);
+
+    Livewire::test(Login::class)
+        ->fillForm(['email' => 'ANN.LEE@example.com', 'password' => 'other-password'])
+        ->call('authenticate')
+        ->assertHasNoFormErrors();
+
+    $this->assertAuthenticatedAs($lower);
+});
+
+test('the Fortify login finds a user stored with capitals', function () {
+    $ann = User::factory()->onboardingCompleted()->create(['email' => 'Ann.Lee@Example.com']);
+
+    $this->post('/login', ['email' => 'ANN.LEE@example.com', 'password' => 'password'])
+        ->assertSessionHasNoErrors();
+
+    $this->assertAuthenticatedAs($ann);
+});
+
+test('a lookup credential that is not a string is passed on unchanged and finds nobody', function () {
+    User::factory()->create(['email' => 'Ann.Lee@Example.com']);
+
+    expect(auth()->guard('web')->getProvider()->retrieveByCredentials(['email' => ['Ann.Lee@Example.com'], 'password' => 'x']))
+        ->toBeInstanceOf(User::class)
+        ->and(auth()->guard('web')->getProvider()->retrieveByCredentials(['email' => 'Ann.Lee@Example.com%', 'password' => 'x']))
+        ->toBeNull();
+});

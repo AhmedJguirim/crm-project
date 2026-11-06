@@ -86,6 +86,9 @@ function rawSqlAllowList(): array
         'Services/Segments/SegmentUsage.php' => [
             'constant' => 'JSON containment with the pattern as a binding',
         ],
+        'Support/Auth/CaseInsensitiveEmailUserProvider.php' => [
+            'constant' => 'orderByRaw(\'users.email = ? desc\') puts the exact-case row first, with the typed email as a binding',
+        ],
         'Support/CustomFields/OptionUsage.php' => [
             'constant' => 'JSON key and value are bindings',
         ],

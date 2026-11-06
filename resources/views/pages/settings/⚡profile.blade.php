@@ -40,7 +40,7 @@ new class extends Component {
 
         $user->fill($validated);
 
-        if ($user->isDirty('email')) {
+        if (Str::lower((string) $user->getOriginal('email')) !== Str::lower($user->email)) {
             $user->email_verified_at = null;
         }
 

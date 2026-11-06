@@ -2,6 +2,7 @@
 
 use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
 
 test('reset password link screen can be rendered', function () {
@@ -57,4 +58,30 @@ test('password can be reset with valid token', function () {
 
         return true;
     });
+});
+
+// BUG-65: a user stored with capitals gets a link and can reset with the address in any case
+test('a user stored with capitals gets a reset link and can reset with another case', function () {
+    Notification::fake();
+
+    $ann = User::factory()->create(['email' => 'Ann.Lee@Example.com']);
+
+    $this->post(route('password.email'), ['email' => 'ANN.LEE@example.com']);
+
+    Notification::assertSentTo($ann, ResetPassword::class, function ($notification) {
+        $this->assertDatabaseHas('password_reset_tokens', ['email' => 'Ann.Lee@Example.com']);
+
+        $this->post(route('password.update'), [
+            'token' => $notification->token,
+            'email' => 'ann.lee@example.com',
+            'password' => 'N3w-passw0rd!',
+            'password_confirmation' => 'N3w-passw0rd!',
+        ])
+            ->assertSessionHasNoErrors()
+            ->assertRedirect(route('login', absolute: false));
+
+        return true;
+    });
+
+    expect(Hash::check('N3w-passw0rd!', $ann->fresh()->password))->toBeTrue();
 });

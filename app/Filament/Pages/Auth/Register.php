@@ -5,6 +5,7 @@ namespace App\Filament\Pages\Auth;
 use App\Http\Controllers\InviteAcceptController;
 use App\Models\OrganizationInvite;
 use App\Models\User;
+use App\Support\Auth\UniqueUserEmail;
 use App\Support\LegalDocuments;
 use Filament\Auth\Http\Responses\Contracts\RegistrationResponse;
 use Filament\Auth\Pages\Register as BaseRegister;
@@ -62,17 +63,20 @@ class Register extends BaseRegister
     }
 
     /**
-     * The base email field, lower-cased before validation and when stored (when `fortify.lowercase_usernames` is on),
-     * so the unique rule sees the stored form and the login form, which lower-cases what is typed, finds the user.
+     * The email field of the base page without its exact-match `unique()` (which can't be removed): it is refused when a user
+     * holds the address in any case (BUG-65). It is lower-cased before validation and when stored (when
+     * `fortify.lowercase_usernames` is on), so the login form, which lower-cases what is typed, finds the user.
      */
     protected function getEmailFormComponent(): Component
     {
-        /** @var TextInput $component */
-        $component = parent::getEmailFormComponent();
-
         $lowerCase = fn (?string $state): ?string => is_string($state) && config('fortify.lowercase_usernames') ? Str::lower($state) : $state;
 
-        return $component
+        return TextInput::make('email')
+            ->label(__('filament-panels::auth/pages/register.form.email.label'))
+            ->email()
+            ->required()
+            ->maxLength(255)
+            ->rule(new UniqueUserEmail)
             ->mutateStateForValidationUsing($lowerCase)
             ->mutateDehydratedStateUsing($lowerCase);
     }

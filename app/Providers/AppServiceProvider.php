@@ -10,6 +10,7 @@ use App\Mail\SecuredMarkdown;
 use App\Models\Organization;
 use App\Policies\SegmentPolicy;
 use App\Services\Segments\SegmentUsageIndex;
+use App\Support\Auth\CaseInsensitiveEmailUserProvider;
 use App\Support\Livewire\RefuseMistypedCallArguments;
 use App\Support\Livewire\RefuseSubKeyUpdatesOfScalars;
 use App\Support\Tenancy\CurrentOrganization;
@@ -18,10 +19,12 @@ use Carbon\CarbonImmutable;
 use Filament\Schemas\Components\StateCasts\DateTimeStateCast;
 use Filament\Support\Facades\FilamentTimezone;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
+use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\Console\Seeds\SeedCommand;
 use Illuminate\Mail\Markdown;
 use Illuminate\Session\Middleware\StartSession as FrameworkStartSession;
 use Illuminate\Session\SessionManager;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\ServiceProvider;
@@ -105,10 +108,19 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureDefaults();
+        $this->configureAuthUserProvider();
         $this->configurePanelTimezone();
         $this->configureLivewireUpdateGuard();
         $this->configureLivewireCallGuard();
         $this->configureSingleValueFormFields();
+    }
+
+    /**
+     * The `case-insensitive-email` user provider finds users by email whatever the case (BUG-65).
+     */
+    protected function configureAuthUserProvider(): void
+    {
+        Auth::provider('case-insensitive-email', fn (Application $app, array $config): CaseInsensitiveEmailUserProvider => new CaseInsensitiveEmailUserProvider($app['hash'], $config['model']));
     }
 
     /**

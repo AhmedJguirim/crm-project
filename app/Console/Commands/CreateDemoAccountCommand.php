@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Enums\OrganizationRole;
 use App\Models\Organization;
 use App\Models\User;
+use App\Support\Auth\UniqueUserEmail;
 use Database\Seeders\ItConsultingSeeder;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -56,7 +57,7 @@ class CreateDemoAccountCommand extends Command
             ['name' => $this->argument('name'), 'email' => $email, 'password' => $password, 'password_confirmation' => $confirmation],
             [
                 'name' => ['required', 'string', 'max:255'],
-                'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
+                'email' => ['required', 'string', 'email', 'max:255', new UniqueUserEmail],
                 'password' => ['required', 'string', Password::defaults(), 'confirmed'],
             ],
         );

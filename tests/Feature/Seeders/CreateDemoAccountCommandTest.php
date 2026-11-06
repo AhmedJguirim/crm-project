@@ -90,3 +90,16 @@ test('it refuses an address that is taken in another case', function () {
     expect(createDemoAccount($this, 'TAKEN@acme.test'))->toBe(1)
         ->and(User::query()->count())->toBe($users);
 });
+
+test('it refuses an address stored with capitals and says so', function () {
+    User::factory()->create(['email' => 'Ann.Lee@Example.com']);
+    $users = User::query()->count();
+
+    $this->artisan('demo:create-account', ['name' => 'Jane Demo', 'email' => 'ann.lee@example.com'])
+        ->expectsQuestion('Password', 'Demo-password-2026')
+        ->expectsQuestion('Confirm the password', 'Demo-password-2026')
+        ->expectsOutputToContain('The email has already been taken.')
+        ->assertExitCode(1);
+
+    expect(User::query()->count())->toBe($users);
+});
