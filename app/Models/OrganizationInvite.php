@@ -72,6 +72,14 @@ class OrganizationInvite extends Model
             && $this->expires_at->isFuture();
     }
 
+    /**
+     * Whether this invitation was sent to the user's email address, whatever the case of either one.
+     */
+    public function isFor(User $user): bool
+    {
+        return Str::lower($this->email) === Str::lower($user->email);
+    }
+
     /** Whether this invite has passed its expiry date. */
     public function isExpired(): bool
     {

@@ -353,6 +353,102 @@ test('the invite in the session is only accepted for its own email at registrati
 });
 
 // ──────────────────────────────────────────────
+// SEC-18: the invitation matches its user whatever the case
+// ──────────────────────────────────────────────
+
+describe('email case', function () {
+    test('an invite matches a user stored with capitals', function () {
+        $bob = User::factory()->onboardingCompleted()->withPersonalOrganization()->create(['email' => 'Bob@Example.com']);
+        $invite = OrganizationInvite::factory()->withToken($token = Str::random(64))->create(['email' => 'bob@example.com']);
+
+        $this->actingAs($bob)->get(route('invite.accept', $token))->assertOk()->assertSee('Accept invitation');
+
+        $this->actingAs($bob)->post(route('invite.accept.store', $token))->assertRedirect();
+
+        expect($invite->organization->hasMember($bob))->toBeTrue()
+            ->and($invite->fresh()->status)->toBe(InviteStatus::Accepted);
+    });
+
+    test('a guest registering from an invite in another case joins the organization', function () {
+        $invite = OrganizationInvite::factory()->withToken($token = Str::random(64))->create(['email' => 'new@example.com']);
+
+        $this->get(route('invite.accept', $token))->assertRedirect(Filament::getRegistrationUrl());
+
+        Livewire::test(Register::class)
+            ->fillForm([
+                'name' => 'New Person',
+                'email' => 'New@Example.com',
+                'password' => 'password',
+                'passwordConfirmation' => 'password',
+            ])
+            ->call('register')
+            ->assertHasNoFormErrors();
+
+        $user = User::query()->where('email', 'new@example.com')->sole();
+
+        expect($invite->organization->hasMember($user))->toBeTrue()
+            ->and($invite->fresh()->status)->toBe(InviteStatus::Accepted);
+    });
+
+    test('a guest registering joins whatever the stored case of the invite', function () {
+        $invite = OrganizationInvite::factory()->create(['email' => 'New@Example.com']);
+
+        $this->withSession(['invite_id' => $invite->id]);
+
+        Livewire::test(Register::class)
+            ->fillForm([
+                'name' => 'New Person',
+                'email' => 'new@example.com',
+                'password' => 'password',
+                'passwordConfirmation' => 'password',
+            ])
+            ->call('register')
+            ->assertHasNoFormErrors();
+
+        $user = User::query()->where('email', 'new@example.com')->sole();
+
+        expect($invite->organization->hasMember($user))->toBeTrue();
+    });
+
+    test('a user who logs in joins through the session invite whatever the stored case of the invite', function () {
+        $bob = User::factory()->onboardingCompleted()->withPersonalOrganization()->create(['email' => 'bob@example.com']);
+        $invite = OrganizationInvite::factory()->create(['email' => 'Bob@Example.com']);
+
+        $this->withSession(['invite_id' => $invite->id]);
+
+        Livewire::test(Login::class)
+            ->fillForm(['email' => 'bob@example.com', 'password' => 'password'])
+            ->call('authenticate')
+            ->assertHasNoFormErrors();
+
+        expect($invite->organization->hasMember($bob))->toBeTrue()
+            ->and($invite->fresh()->status)->toBe(InviteStatus::Accepted);
+    });
+
+    test('a different address still does not match', function () {
+        $rob = User::factory()->onboardingCompleted()->withPersonalOrganization()->create(['email' => 'rob@example.com']);
+        $invite = OrganizationInvite::factory()->withToken($token = Str::random(64))->create(['email' => 'bob@example.com']);
+
+        $this->actingAs($rob)
+            ->post(route('invite.accept.store', $token))
+            ->assertRedirect(Filament::getLoginUrl());
+
+        expect(collect(session('filament.notifications'))->pluck('body')->all())
+            ->toContain('This invitation was sent to bob@example.com, but you are logged in as rob@example.com. Please log out and try again, or use the correct account.')
+            ->and($invite->organization->hasMember($rob))->toBeFalse()
+            ->and($invite->fresh()->status)->toBe(InviteStatus::Pending);
+    });
+
+    test('isFor ignores the case of either side', function () {
+        $invite = OrganizationInvite::factory()->make(['email' => 'MiXed@Example.com']);
+
+        expect($invite->isFor(User::factory()->make(['email' => 'mixed@example.com'])))->toBeTrue()
+            ->and($invite->isFor(User::factory()->make(['email' => 'MIXED@EXAMPLE.COM'])))->toBeTrue()
+            ->and($invite->isFor(User::factory()->make(['email' => 'other@example.com'])))->toBeFalse();
+    });
+});
+
+// ──────────────────────────────────────────────
 // SEC-17: accepting needs a click (POST); the link only shows a page
 // ──────────────────────────────────────────────
 

@@ -1,5 +1,6 @@
 <?php
 
+use App\Filament\Pages\Auth\Login;
 use App\Filament\Pages\Auth\Register;
 use App\Models\User;
 use Filament\Facades\Filament;
@@ -171,4 +172,61 @@ test('registration rejects name longer than 255 characters', function () {
 
     $this->assertGuest();
     expect(User::count())->toBe(0);
+});
+
+// SEC-18: emails are stored lower-case
+test('registering with capitals stores the email lower-case and the user can log in with any case', function () {
+    Livewire::test(Register::class)
+        ->fillForm([
+            'name' => 'Bob Smith',
+            'email' => 'Bob.Smith@Example.COM',
+            'password' => 'password',
+            'passwordConfirmation' => 'password',
+        ])
+        ->call('register')
+        ->assertHasNoFormErrors();
+
+    expect(User::query()->pluck('email')->all())->toBe(['bob.smith@example.com']);
+
+    auth()->logout();
+
+    Livewire::test(Login::class)
+        ->fillForm(['email' => 'Bob.Smith@Example.com', 'password' => 'password'])
+        ->call('authenticate')
+        ->assertHasNoFormErrors();
+
+    $this->assertAuthenticated();
+});
+
+test('the same address in another case is already taken and creates no second user', function () {
+    User::factory()->create(['email' => 'bob@example.com']);
+
+    Livewire::test(Register::class)
+        ->fillForm([
+            'name' => 'Bob Two',
+            'email' => 'BOB@example.com',
+            'password' => 'password',
+            'passwordConfirmation' => 'password',
+        ])
+        ->call('register')
+        ->assertHasFormErrors(['email']);
+
+    $this->assertGuest();
+    expect(User::query()->whereRaw('lower(email) = ?', ['bob@example.com'])->count())->toBe(1);
+});
+
+test('the registration email is left as typed when lower-casing is turned off', function () {
+    config(['fortify.lowercase_usernames' => false]);
+
+    Livewire::test(Register::class)
+        ->fillForm([
+            'name' => 'Bob Smith',
+            'email' => 'Bob@Example.com',
+            'password' => 'password',
+            'passwordConfirmation' => 'password',
+        ])
+        ->call('register')
+        ->assertHasNoFormErrors();
+
+    expect(User::query()->pluck('email')->all())->toBe(['Bob@Example.com']);
 });

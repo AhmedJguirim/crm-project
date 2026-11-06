@@ -61,7 +61,7 @@ class Login extends BaseLogin
         $invite = OrganizationInvite::query()->find($inviteId);
 
         // Only accept if the invite is still valid and the email matches
-        if (! $invite || ! $invite->isValid() || $invite->email !== $user->email) {
+        if (! $invite || ! $invite->isValid() || ! $invite->isFor($user)) {
             return;
         }
 

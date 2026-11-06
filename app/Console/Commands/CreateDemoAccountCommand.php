@@ -46,8 +46,14 @@ class CreateDemoAccountCommand extends Command
         $password = (string) $this->secret('Password');
         $confirmation = (string) $this->secret('Confirm the password');
 
+        $email = (string) $this->argument('email');
+
+        if (config('fortify.lowercase_usernames')) {
+            $email = Str::lower($email);
+        }
+
         $validator = Validator::make(
-            ['name' => $this->argument('name'), 'email' => $this->argument('email'), 'password' => $password, 'password_confirmation' => $confirmation],
+            ['name' => $this->argument('name'), 'email' => $email, 'password' => $password, 'password_confirmation' => $confirmation],
             [
                 'name' => ['required', 'string', 'max:255'],
                 'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
@@ -63,8 +69,8 @@ class CreateDemoAccountCommand extends Command
             return self::FAILURE;
         }
 
-        $organization = DB::transaction(function () use ($password): Organization {
-            $owner = $this->createUser((string) $this->argument('name'), (string) $this->argument('email'), $password);
+        $organization = DB::transaction(function () use ($password, $email): Organization {
+            $owner = $this->createUser((string) $this->argument('name'), $email, $password);
             $organization = $owner->createPersonalOrganization($this->option('timezone'));
 
             $admin = $this->createTeammate($organization, 'Alex Morgan', OrganizationRole::Admin);
@@ -75,7 +81,7 @@ class CreateDemoAccountCommand extends Command
             return $organization;
         });
 
-        $this->info("Demo account created: {$this->argument('email')} owns the workspace \"{$organization->name}\".");
+        $this->info("Demo account created: {$email} owns the workspace \"{$organization->name}\".");
 
         return self::SUCCESS;
     }

@@ -73,3 +73,33 @@ test('correct password must be provided to delete account', function () {
 
     expect($user->fresh())->not->toBeNull();
 });
+
+// SEC-18: emails are stored lower-case
+test('a changed profile email is stored lower-case', function () {
+    $user = User::factory()->create(['email' => 'ann@example.com']);
+
+    $this->actingAs($user);
+
+    Livewire::test('pages::settings.profile')
+        ->set('name', 'Ann')
+        ->set('email', 'Ann.New@Example.COM')
+        ->call('updateProfileInformation')
+        ->assertHasNoErrors();
+
+    expect($user->fresh()->email)->toBe('ann.new@example.com');
+});
+
+test('an address taken in another case is refused on the profile page', function () {
+    User::factory()->create(['email' => 'bob@example.com']);
+    $user = User::factory()->create(['email' => 'ann@example.com']);
+
+    $this->actingAs($user);
+
+    Livewire::test('pages::settings.profile')
+        ->set('name', 'Ann')
+        ->set('email', 'BOB@example.com')
+        ->call('updateProfileInformation')
+        ->assertHasErrors(['email']);
+
+    expect($user->fresh()->email)->toBe('ann@example.com');
+});

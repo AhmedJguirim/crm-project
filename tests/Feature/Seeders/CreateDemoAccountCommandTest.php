@@ -75,3 +75,18 @@ test('it creates nothing when the input is invalid', function (string $email, st
     'passwords differ' => ['jane@acme.test', 'Demo-password-2026', 'Other-password-2026'],
     'password too short' => ['jane@acme.test', 'short', 'short'],
 ]);
+
+test('it stores the email lower-case and prints it that way', function () {
+    expect(createDemoAccount($this, 'Jane@Acme.test'))->toBe(0);
+
+    expect(User::query()->where('email', 'jane@acme.test')->count())->toBe(1)
+        ->and(User::query()->where('email', 'Jane@Acme.test')->count())->toBe(0);
+});
+
+test('it refuses an address that is taken in another case', function () {
+    User::factory()->create(['email' => 'taken@acme.test']);
+    $users = User::query()->count();
+
+    expect(createDemoAccount($this, 'TAKEN@acme.test'))->toBe(1)
+        ->and(User::query()->count())->toBe($users);
+});

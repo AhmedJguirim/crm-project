@@ -8,8 +8,11 @@ use App\Models\User;
 use Filament\Auth\Http\Responses\Contracts\RegistrationResponse;
 use Filament\Auth\Pages\Register as BaseRegister;
 use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Component;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Str;
 
 class Register extends BaseRegister
 {
@@ -44,6 +47,22 @@ class Register extends BaseRegister
                     ->dehydrated(false)
                     ->extraAttributes(['x-init' => "\$el.value = Intl.DateTimeFormat().resolvedOptions().timeZone; \$el.dispatchEvent(new Event('input', { bubbles: true }))"]),
             ]);
+    }
+
+    /**
+     * The base email field, lower-cased before validation and when stored (when `fortify.lowercase_usernames` is on),
+     * so the unique rule sees the stored form and the login form, which lower-cases what is typed, finds the user.
+     */
+    protected function getEmailFormComponent(): Component
+    {
+        /** @var TextInput $component */
+        $component = parent::getEmailFormComponent();
+
+        $lowerCase = fn (?string $state): ?string => is_string($state) && config('fortify.lowercase_usernames') ? Str::lower($state) : $state;
+
+        return $component
+            ->mutateStateForValidationUsing($lowerCase)
+            ->mutateDehydratedStateUsing($lowerCase);
     }
 
     /**
@@ -108,7 +127,7 @@ class Register extends BaseRegister
         $invite = OrganizationInvite::query()->find($inviteId);
 
         // Only accept if the invite is still valid and the email matches
-        if (! $invite || ! $invite->isValid() || $invite->email !== $user->email) {
+        if (! $invite || ! $invite->isValid() || ! $invite->isFor($user)) {
             return;
         }
 

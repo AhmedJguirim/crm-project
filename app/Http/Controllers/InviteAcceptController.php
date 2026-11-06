@@ -50,7 +50,7 @@ class InviteAcceptController extends Controller
         /** @var User $user */
         $user = auth()->user();
 
-        if ($user->email !== $invite->email) {
+        if (! $invite->isFor($user)) {
             return $this->redirectWithMismatch($invite, $user);
         }
 
@@ -72,7 +72,7 @@ class InviteAcceptController extends Controller
         /** @var User $user */
         $user = auth()->user();
 
-        if ($user->email !== $invite->email) {
+        if (! $invite->isFor($user)) {
             return $this->redirectWithMismatch($invite, $user);
         }
 
