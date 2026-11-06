@@ -265,3 +265,23 @@ test('sign-up refuses an address stored in another case', function () {
     $this->assertGuest();
     expect(User::query()->whereRaw('lower(email) = ?', ['ann.lee@example.com'])->count())->toBe(1);
 });
+
+// BUG-66: a forged array email is a validation error, not a 500
+test('sign-up answers a forged array email with a validation error', function () {
+    User::factory()->create(['email' => 'ann@example.com']);
+
+    $page = Livewire::test(Register::class)
+        ->fillForm([
+            'name' => 'Eve Stone',
+            'password' => 'password',
+            'passwordConfirmation' => 'password',
+            'accept_terms' => true,
+        ])
+        ->set('data.email', ['eve@example.com'])
+        ->call('register')
+        ->assertHasFormErrors(['email']);
+
+    expect($page->errors()->get('data.email'))->toBe(['The email address field must be a single value.']);
+    $this->assertGuest();
+    expect(User::count())->toBe(1);
+});

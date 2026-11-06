@@ -85,3 +85,35 @@ test('a user stored with capitals gets a reset link and can reset with another c
 
     expect(Hash::check('N3w-passw0rd!', $ann->fresh()->password))->toBeTrue();
 });
+
+// BUG-66: a forged array email is a validation error, not a 500
+test('the reset password form answers a forged array email with a validation error', function () {
+    $ann = User::factory()->create(['email' => 'ann@example.com']);
+
+    $this->post(route('password.update'), [
+        'token' => 'any-token',
+        'email' => ['ann@example.com'],
+        'password' => 'new-password',
+        'password_confirmation' => 'new-password',
+    ])
+        ->assertStatus(302)
+        ->assertSessionHasErrors(['email' => 'The email field must be a string.']);
+
+    expect(Hash::check('password', $ann->fresh()->password))->toBeTrue();
+});
+
+test('the forgot password form still answers an array email with a validation error', function () {
+    User::factory()->create(['email' => 'ann@example.com']);
+
+    $this->post(route('password.email'), ['email' => ['ann@example.com']])
+        ->assertStatus(302)
+        ->assertSessionHasErrors(['email' => 'The email field must be a valid email address.']);
+});
+
+test('the reset password form keeps answering a missing email with the required error', function () {
+    $this->post(route('password.update'), [
+        'token' => 'any-token',
+        'password' => 'new-password',
+        'password_confirmation' => 'new-password',
+    ])->assertSessionHasErrors(['email' => 'The email field is required.']);
+});

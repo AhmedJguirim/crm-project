@@ -69,7 +69,7 @@ class Register extends BaseRegister
      */
     protected function getEmailFormComponent(): Component
     {
-        $lowerCase = fn (?string $state): ?string => is_string($state) && config('fortify.lowercase_usernames') ? Str::lower($state) : $state;
+        $lowerCase = fn (mixed $state): mixed => is_string($state) && config('fortify.lowercase_usernames') ? Str::lower($state) : $state;
 
         return TextInput::make('email')
             ->label(__('filament-panels::auth/pages/register.form.email.label'))
@@ -79,6 +79,16 @@ class Register extends BaseRegister
             ->rule(new UniqueUserEmail)
             ->mutateStateForValidationUsing($lowerCase)
             ->mutateDehydratedStateUsing($lowerCase);
+    }
+
+    /**
+     * The base page passes the raw `data.email` to this method before the form is validated, so a forged
+     * array crashed it with a TypeError. A non-string email skips the per-email limiter (the per-IP
+     * `rateLimit()` before it still applies) and is refused by validation (BUG-66).
+     */
+    protected function isRegisterRateLimited(mixed $email): bool
+    {
+        return is_string($email) && parent::isRegisterRateLimited($email);
     }
 
     /**

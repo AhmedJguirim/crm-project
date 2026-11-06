@@ -235,3 +235,14 @@ test('a lookup credential that is not a string is passed on unchanged and finds 
         ->and(auth()->guard('web')->getProvider()->retrieveByCredentials(['email' => 'Ann.Lee@Example.com%', 'password' => 'x']))
         ->toBeNull();
 });
+
+// BUG-66: a forged array email is a validation error, not a 500
+test('the Fortify login answers a forged array email with a validation error', function () {
+    User::factory()->create(['email' => 'ann@example.com']);
+
+    $this->post('/login', ['email' => ['ann@example.com'], 'password' => 'password'])
+        ->assertStatus(302)
+        ->assertSessionHasErrors(['email' => 'The email field must be a string.']);
+
+    $this->assertGuest();
+});

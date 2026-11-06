@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Actions\Fortify\CreateNewUser;
 use App\Actions\Fortify\ResetUserPassword;
+use App\Http\Controllers\Auth\ResetPasswordController;
 use App\Http\Responses\PasswordResetLinkSentResponse;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -12,6 +13,7 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\FailedPasswordResetLinkRequestResponse;
 use Laravel\Fortify\Fortify;
+use Laravel\Fortify\Http\Controllers\NewPasswordController;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -21,6 +23,7 @@ class FortifyServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(FailedPasswordResetLinkRequestResponse::class, PasswordResetLinkSentResponse::class);
+        $this->app->bind(NewPasswordController::class, ResetPasswordController::class);
     }
 
     /**
@@ -58,7 +61,7 @@ class FortifyServiceProvider extends ServiceProvider
 
     /**
      * Configure rate limiting: the two-factor challenge, the login (per email and IP, plus a looser
-     * per-IP cap across emails), and `password-reset`, which limits the POSTs of the forgot-password
+     * per-IP cap across emails; a non-string email is keyed as empty so the request reaches validation, BUG-66), and `password-reset`, which limits the POSTs of the forgot-password
      * and reset-password routes per IP (5 a minute, 20 an hour) and lets every other Fortify route through.
      */
     private function configureRateLimiting(): void
@@ -68,7 +71,8 @@ class FortifyServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('login', function (Request $request) {
-            $throttleKey = Str::transliterate(Str::lower($request->input(Fortify::username())).'|'.$request->ip());
+            $email = $request->input(Fortify::username());
+            $throttleKey = Str::transliterate(Str::lower(is_string($email) ? $email : '').'|'.$request->ip());
 
             return [
                 Limit::perMinute(5)->by($throttleKey),
