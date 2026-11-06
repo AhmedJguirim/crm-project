@@ -16,10 +16,10 @@ use InvalidArgumentException;
 final readonly class ReportPeriod
 {
     /** The earliest day a custom range may include. */
-    public const string EARLIEST_DATE = '1900-01-01';
+    public const string EARLIEST_DATE = LocalTime::EARLIEST_FILTER_DATE;
 
     /** The latest day a custom range may include. */
-    public const string LATEST_DATE = '2100-12-31';
+    public const string LATEST_DATE = LocalTime::LATEST_FILTER_DATE;
 
     private function __construct(
         public ReportPeriodPreset $preset,

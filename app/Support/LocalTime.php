@@ -13,6 +13,12 @@ use Filament\Support\Facades\FilamentTimezone;
  */
 final class LocalTime
 {
+    /** The earliest day a date filter may use. */
+    public const string EARLIEST_FILTER_DATE = '1900-01-01';
+
+    /** The latest day a date filter may use. */
+    public const string LATEST_FILTER_DATE = '2100-12-31';
+
     /**
      * A stored (UTC) moment printed in the panel timezone (the current organization's) or in the given one.
      */
@@ -77,6 +83,22 @@ final class LocalTime
         }
 
         return checkdate((int) substr($value, 5, 2), (int) substr($value, 8, 2), (int) substr($value, 0, 4)) ? $value : null;
+    }
+
+    /**
+     * A filter date (see `filterDate()`) between `EARLIEST_FILTER_DATE` and `LATEST_FILTER_DATE`, else null: outside that
+     * range the UTC bounds of the day can fall outside what the database stores (BUG-58, BUG-70). The year always has 4
+     * digits after `filterDate()`, so comparing the strings compares the days.
+     */
+    public static function boundedFilterDate(mixed $value): ?string
+    {
+        $date = self::filterDate($value);
+
+        if ($date === null || $date < self::EARLIEST_FILTER_DATE || $date > self::LATEST_FILTER_DATE) {
+            return null;
+        }
+
+        return $date;
     }
 
     /**

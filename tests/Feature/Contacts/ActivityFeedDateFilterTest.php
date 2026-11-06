@@ -134,6 +134,74 @@ test('a value that is not a real date is ignored', function (string $junk) {
     'trailing newline' => ["2026-03-02\n"],
 ]);
 
+test('a date outside 1900-2100 is ignored like a junk date', function (?string $from, ?string $to) {
+    ($this->logWeek)($this->contact);
+    ($this->inZone)('Europe/Paris');
+
+    $feed = ($this->feed)($from, $to);
+
+    foreach ($this->subjects as $subject) {
+        $feed->assertSee($subject);
+    }
+
+    $feed->assertDontSee('Clear')->assertDontSee('From is after To');
+})->with([
+    'year 1 from' => ['0001-01-01', null],
+    'before 1900 from' => ['1899-12-31', null],
+    'after 2100 to' => [null, '2101-01-01'],
+    'year 9999 to' => [null, '9999-12-31'],
+    'both out of bounds' => ['0001-01-01', '9999-12-31'],
+]);
+
+test('an out-of-bounds From next to a valid To filters on To only', function () {
+    ($this->logWeek)($this->contact);
+    ($this->inZone)('Europe/Paris');
+
+    ($this->feed)('0001-01-01', '2026-03-01')
+        ->assertSee('Late Sunday call')
+        ->assertDontSee('Monday breakfast')
+        ->assertDontSee('Tuesday midnight')
+        ->assertSee('Clear')
+        ->assertDontSee('From is after To');
+});
+
+test('the earliest day is kept with its exact Paris LMT bounds', function () {
+    ($this->inZone)('Europe/Paris');
+    ($this->logAt)($this->contact, 'Fin de siecle', '1899-12-31 23:50:39');
+    ($this->logAt)($this->contact, 'Too early', '1899-12-31 23:50:38');
+
+    ($this->feed)('1900-01-01', '1900-01-01')
+        ->assertSee('Fin de siecle')
+        ->assertDontSee('Too early');
+});
+
+test('the latest day is kept', function () {
+    ($this->inZone)('Europe/Paris');
+    ($this->logAt)($this->contact, 'Last day', '2100-12-31 22:59:59');
+    ($this->logAt)($this->contact, 'Too late', '2100-12-31 23:00:00');
+
+    ($this->feed)('2100-12-31', '2100-12-31')
+        ->assertSee('Last day')
+        ->assertDontSee('Too late');
+});
+
+test('swapping ignores an out-of-bounds bound', function () {
+    ($this->inZone)('Europe/Paris');
+
+    ($this->feed)('2101-01-01', '2026-03-01')
+        ->call('swapDateRange')
+        ->assertSet('dateFrom', '2101-01-01')
+        ->assertSet('dateTo', '2026-03-01')
+        ->assertDontSee('From is after To');
+});
+
+test('both date inputs carry the bounds', function () {
+    $html = ($this->feed)(null, null)->html();
+
+    expect(substr_count($html, 'min="1900-01-01"'))->toBe(2)
+        ->and(substr_count($html, 'max="2100-12-31"'))->toBe(2);
+});
+
 test('a real date next to a junk date still filters', function () {
     ($this->logWeek)($this->contact);
     ($this->inZone)('Asia/Tokyo');

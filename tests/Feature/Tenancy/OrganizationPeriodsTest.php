@@ -16,6 +16,7 @@ use App\Models\Task;
 use App\Models\User;
 use App\Services\Deals\DealStageMover;
 use App\Support\LocalTime;
+use App\Support\Reports\ReportPeriod;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
@@ -253,3 +254,25 @@ test('a filter date is only a real Y-m-d date', function (mixed $value, ?string 
     'null' => [null, null],
     'an integer' => [20260302, null],
 ]);
+
+test('a bounded filter date is a real day between 1900-01-01 and 2100-12-31', function (mixed $value, ?string $expected) {
+    expect(LocalTime::boundedFilterDate($value))->toBe($expected);
+})->with([
+    'the earliest day' => ['1900-01-01', '1900-01-01'],
+    'the latest day' => ['2100-12-31', '2100-12-31'],
+    'a date' => ['2026-03-02', '2026-03-02'],
+    'the day before the earliest' => ['1899-12-31', null],
+    'the day after the latest' => ['2101-01-01', null],
+    'year 1' => ['0001-01-01', null],
+    'year 9999' => ['9999-12-31', null],
+    'not a leap day' => ['2026-02-29', null],
+    'an array' => [['2026-03-02'], null],
+    'null' => [null, null],
+]);
+
+test('the report bounds are the shared filter bounds', function () {
+    expect(ReportPeriod::EARLIEST_DATE)->toBe(LocalTime::EARLIEST_FILTER_DATE)
+        ->and(ReportPeriod::LATEST_DATE)->toBe(LocalTime::LATEST_FILTER_DATE)
+        ->and(LocalTime::EARLIEST_FILTER_DATE)->toBe('1900-01-01')
+        ->and(LocalTime::LATEST_FILTER_DATE)->toBe('2100-12-31');
+});

@@ -46,29 +46,14 @@ final readonly class DashboardFilters
             return ReportPeriod::forPreset($preset, $timezone);
         }
 
-        $from = self::customDate($filters['from'] ?? null);
-        $to = self::customDate($filters['to'] ?? null);
+        $from = LocalTime::boundedFilterDate($filters['from'] ?? null);
+        $to = LocalTime::boundedFilterDate($filters['to'] ?? null);
 
         if ($from === null || $to === null) {
             return ReportPeriod::forPreset(ReportPeriodPreset::ThisMonth, $timezone);
         }
 
         return ReportPeriod::custom($from, $to, $timezone);
-    }
-
-    /**
-     * A custom date as `Y-m-d` when it is a real day between `ReportPeriod::EARLIEST_DATE` and `LATEST_DATE`, else null.
-     * The year always has 4 digits after `LocalTime::filterDate()`, so comparing the strings compares the days.
-     */
-    private static function customDate(mixed $value): ?string
-    {
-        $date = LocalTime::filterDate($value);
-
-        if ($date === null || $date < ReportPeriod::EARLIEST_DATE || $date > ReportPeriod::LATEST_DATE) {
-            return null;
-        }
-
-        return $date;
     }
 
     private static function ownerFrom(mixed $value): ?int

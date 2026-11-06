@@ -44,7 +44,7 @@ class ContactActivityFeed extends Widget
      */
     public function swapDateRange(): void
     {
-        if (! $this->rangeIsReversed(LocalTime::filterDate($this->dateFrom), LocalTime::filterDate($this->dateTo))) {
+        if (! $this->rangeIsReversed(LocalTime::boundedFilterDate($this->dateFrom), LocalTime::boundedFilterDate($this->dateTo))) {
             return;
         }
 
@@ -64,8 +64,8 @@ class ContactActivityFeed extends Widget
     {
         /** @var Contact|null $contact */
         $contact = $this->record;
-        $from = LocalTime::filterDate($this->dateFrom);
-        $to = LocalTime::filterDate($this->dateTo);
+        $from = LocalTime::boundedFilterDate($this->dateFrom);
+        $to = LocalTime::boundedFilterDate($this->dateTo);
 
         $activities = $contact
             ?->activities()
@@ -79,6 +79,8 @@ class ContactActivityFeed extends Widget
             'activities' => $activities ?? collect(),
             'hasFilters' => $from !== null || $to !== null,
             'rangeIsReversed' => $this->rangeIsReversed($from, $to),
+            'earliestDate' => LocalTime::EARLIEST_FILTER_DATE,
+            'latestDate' => LocalTime::LATEST_FILTER_DATE,
         ];
     }
 }
