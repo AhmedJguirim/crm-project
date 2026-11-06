@@ -15,6 +15,12 @@ use InvalidArgumentException;
  */
 final readonly class ReportPeriod
 {
+    /** The earliest day a custom range may include. */
+    public const string EARLIEST_DATE = '1900-01-01';
+
+    /** The latest day a custom range may include. */
+    public const string LATEST_DATE = '2100-12-31';
+
     private function __construct(
         public ReportPeriodPreset $preset,
         public string $startDate,
@@ -48,10 +54,20 @@ final readonly class ReportPeriod
     }
 
     /**
-     * A custom range of two local dates already checked by `LocalTime::filterDate()`; swapped when the first is after the second.
+     * A custom range of two local dates already checked by `LocalTime::filterDate()` and `DashboardFilters`; swapped
+     * when the first is after the second.
+     *
+     * @throws InvalidArgumentException when either date is before `EARLIEST_DATE` or after `LATEST_DATE`: callers filter
+     *                                  first, so this is a programming error that would break the SQL bounds and the trail
      */
     public static function custom(string $fromDate, string $toDate, ?string $timezone = null): self
     {
+        foreach ([$fromDate, $toDate] as $date) {
+            if ($date < self::EARLIEST_DATE || $date > self::LATEST_DATE) {
+                throw new InvalidArgumentException('A custom range must be between '.self::EARLIEST_DATE.' and '.self::LATEST_DATE.'.');
+            }
+        }
+
         [$from, $to] = $fromDate <= $toDate ? [$fromDate, $toDate] : [$toDate, $fromDate];
 
         return new self(ReportPeriodPreset::Custom, $from, $to, $timezone ?? FilamentTimezone::get());

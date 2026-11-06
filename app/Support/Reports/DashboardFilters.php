@@ -9,7 +9,7 @@ use App\Support\Tenancy\CurrentOrganization;
 /**
  * The dashboard filters (period and owner) as safe values. The page filters travel in the URL, the session and the
  * Livewire payload, so they are forged input: every report widget reads them only through `fromPageFilters()`, which
- * turns anything invalid into the defaults (this month, everyone) and keeps an owner only when they are a current
+ * turns anything invalid (a custom date that is not a real day or is outside 1900–2100 included) into the defaults (this month, everyone) and keeps an owner only when they are a current
  * member of the organization.
  */
 final readonly class DashboardFilters
@@ -46,14 +46,29 @@ final readonly class DashboardFilters
             return ReportPeriod::forPreset($preset, $timezone);
         }
 
-        $from = LocalTime::filterDate($filters['from'] ?? null);
-        $to = LocalTime::filterDate($filters['to'] ?? null);
+        $from = self::customDate($filters['from'] ?? null);
+        $to = self::customDate($filters['to'] ?? null);
 
         if ($from === null || $to === null) {
             return ReportPeriod::forPreset(ReportPeriodPreset::ThisMonth, $timezone);
         }
 
         return ReportPeriod::custom($from, $to, $timezone);
+    }
+
+    /**
+     * A custom date as `Y-m-d` when it is a real day between `ReportPeriod::EARLIEST_DATE` and `LATEST_DATE`, else null.
+     * The year always has 4 digits after `LocalTime::filterDate()`, so comparing the strings compares the days.
+     */
+    private static function customDate(mixed $value): ?string
+    {
+        $date = LocalTime::filterDate($value);
+
+        if ($date === null || $date < ReportPeriod::EARLIEST_DATE || $date > ReportPeriod::LATEST_DATE) {
+            return null;
+        }
+
+        return $date;
     }
 
     private static function ownerFrom(mixed $value): ?int

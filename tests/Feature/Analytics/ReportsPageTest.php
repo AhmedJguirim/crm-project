@@ -89,6 +89,16 @@ test('forged URL filters never break the page', function (array $filters) {
     'nested arrays' => [['period' => ['a' => ['b' => 'c']], 'owner' => ['a' => ['b']]]],
 ]);
 
+test('every reports widget renders with far dates', function (string $widget, string $from, string $to) {
+    Livewire::test($widget, ['pageFilters' => ['period' => 'custom', 'from' => $from, 'to' => $to]])->assertSuccessful();
+})->with(function (): Generator {
+    foreach ((new Reports)->getWidgets() as $widget) {
+        foreach (['0001-01-01 to 9999-12-31' => ['0001-01-01', '9999-12-31'], 'the widest allowed range' => ['1900-01-01', '2100-12-31']] as $name => [$from, $to]) {
+            yield class_basename($widget).' '.$name => [$widget, $from, $to];
+        }
+    }
+});
+
 test('the sidebar links to Reports', function () {
     $this->get(Filament::getUrl($this->team->org))->assertSee(Reports::getUrl(tenant: $this->team->org));
 });

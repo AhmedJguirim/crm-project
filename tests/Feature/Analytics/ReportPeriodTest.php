@@ -107,6 +107,27 @@ test('forPreset refuses the custom preset', function () {
     ReportPeriod::forPreset(ReportPeriodPreset::Custom);
 })->throws(InvalidArgumentException::class, 'Use ReportPeriod::custom() for a custom range.');
 
+test('custom refuses a date outside the bounds', function (string $from, string $to) {
+    ReportPeriod::custom($from, $to, 'Europe/Paris');
+})->with([
+    'before the earliest' => ['1899-12-31', '2026-10-31'],
+    'after the latest' => ['2026-09-01', '2101-01-01'],
+    'reversed, the later one too late' => ['2101-01-01', '2026-09-01'],
+])->throws(InvalidArgumentException::class, 'A custom range must be between 1900-01-01 and 2100-12-31.');
+
+test('custom keeps the bounds themselves', function () {
+    expect(ReportPeriod::custom('1900-01-01', '2100-12-31', 'Europe/Paris')->dates())->toBe(['1900-01-01', '2100-12-31'])
+        ->and(ReportPeriod::custom('2100-12-31', '1900-01-01', 'Europe/Paris')->dates())->toBe(['1900-01-01', '2100-12-31']);
+});
+
+test('the widest range has a valid trail and previous period', function () {
+    $period = ReportPeriod::custom('1900-01-01', '2100-12-31', 'Europe/Paris');
+
+    expect($period->trail(6)[0]->dates())->toBe(['0894-12-30', '1095-12-30'])
+        ->and($period->previous()->dates())->toBe(['1698-12-31', '1899-12-31'])
+        ->and($period->bounds())->each->toBeInstanceOf(CarbonImmutable::class);
+});
+
 test('a trail has six periods of the preset, oldest first, the period itself last', function (ReportPeriodPreset $preset, array $starts, string $firstEnd) {
     $period = ReportPeriod::forPreset($preset, 'Europe/Paris');
     $trail = $period->trail(6);

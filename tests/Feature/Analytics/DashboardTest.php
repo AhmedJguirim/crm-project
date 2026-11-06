@@ -219,7 +219,27 @@ test('forged filters reach no SQL text', function (string $widget, string $paylo
     }
 });
 
+test('every dashboard widget renders with far dates', function (string $widget, string $from, string $to) {
+    Livewire::test($widget, ['pageFilters' => ['period' => 'custom', 'from' => $from, 'to' => $to]])->assertSuccessful();
+})->with(function (): Generator {
+    foreach ((new Dashboard)->getWidgets() as $widget) {
+        foreach (['0001-01-01 to 9999-12-31' => ['0001-01-01', '9999-12-31'], 'the widest allowed range' => ['1900-01-01', '2100-12-31']] as $name => [$from, $to]) {
+            yield class_basename($widget).' '.$name => [$widget, $from, $to];
+        }
+    }
+});
+
 describe('breakdown service', function () {
+    test('the widest range is drawn per month with a bounded number of points', function () {
+        Contact::factory()->create(['organization_id' => $this->org->id, 'created_at' => '2026-06-20 10:00:00']);
+
+        $series = DashboardBreakdowns::createdSeries(Contact::query(), ReportPeriod::custom('1900-01-01', '2100-12-31', 'Europe/Paris'));
+
+        expect($series['unit'])->toBe('month')
+            ->and($series['points'])->toHaveCount(2412)
+            ->and($series['points']['2026-06-01'])->toBe(1);
+    });
+
     test('created series fills every local day and buckets by the local timezone', function () {
         // 2026-06-20 22:30 UTC is already 2026-06-21 in Paris (UTC+2).
         Contact::factory()->create(['organization_id' => $this->org->id, 'created_at' => '2026-06-20 22:30:00']);

@@ -6,6 +6,7 @@ use App\Filament\Pages\Dashboard;
 use App\Models\Organization;
 use App\Models\User;
 use App\Support\Reports\DashboardFilters;
+use App\Support\Reports\ReportPeriod;
 use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
@@ -47,6 +48,14 @@ test('forged or junk input falls back to the defaults', function (mixed $filters
     'a custom range with an impossible date' => [['period' => 'custom', 'from' => '2026-02-30', 'to' => '2026-10-31'], ReportPeriodPreset::ThisMonth, '2026-10-01', '2026-10-31', 'none'],
     'a custom range with an array date' => [['period' => 'custom', 'from' => ['x'], 'to' => '2026-10-31'], ReportPeriodPreset::ThisMonth, '2026-10-01', '2026-10-31', 'none'],
     'a custom range without an end' => [['period' => 'custom', 'from' => '2026-09-01'], ReportPeriodPreset::ThisMonth, '2026-10-01', '2026-10-31', 'none'],
+    'a custom range from year 1' => [['period' => 'custom', 'from' => '0001-01-01', 'to' => '2026-10-31'], ReportPeriodPreset::ThisMonth, '2026-10-01', '2026-10-31', 'none'],
+    'a custom range to year 9999' => [['period' => 'custom', 'from' => '2026-09-01', 'to' => '9999-12-31'], ReportPeriodPreset::ThisMonth, '2026-10-01', '2026-10-31', 'none'],
+    'a custom range from year 1 to year 9999' => [['period' => 'custom', 'from' => '0001-01-01', 'to' => '9999-12-31'], ReportPeriodPreset::ThisMonth, '2026-10-01', '2026-10-31', 'none'],
+    'a custom range the day before the earliest date' => [['period' => 'custom', 'from' => '1899-12-31', 'to' => '2026-10-31'], ReportPeriodPreset::ThisMonth, '2026-10-01', '2026-10-31', 'none'],
+    'a custom range the day after the latest date' => [['period' => 'custom', 'from' => '2026-09-01', 'to' => '2101-01-01'], ReportPeriodPreset::ThisMonth, '2026-10-01', '2026-10-31', 'none'],
+    'a reversed custom range with one side out of bounds' => [['period' => 'custom', 'from' => '2101-01-01', 'to' => '2026-09-01'], ReportPeriodPreset::ThisMonth, '2026-10-01', '2026-10-31', 'none'],
+    'the widest custom range' => [['period' => 'custom', 'from' => '1900-01-01', 'to' => '2100-12-31'], ReportPeriodPreset::Custom, '1900-01-01', '2100-12-31', 'none'],
+    'the widest custom range, reversed' => [['period' => 'custom', 'from' => '2100-12-31', 'to' => '1900-01-01'], ReportPeriodPreset::Custom, '1900-01-01', '2100-12-31', 'none'],
     'me' => [['owner' => 'me'], ReportPeriodPreset::ThisMonth, '2026-10-01', '2026-10-31', 'alice'],
     'a member id as a string' => [fn (array $ids) => ['owner' => (string) $ids['bob']], ReportPeriodPreset::ThisMonth, '2026-10-01', '2026-10-31', 'bob'],
     'a member id as an int' => [fn (array $ids) => ['owner' => $ids['bob']], ReportPeriodPreset::ThisMonth, '2026-10-01', '2026-10-31', 'bob'],
@@ -100,6 +109,15 @@ test('the panel dashboard is the app page with the filter form', function () {
         ->assertFormFieldVisible('to', 'filtersForm')
         ->fillForm(['period' => ReportPeriodPreset::LastMonth], 'filtersForm')
         ->assertFormFieldHidden('from', 'filtersForm');
+});
+
+test('the date pickers offer only the allowed years', function () {
+    $form = Livewire::test(Dashboard::class)->set('filters.period', ReportPeriodPreset::Custom->value)->instance()->getFiltersForm();
+
+    foreach (['from', 'to'] as $name) {
+        expect($form->getComponent($name)->getMinDate())->toBe(ReportPeriod::EARLIEST_DATE)
+            ->and($form->getComponent($name)->getMaxDate())->toBe(ReportPeriod::LATEST_DATE);
+    }
 });
 
 test('the owner field is hidden in a one-member organization', function () {

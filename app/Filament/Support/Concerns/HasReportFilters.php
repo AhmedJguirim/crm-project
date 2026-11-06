@@ -4,6 +4,7 @@ namespace App\Filament\Support\Concerns;
 
 use App\Enums\ReportPeriodPreset;
 use App\Services\Owners\OwnerOptions;
+use App\Support\Reports\ReportPeriod;
 use App\Support\Tenancy\CurrentOrganization;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -29,9 +30,13 @@ trait HasReportFilters
                 ->selectablePlaceholder(false),
             DatePicker::make('from')
                 ->label('From')
+                ->minDate(ReportPeriod::EARLIEST_DATE)
+                ->maxDate(ReportPeriod::LATEST_DATE)
                 ->visible(fn (Get $get): bool => self::isCustom($get('period'))),
             DatePicker::make('to')
                 ->label('To')
+                ->minDate(ReportPeriod::EARLIEST_DATE)
+                ->maxDate(ReportPeriod::LATEST_DATE)
                 ->visible(fn (Get $get): bool => self::isCustom($get('period'))),
             Select::make('owner')
                 ->label('Owner')
