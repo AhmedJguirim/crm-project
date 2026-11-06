@@ -11,9 +11,6 @@ function rawSqlAllowList(): array
         'Console/Commands/ReportDuplicateCustomFieldValuesCommand.php' => [
             'constant' => 'read-only duplicate report; the custom field key is a binding',
         ],
-        'Http/Controllers/InviteAcceptController.php' => [
-            'constant' => 'lower(email) = ? with the invited email as a binding',
-        ],
         'Filament/Actions/QuickTaskAction.php' => [
             'constant' => 'whereRaw(\'1 = 0\') only, to keep a relationship query empty',
         ],
@@ -46,6 +43,12 @@ function rawSqlAllowList(): array
         ],
         'Models/Concerns/EnforcesUniqueCustomFieldValues.php' => [
             'constant' => 'advisory lock query with the lock key as a binding',
+        ],
+        'Models/OrganizationInvite.php' => [
+            'constant' => 'lower(organization_invites.email) = ? with the email as a binding',
+        ],
+        'Models/User.php' => [
+            'constant' => 'lower(users.email) = ? with the email as a binding',
         ],
         'Services/Companies/CompanyMatcher.php' => [
             'constant' => 'lower(trim(name)) = ? with the name as a binding',

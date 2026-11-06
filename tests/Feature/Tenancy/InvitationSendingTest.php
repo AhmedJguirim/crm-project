@@ -5,6 +5,7 @@ use App\Enums\OrganizationRole;
 use App\Filament\Pages\Tenancy\OrganizationMembers;
 use App\Livewire\Tenancy\InvitationsList;
 use App\Mail\OrganizationInvitationMail;
+use App\Models\Organization;
 use App\Models\OrganizationInvite;
 use App\Models\User;
 use Filament\Actions\Testing\TestAction;
@@ -322,4 +323,115 @@ test('the token hash is not serialised and findByToken only matches the plain to
     expect($invite->toArray())->not->toHaveKey('token_hash')
         ->and(OrganizationInvite::findByToken($token)?->is($invite))->toBeTrue()
         ->and(OrganizationInvite::findByToken($invite->token_hash))->toBeNull();
+});
+
+// ──────────────────────────────────────────────
+// BUG-64: members and invites match whatever the case of the email
+// ──────────────────────────────────────────────
+
+describe('email case', function () {
+    beforeEach(function () {
+        $this->acme = Organization::factory()->create(['name' => 'Acme', 'created_by' => $this->owner->id]);
+        $this->acme->members()->attach($this->owner->id, ['role' => OrganizationRole::Owner->value]);
+        $this->globex = Organization::factory()->create(['name' => 'Globex']);
+
+        $this->actingAs($this->owner);
+        Filament::setTenant($this->acme);
+    });
+
+    test('an existing member is found whatever the case', function (string $stored, string $typed) {
+        $bob = User::factory()->onboardingCompleted()->withPersonalOrganization()->create(['email' => $stored]);
+        $this->acme->members()->attach($bob->id, ['role' => OrganizationRole::Member->value]);
+
+        Livewire::test(OrganizationMembers::class)
+            ->callAction(TestAction::make('inviteMember')->table(), [
+                'email' => $typed,
+                'role' => OrganizationRole::Member->value,
+            ])
+            ->assertNotified('Already a member');
+
+        expect(OrganizationInvite::query()->where('organization_id', $this->acme->id)->count())->toBe(0);
+        Mail::assertNotQueued(OrganizationInvitationMail::class);
+    })->with([
+        'stored capitals' => ['Bob@Example.com', 'bob@example.com'],
+        'typed capitals' => ['bob@example.com', 'BOB@EXAMPLE.COM'],
+    ]);
+
+    test('the member check is an exact match, underscore and percent stay literal', function (string $typed) {
+        $bob = User::factory()->onboardingCompleted()->withPersonalOrganization()->create(['email' => 'bob@example.com']);
+        $this->acme->members()->attach($bob->id, ['role' => OrganizationRole::Member->value]);
+
+        Livewire::test(OrganizationMembers::class)
+            ->callAction(TestAction::make('inviteMember')->table(), [
+                'email' => $typed,
+                'role' => OrganizationRole::Member->value,
+            ])
+            ->assertNotified('Invitation sent');
+
+        expect(OrganizationInvite::query()->where('organization_id', $this->acme->id)->sole()->email)->toBe($typed);
+    })->with([
+        'underscore' => ['b_b@example.com'],
+        'percent' => ['b%b@example.com'],
+    ]);
+
+    test('a member of another organization is not already a member', function () {
+        $bob = User::factory()->onboardingCompleted()->withPersonalOrganization()->create(['email' => 'Bob@Example.com']);
+        $this->globex->members()->attach($bob->id, ['role' => OrganizationRole::Member->value]);
+
+        Livewire::test(OrganizationMembers::class)
+            ->callAction(TestAction::make('inviteMember')->table(), [
+                'email' => 'bob@example.com',
+                'role' => OrganizationRole::Member->value,
+            ])
+            ->assertNotified('Invitation sent');
+
+        expect(OrganizationInvite::query()->where('organization_id', $this->acme->id)->sole()->email)->toBe('bob@example.com');
+    });
+
+    test('a legacy pending invite blocks a duplicate whatever the case', function () {
+        OrganizationInvite::factory()->create([
+            'organization_id' => $this->acme->id,
+            'email' => 'Carol@Example.com',
+            'invited_by' => $this->owner->id,
+        ]);
+
+        Livewire::test(OrganizationMembers::class)
+            ->callAction(TestAction::make('inviteMember')->table(), [
+                'email' => 'CAROL@example.com',
+                'role' => OrganizationRole::Member->value,
+            ])
+            ->assertNotified('Invite already pending');
+
+        expect(OrganizationInvite::query()->where('organization_id', $this->acme->id)->count())->toBe(1);
+        Mail::assertNotQueued(OrganizationInvitationMail::class);
+    });
+
+    test('hasPendingInviteFor ignores case, keeps the status and expiry rules and is an exact match', function (string $stored, InviteStatus $status, int $expiresInDays, string $asked, bool $expected) {
+        OrganizationInvite::factory()->create([
+            'organization_id' => $this->acme->id,
+            'email' => $stored,
+            'status' => $status,
+            'expires_at' => now()->addDays($expiresInDays),
+            'invited_by' => $this->owner->id,
+        ]);
+
+        expect($this->acme->hasPendingInviteFor($asked))->toBe($expected);
+    })->with([
+        'stored capitals' => ['Carol@Example.com', InviteStatus::Pending, 7, 'carol@example.com', true],
+        'asked capitals' => ['carol@example.com', InviteStatus::Pending, 7, 'CAROL@EXAMPLE.COM', true],
+        'revoked' => ['Carol@Example.com', InviteStatus::Revoked, 7, 'carol@example.com', false],
+        'expired' => ['Carol@Example.com', InviteStatus::Pending, -1, 'carol@example.com', false],
+        'underscore stays literal' => ['c_rol@example.com', InviteStatus::Pending, 7, 'carol@example.com', false],
+        'percent stays literal' => ['carol@example.com', InviteStatus::Pending, 7, 'car%@example.com', false],
+        'underscore asked stays literal' => ['carol@example.com', InviteStatus::Pending, 7, 'c_rol@example.com', false],
+    ]);
+
+    test("another organization's invite is not seen", function () {
+        OrganizationInvite::factory()->create([
+            'organization_id' => $this->globex->id,
+            'email' => 'carol@example.com',
+        ]);
+
+        expect($this->acme->hasPendingInviteFor('carol@example.com'))->toBeFalse();
+    });
 });

@@ -8,6 +8,7 @@ use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Models\Contracts\HasTenants;
 use Filament\Panel;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -169,6 +170,17 @@ class User extends Authenticatable implements FilamentUser, HasTenants
         ]);
 
         return $organization;
+    }
+
+    /**
+     * Users whose email equals the given one, whatever the case of either.
+     *
+     * @param  Builder<User>  $query
+     * @return Builder<User>
+     */
+    public function scopeWhereEmailIgnoringCase(Builder $query, string $email): Builder
+    {
+        return $query->whereRaw('lower(users.email) = ?', [Str::lower($email)]);
     }
 
     /**

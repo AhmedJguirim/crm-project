@@ -12,7 +12,6 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class InviteAcceptController extends Controller
 {
@@ -38,7 +37,7 @@ class InviteAcceptController extends Controller
                 'invite_email' => $invite->email,
             ]);
 
-            $userExists = User::query()->whereRaw('lower(email) = ?', [Str::lower($invite->email)])->exists();
+            $userExists = User::query()->whereEmailIgnoringCase($invite->email)->exists();
 
             if ($userExists) {
                 return redirect()->to(Filament::getLoginUrl())

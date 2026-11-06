@@ -7,7 +7,6 @@ use App\Filament\Pages\Auth\Register;
 use App\Filament\Pages\Tenancy\EditOrganization;
 use App\Filament\Pages\Tenancy\RegisterOrganization;
 use App\Models\Organization;
-use App\Models\OrganizationInvite;
 use App\Models\User;
 use App\Support\NotificationText;
 use App\Support\Tenancy\CurrentOrganization;
@@ -89,10 +88,7 @@ class AdminPanelProvider extends PanelProvider
                         $organization->members()->detach($user->id);
 
                         // Delete invite if user was invited
-                        $invite = OrganizationInvite::where('email', $user->email)->where('organization_id', $organization->id)->first();
-                        if ($invite) {
-                            $invite->delete();
-                        }
+                        $organization->deleteInvitesFor($user);
 
                         Notification::make()
                             ->success()

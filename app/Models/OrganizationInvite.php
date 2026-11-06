@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\InviteStatus;
 use App\Enums\OrganizationRole;
 use Database\Factories\OrganizationInviteFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -59,6 +60,17 @@ class OrganizationInvite extends Model
     public function inviter(): BelongsTo
     {
         return $this->belongsTo(User::class, 'invited_by');
+    }
+
+    /**
+     * Invites whose email equals the given one, whatever the case of either.
+     *
+     * @param  Builder<OrganizationInvite>  $query
+     * @return Builder<OrganizationInvite>
+     */
+    public function scopeWhereEmailIgnoringCase(Builder $query, string $email): Builder
+    {
+        return $query->whereRaw('lower(organization_invites.email) = ?', [Str::lower($email)]);
     }
 
     // ──────────────────────────────────────────────

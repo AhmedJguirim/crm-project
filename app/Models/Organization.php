@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\Currency;
+use App\Enums\InviteStatus;
 use App\Enums\OrganizationRole;
 use App\Observers\OrganizationObserver;
 use Carbon\CarbonImmutable;
@@ -201,9 +202,17 @@ class Organization extends Model
     public function hasPendingInviteFor(string $email): bool
     {
         return $this->invitations()
-            ->where('email', $email)
-            ->where('status', 'pending')
+            ->whereEmailIgnoringCase($email)
+            ->where('status', InviteStatus::Pending)
             ->where('expires_at', '>', now())
             ->exists();
+    }
+
+    /**
+     * Delete every invitation of this organization sent to the user's email, whatever the case.
+     */
+    public function deleteInvitesFor(User $user): void
+    {
+        $this->invitations()->whereEmailIgnoringCase($user->email)->get()->each->delete();
     }
 }

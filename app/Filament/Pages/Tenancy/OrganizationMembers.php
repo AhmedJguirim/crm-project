@@ -24,6 +24,7 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Str;
 use UnitEnum;
 
 class OrganizationMembers extends Page implements HasTable
@@ -189,11 +190,11 @@ class OrganizationMembers extends Page implements HasTable
                             ->required(),
                     ])
                     ->action(function (array $data) use ($organization): void {
-                        $email = strtolower($data['email']);
+                        $email = Str::lower($data['email']);
 
                         // Block inviting someone who is already a member
                         $existingMember = $organization->members()
-                            ->where('email', $email)
+                            ->whereEmailIgnoringCase($email)
                             ->exists();
 
                         if ($existingMember) {
