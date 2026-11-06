@@ -12,6 +12,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class InviteAcceptController extends Controller
 {
@@ -19,7 +20,7 @@ class InviteAcceptController extends Controller
      * Handle the invitation link clicked from the email. A GET never accepts: mail scanners and link prefetchers open links.
      *
      * Three possible flows:
-     * 1. Guest user → store the invite id in session, redirect to login or registration
+     * 1. Guest user → store the invite id in session, redirect to login when an account exists for the invited email in any case, else to registration
      * 2. Logged-in user with matching email → show the confirmation page (store() accepts)
      * 3. Logged-in user with non-matching email → show error
      */
@@ -37,8 +38,9 @@ class InviteAcceptController extends Controller
                 'invite_email' => $invite->email,
             ]);
 
-            $user = User::where('email', $invite->email)->first();
-            if ($user) {
+            $userExists = User::query()->whereRaw('lower(email) = ?', [Str::lower($invite->email)])->exists();
+
+            if ($userExists) {
                 return redirect()->to(Filament::getLoginUrl())
                     ->with('status', 'Please login to accept your invitation.');
             }

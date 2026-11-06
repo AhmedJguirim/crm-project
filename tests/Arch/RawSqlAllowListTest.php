@@ -11,6 +11,9 @@ function rawSqlAllowList(): array
         'Console/Commands/ReportDuplicateCustomFieldValuesCommand.php' => [
             'constant' => 'read-only duplicate report; the custom field key is a binding',
         ],
+        'Http/Controllers/InviteAcceptController.php' => [
+            'constant' => 'lower(email) = ? with the invited email as a binding',
+        ],
         'Filament/Actions/QuickTaskAction.php' => [
             'constant' => 'whereRaw(\'1 = 0\') only, to keep a relationship query empty',
         ],

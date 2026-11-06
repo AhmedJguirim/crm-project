@@ -444,6 +444,36 @@ describe('email case', function () {
             ->and($invite->fresh()->status)->toBe(InviteStatus::Pending);
     });
 
+    test('a guest opening an invite is sent to login when the user was stored with capitals', function () {
+        User::factory()->onboardingCompleted()->withPersonalOrganization()->create(['email' => 'Bob@Example.com']);
+        $invite = OrganizationInvite::factory()->withToken($token = Str::random(64))->create(['email' => 'bob@example.com']);
+        $usersBefore = User::query()->count();
+
+        $this->get(route('invite.accept', $token))
+            ->assertRedirect(Filament::getLoginUrl())
+            ->assertSessionHas('status', 'Please login to accept your invitation.');
+
+        expect(session('invite_id'))->toBe($invite->id)
+            ->and(User::query()->count())->toBe($usersBefore);
+    });
+
+    test('a guest opening an invite stored with capitals is sent to login for a lower-case user', function () {
+        User::factory()->onboardingCompleted()->withPersonalOrganization()->create(['email' => 'bob@example.com']);
+        OrganizationInvite::factory()->withToken($token = Str::random(64))->create(['email' => 'Bob@Example.com']);
+
+        $this->get(route('invite.accept', $token))->assertRedirect(Filament::getLoginUrl());
+    });
+
+    test('a guest opening an invite for a different address is still sent to registration', function () {
+        User::factory()->onboardingCompleted()->withPersonalOrganization()->create(['email' => 'rob@example.com']);
+        User::factory()->onboardingCompleted()->withPersonalOrganization()->create(['email' => 'bob@example.company']);
+        OrganizationInvite::factory()->withToken($token = Str::random(64))->create(['email' => 'Bob@Example.com']);
+
+        $this->get(route('invite.accept', $token))
+            ->assertRedirect(Filament::getRegistrationUrl())
+            ->assertSessionHas('status', 'Please register to accept your invitation.');
+    });
+
     test('isFor ignores the case of either side', function () {
         $invite = OrganizationInvite::factory()->make(['email' => 'MiXed@Example.com']);
 
