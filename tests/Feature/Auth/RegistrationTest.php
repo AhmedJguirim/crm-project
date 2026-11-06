@@ -19,6 +19,7 @@ test('new users can register with valid data', function () {
             'email' => 'ahmed.test@example.com',
             'password' => 'password',
             'passwordConfirmation' => 'password',
+            'accept_terms' => true,
         ])
         ->call('register')
         ->assertHasNoFormErrors()
@@ -31,7 +32,9 @@ test('new users can register with valid data', function () {
     expect($user)
         ->not->toBeNull()
         ->name->toBe('Ahmed Test')
-        ->onboarding_completed->toBeFalse();
+        ->onboarding_completed->toBeFalse()
+        ->terms_version->toBe('2026-11-06')
+        ->terms_accepted_at->not->toBeNull();
 
     expect($user->password)->not->toBe('password');
 });
@@ -44,6 +47,7 @@ test('registration requires name', function () {
             'email' => 'ahmed.test@example.com',
             'password' => 'password',
             'passwordConfirmation' => 'password',
+            'accept_terms' => true,
         ])
         ->call('register')
         ->assertHasFormErrors(['name' => 'required']);
@@ -59,6 +63,7 @@ test('registration requires email', function () {
             'email' => '',
             'password' => 'password',
             'passwordConfirmation' => 'password',
+            'accept_terms' => true,
         ])
         ->call('register')
         ->assertHasFormErrors(['email' => 'required']);
@@ -74,6 +79,7 @@ test('registration requires valid email format', function () {
             'email' => 'not-an-email',
             'password' => 'password',
             'passwordConfirmation' => 'password',
+            'accept_terms' => true,
         ])
         ->call('register')
         ->assertHasFormErrors(['email']);
@@ -89,6 +95,7 @@ test('registration requires password of at least 8 characters', function () {
             'email' => 'ahmed.test@example.com',
             'password' => 'short',
             'passwordConfirmation' => 'short',
+            'accept_terms' => true,
         ])
         ->call('register')
         ->assertHasFormErrors(['password']);
@@ -104,6 +111,7 @@ test('registration requires password confirmation to match', function () {
             'email' => 'ahmed.test@example.com',
             'password' => 'password',
             'passwordConfirmation' => 'different-password',
+            'accept_terms' => true,
         ])
         ->call('register')
         ->assertHasFormErrors(['password']);
@@ -122,6 +130,7 @@ test('registration fails with duplicate email', function () {
             'email' => 'existing@example.com',
             'password' => 'password',
             'passwordConfirmation' => 'password',
+            'accept_terms' => true,
         ])
         ->call('register')
         ->assertHasFormErrors(['email' => 'unique']);
@@ -141,6 +150,7 @@ test('registration is rate limited after too many attempts', function () {
                 'email' => "ahmed{$i}@example.com",
                 'password' => 'password',
                 'passwordConfirmation' => 'password',
+                'accept_terms' => true,
             ])
             ->call('register');
     }
@@ -151,6 +161,7 @@ test('registration is rate limited after too many attempts', function () {
             'email' => 'throttled@example.com',
             'password' => 'password',
             'passwordConfirmation' => 'password',
+            'accept_terms' => true,
         ])
         ->call('register')
         ->assertNotified();
@@ -166,6 +177,7 @@ test('registration rejects name longer than 255 characters', function () {
             'email' => 'ahmed.test@example.com',
             'password' => 'password',
             'passwordConfirmation' => 'password',
+            'accept_terms' => true,
         ])
         ->call('register')
         ->assertHasFormErrors(['name' => 'max']);
@@ -182,6 +194,7 @@ test('registering with capitals stores the email lower-case and the user can log
             'email' => 'Bob.Smith@Example.COM',
             'password' => 'password',
             'passwordConfirmation' => 'password',
+            'accept_terms' => true,
         ])
         ->call('register')
         ->assertHasNoFormErrors();
@@ -207,6 +220,7 @@ test('the same address in another case is already taken and creates no second us
             'email' => 'BOB@example.com',
             'password' => 'password',
             'passwordConfirmation' => 'password',
+            'accept_terms' => true,
         ])
         ->call('register')
         ->assertHasFormErrors(['email']);
@@ -224,6 +238,7 @@ test('the registration email is left as typed when lower-casing is turned off', 
             'email' => 'Bob@Example.com',
             'password' => 'password',
             'passwordConfirmation' => 'password',
+            'accept_terms' => true,
         ])
         ->call('register')
         ->assertHasNoFormErrors();

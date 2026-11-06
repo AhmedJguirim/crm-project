@@ -240,6 +240,7 @@ test('a guest who opens the link and registers joins the organization', function
             'email' => 'new@example.com',
             'password' => 'password',
             'passwordConfirmation' => 'password',
+            'accept_terms' => true,
         ])
         ->call('register')
         ->assertHasNoFormErrors();
@@ -301,6 +302,7 @@ test('an expired invite in the session is not accepted at registration', functio
             'email' => 'late@example.com',
             'password' => 'password',
             'passwordConfirmation' => 'password',
+            'accept_terms' => true,
         ])
         ->call('register')
         ->assertHasNoFormErrors();
@@ -341,6 +343,7 @@ test('the invite in the session is only accepted for its own email at registrati
             'email' => 'eve@example.com',
             'password' => 'password',
             'passwordConfirmation' => 'password',
+            'accept_terms' => true,
         ])
         ->call('register')
         ->assertHasNoFormErrors();
@@ -380,6 +383,7 @@ describe('email case', function () {
                 'email' => 'New@Example.com',
                 'password' => 'password',
                 'passwordConfirmation' => 'password',
+                'accept_terms' => true,
             ])
             ->call('register')
             ->assertHasNoFormErrors();
@@ -401,6 +405,7 @@ describe('email case', function () {
                 'email' => 'new@example.com',
                 'password' => 'password',
                 'passwordConfirmation' => 'password',
+                'accept_terms' => true,
             ])
             ->call('register')
             ->assertHasNoFormErrors();

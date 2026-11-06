@@ -5,14 +5,18 @@ namespace App\Filament\Pages\Auth;
 use App\Http\Controllers\InviteAcceptController;
 use App\Models\OrganizationInvite;
 use App\Models\User;
+use App\Support\LegalDocuments;
 use Filament\Auth\Http\Responses\Contracts\RegistrationResponse;
 use Filament\Auth\Pages\Register as BaseRegister;
+use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Schema;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
+use SensitiveParameter;
 
 class Register extends BaseRegister
 {
@@ -33,7 +37,7 @@ class Register extends BaseRegister
     }
 
     /**
-     * The base form, plus a hidden field the browser fills with its timezone for the personal organization.
+     * The base form, plus the required Terms checkbox and a hidden field the browser fills with its timezone for the personal organization.
      */
     public function form(Schema $schema): Schema
     {
@@ -43,6 +47,14 @@ class Register extends BaseRegister
                 $this->getEmailFormComponent(),
                 $this->getPasswordFormComponent(),
                 $this->getPasswordConfirmationFormComponent(),
+                Checkbox::make('accept_terms')
+                    ->label(view('filament.auth.accept-terms-label'))
+                    ->accepted()
+                    ->validationMessages([
+                        'accepted' => 'You must agree to the Terms of Service to create an account.',
+                        'boolean' => 'You must agree to the Terms of Service to create an account.',
+                    ])
+                    ->dehydrated(false),
                 Hidden::make('timezone')
                     ->dehydrated(false)
                     ->extraAttributes(['x-init' => "\$el.value = Intl.DateTimeFormat().resolvedOptions().timeZone; \$el.dispatchEvent(new Event('input', { bubbles: true }))"]),
@@ -76,6 +88,22 @@ class Register extends BaseRegister
         $data['onboarding_completed'] = false;
 
         return $data;
+    }
+
+    /**
+     * Creates the user with the acceptance of the current Terms of Service and Privacy Policy (the box is required).
+     *
+     * @param  array<string, mixed>  $data
+     */
+    protected function handleRegistration(#[SensitiveParameter] array $data): Model
+    {
+        $userModel = $this->getUserModel();
+
+        /** @var User $user */
+        $user = new $userModel($data);
+        $user->forceFill(LegalDocuments::acceptance())->save();
+
+        return $user;
     }
 
     /**

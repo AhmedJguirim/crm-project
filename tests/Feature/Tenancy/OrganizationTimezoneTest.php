@@ -144,6 +144,7 @@ describe('signing up', function () {
                 'email' => 'signup@example.com',
                 'password' => 'password',
                 'passwordConfirmation' => 'password',
+                'accept_terms' => true,
                 'timezone' => $sent,
             ])
             ->call('register')

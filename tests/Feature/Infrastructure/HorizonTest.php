@@ -185,6 +185,7 @@ describe('dashboard access', function () {
                 'email' => 'ops@ourcompany.example',
                 'password' => 'password',
                 'passwordConfirmation' => 'password',
+                'accept_terms' => true,
             ])
             ->call('register')
             ->assertHasNoFormErrors();

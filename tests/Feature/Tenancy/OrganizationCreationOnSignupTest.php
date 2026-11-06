@@ -14,6 +14,7 @@ test('registration creates personal organization with correct name', function ()
             'email' => 'ahmed@example.com',
             'password' => 'password',
             'passwordConfirmation' => 'password',
+            'accept_terms' => true,
         ])
         ->call('register')
         ->assertHasNoFormErrors();
@@ -36,6 +37,7 @@ test('registration creates pivot with owner role', function () {
             'email' => 'pivot@example.com',
             'password' => 'password',
             'passwordConfirmation' => 'password',
+            'accept_terms' => true,
         ])
         ->call('register');
 
@@ -52,6 +54,7 @@ test('user belongs to exactly one organization after registration', function () 
             'email' => 'count@example.com',
             'password' => 'password',
             'passwordConfirmation' => 'password',
+            'accept_terms' => true,
         ])
         ->call('register');
 
@@ -72,6 +75,7 @@ test('no organization created if registration fails due to duplicate email', fun
             'email' => 'dupe@example.com',
             'password' => 'password',
             'passwordConfirmation' => 'password',
+            'accept_terms' => true,
         ])
         ->call('register')
         ->assertHasFormErrors(['email']);
@@ -87,6 +91,7 @@ test('newly registered user can access tenant-scoped dashboard', function () {
             'email' => 'dashboard@example.com',
             'password' => 'password',
             'passwordConfirmation' => 'password',
+            'accept_terms' => true,
         ])
         ->call('register');
 
@@ -108,6 +113,7 @@ test('very long user name produces valid organization name', function () {
             'email' => 'longname@example.com',
             'password' => 'password',
             'passwordConfirmation' => 'password',
+            'accept_terms' => true,
         ])
         ->call('register');
 

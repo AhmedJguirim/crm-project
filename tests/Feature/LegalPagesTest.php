@@ -63,10 +63,12 @@ it('links the legal pages from the landing page and keeps its own anchors', func
         ->and(substr_count($html, '<link rel="preload" as="image"'))->toBe(1);
 });
 
-it('shows the agreement line on the sign-up page', function () {
+it('shows the required terms checkbox on the sign-up page', function () {
     $html = $this->get(Filament::getRegistrationUrl())->assertOk()->getContent();
 
-    expect($html)->toContain('By signing up, you agree to the')
+    expect($html)->toContain('I agree to the')
+        ->and($html)->toContain('and have read the')
+        ->and($html)->not->toContain('By signing up, you agree to the')
         ->and($html)->toContain('<a href="'.route('terms').'" target="_blank"')
         ->and($html)->toContain('<a href="'.route('privacy').'" target="_blank"');
 });

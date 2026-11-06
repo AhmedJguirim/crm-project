@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\Pivot;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -22,6 +23,8 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 
 /**
  * @property-read Pivot|null $pivot
+ * @property Carbon|null $terms_accepted_at
+ * @property string|null $terms_version
  */
 class User extends Authenticatable implements FilamentUser, HasTenants
 {
@@ -64,6 +67,7 @@ class User extends Authenticatable implements FilamentUser, HasTenants
     {
         return [
             'email_verified_at' => 'datetime',
+            'terms_accepted_at' => 'datetime',
             'password' => 'hashed',
             'onboarding_completed' => 'boolean',
         ];
