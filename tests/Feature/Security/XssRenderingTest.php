@@ -30,6 +30,7 @@ use App\Filament\Resources\Segments\Pages\SegmentRuleEngine;
 use App\Filament\Resources\Segments\Pages\ViewSegment;
 use App\Filament\Resources\Tags\Pages\ListTags;
 use App\Filament\Resources\Tasks\Pages\ListTasks;
+use App\Http\Controllers\LegalPageController;
 use App\Models\Activity;
 use App\Models\Company;
 use App\Models\CompanyType;
@@ -306,4 +307,25 @@ describe('the invitation page', function () {
 
         SecurityPayloads::assertHtmlIsInert($html, $payload);
     })->with(SecurityPayloads::xss());
+});
+
+describe('legal pages', function () {
+    test('the markdown renderer drops raw html and unsafe links', function (string $markdown) {
+        $html = LegalPageController::toHtml($markdown)->toHtml();
+
+        expect($html)->not->toContain('<script')
+            ->and($html)->not->toContain('onerror')
+            ->and($html)->not->toContain('<img')
+            ->and($html)->not->toContain('javascript:');
+    })->with([
+        'script tag' => ['<script>alert(1)</script>'],
+        'image handler' => ['<img src=x onerror=alert(2)>'],
+        'javascript link' => ['[x](javascript:alert(3))'],
+        'data link' => ['[x](data:text/html;base64,PHNjcmlwdD4=)'],
+    ]);
+
+    test('the markdown renderer keeps placeholders and relative links', function () {
+        expect(LegalPageController::toHtml('Text [OWNER: legal name] and [Terms](/terms)')->toHtml())
+            ->toBe("<p>Text [OWNER: legal name] and <a href=\"/terms\">Terms</a></p>\n");
+    });
 });

@@ -1,4 +1,4 @@
-@props(['loginUrl', 'registerUrl', 'appUrl' => null])
+@props(['loginUrl', 'registerUrl', 'appUrl' => null, 'homeUrl' => ''])
 
 @php
     $ring = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white';
@@ -16,11 +16,11 @@
             <div>
                 <div class="text-sm font-black tracking-widest text-white uppercase">Product</div>
                 <ul class="mt-5 flex flex-col gap-3 text-sm">
-                    <li><a href="#features" class="{{ $link }}">Features</a></li>
+                    <li><a href="{{ $homeUrl }}#features" class="{{ $link }}">Features</a></li>
                     {{-- <li><a href="#pipeline" class="{{ $link }}">Pipeline</a></li> --}}
-                    <li><a href="#reports" class="{{ $link }}">Reports</a></li>
-                    <li><a href="#teams" class="{{ $link }}">Teams</a></li>
-                    <li><a href="#import" class="{{ $link }}">Import and export</a></li>
+                    <li><a href="{{ $homeUrl }}#reports" class="{{ $link }}">Reports</a></li>
+                    <li><a href="{{ $homeUrl }}#teams" class="{{ $link }}">Teams</a></li>
+                    <li><a href="{{ $homeUrl }}#import" class="{{ $link }}">Import and export</a></li>
                 </ul>
             </div>
 
@@ -41,6 +41,10 @@
     <div class="border-t border-white/10">
         <div class="landing-container flex flex-col items-center justify-between gap-3 py-5 text-xs sm:flex-row">
             <span>© {{ now()->year }} CRM</span>
+            <nav aria-label="Legal" class="flex gap-5">
+                <a href="{{ route('privacy') }}" class="{{ $link }}">Privacy Policy</a>
+                <a href="{{ route('terms') }}" class="{{ $link }}">Terms of Service</a>
+            </nav>
         </div>
     </div>
 </footer>

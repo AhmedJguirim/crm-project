@@ -55,5 +55,11 @@
                 <flux:link :href="route('register')" wire:navigate>{{ __('Sign up') }}</flux:link>
             </div>
         @endif
+
+        <div class="space-x-1 text-sm text-center rtl:space-x-reverse text-zinc-600 dark:text-zinc-400">
+            <flux:link :href="route('terms')" target="_blank" rel="noopener noreferrer">{{ __('Terms of Service') }}</flux:link>
+            <span aria-hidden="true">·</span>
+            <flux:link :href="route('privacy')" target="_blank" rel="noopener noreferrer">{{ __('Privacy Policy') }}</flux:link>
+        </div>
     </div>
 </x-layouts::auth>

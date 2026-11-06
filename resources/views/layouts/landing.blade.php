@@ -1,4 +1,4 @@
-@props(['title' => 'CRM — for consultants, freelancers and small sales teams', 'description' => "Keep every contact and company organized, move deals through your pipeline, follow up on time and see what you're owed."])
+@props(['title' => 'CRM — for consultants, freelancers and small sales teams', 'description' => "Keep every contact and company organized, move deals through your pipeline, follow up on time and see what you're owed.", 'canonical' => null, 'preloadHero' => true])
 @php
     $structuredData = [
         '@context' => 'https://schema.org',
@@ -17,7 +17,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>{{ $title }}</title>
         <meta name="description" content="{{ $description }}">
-        <link rel="canonical" href="{{ url('/') }}">
+        <link rel="canonical" href="{{ $canonical ?? url('/') }}">
         <meta name="robots" content="index,follow">
         <meta name="theme-color" content="#2563eb">
         <meta property="og:type" content="website">
@@ -25,7 +25,7 @@
         <meta property="og:locale" content="en_US">
         <meta property="og:title" content="{{ $title }}">
         <meta property="og:description" content="{{ $description }}">
-        <meta property="og:url" content="{{ url('/') }}">
+        <meta property="og:url" content="{{ $canonical ?? url('/') }}">
         <meta property="og:image" content="{{ asset('images/landing/og.png') }}">
         <meta property="og:image:type" content="image/png">
         <meta property="og:image:width" content="1200">
@@ -37,7 +37,9 @@
         <link rel="icon" href="/favicon.svg" type="image/svg+xml">
         <link rel="apple-touch-icon" href="/apple-touch-icon.png">
         <link rel="preload" href="/fonts/landing/inter-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-        <link rel="preload" as="image" href="{{ asset('images/landing/board-720.webp') }}" imagesrcset="{{ asset('images/landing/board-720.webp') }} 720w, {{ asset('images/landing/board-1440.webp') }} 1440w" imagesizes="(min-width: 1280px) 600px, 47vw" media="(min-width: 64rem)" fetchpriority="high">
+        @if ($preloadHero)
+            <link rel="preload" as="image" href="{{ asset('images/landing/board-720.webp') }}" imagesrcset="{{ asset('images/landing/board-720.webp') }} 720w, {{ asset('images/landing/board-1440.webp') }} 1440w" imagesizes="(min-width: 1280px) 600px, 47vw" media="(min-width: 64rem)" fetchpriority="high">
+        @endif
         <script>(() => { let theme = null; try { theme = localStorage.getItem('theme'); } catch (e) {} if (theme === 'dark' || ((theme === null || theme === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches)) { document.documentElement.classList.add('dark'); } })();</script>
         @vite(['resources/css/landing.css', 'resources/js/landing.js'])
     </head>

@@ -3,6 +3,7 @@
 @source '../views/landing.blade.php';
 @source '../views/layouts/landing.blade.php';
 @source '../views/components/landing/**/*.blade.php';
+@source '../views/legal/**/*.blade.php';
 
 @custom-variant dark (&:where(.dark, .dark *));
 

@@ -35,6 +35,8 @@ it('adds the five security headers to every kind of response', function (Closure
     assertSecurityHeaders($response);
 })->with([
     'landing page' => [fn ($t) => $t->get('/')->assertOk()],
+    'privacy page' => [fn ($t) => $t->get(route('privacy'))->assertOk()],
+    'terms page' => [fn ($t) => $t->get(route('terms'))->assertOk()],
     'panel login' => [fn ($t) => $t->get(Filament::getLoginUrl())->assertOk()],
     'fortify login' => [fn ($t) => $t->get(route('login'))->assertOk()],
     'not found page' => [fn ($t) => $t->get('/no-such-page')->assertNotFound()],

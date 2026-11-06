@@ -4,6 +4,7 @@ use App\Http\Controllers\Contacts\DownloadFailedImportRowsController;
 use App\Http\Controllers\DownloadExportController;
 use App\Http\Controllers\InviteAcceptController;
 use App\Http\Controllers\InvoicePdfController;
+use App\Http\Controllers\LegalPageController;
 use App\Http\Controllers\RobotsTxtController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TagsController;
@@ -13,6 +14,8 @@ use Illuminate\Support\Facades\Route;
 Route::view('/', 'landing')->name('home');
 Route::get('robots.txt', RobotsTxtController::class)->name('robots');
 Route::get('sitemap.xml', SitemapController::class)->name('sitemap');
+Route::get('privacy', [LegalPageController::class, 'privacy'])->name('privacy');
+Route::get('terms', [LegalPageController::class, 'terms'])->name('terms');
 
 Route::view('dashboard', 'dashboard')
     ->middleware(['auth', 'verified'])
