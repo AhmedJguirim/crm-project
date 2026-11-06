@@ -59,7 +59,7 @@ class OverdueInvoicesWidget extends TableWidget
                 Action::make('seeAll')
                     ->label('See all overdue invoices')
                     ->link()
-                    ->url(InvoiceResource::getUrl('index').'?tableFilters[overdue][isActive]=1'),
+                    ->url(InvoiceResource::getUrl('index').'?filters[overdue][isActive]=1'),
             ])
             ->paginated([5])
             ->emptyStateHeading('No overdue invoices')

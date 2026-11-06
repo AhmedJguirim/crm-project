@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Enums\InvoiceStatus;
 use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Services\Reports\Receivables;
 use App\Support\LocalTime;
@@ -46,7 +47,7 @@ class MoneyOwedWidget extends StatsOverviewWidget
         $lateBalance = $unpaidBalance - $aging['not_due']['balance'];
 
         $listUrl = InvoiceResource::getUrl('index');
-        $lateUrl = $listUrl.'?tableFilters[overdue][isActive]=1';
+        $lateUrl = $listUrl.'?filters[overdue][isActive]=1';
 
         $stats = [
             Stat::make('Outstanding', $money($unpaidBalance))
@@ -55,7 +56,7 @@ class MoneyOwedWidget extends StatsOverviewWidget
                     : $unpaidCount.' unpaid '.($unpaidCount === 1 ? 'invoice' : 'invoices').' · '.$money($lateBalance).' overdue')
                 ->descriptionIcon(Heroicon::OutlinedClock)
                 ->color('warning')
-                ->url($listUrl.'?tableFilters[status][values][0]=sent&tableFilters[status][values][1]=partial&tableFilters[status][values][2]=overdue'),
+                ->url($listUrl.'?filters[status][values][0]='.InvoiceStatus::Sent->value.'&filters[status][values][1]='.InvoiceStatus::Partial->value.'&filters[status][values][2]='.InvoiceStatus::Overdue->value),
 
             Stat::make('Not due yet', $money($aging['not_due']['balance']))
                 ->description($invoices($aging['not_due']['count']))

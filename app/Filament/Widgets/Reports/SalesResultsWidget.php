@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets\Reports;
 
+use App\Enums\DealStatus;
 use App\Filament\Resources\Deals\DealResource;
 use App\Services\Reports\DashboardKpis;
 use App\Support\Reports\DashboardFilters;
@@ -50,8 +51,8 @@ class SalesResultsWidget extends StatsOverviewWidget
         [$previous, $current] = DashboardKpis::salesResultsByPeriod($period->trail(2), $filters->ownerId);
 
         $title = $period->title();
-        $wonUrl = DealResource::getUrl('index').'?tableFilters[status][value]=won';
-        $lostUrl = DealResource::getUrl('index').'?tableFilters[status][value]=lost';
+        $wonUrl = DealResource::getUrl('index').'?filters[status][value]='.DealStatus::Won->value;
+        $lostUrl = DealResource::getUrl('index').'?filters[status][value]='.DealStatus::Lost->value;
 
         $average = $current['won_count'] > 0 ? $current['won_value'] / $current['won_count'] : null;
         $previousAverage = $previous['won_count'] > 0 ? $previous['won_value'] / $previous['won_count'] : null;

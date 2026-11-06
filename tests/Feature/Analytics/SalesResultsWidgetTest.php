@@ -4,6 +4,7 @@ use App\Enums\DealStatus;
 use App\Enums\OrganizationRole;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Resources\Deals\DealResource;
+use App\Filament\Resources\Deals\Pages\ListDeals;
 use App\Filament\Widgets\Reports\SalesResultsWidget;
 use App\Models\Deal;
 use App\Models\Organization;
@@ -74,6 +75,25 @@ afterEach(function () {
     Filament::setTenant(null);
 });
 
+test('the won and lost stat links open the deal list on their status', function (string $label, DealStatus $status) {
+    $won = ($this->salesDeal)(DealStatus::Won, '1000', $this->user, '2026-10-01 10:00:00', '2026-10-11 10:00:00');
+    $lost = ($this->salesDeal)(DealStatus::Lost, '700', $this->user, '2026-10-02 10:00:00', '2026-10-12 10:00:00');
+    $open = ($this->salesDeal)(DealStatus::Open, '800', $this->user, '2026-10-15 10:00:00');
+
+    parse_str((string) parse_url(($this->salesStats)()[$label]['url'], PHP_URL_QUERY), $query);
+
+    $list = Livewire::withQueryParams($query)->test(ListDeals::class)
+        ->assertSet('tableFilters.status.value', $status->value);
+
+    $visible = $status === DealStatus::Won ? $won : $lost;
+    $hidden = $status === DealStatus::Won ? $lost : $won;
+
+    $list->assertCanSeeTableRecords([$visible])->assertCanNotSeeTableRecords([$hidden, $open]);
+})->with([
+    'won' => ['Deals Won This Month', DealStatus::Won],
+    'lost' => ['Deals Lost This Month', DealStatus::Lost],
+]);
+
 describe('with the won and lost deals of two months', function () {
     beforeEach(function () {
         ($this->salesDeal)(DealStatus::Won, '1000', $this->user, '2026-10-01 10:00:00', '2026-10-11 10:00:00');
@@ -111,8 +131,8 @@ describe('with the won and lost deals of two months', function () {
 
     test('the won and lost figures link to the deals list filtered by status', function () {
         $stats = ($this->salesStats)();
-        $won = DealResource::getUrl('index').'?tableFilters[status][value]=won';
-        $lost = DealResource::getUrl('index').'?tableFilters[status][value]=lost';
+        $won = DealResource::getUrl('index').'?filters[status][value]=won';
+        $lost = DealResource::getUrl('index').'?filters[status][value]=lost';
 
         expect($stats['Deals Won This Month']['url'])->toBe($won)
             ->and($stats['Revenue Won This Month']['url'])->toBe($won)

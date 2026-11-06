@@ -4,6 +4,7 @@ use App\Enums\Currency;
 use App\Enums\InvoiceStatus;
 use App\Enums\OrganizationRole;
 use App\Filament\Resources\Invoices\InvoiceResource;
+use App\Filament\Resources\Invoices\Pages\ListInvoices;
 use App\Filament\Widgets\MoneyOwedWidget;
 use App\Models\Contact;
 use App\Models\Invoice;
@@ -148,11 +149,48 @@ test('the stats link to the invoice list only when there is something to list', 
 
     $list = InvoiceResource::getUrl('index');
 
-    expect($stats['1–30 days late']->getUrl())->toBe($list.'?tableFilters[overdue][isActive]=1')
+    expect($stats['1–30 days late']->getUrl())->toBe($list.'?filters[overdue][isActive]=1')
         ->and($stats['31–60 days late']->getUrl())->toBeNull()
         ->and($stats['Over 90 days late']->getUrl())->toBeNull()
         ->and($stats['Not due yet']->getUrl())->toBeNull()
-        ->and($stats['Outstanding']->getUrl())->toBe($list.'?tableFilters[status][values][0]=sent&tableFilters[status][values][1]=partial&tableFilters[status][values][2]=overdue');
+        ->and($stats['Outstanding']->getUrl())->toBe($list.'?filters[status][values][0]=sent&filters[status][values][1]=partial&filters[status][values][2]=overdue');
+});
+
+test('the Outstanding link opens the invoice list on the unpaid statuses', function () {
+    $unpaid = [
+        ($this->owedInvoice)(InvoiceStatus::Sent, 100, 0, '2026-03-05'),
+        ($this->owedInvoice)(InvoiceStatus::Partial, 100, 40, '2026-03-05'),
+        ($this->owedInvoice)(InvoiceStatus::Overdue, 100, 0, '2026-02-10'),
+    ];
+    $settled = [
+        ($this->owedInvoice)(InvoiceStatus::Paid, 100, 100, '2026-02-10'),
+        ($this->owedInvoice)(InvoiceStatus::Draft, 100, 0, '2026-02-10'),
+        ($this->owedInvoice)(InvoiceStatus::Cancelled, 100, 0, '2026-02-10'),
+    ];
+
+    $widget = Livewire::test(MoneyOwedWidget::class)->instance();
+    $stats = collect((new ReflectionMethod($widget, 'getStats'))->invoke($widget))->keyBy(fn ($stat) => (string) $stat->getLabel());
+
+    parse_str((string) parse_url($stats['Outstanding']->getUrl(), PHP_URL_QUERY), $query);
+
+    Livewire::withQueryParams($query)->test(ListInvoices::class)
+        ->assertSet('tableFilters.status.values', [InvoiceStatus::Sent->value, InvoiceStatus::Partial->value, InvoiceStatus::Overdue->value])
+        ->assertCanSeeTableRecords($unpaid)
+        ->assertCanNotSeeTableRecords($settled);
+});
+
+test('the late link opens the invoice list on the overdue invoices only', function () {
+    $late = ($this->owedInvoice)(InvoiceStatus::Sent, 100, 0, '2026-02-10');
+    $notDue = ($this->owedInvoice)(InvoiceStatus::Sent, 100, 0, '2026-03-05');
+
+    $widget = Livewire::test(MoneyOwedWidget::class)->instance();
+    $stats = collect((new ReflectionMethod($widget, 'getStats'))->invoke($widget))->keyBy(fn ($stat) => (string) $stat->getLabel());
+
+    parse_str((string) parse_url($stats['1–30 days late']->getUrl(), PHP_URL_QUERY), $query);
+
+    Livewire::withQueryParams($query)->test(ListInvoices::class)
+        ->assertCanSeeTableRecords([$late])
+        ->assertCanNotSeeTableRecords([$notDue]);
 });
 
 test('the dashboard period and owner filters do not change the figures', function () {

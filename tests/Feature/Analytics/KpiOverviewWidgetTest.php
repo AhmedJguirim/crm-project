@@ -6,6 +6,7 @@ use App\Enums\OrganizationRole;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Deals\DealResource;
+use App\Filament\Resources\Deals\Pages\ListDeals;
 use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Filament\Widgets\KpiOverviewWidget;
 use App\Models\Contact;
@@ -138,13 +139,28 @@ describe('with the mixed deals and contacts of two months', function () {
         $stats = invade(Livewire::test(KpiOverviewWidget::class)->instance())->getStats();
 
         expect(collect($stats)->map(fn (Stat $stat): ?string => $stat->getUrl())->all())->toBe([
-            DealResource::getUrl('index').'?tableFilters[status][value]=won',
-            DealResource::getUrl('index').'?tableFilters[status][value]=won',
+            DealResource::getUrl('index').'?filters[status][value]=won',
+            DealResource::getUrl('index').'?filters[status][value]=won',
             null,
             DealResource::getUrl('index'),
             InvoiceResource::getUrl('index'),
             ContactResource::getUrl('index'),
         ]);
+    });
+
+    test('the won figure links open the deal list on the won status only', function () {
+        $won = ($this->kpiDeal)(DealStatus::Won, '1000', $this->user, '2026-10-01 10:00:00', '2026-10-11 10:00:00');
+        $lost = ($this->kpiDeal)(DealStatus::Lost, '700', $this->user, '2026-10-02 10:00:00', '2026-10-12 10:00:00');
+        $open = ($this->kpiDeal)(DealStatus::Open, '800', $this->user, '2026-10-15 10:00:00');
+
+        $stats = invade(Livewire::test(KpiOverviewWidget::class)->instance())->getStats();
+
+        parse_str((string) parse_url($stats[1]->getUrl(), PHP_URL_QUERY), $query);
+
+        Livewire::withQueryParams($query)->test(ListDeals::class)
+            ->assertSet('tableFilters.status.value', DealStatus::Won->value)
+            ->assertCanSeeTableRecords([$won])
+            ->assertCanNotSeeTableRecords([$lost, $open]);
     });
 
     test('the owner narrows every figure and its comparison', function () {

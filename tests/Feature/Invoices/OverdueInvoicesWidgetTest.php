@@ -3,6 +3,7 @@
 use App\Enums\InvoiceStatus;
 use App\Enums\OrganizationRole;
 use App\Filament\Resources\Invoices\InvoiceResource;
+use App\Filament\Resources\Invoices\Pages\ListInvoices;
 use App\Filament\Widgets\OverdueInvoicesWidget;
 use App\Models\Contact;
 use App\Models\Invoice;
@@ -88,7 +89,20 @@ test('the invoice links to its page and the header links to the filtered list', 
 
     Livewire::test(OverdueInvoicesWidget::class)
         ->assertSeeHtml('href="'.InvoiceResource::getUrl('view', ['record' => $invoice]).'"')
-        ->assertActionHasUrl(TestAction::make('seeAll')->table(), InvoiceResource::getUrl('index').'?tableFilters[overdue][isActive]=1');
+        ->assertActionHasUrl(TestAction::make('seeAll')->table(), InvoiceResource::getUrl('index').'?filters[overdue][isActive]=1');
+});
+
+test('the header link opens the invoice list on the overdue invoices only', function () {
+    $late = ($this->lateInvoice)('INV-L', InvoiceStatus::Sent, 100, 0, '2026-02-10');
+    $notDue = ($this->lateInvoice)('INV-N', InvoiceStatus::Sent, 100, 0, '2026-03-05');
+
+    $url = collect(Livewire::test(OverdueInvoicesWidget::class)->instance()->getTable()->getHeaderActions())->first(fn ($action): bool => $action->getName() === 'seeAll')->getUrl();
+
+    parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+
+    Livewire::withQueryParams($query)->test(ListInvoices::class)
+        ->assertCanSeeTableRecords([$late])
+        ->assertCanNotSeeTableRecords([$notDue]);
 });
 
 test('the empty state', function () {
