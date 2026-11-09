@@ -4,7 +4,7 @@
 # Usage:      ./check-production-env.sh [directory]     (default: current directory)
 # Reads:      <directory>/.env, and when present <directory>/.env.example, <directory>/.git, <directory>/vendor
 # Output:     one line per finding, "FAIL  ..." or "WARN  ...", then a summary line
-# Exit code:  0 no failure (warnings allowed), 1 at least one failure, 2 no .env file
+# Exit code:  0 no failure (warnings allowed), 1 at least one failure, 2 no .env file or .env not readable
 # Secrets:    the values of APP_KEY, APP_PREVIOUS_KEYS, DB_PASSWORD, RESEND_WEBHOOK_SECRET and
 #             REDIS_PASSWORD are never printed. The .env file is read as text, never sourced.
 set -u
@@ -90,6 +90,11 @@ if [ ! -f "$env_file" ]; then
     exit 2
 fi
 
+if [ ! -r "$env_file" ]; then
+    echo "FAIL  Cannot read $env_file."
+    exit 2
+fi
+
 committed_keys=()
 committed_passwords=()
 
@@ -111,18 +116,31 @@ add_committed() {
     committed_passwords+=("$value")
 }
 
+if [ -f "$example_file" ] && [ ! -r "$example_file" ]; then
+    warn "Cannot read $example_file: keys committed in it are not checked."
+fi
+
 if [ -f "$example_file" ]; then
     add_committed key "$(env_value "$example_file" APP_KEY)"
     add_committed password "$(env_value "$example_file" DB_PASSWORD)"
 fi
 
 if [ -d "$dir/.git" ] && command -v git >/dev/null 2>&1; then
-    while IFS= read -r history_value; do
-        add_committed key "$history_value"
-    done < <(git -C "$dir" log -p --format= -- .env.example 2>/dev/null | sed -n 's/^[+-]APP_KEY=//p')
-    while IFS= read -r history_value; do
-        add_committed password "$history_value"
-    done < <(git -C "$dir" log -p --format= -- .env.example 2>/dev/null | sed -n 's/^[+-]DB_PASSWORD=//p')
+    abs_dir=$(CDPATH= cd -- "$dir" && pwd -P)
+    git_ceiling=${abs_dir%/*}
+    if git_history=$(GIT_CEILING_DIRECTORIES="$git_ceiling" git -C "$dir" log -p --format= -- .env.example 2>/dev/null); then
+        while IFS= read -r history_value; do
+            add_committed key "$history_value"
+        done < <(printf '%s\n' "$git_history" | sed -n 's/^[+-]APP_KEY=//p')
+        while IFS= read -r history_value; do
+            add_committed password "$history_value"
+        done < <(printf '%s\n' "$git_history" | sed -n 's/^[+-]DB_PASSWORD=//p')
+    else
+        git_status=$?
+        git_error=$(GIT_CEILING_DIRECTORIES="$git_ceiling" git -C "$dir" log -1 --format= -- .env.example 2>&1 >/dev/null | head -n 1)
+        git_error=${git_error#fatal: }
+        warn "Could not read the git history of .env.example (git: ${git_error:-exit code $git_status}): keys committed earlier are not checked."
+    fi
 fi
 
 is_committed() {

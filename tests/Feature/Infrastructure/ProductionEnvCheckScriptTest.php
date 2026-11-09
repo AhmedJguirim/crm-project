@@ -106,6 +106,8 @@ const ENV_CHECK_LINES = [
     'log_level' => 'WARN  LOG_LEVEL is debug: logs grow fast and can hold request details. Set LOG_LEVEL=warning.',
     'log_single' => 'WARN  The log file is never rotated (single channel). Set LOG_STACK=daily.',
     'webhook' => 'FAIL  POST /resend/webhook accepts unsigned requests: set RESEND_WEBHOOK_SECRET (Resend dashboard), or RESEND_ROUTES=false while no webhook is used.',
+    'git_history_prefix' => 'WARN  Could not read the git history of .env.example (git: ',
+    'git_history_suffix' => '): keys committed earlier are not checked.',
     'redis' => 'WARN  REDIS_PASSWORD is empty: make sure Redis only listens on localhost or a private network.',
 ];
 
@@ -278,7 +280,8 @@ test('a key that only exists in the history of the example file is caught', func
 
     expect($result['code'])->toBe(1)
         ->and($result['lines'])->toContain(ENV_CHECK_LINES['key_committed'])
-        ->and($result['lines'])->toContain(ENV_CHECK_LINES['password_committed']);
+        ->and($result['lines'])->toContain(ENV_CHECK_LINES['password_committed'])
+        ->and($result['output'])->not->toContain('Could not read the git history');
 });
 
 test('without a git directory the history is not consulted', function () {
@@ -317,4 +320,115 @@ test('the env file is read as text and never executed', function () {
 
     expect(file_exists($marker))->toBeFalse()
         ->and($result['code'])->toBe(0);
+});
+
+test('an unreadable env file stops the check with exit 2', function () {
+    if (posix_geteuid() === 0) {
+        $this->markTestSkipped('root can read a file with mode 000.');
+    }
+    $dir = envCheckDirectory(mode: 0000);
+
+    $result = envCheckRun($dir);
+    chmod($dir.'/.env', 0600);
+
+    expect($result['code'])->toBe(2)
+        ->and($result['lines'])->toBe(["Checking {$dir}/.env", "FAIL  Cannot read {$dir}/.env."])
+        ->and($result['output'])->not->toContain('APP_KEY is empty');
+});
+
+test('an unreadable env example warns', function () {
+    if (posix_geteuid() === 0) {
+        $this->markTestSkipped('root can read a file with mode 000.');
+    }
+    $dir = envCheckDirectory();
+    chmod($dir.'/.env.example', 0000);
+
+    $result = envCheckRun($dir);
+    chmod($dir.'/.env.example', 0600);
+
+    expect($result['code'])->toBe(0)
+        ->and($result['lines'])->toContain("WARN  Cannot read {$dir}/.env.example: keys committed in it are not checked.")
+        ->and(end($result['lines']))->toBe('Production env check: 0 failure(s), 1 warning(s).');
+});
+
+test('a git directory that is not a repository warns', function () {
+    $dir = envCheckDirectory();
+    File::ensureDirectoryExists($dir.'/.git');
+
+    $result = envCheckRun($dir);
+
+    expect($result['code'])->toBe(0)
+        ->and($result['lines'][1])->toStartWith(ENV_CHECK_LINES['git_history_prefix'])
+        ->and($result['lines'][1])->toContain('not a git repository')
+        ->and($result['lines'][1])->not->toContain('git: fatal:')
+        ->and($result['lines'][1])->toEndWith(ENV_CHECK_LINES['git_history_suffix'])
+        ->and(end($result['lines']))->toBe('Production env check: 0 failure(s), 1 warning(s).');
+});
+
+test('the git warning also shows when the directory is the current directory', function () {
+    $dir = envCheckDirectory();
+    File::ensureDirectoryExists($dir.'/.git');
+
+    $result = Process::path($dir)->run(['bash', base_path('check-production-env.sh')]);
+
+    expect($result->output())->toContain('Checking ./.env')
+        ->and($result->output())->toContain(ENV_CHECK_LINES['git_history_prefix']);
+});
+
+test('an empty git directory inside another repository does not read the parent repository', function () {
+    $parent = envCheckDirectory();
+    envCheckGit($parent, 'init', '-q');
+    envCheckGit($parent, 'add', '.env.example');
+    envCheckGit($parent, 'commit', '-q', '-m', 'first');
+    $sub = $parent.'/sub';
+    File::ensureDirectoryExists($sub.'/.git');
+    $lines = [];
+    foreach (envCheckSafeValues() as $key => $value) {
+        $lines[] = $key.'='.$value;
+    }
+    file_put_contents($sub.'/.env', implode("\n", $lines)."\n");
+    chmod($sub.'/.env', 0600);
+
+    $result = envCheckRun($sub);
+
+    expect($result['lines'][1])->toStartWith(ENV_CHECK_LINES['git_history_prefix'])
+        ->and(end($result['lines']))->toBe('Production env check: 0 failure(s), 1 warning(s).');
+});
+
+test('a readable repository whose history has no env example gives no warning', function () {
+    $dir = envCheckDirectory(withExample: false);
+    envCheckGit($dir, 'init', '-q');
+    file_put_contents($dir.'/x', "x\n");
+    envCheckGit($dir, 'add', 'x');
+    envCheckGit($dir, 'commit', '-q', '-m', 'first');
+
+    $result = envCheckRun($dir);
+
+    expect($result['code'])->toBe(0)
+        ->and($result['lines'])->toBe(["Checking {$dir}/.env", 'Production env check: no problems found.']);
+});
+
+test('the git warning never prints a secret', function () {
+    $dir = envCheckDirectory(['APP_KEY' => ENV_CHECK_COMMITTED_KEY]);
+    File::ensureDirectoryExists($dir.'/.git');
+
+    $output = envCheckRun($dir)['output'];
+
+    expect($output)->toContain('Could not read the git history')
+        ->and($output)->not->toContain('Y29tbWl0dGVkLWtleS1jb21taXR0ZWQta2V5LTAwMDA')
+        ->and($output)->not->toContain('prod-db-password-2026');
+});
+
+test('a git failure with no message gives its exit code', function () {
+    $dir = envCheckDirectory();
+    File::ensureDirectoryExists($dir.'/.git');
+    $bin = $dir.'/fake-bin';
+    File::ensureDirectoryExists($bin);
+    file_put_contents($bin.'/git', "#!/bin/sh\nexit 3\n");
+    chmod($bin.'/git', 0755);
+
+    $result = Process::env(['PATH' => $bin.':'.getenv('PATH')])->run(['bash', base_path('check-production-env.sh'), $dir]);
+
+    expect($result->exitCode())->toBe(0)
+        ->and($result->output())->toContain(ENV_CHECK_LINES['git_history_prefix'].'exit code 3'.ENV_CHECK_LINES['git_history_suffix']);
 });
