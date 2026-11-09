@@ -4,6 +4,7 @@ namespace App\Observers;
 
 use App\Enums\DealStatus;
 use App\Jobs\ResyncContactSegments;
+use App\Models\Activity;
 use App\Models\Deal;
 use App\Models\LostReason;
 use App\Models\PipelineStage;
@@ -53,6 +54,24 @@ class DealObserver
     public function saved(Deal $deal): void
     {
         ResyncContactSegments::dispatchForContacts($deal->organization_id, [$deal->contact_id, $deal->getOriginal('contact_id')]);
+    }
+
+    /**
+     * Deletes the activities that hang on this deal only: the database sets deal_id to null on the others, and a row
+     * linked to nothing would break the contact_activities_linked_record_check constraint. One model at a time so the
+     * activity events fire.
+     */
+    public function deleting(Deal $deal): void
+    {
+        $activities = Activity::forOrganization($deal->organization_id)
+            ->where('deal_id', $deal->getKey())
+            ->whereNull('contact_id')
+            ->whereNull('company_id')
+            ->get();
+
+        foreach ($activities as $activity) {
+            $activity->delete();
+        }
     }
 
     public function deleted(Deal $deal): void
