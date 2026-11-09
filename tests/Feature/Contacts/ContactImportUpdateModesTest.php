@@ -179,9 +179,100 @@ it('requires a valid email to find a contact', function (string $cell, string $e
 
     expect($notification->data['body'])->toContain($error);
 })->with([
-    'blank' => ['', 'Email is required.'],
     'invalid' => ['not-an-email', 'Invalid email: not-an-email'],
 ]);
+
+it('fails a row with neither an id nor an email in update only', function () {
+    $notification = ($this->update)("name,email\nX,\n");
+
+    expect($notification->data['body'])->toContain('Row 1: An id or an email is required to find the contact.')
+        ->and(($this->count)())->toBe(2);
+});
+
+it('creates a contact without an email in create only', function () {
+    $notification = ($this->importFile)("name,email,phone\nZoe Name,,+33 1 22\n", ImportMode::CreateOnly);
+    $zoe = Contact::forOrganization($this->org->id)->where('name', 'Zoe Name')->sole();
+
+    expect($notification->data['body'])->toStartWith('Imported: 1 | Failed: 0')
+        ->and($zoe->email)->toBeNull()
+        ->and($zoe->phone)->toBe('+33 1 22');
+});
+
+it('creates two contacts for two email-less rows with the same name', function () {
+    $notification = ($this->importFile)("name,email\nSam,\nSam,\n", ImportMode::CreateOnly);
+
+    expect($notification->data['body'])->toStartWith('Imported: 2 | Failed: 0')
+        ->and(Contact::forOrganization($this->org->id)->where('name', 'Sam')->whereNull('email')->count())->toBe(2);
+});
+
+it('refuses an email-less row whose id names an existing contact in create only', function () {
+    $nora = Contact::factory()->withoutEmail()->create(['organization_id' => $this->org->id, 'name' => 'Nora']);
+
+    $notification = ($this->importFile)("id,name,email\n{$nora->id},Nora,\n", ImportMode::CreateOnly);
+
+    expect($notification->data['body'])->toStartWith('Imported: 0 | Failed: 1')
+        ->and($notification->data['body'])->toContain("Row 1: A contact with id {$nora->id} already exists.")
+        ->and(($this->count)())->toBe(3);
+});
+
+it('refuses an email-less row whose id names a deleted contact in create only', function () {
+    $nora = Contact::factory()->withoutEmail()->create(['organization_id' => $this->org->id, 'name' => 'Nora']);
+    $nora->delete();
+
+    $notification = ($this->importFile)("id,name,email\n{$nora->id},Nora,\n", ImportMode::CreateOnly);
+
+    expect($notification->data['body'])->toContain("A deleted contact with id {$nora->id} already exists. Restore it from the trash instead of importing it again.")
+        ->and(($this->count)())->toBe(3);
+});
+
+it('creates an email-less row whose id cell matches no contact of the organization', function (string $idCell) {
+    $globex = Organization::factory()->create();
+    $foreign = Contact::factory()->withoutEmail()->create(['organization_id' => $globex->id, 'name' => 'Globex Gus']);
+    $idCell = match ($idCell) {
+        'foreign' => (string) $foreign->id,
+        'letter' => $this->ann->id.'x',
+        default => $idCell,
+    };
+
+    $notification = ($this->importFile)("id,name,email\n{$idCell},Nora,\n", ImportMode::CreateOnly);
+
+    expect($notification->data['body'])->toBe('Imported: 1 | Failed: 0')
+        ->and(Contact::forOrganization($this->org->id)->where('name', 'Nora')->sole()->email)->toBeNull()
+        ->and(($this->fresh)($foreign)->only(['name', 'organization_id']))->toBe(['name' => 'Globex Gus', 'organization_id' => $globex->id]);
+})->with(['unknown id' => '999999', 'not digits' => 'abc', 'digits with a letter' => 'letter', 'id of another organization' => 'foreign']);
+
+it('ignores the id cell of a row with an email in create only, even for an email-less contact', function () {
+    $nora = Contact::factory()->withoutEmail()->create(['organization_id' => $this->org->id, 'name' => 'Nora']);
+
+    $notification = ($this->importFile)("id,name,email\n{$nora->id},Zed,zed@example.test\n", ImportMode::CreateOnly);
+
+    expect($notification->data['body'])->toBe('Imported: 1 | Failed: 0')
+        ->and(($this->fresh)($nora)->name)->toBe('Nora');
+});
+
+it('creates a contact without an email in create and update when the row has no id', function () {
+    $notification = ($this->upsert)("name,email\nAnn Two,ann@example.test\nZoe Name,\n");
+
+    expect($notification->data['body'])->toBe('Created: 1 | Updated: 1 | Failed: 0')
+        ->and(Contact::forOrganization($this->org->id)->where('name', 'Zoe Name')->sole()->email)->toBeNull();
+});
+
+it('gives an email to an email-less contact found by id', function () {
+    $nora = Contact::factory()->withoutEmail()->create(['organization_id' => $this->org->id, 'name' => 'Nora', 'phone' => null]);
+
+    $notification = ($this->update)("id,email\n{$nora->id},Nora@Example.test\n");
+
+    expect($notification->data['body'])->toBe('Created: 0 | Updated: 1 | Failed: 0')
+        ->and(($this->fresh)($nora)->email)->toBe('nora@example.test');
+});
+
+it('fills a field of an email-less contact found by id and keeps its email empty', function () {
+    $nora = Contact::factory()->withoutEmail()->create(['organization_id' => $this->org->id, 'name' => 'Nora', 'phone' => null]);
+
+    ($this->update)("id,name,email,phone\n{$nora->id},,,+33 6 00\n");
+
+    expect(($this->fresh)($nora)->only(['name', 'email', 'phone']))->toBe(['name' => 'Nora', 'email' => null, 'phone' => '+33 6 00']);
+});
 
 it('creates and updates in create and update', function () {
     $notification = ($this->upsert)("name,email\nAnn Two,ann@example.test\nCarl,carl@example.test\n");

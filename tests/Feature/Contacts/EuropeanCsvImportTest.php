@@ -53,6 +53,16 @@ it('imports a file saved by a French Excel', function () {
         ->and($contact->tags()->withoutGlobalScope('organization')->pluck('name')->sort()->values()->all())->toBe(['Newsletter', 'VIP']);
 });
 
+it('imports a Windows-1252 file row without an email', function () {
+    $notification = ($this->import)("name;email;phone\nZoë Müller;;+33 1 22\n", windows1252: true);
+
+    $contact = Contact::forOrganization($this->org->id)->where('name', 'Zoë Müller')->sole();
+
+    expect($notification->data['body'])->toBe('Imported: 1 | Failed: 0')
+        ->and($contact->email)->toBeNull()
+        ->and($contact->phone)->toBe('+33 1 22');
+});
+
 it('also takes German dates and an excel "CSV UTF-8" file with semicolons', function () {
     ($this->import)("name;email;Début\nAnn;ann@example.test;16.03.2026\n");
 

@@ -103,6 +103,50 @@ it('recreates a deleted contact from the exported file, and refuses the others a
         ->and($after)->toEqual($before);
 })->with(['xlsx', 'csv']);
 
+it('recreates an email-less contact removed from the database from the exported file', function (string $format) {
+    $contact = Contact::forOrganization($this->org->id)->whereNotNull('phone')->whereHas('tags')->orderBy('id')->firstOrFail();
+    $contact->update(['email' => null]);
+    $before = roundTripSnapshot($contact->fresh());
+    $total = Contact::forOrganization($this->org->id)->count();
+    $file = ($this->exportAll)($format);
+
+    ($this->removeFromDatabase)($contact);
+
+    $notification = ($this->importFile)($file, $format);
+    $after = roundTripSnapshot(Contact::forOrganization($this->org->id)->whereNull('email')->sole());
+
+    expect($before['email'])->toBeNull()
+        ->and($notification->data['body'])->toContain('Imported: 1 | Failed: '.($total - 1))
+        ->and($after)->toEqual($before)
+        ->and(Contact::forOrganization($this->org->id)->count())->toBe($total);
+})->with(['xlsx', 'csv']);
+
+it('refuses an existing email-less contact of the exported file instead of duplicating it', function () {
+    $contact = Contact::forOrganization($this->org->id)->orderBy('id')->firstOrFail();
+    $contact->update(['email' => null]);
+    $total = Contact::forOrganization($this->org->id)->count();
+    $file = ($this->exportAll)('xlsx');
+
+    $notification = ($this->importFile)($file);
+
+    expect($notification->data['body'])->toContain('Imported: 0 | Failed: '.$total)
+        ->and($notification->data['body'])->toContain("A contact with id {$contact->id} already exists.")
+        ->and(Contact::forOrganization($this->org->id)->count())->toBe($total);
+});
+
+it('changes nothing for an email-less contact when its csv export is imported back in update only', function () {
+    Contact::forOrganization($this->org->id)->orderBy('id')->firstOrFail()->update(['email' => null]);
+    $snapshots = fn (): array => Contact::forOrganization($this->org->id)->orderBy('id')->get()->mapWithKeys(fn (Contact $contact): array => [$contact->id => roundTripSnapshot($contact)])->all();
+    $before = $snapshots();
+    Storage::disk('local')->put('contact-imports/email-less.csv', ($this->exportAll)('csv'));
+    DatabaseNotification::query()->delete();
+
+    ProcessContactImportJob::dispatchSync('contact-imports/email-less.csv', $this->org->id, $this->user->id, ImportMode::UpdateOnly);
+
+    expect(DatabaseNotification::where('notifiable_id', $this->user->id)->sole()->data['body'])->toStartWith('Created: 0 | Updated: '.count($before).' | Failed: 0')
+        ->and($snapshots())->toEqual($before);
+});
+
 it('gives back an unowned contact as unowned, and fails the same rows again from the failed rows file', function (string $format) {
     $owned = Contact::forOrganization($this->org->id)->where('owner_id', $this->user->id)->orderBy('id')->firstOrFail();
     $unowned = Contact::forOrganization($this->org->id)->where('email', 'amara.diallo@innotech-sa.com')->firstOrFail();

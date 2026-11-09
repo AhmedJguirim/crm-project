@@ -316,6 +316,9 @@ class ContactImportService
      * transaction: a row that ends up failing leaves no company behind. A created company is remembered and counted
      * once that transaction has committed.
      *
+     * A row without an email is created without the duplicate check, and is refused when its `id` cell names a
+     * contact of the organization.
+     *
      * @param  array<string, string>  $row
      * @param  array<string, CustomField>  $customFieldsByName
      * @return array{success: bool, error: ?string}
@@ -325,31 +328,38 @@ class ContactImportService
         // handles base attributes
         $name = trim($row['name'] ?? '');
         $email = mb_strtolower(trim($row['email'] ?? ''));
+        $email = $email === '' ? null : $email;
 
         if (blank($name)) {
             return ['success' => false, 'error' => 'Name is required.'];
         }
 
-        if (blank($email)) {
-            return ['success' => false, 'error' => 'Email is required.'];
+        if ($email === null) {
+            $idError = $this->existingContactWithIdError($row);
+
+            if ($idError !== null) {
+                return ['success' => false, 'error' => $idError];
+            }
         }
 
-        // check email uniqueness
-        $existingContact = Contact::withTrashed()
-            ->where('organization_id', $this->organizationId)
-            ->where('email', $email)
-            ->first();
+        if ($email !== null) {
+            // check email uniqueness
+            $existingContact = Contact::withTrashed()
+                ->where('organization_id', $this->organizationId)
+                ->where('email', $email)
+                ->first();
 
-        if ($existingContact?->trashed()) {
-            return ['success' => false, 'error' => "A deleted contact with email '{$email}' already exists. Restore it from the trash instead of importing it again."];
-        }
+            if ($existingContact?->trashed()) {
+                return ['success' => false, 'error' => "A deleted contact with email '{$email}' already exists. Restore it from the trash instead of importing it again."];
+            }
 
-        if ($existingContact) {
-            return ['success' => false, 'error' => "A contact with email '{$email}' already exists."];
-        }
+            if ($existingContact) {
+                return ['success' => false, 'error' => "A contact with email '{$email}' already exists."];
+            }
 
-        if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return ['success' => false, 'error' => "Invalid email: {$email}"];
+            if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                return ['success' => false, 'error' => "Invalid email: {$email}"];
+            }
         }
 
         $phone = trim($row['phone'] ?? '') ?: null;
@@ -448,13 +458,26 @@ class ContactImportService
                 $createdCompany = $companyMatch?->isNotFound() ? $this->createCompany($companyMatch, trim($row['company website'] ?? ''), $companyDetails, $owner['owner_id']) : null;
                 $company = $createdCompany ?? $companyMatch?->company;
 
-                $contact = Contact::withoutEvents(fn (): Contact => Contact::withTrashed()->createOrFirst(
-                    ['organization_id' => $this->organizationId, 'email' => $email],
-                    ['name' => $name, 'phone' => $phone, 'status' => $status, 'lead_source' => $leadSource, 'owner_id' => $owner['owner_id'], 'custom_field_values' => $customFieldValues],
-                ));
+                if ($email === null) {
+                    $contact = Contact::withoutEvents(fn (): Contact => Contact::query()->create([
+                        'organization_id' => $this->organizationId,
+                        'email' => null,
+                        'name' => $name,
+                        'phone' => $phone,
+                        'status' => $status,
+                        'lead_source' => $leadSource,
+                        'owner_id' => $owner['owner_id'],
+                        'custom_field_values' => $customFieldValues,
+                    ]));
+                } else {
+                    $contact = Contact::withoutEvents(fn (): Contact => Contact::withTrashed()->createOrFirst(
+                        ['organization_id' => $this->organizationId, 'email' => $email],
+                        ['name' => $name, 'phone' => $phone, 'status' => $status, 'lead_source' => $leadSource, 'owner_id' => $owner['owner_id'], 'custom_field_values' => $customFieldValues],
+                    ));
 
-                if (! $contact->wasRecentlyCreated) {
-                    throw new ContactAlreadyExistsException($email);
+                    if (! $contact->wasRecentlyCreated) {
+                        throw new ContactAlreadyExistsException($email);
+                    }
                 }
 
                 $contact->tags()->sync($tagIds);
@@ -495,9 +518,39 @@ class ContactImportService
     }
 
     /**
+     * The error of an email-less row whose `id` cell names an existing contact of the organization (a re-import of an
+     * export), or null when the cell is blank, not digits only or names no contact of the organization.
+     *
+     * @param  array<string, string>  $row
+     */
+    private function existingContactWithIdError(array $row): ?string
+    {
+        $id = trim((string) ($row[self::ID_COLUMN] ?? ''));
+
+        if (preg_match('/^\d+$/', $id) !== 1) {
+            return null;
+        }
+
+        $contact = Contact::withTrashed()
+            ->where('organization_id', $this->organizationId)
+            ->whereKey((int) $id)
+            ->first();
+
+        if ($contact === null) {
+            return null;
+        }
+
+        if ($contact->trashed()) {
+            return "A deleted contact with id {$id} already exists. Restore it from the trash instead of importing it again.";
+        }
+
+        return "A contact with id {$id} already exists.";
+    }
+
+    /**
      * An update mode: finds the contact of the row by its `id` cell, else by its email, then updates it. A row that
-     * matches no contact is created in "create and update" and fails in "update only"; an id that matches no contact
-     * always fails.
+     * matches no contact (including a row with neither an id nor an email) is created in "create and update" and
+     * fails in "update only"; an id that matches no contact always fails.
      *
      * @param  array<string, string>  $row
      * @param  array<string, CustomField>  $customFieldsByName
@@ -520,7 +573,9 @@ class ContactImportService
         $email = mb_strtolower(trim((string) ($row['email'] ?? '')));
 
         if ($email === '') {
-            return $this->failure('Email is required.');
+            return $this->mode->createsNew()
+                ? $this->createContact($row, $customFieldsByName)
+                : $this->failure('An id or an email is required to find the contact.');
         }
 
         if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {

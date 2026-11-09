@@ -2,6 +2,7 @@
 
 use App\Models\Contact;
 use App\Models\CustomField;
+use App\Models\Organization;
 use App\Models\Tag;
 use App\Models\User;
 use App\Services\ContactImportService;
@@ -68,15 +69,44 @@ test('missing name returns error', function () {
         ->and($result['error'])->toBe('Name is required.');
 });
 
-test('missing email returns error', function () {
-    $result = $this->service->processRow([
-        'name' => 'Test',
-        'email' => '',
-        'tags' => '',
-    ], []);
+test('creates a contact without an email', function (array $emailCell) {
+    $result = $this->service->processRow(['name' => 'Zoe Name', 'phone' => '+33 1 22', 'tags' => '', ...$emailCell], []);
+
+    $contact = Contact::where('name', 'Zoe Name')->sole();
+
+    expect($result['success'])->toBeTrue()
+        ->and($contact->email)->toBeNull()
+        ->and($contact->phone)->toBe('+33 1 22');
+})->with([
+    'empty cell' => [['email' => '']],
+    'whitespace cell' => [['email' => '   ']],
+    'no email column' => [[]],
+]);
+
+test('two rows without an email and the same name create two contacts', function () {
+    $this->service->processRow(['name' => 'Sam', 'email' => '', 'tags' => ''], []);
+    $this->service->processRow(['name' => 'Sam', 'email' => '', 'tags' => ''], []);
+
+    expect(Contact::where('name', 'Sam')->whereNull('email')->count())->toBe(2);
+});
+
+test('an email-less row whose id names a contact of another organization is created, whatever the current tenant', function () {
+    $globex = Organization::factory()->create();
+    $foreign = Contact::factory()->withoutEmail()->create(['organization_id' => $globex->id, 'name' => 'Globex Gus']);
+    Filament::setTenant($globex);
+
+    $result = $this->service->processRow(['id' => (string) $foreign->id, 'name' => 'Nora', 'email' => '', 'tags' => ''], []);
+
+    expect($result['success'])->toBeTrue()
+        ->and(Contact::withoutGlobalScope('organization')->where('organization_id', $this->org->id)->where('name', 'Nora')->count())->toBe(1);
+});
+
+test('a row without an email still needs a name', function () {
+    $result = $this->service->processRow(['name' => '', 'email' => '', 'tags' => ''], []);
 
     expect($result['success'])->toBeFalse()
-        ->and($result['error'])->toBe('Email is required.');
+        ->and($result['error'])->toBe('Name is required.')
+        ->and(Contact::count())->toBe(0);
 });
 
 test('invalid email returns error', function () {

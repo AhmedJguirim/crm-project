@@ -69,7 +69,7 @@ describe('contact imports', function () {
 
     it('queues no sync when every row fails', function () {
         Queue::fake([ResyncContactSegments::class, SyncSegmentMembership::class]);
-        $path = importCsv("name,email,phone,tags\n,missing-name@example.com,,\nNo Email,,,\nBad Email,not-an-email,,\n");
+        $path = importCsv("name,email,phone,tags\n,missing-name@example.com,,\nBad Email,not-an-email,,\n");
 
         ProcessContactImportJob::dispatchSync($path, $this->org->id, $this->user->id);
 
