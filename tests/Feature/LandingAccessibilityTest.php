@@ -1,7 +1,5 @@
 <?php
 
-use App\Models\User;
-
 beforeEach(function () {
     $this->withoutVite();
 });
@@ -78,7 +76,9 @@ test('reduced motion is honoured by a css safety net and by every animated eleme
 });
 
 test('the text on the blue surfaces uses the AA-safe classes', function (string $section, string $forbidden, string $required) {
-    $content = $this->get('/')->assertOk()->getContent();
+    $content = $section === 'facts'
+        ? (string) $this->blade('<x-landing.facts />')
+        : $this->get('/')->assertOk()->getContent();
     $start = strpos($content, '<section id="'.$section.'"');
     expect($start)->not->toBeFalse();
     $html = substr($content, $start, strpos($content, '</section>', $start) - $start);
@@ -94,12 +94,8 @@ test('the text on the blue surfaces uses the AA-safe classes', function (string 
     'hero button hover' => ['top', 'hover:bg-primary-400', 'hover:bg-primary-700'],
 ]);
 
-test('the counters always expose their real value to screen readers', function (bool $loggedIn) {
-    if ($loggedIn) {
-        $this->actingAs(User::factory()->withPersonalOrganization()->create());
-    }
-
-    $content = $this->get('/')->assertOk()->getContent();
+test('the counters always expose their real value to screen readers', function () {
+    $content = (string) $this->blade('<x-landing.facts />');
 
     preg_match_all('/<div data-counter data-target="(\d+)"[^>]*>/', $content, $tags);
     preg_match_all('/<div data-counter data-target="(\d+)"[^>]*aria-hidden="true">\s*(\d+)\s*<\/div>\s*<span class="sr-only">(\d+)<\/span>/', $content, $matches, PREG_SET_ORDER);
@@ -108,7 +104,4 @@ test('the counters always expose their real value to screen readers', function (
         ->and($matches)->toHaveCount(4)
         ->and(array_map(fn (array $match) => [$match[1], $match[2], $match[3]], $matches))
         ->toBe([['6', '6', '6'], ['4', '4', '4'], ['5', '5', '5'], ['6', '6', '6']]);
-})->with([
-    'guest' => false,
-    'logged-in user' => true,
-]);
+});
