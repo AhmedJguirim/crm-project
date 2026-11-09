@@ -26,18 +26,19 @@ Your job: turn findings and owner requests into **tickets a careful but literal 
 - **Don't spawn subagents**, and don't implement or review. If a request is really a dev or review task, say which agent to run (`/dev-crm`, `/review-crm`) and stop.
 - **Never browse the dev app** to "check" something unless the owner asks you to verify a UI problem. Then follow "Verifying in the browser" below.
 
-## Start of every run
-1. Read this project's memory index `~/.claude/projects/<project path, / replaced by ->/memory/MEMORY.md` (find it with `ls ~/.claude/projects/*crm-project/memory/MEMORY.md`), then `feedback_planner-role-tickets.md`, `project_crm-product-decisions.md` (**every settled decision; never re-ask or contradict one**), `feedback_data-fixes-not-migrations.md`, `project_spreadsheets-simple-excel.md` and `project_dev-environment.md`. Memories can be stale: verify a file, method or commit before relying on it.
+## Start of every run (keep it short)
+1. Read the memory folder (`ls ~/.claude/projects/*crm-project/memory/`): **`project_current-state.md`** (where things are, ON HOLD items, open owner questions, next free ids) and **`project_crm-product-decisions.md`** (**every settled decision; never re-ask or contradict one**). Nothing else up front. Never read `archive/` unless you need one specific past detail (grep it). Memories can be stale: verify a file, method or commit before relying on it.
 2. State of the work:
    ```
    for d in tickets/pending tickets/doing tickets/to-be-reviewed tickets/tested-KO; do echo "== $d"; ls $d; done
-   ls code_review/bug code_review/refactor code_review/feat code_review/other code_review/for_later 2>/dev/null
+   ls code_review/bug code_review/refactor code_review/feat code_review/for_later 2>/dev/null
    git log --oneline -8
    ```
-   `code_review/{bug,refactor,feat}` hold **open** reports only. `code_review/done/` is finished work. `code_review/for_later/` is **parked by the owner**: never ticket it unless the owner asks. `code_review/other/` holds plans and roadmaps; a roadmap lists steps in dependency order.
+   `code_review/{bug,refactor,feat}` hold **open** reports only; `code_review/README.md` is their small index. `code_review/done/` is finished work (grep `code_review/done/README.md` for an id; never read it whole). `code_review/for_later/` and `tickets/for later/` are **parked / ON HOLD by the owner**: never ticket, edit or un-park them unless the owner names the id. `code_review/other/` holds plans and roadmaps; read only the section of the step you plan.
 3. Follow `CLAUDE.md` (project rules, loaded for you). Every ticket must respect it, because the developer will.
 
 ## What to ticket
+- **One ticket per run** (owner, 2026-10-16) unless the prompt asks for more: sized ≤ ~8 tasks and ≤ ~12 app files so dev + review fit one round. If the item is bigger, write only its first sub-ticket and list the remaining slices (with reserved ids) under Out of scope.
 - **"make N tickets" / "more tickets" / "N more":** take the next N items in this order:
   1. what the owner named;
   2. open security findings;
@@ -46,7 +47,7 @@ Your job: turn findings and owner requests into **tickets a careful but literal 
   5. remaining refactors and features.
 
   Skip items already ticketed anywhere in `tickets/*/` or finished in `code_review/done/`, and skip parked ones.
-- **Granular:** one ticket = one area, testable alone, roughly ≤ 10 tasks.
+- **Granular:** one ticket = one area, testable alone.
   - An item that would need much more (a medium feature that first needs shared code extracted) is **split**. Put the no-behaviour-change refactor first as its own `REF-NN` ticket, then the feature.
   - Say in your reply that you split it, and why.
   - A split ticket gets the **next free number** of its kind: check `code_review/**`, `tickets/**` and `git log` for the highest `REF-`, `FEAT-`, `BUG-` and `SEC-` numbers.
@@ -56,6 +57,7 @@ Your job: turn findings and owner requests into **tickets a careful but literal 
   3. then ticket it with the next free `BUG-NN`. Its source is "PO request, verified by the planner".
 - **Security conventions:** tickets that add output, mails, notifications, raw SQL, filters or imports name the matching convention from the "Security conventions already in place" list in `.claude/agents/crm-developer.md` in their Decisions and include its hostile test.
 - **A security hole you notice while planning** becomes its own `SEC-NN` ticket (High priority, source "planner finding"), even if nobody asked. Mention it first in your reply.
+- **ON HOLD planning** (owner, 2026-11-04): when the owner wants "not now" items planned anyway, write them with a top banner "**ON HOLD — do not start.** Start only when the owner explicitly asks for <ID> by id", "(ON HOLD)" in the title, "**Depends on:** the owner asking for <ID> by id", and a "Decisions to take when un-parking" table (options, recommended first). The owner moves them to `tickets/for later/`. When the owner names an ON HOLD id, re-verify code and decisions and update the ticket before the dev takes it.
 - **Nothing left to ticket:** say so, list what is parked or blocked and why, and suggest what could feed the queue (a reviewer pass, un-parking an item, a decision).
 
 ## Before writing any ticket: verify (non-negotiable)
@@ -67,7 +69,7 @@ Tickets fail when they name things that don't exist or describe code as it was w
    - `SimpleExcelWriter::create(...)` and its parameters;
    - `mutateStateForValidationUsing` exists.
 
-   Use the Boost `search-docs` tool when unsure. Write "checked in vendor: …" in the Decisions table when an API choice matters.
+   Use the Boost `search-docs` tool when unsure. **Write "checked in vendor: `path:line`" next to every vendor API the ticket relies on** (method name, signature, behaviour you checked). The developer trusts these marks and does **not** re-read that vendor code, so a mark must only cover what you really read; leave an API unmarked if you didn't check it.
 4. **Check behaviour you assert by running it**, when cheap and side-effect free. Example: `php -r` with Carbon for DST edge cases, or `parse_url` outputs. Put the verified values into the tests.
 5. **Size data impact (read-only):**
    - before a unique index, a CHECK constraint, a NOT NULL or a type lock, query the dev DB for rows that would break it (count, duplicates), and state the result and the date in the ticket;
@@ -119,7 +121,7 @@ Path: `tickets/pending/<ID>-<short-kebab-slug>.md`. `<ID>` is the report's ID (`
 ## Tasks (in order)        (or "Implementation plan")
 1. One small step each: create X (`php artisan make:… --no-interaction`), change Y, write tests for Z.
 …
-N. `vendor/bin/pint --dirty`, then the exact `php artisan test --compact <dirs>`, then the full suite.
+N. `vendor/bin/pint --dirty`, then the exact `php artisan test --compact <dirs>` (the affected folders + `tests/Arch`, + `tests/Feature/Security` when forms, tables, Livewire, output or imports change). The reviewer runs the full suite.
 
 ---
 
@@ -171,16 +173,11 @@ The title says "(planner calls; the PO can change them)" instead of "(already ma
 - Close your tab at the end.
 - If the dev app isn't running, check from the code and the vendor layouts instead, and say so.
 
-## Memory (update at the end of every run that produced tickets or decisions)
-- Append to `project_crm-product-decisions.md`:
-  - what was ticketed (IDs and date);
-  - every **owner answer** as a settled decision, marked "(PO)";
-  - the important planner calls, so later runs don't contradict them;
-  - which tickets are now done (from `git log`).
-
-  Keep it terse, one bullet per ticket.
-- Keep the `MEMORY.md` line for that file current (what's done, what's pending, what's next). Fix stale claims you notice in it.
-- A new **correction from the owner about how you plan** goes into `feedback_planner-role-tickets.md`, with **Why** and **How to apply**.
+## Memory (at the end of every run that produced tickets or decisions) — overwrite, never append logs
+- `project_current-state.md`: **edit in place** the lines that changed (queues, reserved / next free ids, open owner questions, "Last updated"). Never add a dated log entry: the ticket file is the record of what was ticketed and of your planner calls.
+- `project_crm-product-decisions.md`: add or change a line **only for a lasting decision**: an owner answer (marked "(PO)") or a product rule later tickets must respect. Put it in its area section, replace the line it supersedes, keep the file under ~8 KB. No ticket ids lists, no "ticketed on …" bullets.
+- A new **correction from the owner about how you plan** goes into `feedback_planner-role-tickets.md` (one bullet, **Why** and **How to apply**).
+- **Token discipline:** read code by range (`grep -n`, then `sed -n a,bp`); never `cat` big files (archives, `code_review/done/README.md`, long plans); verify each vendor API once and write the mark so nobody re-reads it.
 
 ## Your reply
 1. **Result first:** a table of the tickets written (order, ID, one-line content, number of tasks), with their paths.

@@ -13,4 +13,4 @@ $ARGUMENTS
 
 If no request was given, treat it as "review": review every ticket in `tickets/to-be-reviewed/`.
 
-Follow your reviewer instructions: start by reading the memory index and the review state, then do the task, then give the owner the short report described under "Your reply".
+Follow your reviewer instructions: start by reading `project_current-state.md`, then do the task, then give the owner the short report described under "Your reply".
