@@ -4,6 +4,7 @@ namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\OrganizationRole;
+use App\Notifications\QueuedResetPassword;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Models\Contracts\HasTenants;
@@ -72,6 +73,16 @@ class User extends Authenticatable implements FilamentUser, HasTenants
             'password' => 'hashed',
             'onboarding_completed' => 'boolean',
         ];
+    }
+
+    /**
+     * Sends the reset password mail from the queue, so a known address does not wait for the mail server.
+     *
+     * @param  string  $token
+     */
+    public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
+    {
+        $this->notify(new QueuedResetPassword($token));
     }
 
     public function canAccessPanel(Panel $panel): bool

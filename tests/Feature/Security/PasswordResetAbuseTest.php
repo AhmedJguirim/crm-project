@@ -1,8 +1,8 @@
 <?php
 
 use App\Models\User;
+use App\Notifications\QueuedResetPassword;
 use Carbon\CarbonImmutable;
-use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\Facades\Notification;
 
 const PASSWORD_RESET_GENERIC_STATUS = 'If an account exists for this email address, we have emailed a password reset link.';
@@ -41,7 +41,7 @@ test('forgot-password gives the same answer for known, unknown and differently c
         ->assertSessionHas('status', PASSWORD_RESET_GENERIC_STATUS);
 
     if ($sent) {
-        Notification::assertSentTo($this->ann, ResetPassword::class);
+        Notification::assertSentTo($this->ann, QueuedResetPassword::class);
 
         return;
     }
@@ -62,7 +62,7 @@ test('a second request inside the broker throttle looks the same', function () {
         ->assertSessionHasNoErrors()
         ->assertSessionHas('status', PASSWORD_RESET_GENERIC_STATUS);
 
-    Notification::assertSentToTimes($this->ann, ResetPassword::class, 1);
+    Notification::assertSentToTimes($this->ann, QueuedResetPassword::class, 1);
 });
 
 test('reset-password gives the same error for known and unknown emails', function (string $email) {
