@@ -22,6 +22,7 @@ use Filament\Support\Facades\FilamentTimezone;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\Console\Seeds\SeedCommand;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Mail\Markdown;
 use Illuminate\Session\Middleware\StartSession as FrameworkStartSession;
 use Illuminate\Session\SessionManager;
@@ -168,11 +169,14 @@ class AppServiceProvider extends ServiceProvider
     /**
      * Configure default behaviors for production-ready applications. In production the destructive database commands
      * and db:seed (so also migrate --seed) are refused, because the dev seed creates logins with a known password;
-     * demo data goes through demo:create-account.
+     * demo data goes through demo:create-account. Outside production, lazy loading a relation on a model fetched with
+     * others throws, so an N+1 query fails the suite (REF-36).
      */
     protected function configureDefaults(): void
     {
         Date::use(CarbonImmutable::class);
+
+        Model::preventLazyLoading(! app()->isProduction());
 
         DB::prohibitDestructiveCommands(
             app()->isProduction(),
