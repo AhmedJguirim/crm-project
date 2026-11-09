@@ -52,7 +52,7 @@ class ContactsTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('owner.organizations'))
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with(['owner.organizations', 'tags']))
             ->columns([
                 TextColumn::make('name')
                     ->searchable()

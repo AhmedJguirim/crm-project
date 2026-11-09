@@ -239,6 +239,21 @@ test('table can be filtered by tag', function () {
         ->assertCanNotSeeTableRecords([$untagged]);
 });
 
+test('the list shows every contact\'s tags without lazy loading them', function () {
+    $vip = Tag::factory()->create(['organization_id' => $this->org->id, 'name' => 'VIP', 'color' => '#ef4444']);
+    $partner = Tag::factory()->create(['organization_id' => $this->org->id, 'name' => 'Partner', 'color' => '#22c55e']);
+
+    $ada = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Ada Lovelace']);
+    $ada->tags()->sync([$vip->id]);
+    $alan = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Alan Turing']);
+    $alan->tags()->sync([$partner->id]);
+
+    Livewire::test(ListContacts::class)
+        ->assertCanSeeTableRecords([$ada, $alan])
+        ->assertSee('VIP')
+        ->assertSee('Partner');
+});
+
 test('table can be filtered by status', function () {
     $activeClient = Contact::factory()->create([
         'organization_id' => $this->org->id,
