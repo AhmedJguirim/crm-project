@@ -9,7 +9,8 @@
     "packages": [
         "filament/filament",
         "spatie/boost-spatie-guidelines",
-        "relaticle/flowforge"
+        "relaticle/flowforge",
+        "fruitcake/laravel-debugbar"
     ],
     "sail": false,
     "skills": [
@@ -25,6 +26,7 @@
         "tailwindcss-development",
         "filament-development",
         "flowforge-development",
+        "debug-using-debugbar",
         "spatie-laravel-php-standards"
     ]
 }
