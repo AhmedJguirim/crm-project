@@ -105,6 +105,20 @@ describe('contact attributes', function () {
             ->toBe(['Bob']);
     });
 
+    it('handles email conditions with a contact that has no email', function (SegmentOperator $operator, ?string $value, array $expected) {
+        Contact::factory()->withoutEmail()->for($this->org)->create(['name' => 'Dan']);
+
+        expect(segmentMatches($this->org, segmentCondition(SegmentConditionType::Attribute, ContactAttribute::Email->value, $operator, $value === null ? [] : ['value' => $value])))
+            ->toBe($expected);
+    })->with([
+        'is blank' => [SegmentOperator::IsBlank, null, ['Dan']],
+        'is not blank' => [SegmentOperator::IsNotBlank, null, ['Alice', 'Bob', 'Carol']],
+        'is from domain' => [SegmentOperator::IsFromDomain, 'acme.com', ['Alice', 'Carol']],
+        'is not from domain' => [SegmentOperator::IsNotFromDomain, 'acme.com', ['Bob', 'Dan']],
+        'is not' => [SegmentOperator::IsNot, 'alice@acme.com', ['Bob', 'Carol', 'Dan']],
+        'does not contain' => [SegmentOperator::DoesNotContain, 'acme', ['Bob', 'Dan']],
+    ]);
+
     it('matches enum select attributes', function (SegmentOperator $operator, array $value, array $expected) {
         expect(segmentMatches($this->org, segmentCondition(SegmentConditionType::Attribute, ContactAttribute::Status->value, $operator, $value)))
             ->toBe($expected);

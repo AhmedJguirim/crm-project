@@ -12,6 +12,14 @@ it('has no unused custom field index on contacts', function () {
         ->and($indexes->keys()->all())->toContain('contacts_organization_id_index', 'contacts_organization_id_email_unique');
 });
 
+it('has a partial unique email index and a nullable email column', function () {
+    $definition = collect(DB::select("select indexdef from pg_indexes where tablename = 'contacts' and indexname = 'contacts_organization_id_email_unique'"))->sole()->indexdef;
+    $nullable = collect(DB::select("select is_nullable from information_schema.columns where table_name = 'contacts' and column_name = 'email'"))->sole()->is_nullable;
+
+    expect($definition)->toContain('UNIQUE')->toContain('WHERE (email IS NOT NULL)')
+        ->and($nullable)->toBe('YES');
+});
+
 it('has no deleted_at column on segments', function () {
     expect(Schema::hasColumn('segments', 'deleted_at'))->toBeFalse();
 });

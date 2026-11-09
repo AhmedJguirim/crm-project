@@ -199,6 +199,16 @@ it('keeps the status of an existing contact when the cell is blank, and gives a 
         ->and(Contact::forOrganization($this->org->id)->where('email', 'dan@example.test')->sole()->status)->toBe(ContactStatus::Lead);
 });
 
+it('updates a contact without an email by id and keeps its email empty', function () {
+    $nora = Contact::factory()->withoutEmail()->create(['organization_id' => $this->org->id, 'name' => 'Nora']);
+
+    $notification = ($this->update)("id,name,email\n{$nora->id},Nora Renamed,\n");
+
+    expect($notification->data['body'])->toBe('Created: 0 | Updated: 1 | Failed: 0')
+        ->and(($this->fresh)($nora)->name)->toBe('Nora Renamed')
+        ->and(($this->fresh)($nora)->email)->toBeNull();
+});
+
 it('lets the id win over the email', function () {
     $before = [($this->untouched)(($this->fresh)($this->ann)), ($this->untouched)(($this->fresh)($this->bob))];
 

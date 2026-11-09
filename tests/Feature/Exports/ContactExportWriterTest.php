@@ -77,6 +77,12 @@ it('leaves blank what a contact does not have', function () {
     expect(($this->rowOf)($bob))->toBe([$bob->id, 'Bob', 'bob@x.test', '', '', '', '', '', '', '', '', '', '', '', '']);
 });
 
+it('exports a contact without an email with a blank email cell', function () {
+    $nora = Contact::factory()->withoutEmail()->create(['organization_id' => $this->org->id, 'name' => 'Nora', 'phone' => null, 'status' => null, 'lead_source' => null]);
+
+    expect(($this->rowOf)($nora))->toBe([$nora->id, 'Nora', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+});
+
 it('names all the companies only when there are two or more', function () {
     $solo = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Solo', 'email' => 'solo@x.test']);
     $solo->companies()->attach(Company::factory()->create(['organization_id' => $this->org->id, 'name' => 'Only', 'website' => 'https://Only.io/about'])->id);

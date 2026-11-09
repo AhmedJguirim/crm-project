@@ -20,6 +20,48 @@ beforeEach(function () {
     $this->import = fn (string $name, string $email): array => (new ContactImportService($this->org->id))->processRow(['name' => $name, 'email' => $email], []);
 });
 
+describe('blank emails', function () {
+    it('stores blanks as null in the model', function (?string $input, ?string $stored) {
+        expect((new Contact(['email' => $input]))->email)->toBe($stored);
+    })->with([
+        'null' => [null, null],
+        'empty' => ['', null],
+        'spaces' => ['   ', null],
+        'padded' => [' Ann@Example.COM ', 'ann@example.com'],
+    ]);
+
+    it('lets the database refuse a blank email', function () {
+        DB::transaction(fn () => DB::table('contacts')->insert([
+            'organization_id' => $this->org->id, 'name' => 'Blank', 'email' => '', 'custom_field_values' => '[]', 'created_at' => now(), 'updated_at' => now(),
+        ]));
+    })->throws(QueryException::class, 'contacts_email_not_blank_check');
+
+    it('lets the database refuse a duplicate present email, allow many nulls, and scope uniqueness to the organization', function () {
+        $row = fn (int $organizationId, string $name, ?string $email): array => [
+            'organization_id' => $organizationId, 'name' => $name, 'email' => $email, 'custom_field_values' => '[]', 'created_at' => now(), 'updated_at' => now(),
+        ];
+        $other = Organization::factory()->create();
+
+        DB::table('contacts')->insert($row($this->org->id, 'First', 'dup@example.com'));
+
+        $message = null;
+        try {
+            DB::transaction(fn () => DB::table('contacts')->insert($row($this->org->id, 'Second', 'dup@example.com')));
+        } catch (QueryException $exception) {
+            $message = $exception->getMessage();
+        }
+
+        expect($message)->toContain('contacts_organization_id_email_unique');
+
+        DB::table('contacts')->insert($row($this->org->id, 'Null one', null));
+        DB::table('contacts')->insert($row($this->org->id, 'Null two', null));
+        DB::table('contacts')->insert($row($other->id, 'Other org', 'dup@example.com'));
+
+        expect(DB::table('contacts')->whereNull('email')->where('organization_id', $this->org->id)->count())->toBe(2)
+            ->and(DB::table('contacts')->where('email', 'dup@example.com')->count())->toBe(2);
+    });
+});
+
 describe('the form', function () {
     it('stores the email trimmed and in lowercase', function () {
         Livewire::test(CreateContact::class)

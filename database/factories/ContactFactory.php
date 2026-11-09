@@ -24,6 +24,13 @@ class ContactFactory extends Factory
         ];
     }
 
+    public function withoutEmail(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'email' => null,
+        ]);
+    }
+
     public function withTags(array $tagIds): static
     {
         return $this->afterCreating(function ($contact) use ($tagIds) {

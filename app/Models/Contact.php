@@ -55,14 +55,15 @@ class Contact extends Model
     }
 
     /**
-     * Emails are stored trimmed and in lowercase, so letter case can't create duplicate contacts.
+     * Emails are optional; a blank one is stored as null. Others are stored trimmed and in lowercase, so letter case
+     * can't create duplicate contacts.
      *
      * @return Attribute<string|null, string|null>
      */
     protected function email(): Attribute
     {
         return Attribute::make(
-            set: fn (?string $value): ?string => $value === null ? null : mb_strtolower(trim($value)),
+            set: fn (?string $value): ?string => blank($value) ? null : mb_strtolower(trim($value)),
         );
     }
 
