@@ -14,7 +14,7 @@ use Illuminate\Contracts\Support\Htmlable;
  * the deals lost for the same reason in the previous period. Deals without a reason are the last bar, "No reason given";
  * a deleted reason keeps its name followed by " (deleted)". Deals are counted by their current state only (a deal
  * reopened since is not counted), so the bars add up to the "Deals Lost" figure of the sales results. It is not
- * discovered onto the dashboard: only the Reports page lists it.
+ * auto-discovered: the Reports page and the dashboard's "Leads" tab list it.
  */
 class LostReasonsWidget extends ChartWidget
 {

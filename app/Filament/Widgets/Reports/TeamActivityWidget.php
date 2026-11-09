@@ -15,8 +15,8 @@ use Filament\Widgets\TableWidget;
 use Illuminate\Support\Number;
 
 /**
- * Reports page table of what each member logged and closed in the page's period (see TeamActivity). It follows the
- * period and owner filters and is not discovered onto the dashboard: only the Reports page lists it.
+ * Table of what each member logged and closed in the page's period (see TeamActivity). It follows the period and owner
+ * filters. It is not auto-discovered: the Reports page and the dashboard's "Data overview" tab list it.
  */
 class TeamActivityWidget extends TableWidget
 {

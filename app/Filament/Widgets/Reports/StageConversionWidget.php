@@ -12,9 +12,8 @@ use Filament\Widgets\Concerns\InteractsWithPageFilters;
 use Filament\Widgets\TableWidget;
 
 /**
- * Reports page table of how far the deals created in the page's period got through the pipeline (see
- * StageConversion). It follows the period and owner filters and is not discovered onto the dashboard: only the
- * Reports page lists it.
+ * Table of how far the deals created in the page's period got through the pipeline (see StageConversion). It follows
+ * the period and owner filters. It is not auto-discovered: the Reports page and the dashboard's "Pipeline" tab list it.
  */
 class StageConversionWidget extends TableWidget
 {
