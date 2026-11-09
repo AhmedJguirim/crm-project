@@ -11,6 +11,7 @@ use App\Filament\Resources\Companies\Pages\EditCompany;
 use App\Filament\Resources\Companies\Pages\ListCompanies;
 use App\Filament\Resources\Companies\RelationManagers\DealsRelationManager;
 use App\Filament\Resources\CompanyTypes\Pages\ManageCompanyTypes;
+use App\Filament\Resources\Contacts\Pages\CreateContact;
 use App\Filament\Resources\Contacts\Pages\EditContact;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
 use App\Filament\Resources\Contacts\Pages\ViewContact;
@@ -110,6 +111,16 @@ describe('list pages', function () {
 });
 
 describe('record pages', function () {
+    test('a contact named as markup is shown as text in the possible-duplicate hint', function (string $payload) {
+        Contact::factory()->create(['organization_id' => $this->org->id, 'name' => $payload, 'email' => null, 'phone' => '0612345678']);
+
+        $page = Livewire::test(CreateContact::class)->fillForm(['name' => 'Other', 'phone' => '0612345678']);
+
+        expect($page->instance()->getSchema('form')->getFlatFields()['phone']->getHint())->toBe('Same phone as: '.$payload);
+
+        SecurityPayloads::assertHtmlIsInert($page->html(), $payload);
+    })->with(SecurityPayloads::xss());
+
     test('a contact page shows custom field names, values and option labels as text', function (string $payload) {
         $text = CustomField::factory()->create(['organization_id' => $this->org->id, 'name' => $payload, 'type' => 'text', 'unique' => false, 'order' => 1]);
         $tier = CustomField::factory()->create([

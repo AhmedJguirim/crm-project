@@ -53,6 +53,9 @@ function rawSqlAllowList(): array
         'Services/Companies/CompanyMatcher.php' => [
             'constant' => 'lower(trim(name)) = ? with the name as a binding',
         ],
+        'Services/Contacts/PossibleDuplicateContacts.php' => [
+            'constant' => 'regexp_replace of the phone and lower(trim(name)) compared to bindings, for the possible-duplicate hint',
+        ],
         'Services/Deals/DealForecast.php' => [
             'constant' => 'constant aggregate select (COUNT, COALESCE(SUM(value), 0)) for the forecast by close month',
         ],

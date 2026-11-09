@@ -15,6 +15,7 @@ use App\Filament\Resources\Companies\RelationManagers\ContactsRelationManager as
 use App\Filament\Resources\Companies\RelationManagers\DealsRelationManager;
 use App\Filament\Resources\CompanyCustomFields\Pages\ListCompanyCustomFields;
 use App\Filament\Resources\CompanyTypes\Pages\ManageCompanyTypes;
+use App\Filament\Resources\Contacts\Pages\CreateContact;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
 use App\Filament\Resources\CustomFields\Pages\ListCustomFields;
 use App\Filament\Resources\Deals\Pages\DealPipeline;
@@ -549,3 +550,18 @@ describe('imports', function () {
         }
     });
 });
+
+test('a payload typed as the name and phone of a contact only reaches SQL as a binding', function (string $payload) {
+    $sql = SecurityPayloads::queriesDuring(function () use ($payload): void {
+        $page = Livewire::test(CreateContact::class)
+            ->fillForm(['name' => $payload, 'phone' => $payload.' 0612345678', 'companies' => [$this->company->id]]);
+        $fields = $page->instance()->getSchema('form')->getFlatFields();
+
+        expect($fields['name']->getHint())->toBeNull()
+            ->and($fields['phone']->getHint())->toBeNull();
+    });
+
+    expect($sql)->not->toBeEmpty();
+
+    SecurityPayloads::assertSqlIsClean($sql, $payload);
+})->with(SecurityPayloads::sql());

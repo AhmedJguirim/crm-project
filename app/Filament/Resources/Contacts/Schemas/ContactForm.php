@@ -13,12 +13,15 @@ use App\Models\Company;
 use App\Models\CompanyType;
 use App\Models\Contact;
 use App\Models\CustomField;
+use App\Services\Contacts\PossibleDuplicateContacts;
 use App\Services\Owners\OwnerOptions;
 use App\Support\Tenancy\CurrentOrganization;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
@@ -31,7 +34,12 @@ class ContactForm
             ->components([
                 TextInput::make('name')
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->live(onBlur: true)
+                    ->hint(fn (Get $get, ?Contact $record): ?string => static::sameNameHint($get, $record))
+                    ->hintColor('warning')
+                    ->hintIcon(fn (Get $get, ?Contact $record): ?Heroicon => filled(static::sameNameHint($get, $record)) ? Heroicon::ExclamationTriangle : null)
+                    ->hintIconTooltip('Another contact in this organization has the same name and works for one of the same companies. This is only a warning: you can still save.'),
 
                 TextInput::make('email')
                     ->nullable()
@@ -49,7 +57,12 @@ class ContactForm
 
                 TextInput::make('phone')
                     ->maxLength(50)
-                    ->nullable(),
+                    ->nullable()
+                    ->live(onBlur: true)
+                    ->hint(fn (Get $get, ?Contact $record): ?string => static::samePhoneHint($get, $record))
+                    ->hintColor('warning')
+                    ->hintIcon(fn (Get $get, ?Contact $record): ?Heroicon => filled(static::samePhoneHint($get, $record)) ? Heroicon::ExclamationTriangle : null)
+                    ->hintIconTooltip('Another contact in this organization has the same phone number. This is only a warning: you can still save.'),
 
                 Select::make('lead_source')
                     ->label('Lead Source')
@@ -78,6 +91,7 @@ class ContactForm
                     ->relationship('companies', 'name')
                     ->preload()
                     ->searchable()
+                    ->live()
                     ->helperText('Companies this contact works for')
                     ->createOptionForm([
                         TextInput::make('name')
@@ -113,5 +127,43 @@ class ContactForm
                     Contact::class,
                 ),
             ]);
+    }
+
+    protected static function samePhoneHint(Get $get, ?Contact $record): ?string
+    {
+        return static::possibleDuplicatesHint('Same phone as', PossibleDuplicateContacts::withSamePhone($get('phone'), $record));
+    }
+
+    protected static function sameNameHint(Get $get, ?Contact $record): ?string
+    {
+        return static::possibleDuplicatesHint('Same name and company as', PossibleDuplicateContacts::withSameNameAndCompany($get('name'), $get('companies'), $record));
+    }
+
+    /**
+     * A warning, never an error: the first three matching contacts (name, then email when they have one) as plain text.
+     *
+     * @param  Builder<Contact>|null  $matches
+     */
+    protected static function possibleDuplicatesHint(string $prefix, ?Builder $matches): ?string
+    {
+        if ($matches === null) {
+            return null;
+        }
+
+        $count = (clone $matches)->count();
+
+        if ($count === 0) {
+            return null;
+        }
+
+        $names = (clone $matches)
+            ->orderBy('name')
+            ->orderBy('id')
+            ->limit(3)
+            ->get(['id', 'name', 'email'])
+            ->map(fn (Contact $contact): string => $contact->name.(filled($contact->email) ? ' ('.$contact->email.')' : ''))
+            ->implode(', ');
+
+        return $prefix.': '.$names.($count > 3 ? ' and '.($count - 3).' more' : '');
     }
 }
