@@ -33,6 +33,7 @@ class Activity extends Model
         'notes',
         'outcome',
         'deal_id',
+        'company_id',
     ];
 
     protected function casts(): array
@@ -67,5 +68,13 @@ class Activity extends Model
     public function deal(): BelongsTo
     {
         return $this->belongsTo(Deal::class);
+    }
+
+    /**
+     * @return BelongsTo<Company, $this>
+     */
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
     }
 }

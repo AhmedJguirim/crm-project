@@ -203,4 +203,12 @@ class Company extends Model
     {
         return $this->hasMany(Deal::class);
     }
+
+    /**
+     * @return HasMany<Activity, $this>
+     */
+    public function activities(): HasMany
+    {
+        return $this->hasMany(Activity::class);
+    }
 }
