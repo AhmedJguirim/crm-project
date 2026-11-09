@@ -2,7 +2,9 @@
 
 namespace App\Filament\Resources\Companies\Pages;
 
+use App\Filament\Actions\LogCompanyActivityAction;
 use App\Filament\Resources\Companies\CompanyResource;
+use App\Filament\Resources\Companies\Widgets\CompanyActivityFeed;
 use App\Filament\Support\CustomFields\HandlesDuplicateCustomFieldValues;
 use App\Filament\Support\SegmentUsageGuard;
 use Filament\Actions\DeleteAction;
@@ -27,8 +29,16 @@ class EditCompany extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            LogCompanyActivityAction::make(),
             SegmentUsageGuard::protectDelete(DeleteAction::make()),
             RestoreAction::make(),
+        ];
+    }
+
+    protected function getFooterWidgets(): array
+    {
+        return [
+            CompanyActivityFeed::class,
         ];
     }
 }

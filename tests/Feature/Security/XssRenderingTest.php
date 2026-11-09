@@ -10,6 +10,7 @@ use App\Enums\SegmentOperator;
 use App\Filament\Resources\Companies\Pages\EditCompany;
 use App\Filament\Resources\Companies\Pages\ListCompanies;
 use App\Filament\Resources\Companies\RelationManagers\DealsRelationManager;
+use App\Filament\Resources\Companies\Widgets\CompanyActivityFeed;
 use App\Filament\Resources\CompanyTypes\Pages\ManageCompanyTypes;
 use App\Filament\Resources\Contacts\Pages\CreateContact;
 use App\Filament\Resources\Contacts\Pages\EditContact;
@@ -267,6 +268,25 @@ describe('activity feeds', function () {
 
         SecurityPayloads::assertHtmlIsInert(Livewire::test(ContactActivityFeed::class, ['record' => $contact])->html(), $payload);
         SecurityPayloads::assertHtmlIsInert(Livewire::test(DealActivityFeed::class, ['record' => $deal])->html(), $payload);
+    })->with(SecurityPayloads::xss());
+
+    test('the company feed shows names and texts typed as markup as text', function (string $payload) {
+        $author = User::factory()->create(['name' => $payload]);
+        $company = ($this->companyNamed)('Initech');
+        $contact = ($this->contactNamed)($payload);
+        $company->contacts()->attach($contact);
+        $deal = ($this->dealFor)($payload, $contact, $company);
+        Activity::factory()->create([
+            'organization_id' => $this->org->id,
+            'contact_id' => $contact->id,
+            'deal_id' => $deal->id,
+            'user_id' => $author->id,
+            'subject' => $payload,
+            'notes' => $payload,
+            'occurred_at' => now()->subHour(),
+        ]);
+
+        SecurityPayloads::assertHtmlIsInert(Livewire::test(CompanyActivityFeed::class, ['record' => $company])->html(), $payload);
     })->with(SecurityPayloads::xss());
 });
 
