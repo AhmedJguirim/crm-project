@@ -34,7 +34,7 @@ class ContactForm
                     ->maxLength(255),
 
                 TextInput::make('email')
-                    ->required()
+                    ->nullable()
                     ->email()
                     ->maxLength(255)
                     ->mutateStateForValidationUsing(fn (?string $state): ?string => $state === null ? null : mb_strtolower(trim($state)))

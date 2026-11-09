@@ -119,11 +119,37 @@ test('creation requires name', function () {
         ->assertHasFormErrors(['name' => 'required']);
 });
 
-test('creation requires email', function () {
+test('creation needs only a name: email and phone are optional', function () {
     Livewire::test(CreateContact::class)
-        ->fillForm(['name' => 'Test', 'email' => ''])
+        ->fillForm(['name' => 'Nora Name', 'email' => '', 'phone' => ''])
         ->call('create')
-        ->assertHasFormErrors(['email' => 'required']);
+        ->assertHasNoFormErrors();
+
+    $contact = Contact::where('name', 'Nora Name')->sole();
+
+    expect($contact->email)->toBeNull()
+        ->and($contact->phone)->toBeNull()
+        ->and($contact->organization_id)->toBe($this->org->id);
+});
+
+test('two contacts without an email can live in the same organization', function () {
+    Contact::factory()->withoutEmail()->create(['organization_id' => $this->org->id, 'name' => 'Nora Name']);
+
+    Livewire::test(CreateContact::class)
+        ->fillForm(['name' => 'Omar Name', 'email' => ''])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    expect(Contact::whereNull('email')->pluck('name')->sort()->values()->all())->toBe(['Nora Name', 'Omar Name']);
+});
+
+test('a whitespace-only email is stored as null', function () {
+    Livewire::test(CreateContact::class)
+        ->fillForm(['name' => 'Pia Space', 'email' => '   '])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    expect(Contact::where('name', 'Pia Space')->sole()->email)->toBeNull();
 });
 
 test('creation rejects invalid email', function () {

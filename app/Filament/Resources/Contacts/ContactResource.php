@@ -50,7 +50,8 @@ class ContactResource extends Resource
             Section::make()->columns(2)->schema([
                 TextEntry::make('name'),
 
-                TextEntry::make('email'),
+                TextEntry::make('email')
+                    ->placeholder('—'),
 
                 TextEntry::make('phone')
                     ->placeholder('—'),

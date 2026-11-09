@@ -19,7 +19,11 @@
             <div>
                 <dt class="text-xs font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">Email</dt>
                 <dd class="mt-1 text-sm text-gray-700 dark:text-gray-300">
-                    <a href="mailto:{{ $record->email }}" class="hover:underline">{{ $record->email }}</a>
+                    @if($record->email)
+                        <a href="mailto:{{ $record->email }}" class="hover:underline">{{ $record->email }}</a>
+                    @else
+                        <span class="text-gray-400 dark:text-gray-600">—</span>
+                    @endif
                 </dd>
             </div>
 

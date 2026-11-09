@@ -151,13 +151,15 @@ test('update requires name', function () {
         ->assertHasFormErrors(['name' => 'required']);
 });
 
-test('update requires email', function () {
-    $contact = Contact::factory()->create(['organization_id' => $this->org->id]);
+test('the email of an existing contact can be cleared', function () {
+    $contact = Contact::factory()->create(['organization_id' => $this->org->id, 'email' => 'clear-me@example.com']);
 
     Livewire::test(EditContact::class, ['record' => $contact->id])
         ->fillForm(['email' => ''])
         ->call('save')
-        ->assertHasFormErrors(['email' => 'required']);
+        ->assertHasNoFormErrors();
+
+    expect($contact->fresh()->email)->toBeNull();
 });
 
 test('update rejects duplicate email in the same organization', function () {

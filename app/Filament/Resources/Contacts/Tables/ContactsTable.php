@@ -59,8 +59,9 @@ class ContactsTable
                     ->sortable(),
 
                 TextColumn::make('email')
+                    ->placeholder('—')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable(query: NullsLastSort::column('email')),
 
                 TextColumn::make('status')
                     ->badge()

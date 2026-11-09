@@ -23,6 +23,18 @@ beforeEach(function () {
     $this->company = Company::factory()->create(['organization_id' => $this->org->id]);
 });
 
+test('the company contacts table shows a dash for a contact without an email', function () {
+    $nora = Contact::factory()->withoutEmail()->create(['organization_id' => $this->org->id, 'name' => 'Nora', 'phone' => '+33 1 22']);
+    $this->company->contacts()->attach($nora);
+
+    $dashes = fn (): int => substr_count(Livewire::test(ContactsRelationManager::class, ['ownerRecord' => $this->company, 'pageClass' => EditCompany::class])->assertCanSeeTableRecords([$nora])->html(), '—');
+
+    $before = $dashes();
+    $nora->update(['email' => 'nora@example.com']);
+
+    expect($before)->toBe($dashes() + 1);
+});
+
 test('a contact can work for several companies and a company can have several contacts', function () {
     $otherCompany = Company::factory()->create(['organization_id' => $this->org->id]);
     $contact = Contact::factory()->create(['organization_id' => $this->org->id]);

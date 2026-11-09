@@ -39,6 +39,7 @@ class ContactsRelationManager extends RelationManager
                     ->sortable(),
 
                 TextColumn::make('email')
+                    ->placeholder('—')
                     ->searchable(),
 
                 TextColumn::make('phone')

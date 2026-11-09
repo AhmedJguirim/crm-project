@@ -29,6 +29,21 @@ test('view page loads successfully', function () {
         ->assertOk();
 });
 
+test('the details widget of a contact without an email shows a dash and no mail link', function () {
+    $contact = Contact::factory()->withoutEmail()->create(['organization_id' => $this->org->id, 'name' => 'Nora Name']);
+
+    Livewire::test(ContactDetailsWidget::class, ['record' => $contact])
+        ->assertSee('Nora Name')
+        ->assertSee('—')
+        ->assertDontSee('mailto:', false);
+});
+
+test('the view page of a contact without an email loads', function () {
+    $contact = Contact::factory()->withoutEmail()->create(['organization_id' => $this->org->id]);
+
+    Livewire::test(ViewContact::class, ['record' => $contact->id])->assertOk();
+});
+
 // ── Infolist displays correct data ────────────────────────────────────────────
 
 test('view page shows contact name, email, and phone', function () {

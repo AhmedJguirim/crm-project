@@ -129,6 +129,16 @@ it('lists members by most recent join first and can sort by join date', function
         ->assertCanSeeTableRecords($contacts, inOrder: true);
 });
 
+it('shows a dash for a member without an email', function () {
+    $segment = Segment::factory()->for($this->org)->published()->create();
+    $nora = Contact::factory()->withoutEmail()->for($this->org)->create(['name' => 'Nora', 'phone' => '+33 1 22']);
+    $segment->contacts()->attach($nora, ['created_at' => now(), 'updated_at' => now()]);
+
+    Livewire::test(ContactsRelationManager::class, ['ownerRecord' => $segment, 'pageClass' => ViewSegment::class])
+        ->assertCanSeeTableRecords([$nora])
+        ->assertSeeHtml('—');
+});
+
 it('only offers published segments in the contacts segment filter', function () {
     $published = Segment::factory()->for($this->org)->published()->create(['name' => 'Published one']);
     $draft = Segment::factory()->for($this->org)->create(['name' => 'Draft one']);

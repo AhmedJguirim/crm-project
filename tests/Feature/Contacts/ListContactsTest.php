@@ -224,6 +224,29 @@ test('table can be sorted by email', function () {
         ->assertCanSeeTableRecords($sorted, inOrder: true);
 });
 
+test('contacts without an email sort last in both directions', function (string $direction, array $order) {
+    foreach ([['Ann', 'ann@example.com'], ['Ben', 'ben@example.com'], ['Nora', null]] as [$name, $email]) {
+        $contacts[$name] = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => $name, 'email' => $email]);
+    }
+
+    Livewire::test(ListContacts::class)
+        ->sortTable('email', $direction)
+        ->assertCanSeeTableRecords(array_map(fn (string $name) => $contacts[$name], $order), inOrder: true);
+})->with([
+    'ascending' => ['asc', ['Ann', 'Ben', 'Nora']],
+    'descending' => ['desc', ['Ben', 'Ann', 'Nora']],
+]);
+
+test('the list shows a dash for a contact without an email', function () {
+    $nora = Contact::factory()->withoutEmail()->create(['organization_id' => $this->org->id, 'name' => 'Nora', 'phone' => '+33 1 22']);
+    $withEmail = fn (): int => substr_count(Livewire::test(ListContacts::class)->assertCanSeeTableRecords([$nora])->html(), '—');
+
+    $dashes = $withEmail();
+    $nora->update(['email' => 'nora@example.com']);
+
+    expect($dashes)->toBe($withEmail() + 1);
+});
+
 // Tag filter
 test('table can be filtered by tag', function () {
     $tag = Tag::factory()->create(['organization_id' => $this->org->id, 'name' => 'VIP']);
