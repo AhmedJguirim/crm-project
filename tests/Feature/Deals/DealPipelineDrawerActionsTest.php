@@ -263,6 +263,23 @@ test('log an activity from the drawer', function () {
         ->and($activity->contact_id)->toBe($this->contact->id);
 });
 
+test('log an activity from the drawer of a deal without a contact', function () {
+    $solo = Deal::factory()->create(['organization_id' => $this->org->id, 'contact_id' => null, 'title' => 'Solo']);
+
+    ($this->mountChild)(($this->openDrawer)($solo), 'logActivity', $solo)
+        ->fillForm(['type' => ActivityType::Call, 'occurred_at' => '2026-10-09 10:00:00', 'subject' => 'Drawer solo call'])
+        ->call('callMountedAction')
+        ->assertHasNoFormErrors()
+        ->assertSet('mountedActions.0.name', 'openDeal')
+        ->assertMountedActionModalSee(['Call · Oct 9, 2026 · Drawer solo call']);
+
+    $activity = Activity::query()->where('subject', 'Drawer solo call')->first();
+
+    expect($activity)->not->toBeNull()
+        ->and($activity->contact_id)->toBeNull()
+        ->and($activity->deal_id)->toBe($solo->id);
+});
+
 test('add a task from the drawer', function () {
     $hasPrefill = function (array $state): array {
         expect($state['contact_id'])->toEqual($this->contact->id)
@@ -290,7 +307,7 @@ test('add a task from the drawer', function () {
         ->and($task->due_at->toDateTimeString())->toBe('2026-10-12 12:00:00');
 });
 
-test('add task and log activity are hidden for a deal without a live contact', function () {
+test('add task is hidden and log activity visible for a deal without a live contact', function () {
     $solo = Deal::factory()->create(['organization_id' => $this->org->id, 'contact_id' => null, 'title' => 'Solo']);
 
     $ghostContact = Contact::factory()->create(['organization_id' => $this->org->id]);
@@ -301,8 +318,9 @@ test('add task and log activity are hidden for a deal without a live contact', f
     $ghostDrawer = ($this->openDrawer)($ghost);
 
     expect(($this->childVisible)($soloDrawer, 'addTask'))->toBeFalse()
-        ->and(($this->childVisible)($soloDrawer, 'logActivity'))->toBeFalse()
+        ->and(($this->childVisible)($soloDrawer, 'logActivity'))->toBeTrue()
         ->and(($this->childVisible)($ghostDrawer, 'addTask'))->toBeFalse()
+        ->and(($this->childVisible)($ghostDrawer, 'logActivity'))->toBeTrue()
         ->and(($this->childVisible)($soloDrawer, 'moveStage'))->toBeTrue()
         ->and(($this->childVisible)($soloDrawer, 'editDeal'))->toBeTrue();
 });

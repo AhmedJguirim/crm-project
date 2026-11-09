@@ -27,7 +27,7 @@ use Livewire\Component;
 final class LogDealActivityAction
 {
     /**
-     * Logs an activity on the action's record (a deal) for that deal's contact; hidden when the deal has no contact.
+     * Logs an activity on the action's record (a deal), linked to the deal's contact when it has a live one, otherwise to the deal only.
      */
     public static function make(string $name = 'logActivity'): Action
     {
@@ -36,19 +36,19 @@ final class LogDealActivityAction
             ->label('Log Activity')
             ->icon(Heroicon::OutlinedPencilSquare)
             ->color('primary')
-            ->visible(fn (?Deal $record): bool => filled($record?->contact_id))
+            ->visible(fn (?Deal $record): bool => $record !== null)
             ->modalHeading('Log Activity')
             ->fillForm(fn (Deal $record): array => [
                 'deal' => $record->title,
                 'contact_name' => $record->contact?->name,
                 'deal_id' => $record->getKey(),
-                'contact_id' => $record->contact_id,
+                'contact_id' => $record->contact?->getKey(),
                 'occurred_at' => now(),
             ])
             ->schema(fn (?Deal $record): array => $record === null ? [] : self::schema($record))
             ->action(function (array $data, Deal $record, Component $livewire): void {
                 Activity::create([
-                    'contact_id' => $record->contact_id,
+                    'contact_id' => $record->contact?->getKey(),
                     'user_id' => auth()->id(),
                     'type' => $data['type'],
                     'occurred_at' => $data['occurred_at'],
@@ -73,6 +73,8 @@ final class LogDealActivityAction
      */
     protected static function schema(Deal $deal): array
     {
+        $contactId = $deal->contact?->getKey();
+
         return [
             TextInput::make('deal')
                 ->label('Deal')
@@ -81,6 +83,7 @@ final class LogDealActivityAction
 
             TextInput::make('contact_name')
                 ->label('Contact')
+                ->placeholder('No contact')
                 ->disabled()
                 ->dehydrated(false),
 
@@ -123,42 +126,49 @@ final class LogDealActivityAction
 
             RecordKeyField::select('deal_id')
                 ->label('Deal')
-                ->options(fn (): array => Deal::query()
-                    ->where('organization_id', $deal->organization_id)
-                    ->where('contact_id', $deal->contact_id)
-                    ->orderBy('title')
-                    ->pluck('title', 'id')
-                    ->all())
+                ->options(fn (): array => $contactId === null
+                    ? Deal::query()
+                        ->where('organization_id', $deal->organization_id)
+                        ->whereKey($deal->getKey())
+                        ->pluck('title', 'id')
+                        ->all()
+                    : Deal::query()
+                        ->where('organization_id', $deal->organization_id)
+                        ->where('contact_id', $contactId)
+                        ->orderBy('title')
+                        ->pluck('title', 'id')
+                        ->all())
                 ->searchable()
                 ->preload()
                 ->required()
-                ->createOptionForm([
-                    TextInput::make('title')
-                        ->required()
-                        ->maxLength(255),
-                    DealForm::stageSelect(),
-                    TextInput::make('value')
-                        ->numeric()
-                        ->minValue(0)
-                        ->maxValue(MoneyLimit::MAX)
-                        ->nullable(),
-                    Textarea::make('deal_notes')
-                        ->rows(3)
-                        ->nullable(),
-                ])
-                ->createOptionUsing(function (array $data) use ($deal): int {
-                    return Deal::create([
-                        'organization_id' => $deal->organization_id,
-                        'contact_id' => $deal->contact_id,
-                        'company_id' => DealCompany::defaultIdFor($deal->contact_id),
-                        'title' => $data['title'],
-                        ...DealStageMover::attributesFor(DefaultPipeline::stageById($deal->organization_id, $data['pipeline_stage_id'])),
-                        'value' => $data['value'] ?? null,
-                        'notes' => $data['deal_notes'] ?? null,
-                        'created_by' => auth()->id(),
-                        'owner_id' => auth()->id(),
-                    ])->getKey();
-                }),
+                ->when($contactId !== null, fn (Select $select): Select => $select
+                    ->createOptionForm([
+                        TextInput::make('title')
+                            ->required()
+                            ->maxLength(255),
+                        DealForm::stageSelect(),
+                        TextInput::make('value')
+                            ->numeric()
+                            ->minValue(0)
+                            ->maxValue(MoneyLimit::MAX)
+                            ->nullable(),
+                        Textarea::make('deal_notes')
+                            ->rows(3)
+                            ->nullable(),
+                    ])
+                    ->createOptionUsing(function (array $data) use ($deal, $contactId): int {
+                        return Deal::create([
+                            'organization_id' => $deal->organization_id,
+                            'contact_id' => $contactId,
+                            'company_id' => DealCompany::defaultIdFor($contactId),
+                            'title' => $data['title'],
+                            ...DealStageMover::attributesFor(DefaultPipeline::stageById($deal->organization_id, $data['pipeline_stage_id'])),
+                            'value' => $data['value'] ?? null,
+                            'notes' => $data['deal_notes'] ?? null,
+                            'created_by' => auth()->id(),
+                            'owner_id' => auth()->id(),
+                        ])->getKey();
+                    })),
         ];
     }
 }

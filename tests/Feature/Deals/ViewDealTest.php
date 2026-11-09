@@ -70,6 +70,46 @@ test('deal detail page renders deal metadata and contact activities', function (
         ->assertSee('Negotiation call');
 });
 
+test('the deal feed lists a deal-only activity and its author', function () {
+    $solo = Deal::factory()->create(['organization_id' => $this->org->id, 'contact_id' => null, 'title' => 'Solo']);
+
+    Activity::factory()->onlyOnDeal($solo)->create([
+        'user_id' => $this->user->id,
+        'type' => ActivityType::Meeting,
+        'subject' => 'Scope review',
+        'occurred_at' => '2026-02-20 09:00:00',
+    ]);
+
+    Livewire::test(DealActivityFeed::class, ['record' => $solo])
+        ->assertSuccessful()
+        ->assertSee('Scope review')
+        ->assertSee('Meeting')
+        ->assertSee('Logged by '.$this->user->name);
+});
+
+test('the deal feed shows only that deal activities', function () {
+    $solo = Deal::factory()->create(['organization_id' => $this->org->id, 'contact_id' => null, 'title' => 'Solo']);
+    $retainer = Deal::factory()->create(['organization_id' => $this->org->id, 'contact_id' => null, 'title' => 'Retainer']);
+
+    Activity::factory()->onlyOnDeal($solo)->create(['subject' => 'Solo note', 'type' => ActivityType::Note]);
+    Activity::factory()->onlyOnDeal($retainer)->create(['subject' => 'Retainer note', 'type' => ActivityType::Note]);
+
+    Livewire::test(DealActivityFeed::class, ['record' => $solo])
+        ->assertSee('Solo note')
+        ->assertDontSee('Retainer note');
+});
+
+test('another organization deal-only activity never shows in the feed', function () {
+    $solo = Deal::factory()->create(['organization_id' => $this->org->id, 'contact_id' => null, 'title' => 'Solo']);
+    $otherOrg = User::factory()->onboardingCompleted()->withPersonalOrganization()->create()->personalOrganization();
+    $globexDeal = Deal::factory()->create(['organization_id' => $otherOrg->id, 'contact_id' => null, 'title' => 'Globex deal']);
+
+    Activity::factory()->onlyOnDeal($globexDeal)->create(['subject' => 'Globex secret', 'type' => ActivityType::Note]);
+
+    Livewire::test(DealActivityFeed::class, ['record' => $solo])
+        ->assertDontSee('Globex secret');
+});
+
 test('move to won action updates status stage and won date', function () {
     $deal = Deal::factory()->inStage('Negotiating')->create([
         'organization_id' => $this->org->id,
