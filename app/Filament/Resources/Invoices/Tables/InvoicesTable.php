@@ -132,6 +132,13 @@ class InvoicesTable
                             $indicators[] = Indicator::make($label.' '.CarbonImmutable::createFromFormat('!Y-m-d', $date)->format('M j, Y'))->removeField($bound);
                         }
 
+                        $from = LocalTime::filterDate($data['from'] ?? null);
+                        $until = LocalTime::filterDate($data['until'] ?? null);
+
+                        if ($from !== null && $until !== null && $from > $until) {
+                            $indicators[] = Indicator::make('From is after Until — no invoice can match')->color('warning');
+                        }
+
                         return $indicators;
                     }),
 
