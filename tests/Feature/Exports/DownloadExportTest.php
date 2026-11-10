@@ -3,6 +3,7 @@
 use App\Enums\OrganizationRole;
 use App\Http\Controllers\DownloadExportController;
 use App\Jobs\Concerns\DeliversExport;
+use App\Models\Activity;
 use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Deal;
@@ -157,7 +158,7 @@ describe('the access of the user at download time', function () {
         $this->open = fn (string $url) => $this->actingAs($this->ann->fresh())->get($url);
     });
 
-    it('lets an admin or an owner download a contacts, companies, deals or tasks file', function (OrganizationRole $role, string $prefix) {
+    it('lets an admin or an owner download a contacts, companies, deals, tasks or activities file', function (OrganizationRole $role, string $prefix) {
         $this->acme->members()->updateExistingPivot($this->ann->id, ['role' => $role->value]);
         $file = ($this->stored)('xlsx', "{$prefix} bytes", $prefix);
 
@@ -165,7 +166,7 @@ describe('the access of the user at download time', function () {
 
         $response->assertOk();
         expect($response->streamedContent())->toBe("{$prefix} bytes");
-    })->with([OrganizationRole::Admin, OrganizationRole::Owner])->with(['contacts', 'companies', 'deals', 'tasks']);
+    })->with([OrganizationRole::Admin, OrganizationRole::Owner])->with(['contacts', 'companies', 'deals', 'tasks', 'activities']);
 
     it('refuses a user who was demoted after asking for the export', function (OrganizationRole $role, string $prefix) {
         $file = ($this->stored)('xlsx', 'secret', $prefix);
@@ -176,7 +177,7 @@ describe('the access of the user at download time', function () {
         $this->acme->members()->updateExistingPivot($this->ann->id, ['role' => $role->value]);
 
         ($this->open)($url)->assertForbidden();
-    })->with([OrganizationRole::Member, OrganizationRole::Viewer])->with(['contacts', 'companies', 'deals', 'tasks']);
+    })->with([OrganizationRole::Member, OrganizationRole::Viewer])->with(['contacts', 'companies', 'deals', 'tasks', 'activities']);
 
     it('refuses a user who was removed from the organization', function (string $prefix) {
         $file = ($this->stored)('xlsx', 'secret', $prefix);
@@ -185,7 +186,7 @@ describe('the access of the user at download time', function () {
         $this->acme->members()->detach($this->ann->id);
 
         ($this->open)($url)->assertForbidden();
-    })->with(['contacts', 'companies', 'deals', 'tasks']);
+    })->with(['contacts', 'companies', 'deals', 'tasks', 'activities']);
 
     it('refuses a link signed without an organization', function () {
         $file = ($this->stored)();
@@ -249,8 +250,8 @@ describe('the access of the user at download time', function () {
 });
 
 describe('the policy checked for the prefix of the file', function () {
-    it('maps the four exports of today', function () {
-        expect(DownloadExportController::EXPORT_MODELS)->toBe(['contacts' => Contact::class, 'companies' => Company::class, 'deals' => Deal::class, 'tasks' => Task::class]);
+    it('maps the five exports of today', function () {
+        expect(DownloadExportController::EXPORT_MODELS)->toBe(['contacts' => Contact::class, 'companies' => Company::class, 'deals' => Deal::class, 'tasks' => Task::class, 'activities' => Activity::class]);
     });
 
     it('is told the prefix of every export job', function () {
@@ -263,7 +264,7 @@ describe('the policy checked for the prefix of the file', function () {
                 return $method->invoke((new ReflectionClass($class))->newInstanceWithoutConstructor());
             });
 
-        expect($prefixes)->toHaveCount(4)
+        expect($prefixes)->toHaveCount(5)
             ->and(array_keys(DownloadExportController::EXPORT_MODELS))->toContain(...$prefixes->all());
     });
 
@@ -286,6 +287,7 @@ describe('the policy checked for the prefix of the file', function () {
         'companies' => ['companies', Company::class],
         'deals' => ['deals', Deal::class],
         'tasks' => ['tasks', Task::class],
+        'activities' => ['activities', Activity::class],
     ]);
 
     it('refuses an existing file with a prefix that is not in the map before any access check', function (string $file) {
@@ -304,7 +306,7 @@ describe('the policy checked for the prefix of the file', function () {
         expect($checked)->toBe([]);
     })->with([
         'invoices' => 'invoices-'.str_repeat('a', 40).'.xlsx',
-        'activities' => 'activities-'.str_repeat('a', 40).'.csv',
+        'segments' => 'segments-'.str_repeat('a', 40).'.csv',
         'an upper-case prefix' => 'Contacts-'.str_repeat('a', 40).'.xlsx',
         'a failed rows file' => 'failed-'.str_repeat('a', 40).'.csv',
     ]);

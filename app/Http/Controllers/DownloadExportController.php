@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ExportFormat;
+use App\Models\Activity;
 use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Deal;
@@ -33,6 +34,7 @@ class DownloadExportController extends Controller
         'companies' => Company::class,
         'deals' => Deal::class,
         'tasks' => Task::class,
+        'activities' => Activity::class,
     ];
 
     public function __invoke(Request $request): StreamedResponse|Response
