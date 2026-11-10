@@ -23,6 +23,7 @@ use App\Filament\Widgets\DashboardV2\OwnerPerformanceWidget;
 use App\Filament\Widgets\DashboardV2\TaskStatusWidget;
 use App\Filament\Widgets\DealForecastWidget;
 use App\Filament\Widgets\DealsNeedingAttentionWidget;
+use App\Filament\Widgets\GettingStartedWidget;
 use App\Filament\Widgets\KpiOverviewWidget;
 use App\Filament\Widgets\MoneyOwedWidget;
 use App\Filament\Widgets\MyDealsClosingWidget;
@@ -46,7 +47,9 @@ use Filament\Support\Icons\Heroicon;
  * "Finance" (the key figures with the cash collected, the money owed, the overdue invoices, the revenue by month, the
  * forecast and the user's own tasks and deals closing). They share the period and owner filter bar (the report widgets
  * read it through `App\Support\Reports\DashboardFilters`, which validates the values) with the Reports page; the
- * widgets of a tab load lazily, so a hidden tab runs no query until it is opened. Every role can open it.
+ * widgets of a tab load lazily, so a hidden tab runs no query until it is opened. Every role can open it. Above the
+ * filter bar and the tabs, owners, admins and members see the "Get started" card until the first contact, deal, task and
+ * invoice exist or they dismiss it.
  *
  * The CRM has no ticket system and no workflows: the open tasks stand for the tickets, the lost deal reasons for the
  * disqualified reasons of the leads, and nothing stands for the leads created by workflows.
@@ -54,6 +57,14 @@ use Filament\Support\Icons\Heroicon;
 class Dashboard extends BaseDashboard
 {
     use HasReportFilters;
+
+    /**
+     * @return array<class-string>
+     */
+    protected function getHeaderWidgets(): array
+    {
+        return [GettingStartedWidget::class];
+    }
 
     /**
      * @return array<class-string>
