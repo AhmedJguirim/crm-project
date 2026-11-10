@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Enums\Currency;
 use App\Enums\InvoiceStatus;
 use App\Models\Contact;
 use App\Models\Invoice;
@@ -42,5 +43,16 @@ class InvoiceFactory extends Factory
             'paid_at' => $paidAt,
             'notes' => fake()->optional(0.7)->sentence(),
         ];
+    }
+
+    /**
+     * An invoice in the given currency, with the exchange rate (home units per 1 invoice unit) when it has one.
+     */
+    public function inCurrency(Currency $currency, ?string $exchangeRate = null): static
+    {
+        return $this->state(fn (): array => [
+            'currency' => $currency,
+            'exchange_rate' => $exchangeRate,
+        ]);
     }
 }

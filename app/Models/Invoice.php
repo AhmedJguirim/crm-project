@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\Currency;
 use App\Enums\InvoiceStatus;
 use App\Models\Concerns\BelongsToOrganization;
 use App\Observers\InvoiceObserver;
@@ -29,6 +30,8 @@ class Invoice extends Model
         'invoice_number',
         'amount',
         'amount_paid',
+        'currency',
+        'exchange_rate',
         'payment_terms',
         'status',
         'issued_at',
@@ -43,6 +46,8 @@ class Invoice extends Model
         return [
             'amount' => 'decimal:2',
             'amount_paid' => 'decimal:2',
+            'currency' => Currency::class,
+            'exchange_rate' => 'decimal:8',
             'payment_terms' => 'integer',
             'status' => InvoiceStatus::class,
             'issued_at' => 'date',

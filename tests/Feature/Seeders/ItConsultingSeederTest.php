@@ -414,6 +414,18 @@ test('it consulting seeder seeds one currency and the dashboard adds the amounts
         ->and(Invoice::query()->where('invoice_number', 'INV-2026-005')->value('amount_paid'))->toBe('31000.00');
 });
 
+test('it consulting seeder puts every invoice in its organization currency with the matching rate', function () {
+    $this->seed(ItConsultingSeeder::class);
+
+    $invoices = Invoice::query()->withoutGlobalScope('organization')->get();
+    $currencies = Organization::query()->pluck('currency', 'id');
+
+    expect($invoices)->not->toBeEmpty()
+        ->and($invoices->filter(fn (Invoice $invoice): bool => $invoice->currency !== $currencies[$invoice->organization_id])->count())->toBe(0)
+        ->and($invoices->where('status', InvoiceStatus::Draft)->pluck('exchange_rate')->unique()->all())->each->toBeNull()
+        ->and($invoices->whereNotIn('status', [InvoiceStatus::Draft, InvoiceStatus::Cancelled])->pluck('exchange_rate')->unique()->values()->all())->toBe(['1.00000000']);
+});
+
 test('it consulting seeder records the seeded payments once in the ledger', function () {
     $this->seed(ItConsultingSeeder::class);
     $this->seed(ItConsultingSeeder::class);

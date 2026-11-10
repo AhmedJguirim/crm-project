@@ -6,6 +6,7 @@ use App\Filament\Pages\Tenancy\RegisterOrganization;
 use App\Models\Organization;
 use App\Models\User;
 use Filament\Facades\Filament;
+use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
 
@@ -36,6 +37,12 @@ describe('the model', function () {
     it('has human labels for the select', function () {
         expect(Currency::Eur->getLabel())->toBe('Euro (EUR)')
             ->and(Currency::Usd->getLabel())->toBe('US dollar (USD)');
+    });
+
+    it('has a label, a colour and an icon for TND', function () {
+        expect(Currency::Tnd->getLabel())->toBe('Tunisian dinar (TND)')
+            ->and(Currency::Tnd->getColor())->toBe('gray')
+            ->and(Currency::Tnd->getIcon())->toBe(Heroicon::OutlinedBanknotes);
     });
 });
 
@@ -98,9 +105,10 @@ describe('registering an organization', function () {
 });
 
 describe('the schema', function () {
-    it('keeps the currency on the organization only', function () {
+    it('keeps the deal values in the organization currency and gives the currency and rate to invoices only', function () {
         expect(Schema::hasColumn('organizations', 'currency'))->toBeTrue()
             ->and(Schema::hasColumn('deals', 'currency'))->toBeFalse()
-            ->and(Schema::hasColumn('invoices', 'currency'))->toBeFalse();
+            ->and(Schema::hasColumn('invoices', 'currency'))->toBeTrue()
+            ->and(Schema::hasColumn('invoices', 'exchange_rate'))->toBeTrue();
     });
 });

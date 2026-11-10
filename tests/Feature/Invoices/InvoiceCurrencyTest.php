@@ -54,7 +54,7 @@ test('the invoice forms have no currency field and prefix the amounts with the o
     expect($payment->errors()->get('mountedActions.0.data.amount'))->toContain("The payment can't be more than the balance due (€1,500.00).");
 });
 
-test('choosing a deal fills the amount from its value and the invoice carries no currency', function () {
+test('choosing a deal fills the amount from its value and the invoice is stored in the organization currency', function () {
     $deal = Deal::factory()->create([
         'organization_id' => $this->org->id,
         'contact_id' => $this->contact->id,
@@ -69,7 +69,7 @@ test('choosing a deal fills the amount from its value and the invoice carries no
         ->call('create')
         ->assertHasNoFormErrors();
 
-    expect(Invoice::query()->where('deal_id', $deal->id)->firstOrFail()->getAttributes())->not->toHaveKey('currency');
+    expect(Invoice::query()->where('deal_id', $deal->id)->firstOrFail()->currency)->toBe(Currency::Eur);
 });
 
 test('the deal options of the invoice form show the organization currency', function () {
