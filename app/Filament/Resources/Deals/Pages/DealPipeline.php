@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\Deals\Pages;
 
 use App\Enums\DealStatus;
-use App\Filament\Actions\LogDealActivityAction;
+use App\Filament\Actions\LogActivityAction;
 use App\Filament\Actions\QuickTaskAction;
 use App\Filament\Resources\Deals\DealResource;
 use App\Filament\Resources\Deals\Schemas\DealDrawerInfolist;
@@ -125,7 +125,7 @@ class DealPipeline extends BoardResourcePage
                     ->modalCancelActionLabel('Close')
                     ->extraModalFooterActions([
                         $this->moveStageAction(),
-                        LogDealActivityAction::make()
+                        LogActivityAction::forDeal()
                             ->after(fn (Action $action) => $this->refreshDrawerDeal($action)),
                         QuickTaskAction::makeForDeal()
                             ->after(fn (Action $action) => $this->refreshDrawerDeal($action)),

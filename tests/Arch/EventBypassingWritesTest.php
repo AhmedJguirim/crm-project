@@ -41,7 +41,7 @@ function eventBypassingPatterns(): array
     return [
         'quietly' => '/(?:->|::)\s*(?:save|update|create|delete)Quietly\s*\(/',
         'withoutEvents' => '/(?:->|::)\s*withoutEvents\s*\(/',
-        'model-query' => '/\b(?:'.BYPASS_MODELS.')::(?!(?:'.BYPASS_INSTANCE_METHODS.')\s*\()(?:(?!->(?:'.BYPASS_INSTANCE_METHODS.')\s*\()[^;])*?->(?:'.BYPASS_METHODS.')\s*\(/s',
+        'model-query' => '/\b(?:'.BYPASS_MODELS.')::(?!class\b)(?!(?:'.BYPASS_INSTANCE_METHODS.')\s*\()(?:(?!->(?:'.BYPASS_INSTANCE_METHODS.')\s*\()[^;])*?->(?:'.BYPASS_METHODS.')\s*\(/s',
         'table-query' => '/\bDB::table\(\s*[\'"](?:'.BYPASS_TABLES.')[\'"]\s*\)[^;]*?->(?:'.BYPASS_METHODS.')\s*\(/s',
     ];
 }
@@ -152,6 +152,7 @@ it('detects every kind of bypassing write', function (string $code, string $patt
     'static update' => ['Activity::where(\'id\', 1)->update([\'notes\' => \'x\']);', 'model-query'],
     'increment' => ['Company::where(\'id\', 1)->increment(\'x\');', 'model-query'],
     'company type delete' => ['CompanyType::whereKey(1)->delete();', 'model-query'],
+    'class constant then query update' => ['$x->options(OwnerOptions::forFilter(Contact::class))->bulk(Contact::query()->whereKey(1)->update([]));', 'model-query'],
     'raw pivot insert' => ['DB::table(\'contact_tag\')->insert([\'contact_id\' => 1]);', 'table-query'],
     'raw contacts update' => ['DB::table(\'contacts\')->where(\'id\', 1)->update([\'name\' => \'x\']);', 'table-query'],
     'raw insert or ignore' => ['DB::table(\'company_contact\')->insertOrIgnore([[\'contact_id\' => 1]]);', 'table-query'],
@@ -161,6 +162,7 @@ it('does not flag writes that fire model events or touch other tables', function
     expect(scanFixtures(['Fixture.php' => $code]))->toBe([]);
 })->with([
     'instance update' => ['$deal->update([\'stage\' => \'won\']);'],
+    'a ::class constant before an instance update' => ['$x->options(OwnerOptions::forFilter(Contact::class))->bulk(fn ($c) => $c->update([\'a\' => 1]));'],
     'instance delete' => ['$tag->delete();'],
     'found model update' => ['Deal::find(1)->update([\'stage\' => \'won\']);'],
     'first model update' => ['Contact::where(\'id\', 1)->first()->update([\'name\' => \'x\']);'],

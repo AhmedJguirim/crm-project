@@ -2,36 +2,18 @@
 
 namespace App\Filament\Resources\Contacts\Pages;
 
-use App\Enums\ActivityOutcome;
-use App\Enums\ActivityType;
+use App\Filament\Actions\LogActivityAction;
 use App\Filament\Actions\QuickTaskAction;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Contacts\Widgets\ContactActivityFeed;
 use App\Filament\Resources\Contacts\Widgets\ContactDetailsWidget;
-use App\Filament\Resources\Deals\Schemas\DealForm;
-use App\Filament\Support\AbilityCheck;
-use App\Filament\Support\RecordKeyField;
-use App\Models\Activity;
 use App\Models\Contact;
 use App\Models\CustomField;
-use App\Models\Deal;
-use App\Services\Deals\DealCompany;
-use App\Services\Deals\DealStageMover;
-use App\Services\Deals\DefaultPipeline;
-use App\Support\MoneyLimit;
-use App\Support\Tenancy\CurrentOrganization;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
-use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Notifications\Notification;
 use Filament\Resources\Pages\Concerns\InteractsWithRecord;
 use Filament\Resources\Pages\Page;
-use Filament\Schemas\Components\Grid;
-use Filament\Schemas\Components\Utilities\Get;
 use Filament\Support\Icons\Heroicon;
 
 /**
@@ -68,105 +50,7 @@ class ViewContact extends Page
         return [
             QuickTaskAction::makeForContact($this->getRecord()),
 
-            Action::make('logActivity')
-                ->authorize(AbilityCheck::for('create', Activity::class))
-                ->label('Log Activity')
-                ->icon(Heroicon::OutlinedPencilSquare)
-                ->color('primary')
-                ->modalHeading('Log Activity')
-                ->schema([
-                    Grid::make(2)->schema([
-                        Select::make('type')
-                            ->options(ActivityType::class)
-                            ->required()
-                            ->live(),
-
-                        DateTimePicker::make('occurred_at')
-                            ->label('Date & Time')
-                            ->required()
-                            ->default(now())
-                            ->native(false),
-                    ]),
-
-                    TextInput::make('duration_minutes')
-                        ->label('Duration (minutes)')
-                        ->numeric()
-                        ->minValue(1)
-                        ->maxValue(1440)
-                        ->suffix('min')
-                        ->visible(function (Get $get): bool {
-                            $type = $get('type');
-
-                            if ($type instanceof ActivityType) {
-                                return $type->hasDuration();
-                            }
-
-                            return ActivityType::tryFrom($type ?? '')?->hasDuration() ?? false;
-                        }),
-
-                    TextInput::make('subject')
-                        ->maxLength(255),
-
-                    Textarea::make('notes')
-                        ->rows(3),
-
-                    Select::make('outcome')
-                        ->options(ActivityOutcome::class),
-
-                    RecordKeyField::select('deal_id')
-                        ->label('Deal')
-                        ->options(fn (): array => Deal::query()
-                            ->where('organization_id', CurrentOrganization::find()?->id)
-                            ->where('contact_id', $this->getRecord()->getKey())
-                            ->orderBy('title')
-                            ->pluck('title', 'id')
-                            ->all())
-                        ->searchable()
-                        ->preload()
-                        ->nullable()
-                        ->createOptionForm([
-                            TextInput::make('title')
-                                ->required()
-                                ->maxLength(255),
-                            DealForm::stageSelect(),
-                            TextInput::make('value')
-                                ->numeric()
-                                ->minValue(0)
-                                ->maxValue(MoneyLimit::MAX)
-                                ->nullable(),
-                            Textarea::make('deal_notes')
-                                ->rows(3)
-                                ->nullable(),
-                        ])
-                        ->createOptionUsing(function (array $data): int {
-                            return Deal::create([
-                                'organization_id' => CurrentOrganization::find()?->id,
-                                'contact_id' => $this->getRecord()->getKey(),
-                                'company_id' => DealCompany::defaultIdFor($this->getRecord()->getKey()),
-                                'title' => $data['title'],
-                                ...DealStageMover::attributesFor(DefaultPipeline::stageById(CurrentOrganization::get()->id, $data['pipeline_stage_id'])),
-                                'value' => $data['value'] ?? null,
-                                'notes' => $data['deal_notes'] ?? null,
-                                'created_by' => auth()->id(),
-                                'owner_id' => auth()->id(),
-                            ])->getKey();
-                        }),
-                ])
-                ->action(function (array $data): void {
-                    $activityData = collect($data)->toArray();
-
-                    $activityData['contact_id'] = $this->getRecord()->getKey();
-                    $activityData['user_id'] = auth()->id();
-
-                    Activity::create($activityData);
-
-                    Notification::make()
-                        ->title('Activity logged')
-                        ->success()
-                        ->send();
-
-                    $this->dispatch('activityLogged');
-                }),
+            LogActivityAction::forContact(),
             Action::make('customFields')
                 ->label('Custom Fields')
                 ->icon(Heroicon::OutlinedAdjustmentsHorizontal)

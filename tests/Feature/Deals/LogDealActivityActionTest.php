@@ -2,7 +2,7 @@
 
 use App\Enums\ActivityType;
 use App\Enums\OrganizationRole;
-use App\Filament\Actions\LogDealActivityAction;
+use App\Filament\Actions\LogActivityAction;
 use App\Filament\Resources\Deals\Pages\ViewDeal;
 use App\Jobs\ResyncContactSegments;
 use App\Models\Activity;
@@ -12,7 +12,6 @@ use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
-use Filament\Forms\Components\TextInput;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
@@ -40,8 +39,7 @@ afterEach(function () {
 
 test('the deal page builds its action from the class', function () {
     $hasPrefill = function (array $state): array {
-        expect($state['deal'])->toBe('Retainer')
-            ->and($state['contact_name'])->toBe('Jane Doe')
+        expect($state)->not->toHaveKeys(['deal', 'contact_name', 'contact_id'])
             ->and($state['deal_id'])->toEqual($this->deal->id);
 
         return [];
@@ -54,9 +52,9 @@ test('the deal page builds its action from the class', function () {
         ->mountAction('logActivity')
         ->assertActionDataSet($hasPrefill);
 
-    expect(LogDealActivityAction::make())->toBeInstanceOf(Action::class)
-        ->and(LogDealActivityAction::make()->getName())->toBe('logActivity')
-        ->and(LogDealActivityAction::make('other')->getName())->toBe('other');
+    expect(LogActivityAction::forDeal())->toBeInstanceOf(Action::class)
+        ->and(LogActivityAction::forDeal()->getName())->toBe('logActivity')
+        ->and(LogActivityAction::forDeal('other')->getName())->toBe('other');
 });
 
 test('logging from the deal page is unchanged', function () {
@@ -109,9 +107,7 @@ test('it is visible on a deal without a contact and shows No contact', function 
     ]);
 
     $hasPrefill = function (array $state) use ($solo): array {
-        expect($state['deal'])->toBe('Solo')
-            ->and($state['contact_name'])->toBeNull()
-            ->and($state['contact_id'])->toBeNull()
+        expect($state)->not->toHaveKeys(['deal', 'contact_name', 'contact_id'])
             ->and($state['deal_id'])->toEqual($solo->id);
 
         return [];
@@ -121,7 +117,8 @@ test('it is visible on a deal without a contact and shows No contact', function 
         ->assertActionVisible('logActivity')
         ->mountAction('logActivity')
         ->assertActionDataSet($hasPrefill)
-        ->assertSchemaComponentExists('contact_name', checkComponentUsing: fn (TextInput $field): bool => $field->getPlaceholder() === 'No contact');
+        ->assertMountedActionModalSee('No contact')
+        ->assertSchemaComponentDoesNotExist('contact_name');
 });
 
 test('logging on a deal without a contact stores a deal-only activity', function () {
@@ -212,8 +209,7 @@ test('a deal whose contact is soft-deleted logs a deal-only activity', function 
     $oldClient->delete();
 
     $hasGhostPrefill = function (array $state) use ($ghost): array {
-        expect($state['contact_name'])->toBeNull()
-            ->and($state['contact_id'])->toBeNull()
+        expect($state)->not->toHaveKeys(['deal', 'contact_name', 'contact_id'])
             ->and($state['deal_id'])->toEqual($ghost->id);
 
         return [];

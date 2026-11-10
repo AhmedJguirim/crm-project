@@ -2,31 +2,21 @@
 
 namespace App\Filament\Resources\Contacts\Tables;
 
-use App\Enums\ActivityType;
 use App\Enums\ContactStatus;
 use App\Enums\LeadSource;
 use App\Filament\Actions\AssignOwnerBulkAction;
 use App\Filament\Actions\ExportContactsAction;
+use App\Filament\Actions\LogActivityAction;
 use App\Filament\Actions\QuickTaskAction;
-use App\Filament\Resources\Deals\Schemas\DealForm;
-use App\Filament\Support\AbilityCheck;
 use App\Filament\Support\Filters\OptionSelectFilter;
 use App\Filament\Support\Filters\RecordKeySelectFilter;
 use App\Filament\Support\NullsLastSort;
-use App\Filament\Support\RecordKeyField;
 use App\Jobs\ResyncContactSegments;
-use App\Models\Activity;
 use App\Models\Contact;
-use App\Models\Deal;
 use App\Models\Tag;
-use App\Services\Deals\DealCompany;
-use App\Services\Deals\DealStageMover;
-use App\Services\Deals\DefaultPipeline;
 use App\Services\Owners\OwnerOptions;
-use App\Support\MoneyLimit;
 use App\Support\NotificationText;
 use App\Support\Tenancy\CurrentOrganization;
-use Filament\Actions\Action;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -34,10 +24,7 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\RestoreAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Actions\ViewAction;
-use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Support\Colors\Color;
 use Filament\Support\Icons\Heroicon;
@@ -134,77 +121,7 @@ class ContactsTable
                 DeleteAction::make(),
                 QuickTaskAction::makeForContactsTable(),
 
-                Action::make('logActivity')
-                    ->authorize(AbilityCheck::for('create', Activity::class))
-                    ->label('Log')
-                    ->icon(Heroicon::OutlinedPencilSquare)
-                    ->color('gray')
-                    ->modalHeading('Quick Log Activity')
-                    ->schema(fn ($record): array => [
-                        Select::make('type')
-                            ->options(ActivityType::class)
-                            ->required(),
-
-                        DateTimePicker::make('occurred_at')
-                            ->label('Date & Time')
-                            ->required()
-                            ->default(now())
-                            ->native(false),
-
-                        RecordKeyField::select('deal_id')
-                            ->label('Deal')
-                            ->options(fn (): array => Deal::query()
-                                ->where('organization_id', CurrentOrganization::find()?->id)
-                                ->where('contact_id', $record->getKey())
-                                ->orderBy('title')
-                                ->pluck('title', 'id')
-                                ->all())
-                            ->searchable()
-                            ->preload()
-                            ->nullable()
-                            ->createOptionForm([
-                                TextInput::make('title')
-                                    ->required()
-                                    ->maxLength(255),
-                                DealForm::stageSelect(),
-                                TextInput::make('value')
-                                    ->numeric()
-                                    ->minValue(0)
-                                    ->maxValue(MoneyLimit::MAX)
-                                    ->nullable(),
-                                Textarea::make('notes')
-                                    ->rows(3)
-                                    ->nullable(),
-                            ])
-                            ->createOptionUsing(function (array $data) use ($record): int {
-                                return Deal::create([
-                                    'organization_id' => CurrentOrganization::find()?->id,
-                                    'contact_id' => $record->getKey(),
-                                    'company_id' => DealCompany::defaultIdFor($record->getKey()),
-                                    'title' => $data['title'],
-                                    ...DealStageMover::attributesFor(DefaultPipeline::stageById(CurrentOrganization::get()->id, $data['pipeline_stage_id'])),
-                                    'value' => $data['value'] ?? null,
-                                    'notes' => $data['notes'] ?? null,
-                                    'created_by' => auth()->id(),
-                                    'owner_id' => auth()->id(),
-                                ])->getKey();
-                            }),
-
-                        Textarea::make('notes')
-                            ->rows(3),
-                    ])
-                    ->action(function (array $data, $record): void {
-                        Activity::create([
-                            ...$data,
-                            'contact_id' => $record->getKey(),
-                            'user_id' => auth()->id(),
-                        ]);
-
-                        Notification::make()
-                            ->title('Activity logged')
-                            ->success()
-                            ->send();
-                    }),
+                LogActivityAction::forContactRow(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

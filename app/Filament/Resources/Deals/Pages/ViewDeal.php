@@ -3,7 +3,7 @@
 namespace App\Filament\Resources\Deals\Pages;
 
 use App\Enums\DealStatus;
-use App\Filament\Actions\LogDealActivityAction;
+use App\Filament\Actions\LogActivityAction;
 use App\Filament\Actions\QuickTaskAction;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Deals\DealResource;
@@ -90,7 +90,7 @@ class ViewDeal extends Page
                 ->label('Quick Task')
                 ->color('primary'),
 
-            LogDealActivityAction::make(),
+            LogActivityAction::forDeal(),
 
             Action::make('createInvoice')
                 ->authorize(AbilityCheck::for('create', Invoice::class))

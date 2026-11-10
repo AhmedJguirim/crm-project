@@ -3,7 +3,7 @@
 use App\Enums\ActivityOutcome;
 use App\Enums\ActivityType;
 use App\Enums\OrganizationRole;
-use App\Filament\Actions\LogCompanyActivityAction;
+use App\Filament\Actions\LogActivityAction;
 use App\Filament\Resources\Companies\Pages\EditCompany;
 use App\Jobs\ResyncContactSegments;
 use App\Models\Activity;
@@ -58,8 +58,8 @@ test('the action is on the company page and prefilled', function () {
         ->mountAction('logActivity')
         ->assertActionDataSet($hasNow);
 
-    expect(LogCompanyActivityAction::make()->getName())->toBe('logActivity')
-        ->and(LogCompanyActivityAction::make('other')->getName())->toBe('other');
+    expect(LogActivityAction::forCompany()->getName())->toBe('logActivity')
+        ->and(LogActivityAction::forCompany('other')->getName())->toBe('other');
 });
 
 test('logging stores a company-only activity', function () {
