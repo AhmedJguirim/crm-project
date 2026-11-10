@@ -3,6 +3,7 @@
 namespace App\Jobs\Concerns;
 
 use App\Enums\ExportFormat;
+use App\Http\Controllers\DownloadExportController;
 use App\Jobs\Middleware\WithTenantContext;
 use App\Models\User;
 use App\Support\NotificationText;
@@ -35,7 +36,10 @@ trait DeliversExport
 
     public int $tries = 1;
 
-    /** The start of the stored file name, e.g. `contacts`; the download route accepts the known prefixes only. */
+    /**
+     * The start of the stored file name, e.g. `contacts`; it must be a key of
+     * {@see DownloadExportController::EXPORT_MODELS}, or the download refuses the file.
+     */
     abstract protected function exportFilePrefix(): string;
 
     /** What is counted in the notification, singular, e.g. `contact`. */

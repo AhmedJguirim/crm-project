@@ -1,8 +1,13 @@
 <?php
 
 use App\Enums\OrganizationRole;
+use App\Http\Controllers\DownloadExportController;
+use App\Jobs\Concerns\DeliversExport;
+use App\Models\Company;
+use App\Models\Contact;
 use App\Models\Organization;
 use App\Models\User;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
@@ -228,4 +233,64 @@ describe('the access of the user at download time', function () {
         ($this->open)(($this->link)(['file' => '../.env', 'organization' => $this->acme->id]))->assertNotFound();
         ($this->open)(($this->link)(['file' => 'contacts-'.str_repeat('a', 40).'.xlsx', 'organization' => $this->acme->id]))->assertForbidden();
     });
+});
+
+describe('the policy checked for the prefix of the file', function () {
+    it('maps the two exports of today', function () {
+        expect(DownloadExportController::EXPORT_MODELS)->toBe(['contacts' => Contact::class, 'companies' => Company::class]);
+    });
+
+    it('is told the prefix of every export job', function () {
+        $prefixes = collect(glob(app_path('Jobs/*.php')))
+            ->map(fn (string $path): string => 'App\\Jobs\\'.basename($path, '.php'))
+            ->filter(fn (string $class): bool => in_array(DeliversExport::class, class_uses_recursive($class), true))
+            ->map(function (string $class): string {
+                $method = new ReflectionMethod($class, 'exportFilePrefix');
+
+                return $method->invoke((new ReflectionClass($class))->newInstanceWithoutConstructor());
+            });
+
+        expect($prefixes)->toHaveCount(2)
+            ->and(array_keys(DownloadExportController::EXPORT_MODELS))->toContain(...$prefixes->all());
+    });
+
+    it('checks the export ability of the mapped model only', function (string $prefix, string $model) {
+        $file = ($this->stored)('xlsx', 'bytes', $prefix);
+        $checked = [];
+        Gate::before(function ($user, string $ability, array $arguments) use (&$checked) {
+            if ($ability === 'export') {
+                $checked[] = $arguments[0];
+            }
+
+            return null;
+        });
+
+        $this->actingAs($this->ann)->get(($this->link)(['file' => $file]))->assertOk();
+
+        expect($checked)->toBe([$model]);
+    })->with([
+        'contacts' => ['contacts', Contact::class],
+        'companies' => ['companies', Company::class],
+    ]);
+
+    it('refuses an existing file with a prefix that is not in the map before any access check', function (string $file) {
+        Storage::disk('local')->put("exports/{$file}", 'secret');
+        $checked = [];
+        Gate::before(function ($user, string $ability, array $arguments) use (&$checked) {
+            if ($ability === 'export') {
+                $checked[] = $arguments[0];
+            }
+
+            return null;
+        });
+
+        $this->actingAs($this->ann)->get(($this->link)(['file' => $file]))->assertNotFound();
+
+        expect($checked)->toBe([]);
+    })->with([
+        'deals' => 'deals-'.str_repeat('a', 40).'.xlsx',
+        'tasks' => 'tasks-'.str_repeat('a', 40).'.csv',
+        'an upper-case prefix' => 'Contacts-'.str_repeat('a', 40).'.xlsx',
+        'a failed rows file' => 'failed-'.str_repeat('a', 40).'.csv',
+    ]);
 });
