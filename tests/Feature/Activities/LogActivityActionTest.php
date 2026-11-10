@@ -2,6 +2,8 @@
 
 use App\Enums\ActivityOutcome;
 use App\Enums\ActivityType;
+use App\Enums\OrganizationRole;
+use App\Filament\Actions\LogActivityAction;
 use App\Filament\Resources\Companies\Pages\EditCompany;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
 use App\Filament\Resources\Contacts\Pages\ViewContact;
@@ -11,10 +13,12 @@ use App\Models\Activity;
 use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Deal;
+use App\Models\Organization;
 use App\Models\User;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 
@@ -289,4 +293,158 @@ test('the deal form requires a deal while the contact forms do not', function ()
         ->assertHasNoActionErrors();
 
     expect(Activity::query()->where('notes', 'No deal')->sole()->deal_id)->toBeNull();
+});
+
+describe('the remembered activity type', function () {
+    beforeEach(function () {
+        $this->typeState = function (Testable $component): ?ActivityType {
+            $type = null;
+
+            $component->assertActionDataSet(function (array $state) use (&$type): array {
+                $type = $state['type'] instanceof ActivityType ? $state['type'] : ActivityType::tryFrom((string) $state['type']);
+
+                return [];
+            });
+
+            return $type;
+        };
+
+        $this->logged = fn (ActivityType $type, string $createdAt, array $attributes = []): Activity => Activity::factory()->type($type)->create([
+            'organization_id' => $this->org->id,
+            'contact_id' => $this->contact->id,
+            'user_id' => $this->user->id,
+            'created_at' => $createdAt,
+            ...$attributes,
+        ]);
+    });
+
+    test('every entry point prefills my last logged type', function (string $name, Closure $mount) {
+        ($this->logged)(ActivityType::Meeting, '2026-11-10 09:00:00');
+
+        $component = $mount();
+
+        expect(($this->typeState)($component))->toBe(ActivityType::Meeting);
+
+        $all = array_map(fn ($field): string => $field->getName(), ($this->mountedFields)($component));
+        $visible = array_keys($component->instance()->getSchema($component->instance()->getMountedActionSchemaName())->getFlatFields());
+
+        if (in_array('duration_minutes', $all, true)) {
+            expect($visible)->toContain('duration_minutes');
+        }
+    })->with('log activity pages');
+
+    test('no activity means no default on every entry point', function (string $name, Closure $mount) {
+        expect(($this->typeState)($mount()))->toBeNull();
+    })->with('log activity pages');
+
+    test('logging through the form changes the next prefill', function () {
+        Livewire::test(ViewContact::class, ['record' => $this->contact->id])
+            ->callAction('logActivity', data: ['type' => ActivityType::Call, 'occurred_at' => '2026-11-10 10:00:00'])
+            ->assertHasNoActionErrors();
+
+        $component = Livewire::test(ViewDeal::class, ['record' => $this->deal->id])->mountAction('logActivity');
+
+        expect(($this->typeState)($component))->toBe(ActivityType::Call);
+    });
+
+    test('the latest logged one wins, not the latest occurred one', function () {
+        ($this->logged)(ActivityType::Call, '2026-11-10 08:05:00', ['occurred_at' => '2026-11-10 08:00:00']);
+        ($this->logged)(ActivityType::Email, '2026-11-10 11:00:00', ['occurred_at' => '2026-11-01 09:00:00']);
+
+        $component = Livewire::test(ViewContact::class, ['record' => $this->contact->id])->mountAction('logActivity');
+
+        expect(($this->typeState)($component))->toBe(ActivityType::Email);
+    });
+
+    test('the id breaks a tie on the creation second', function () {
+        ($this->logged)(ActivityType::Call, '2026-11-10 09:00:00');
+        ($this->logged)(ActivityType::Note, '2026-11-10 09:00:00');
+
+        $component = Livewire::test(ViewContact::class, ['record' => $this->contact->id])->mountAction('logActivity');
+
+        expect(($this->typeState)($component))->toBe(ActivityType::Note);
+    });
+
+    test('another user is unaffected and the type stays required', function () {
+        $colleague = User::factory()->onboardingCompleted()->create();
+        $this->org->members()->attach($colleague, ['role' => OrganizationRole::Member->value]);
+        ($this->logged)(ActivityType::Meeting, '2026-11-10 09:00:00', ['user_id' => $colleague->id]);
+
+        $component = Livewire::test(ViewContact::class, ['record' => $this->contact->id])->mountAction('logActivity');
+
+        expect(($this->typeState)($component))->toBeNull();
+
+        $component->setActionData(['type' => null, 'occurred_at' => '2026-11-10 10:00:00'])
+            ->callMountedAction()
+            ->assertHasActionErrors(['type' => 'required']);
+
+        expect(Activity::query()->where('user_id', $this->user->id)->count())->toBe(0);
+    });
+
+    test('the type is remembered across my organizations and nothing else leaks', function () {
+        $globex = Organization::factory()->create(['name' => 'Globex Demo']);
+        $globex->members()->attach($this->user, ['role' => OrganizationRole::Member->value]);
+        $secret = Contact::factory()->create(['organization_id' => $globex->id, 'name' => 'Secret Globex Person']);
+
+        ($this->logged)(ActivityType::Call, '2026-11-10 09:00:00');
+        Activity::factory()->type(ActivityType::WhatsApp)->create([
+            'organization_id' => $globex->id,
+            'contact_id' => $secret->id,
+            'user_id' => $this->user->id,
+            'subject' => 'Globex secret subject',
+            'created_at' => '2026-11-10 11:30:00',
+        ]);
+
+        $component = Livewire::test(ViewContact::class, ['record' => $this->contact->id])->mountAction('logActivity');
+
+        expect(($this->typeState)($component))->toBe(ActivityType::WhatsApp);
+
+        $component->assertMountedActionModalDontSee(['Secret Globex Person', 'Globex secret subject', 'Globex Demo']);
+    });
+
+    test('an invalid stored type means no default and no error', function () {
+        ($this->logged)(ActivityType::Call, '2026-11-10 09:00:00');
+
+        DB::table('contact_activities')->insert([
+            'organization_id' => $this->org->id,
+            'user_id' => $this->user->id,
+            'contact_id' => $this->contact->id,
+            'type' => 'fax',
+            'occurred_at' => '2026-11-10 10:00:00',
+            'created_at' => '2026-11-10 11:00:00',
+            'updated_at' => '2026-11-10 11:00:00',
+        ]);
+
+        $component = Livewire::test(ViewContact::class, ['record' => $this->contact->id])->mountAction('logActivity');
+
+        expect(($this->typeState)($component))->toBeNull();
+    });
+
+    test('without a user a userless activity is not remembered', function () {
+        ($this->logged)(ActivityType::Meeting, '2026-11-10 09:00:00', ['user_id' => null]);
+        auth()->logout();
+
+        $remembered = Closure::bind(fn (): ?ActivityType => self::rememberedType(), null, LogActivityAction::class);
+
+        expect(Activity::query()->whereNull('user_id')->count())->toBe(1)
+            ->and($remembered())->toBeNull();
+    });
+
+    test('a hostile stored type is not echoed', function () {
+        DB::table('contact_activities')->insert([
+            'organization_id' => $this->org->id,
+            'user_id' => $this->user->id,
+            'contact_id' => $this->contact->id,
+            'type' => '<script>alert(1)</script>',
+            'occurred_at' => '2026-11-10 10:00:00',
+            'created_at' => '2026-11-10 11:00:00',
+            'updated_at' => '2026-11-10 11:00:00',
+        ]);
+
+        $component = Livewire::test(ViewContact::class, ['record' => $this->contact->id])->mountAction('logActivity');
+
+        expect(($this->typeState)($component))->toBeNull();
+
+        $component->assertMountedActionModalDontSeeHtml('<script>alert(1)</script>');
+    });
 });

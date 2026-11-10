@@ -42,6 +42,7 @@ final class LogActivityAction
                 : ($record->contact === null ? 'No contact' : "Contact: {$record->contact->name}"))
             ->fillForm(fn (Deal $record): array => [
                 'occurred_at' => now(),
+                'type' => self::rememberedType(),
                 'deal_id' => $record->getKey(),
             ])
             ->schema(function (?Deal $record): array {
@@ -89,7 +90,7 @@ final class LogActivityAction
         return self::base($name)
             ->visible(fn (?Company $record): bool => $record !== null && ! $record->trashed())
             ->modalHeading(fn (?Company $record): string => $record === null ? 'Log Activity' : "Log Activity — {$record->name}")
-            ->fillForm(fn (): array => ['occurred_at' => now()])
+            ->fillForm(fn (): array => ['occurred_at' => now(), 'type' => self::rememberedType()])
             ->schema(fn (?Company $record): array => $record === null ? [] : self::fields(
                 self::dealSelect(fn (): array => Deal::query()
                     ->where('organization_id', $record->organization_id)
@@ -131,7 +132,7 @@ final class LogActivityAction
     {
         return self::base($name)
             ->modalHeading(fn (?Contact $record): string => $record === null ? 'Log Activity' : "Log Activity — {$record->name}")
-            ->fillForm(fn (): array => ['occurred_at' => now()])
+            ->fillForm(fn (): array => ['occurred_at' => now(), 'type' => self::rememberedType()])
             ->schema(fn (?Contact $record): array => $record === null ? [] : self::fields(
                 self::inlineDealCreate(
                     self::dealSelect(self::contactDeals($record->organization_id, $record->getKey()))->nullable(),
@@ -147,6 +148,29 @@ final class LogActivityAction
                 null,
                 $livewire,
             ));
+    }
+
+    /**
+     * The type of the current user's most recently logged activity (by creation, not by occurrence), or null when there is none or the stored value is not an ActivityType.
+     * It is remembered per user across all of the user's organizations (PO, 2026-11-10), so the organization scope is dropped on purpose.
+     */
+    private static function rememberedType(): ?ActivityType
+    {
+        $userId = auth()->id();
+
+        if ($userId === null) {
+            return null;
+        }
+
+        $type = Activity::query()
+            ->withoutGlobalScope('organization')
+            ->where('user_id', $userId)
+            ->orderByDesc('created_at')
+            ->orderByDesc('id')
+            ->toBase()
+            ->value('type');
+
+        return is_string($type) ? ActivityType::tryFrom($type) : null;
     }
 
     private static function base(string $name): Action
