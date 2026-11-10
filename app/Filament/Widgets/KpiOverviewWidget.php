@@ -16,7 +16,7 @@ use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Number;
 
 /**
- * The dashboard key figures (revenue won, deals won, win rate, new deals, cash collected, new contacts) of the page's period and owner
+ * The dashboard key figures (revenue won, win rate, new deals, cash collected, new contacts) of the page's period and owner
  * filters, each compared with the previous period of the same length and drawn as a sparkline of the last 6 periods
  * (the current one last). Every figure is "more is better"; cash collected (payments minus refunds of the invoice
  * ledger) can be negative.
@@ -33,7 +33,7 @@ class KpiOverviewWidget extends StatsOverviewWidget
 
     protected int|string|array $columnSpan = 'full';
 
-    protected int|array|null $columns = ['@xl' => 3, '@5xl' => 6, '!@lg' => 3, '!@xl' => 6];
+    protected int|array|null $columns = ['@xl' => 3, '@5xl' => 5, '!@lg' => 3, '!@xl' => 5];
 
     protected function getHeading(): ?string
     {
@@ -82,13 +82,6 @@ class KpiOverviewWidget extends StatsOverviewWidget
                 $previous['won_value'],
                 Number::currency($previous['won_value'], $currency),
             )->url($wonUrl), array_column($deals, 'won_value')),
-
-            $this->withTrend(ReportStats::compared(
-                Stat::make('Deals Won '.$title, (string) $current['won_count']),
-                $current['won_count'],
-                $previous['won_count'],
-                (string) $previous['won_count'],
-            )->url($wonUrl), array_column($deals, 'won_count')),
 
             $this->withTrend(ReportStats::winRate($title, $period->phrase(), $current['won_count'], $current['lost_count'], $previous['won_count'], $previous['lost_count']), array_map($this->winRatePoints(...), $deals)),
 

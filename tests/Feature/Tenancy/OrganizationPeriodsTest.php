@@ -178,7 +178,7 @@ test('the month widgets count the local month', function () {
     InvoicePayment::factory()->create(['invoice_id' => $invoice->id, 'amount' => '40.00', 'paid_on' => '2026-10-31']);
 
     expect(($this->stats)(KpiOverviewWidget::class)['New Contacts This Month'])->toBe('1')
-        ->and(($this->stats)(KpiOverviewWidget::class)['Deals Won This Month'])->toBe('1')
+        ->and(($this->stats)(KpiOverviewWidget::class)['Revenue Won This Month'])->toBe('$300.00')
         ->and(($this->stats)(KpiOverviewWidget::class)['Cash Collected This Month'])->toBe('$100.00');
 });
 

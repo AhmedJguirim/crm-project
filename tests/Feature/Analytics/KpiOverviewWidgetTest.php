@@ -116,7 +116,6 @@ describe('with the mixed deals and contacts of two months', function () {
 
         expect(($this->kpiSummary)($stats))->toBe([
             'Revenue Won This Month' => ['$1,000.00', '+11.1% from $900.00'],
-            'Deals Won This Month' => ['2', '+100% from 1'],
             'Win Rate This Month' => ['67%', '2 of 3 won · +34 pts from 33%'],
             'New Deals This Month' => ['3', '-25% from 4'],
             'Cash Collected This Month' => ['$0.00', 'Same as previous period'],
@@ -140,7 +139,6 @@ describe('with the mixed deals and contacts of two months', function () {
 
         expect(collect($stats)->map(fn (Stat $stat): ?string => $stat->getUrl())->all())->toBe([
             DealResource::getUrl('index').'?filters[status][value]=won',
-            DealResource::getUrl('index').'?filters[status][value]=won',
             null,
             DealResource::getUrl('index'),
             InvoiceResource::getUrl('index'),
@@ -155,7 +153,7 @@ describe('with the mixed deals and contacts of two months', function () {
 
         $stats = invade(Livewire::test(KpiOverviewWidget::class)->instance())->getStats();
 
-        parse_str((string) parse_url($stats[1]->getUrl(), PHP_URL_QUERY), $query);
+        parse_str((string) parse_url($stats[0]->getUrl(), PHP_URL_QUERY), $query);
 
         Livewire::withQueryParams($query)->test(ListDeals::class)
             ->assertSet('tableFilters.status.value', DealStatus::Won->value)
@@ -166,7 +164,6 @@ describe('with the mixed deals and contacts of two months', function () {
     test('the owner narrows every figure and its comparison', function () {
         expect(($this->kpiSummary)(($this->kpiStats)(['owner' => 'me'])))->toBe([
             'Revenue Won This Month' => ['$1,000.00', 'Up from $0.00'],
-            'Deals Won This Month' => ['2', 'Up from 0'],
             'Win Rate This Month' => ['67%', '2 of 3 won · No closed deals in the previous period'],
             'New Deals This Month' => ['2', 'Same as previous period'],
             'Cash Collected This Month' => ['$0.00', 'Same as previous period'],
@@ -177,7 +174,6 @@ describe('with the mixed deals and contacts of two months', function () {
 
         expect(($this->kpiSummary)($bob))->toBe([
             'Revenue Won This Month' => ['$0.00', '-100% from $900.00'],
-            'Deals Won This Month' => ['0', '-100% from 1'],
             'Win Rate This Month' => ['—', 'No deals closed this month'],
             'New Deals This Month' => ['1', '-50% from 2'],
             'Cash Collected This Month' => ['$0.00', 'Same as previous period'],
@@ -190,7 +186,6 @@ describe('with the mixed deals and contacts of two months', function () {
     test('last month is compared with the month before', function () {
         expect(($this->kpiSummary)(($this->kpiStats)(['period' => 'last_month'])))->toBe([
             'Revenue Won Last Month' => ['$900.00', 'Up from $0.00'],
-            'Deals Won Last Month' => ['1', 'Up from 0'],
             'Win Rate Last Month' => ['33%', '1 of 3 won · No closed deals in the previous period'],
             'New Deals Last Month' => ['4', '+100% from 2'],
             'Cash Collected Last Month' => ['$0.00', 'Same as previous period'],
@@ -204,7 +199,7 @@ describe('with the mixed deals and contacts of two months', function () {
     test('a custom range counts its local days and is compared with the days just before', function () {
         $filters = ['period' => 'custom', 'from' => '2026-10-01', 'to' => '2026-10-05'];
 
-        expect(($this->kpiStats)($filters)['Deals Won In Period']['value'])->toBe('2');
+        expect(($this->kpiStats)($filters)['Revenue Won In Period']['value'])->toBe('$1,000.00');
 
         Livewire::test(KpiOverviewWidget::class, ['pageFilters' => $filters])
             ->assertSee('Compared with the previous period, from Sep 26, 2026 to Sep 30, 2026.');
@@ -225,7 +220,6 @@ describe('with the mixed deals and contacts of two months', function () {
         $stats = ($this->kpiStats)();
 
         expect($stats['Revenue Won This Month']['value'])->toBe('$1,000.00')
-            ->and($stats['Deals Won This Month']['value'])->toBe('2')
             ->and($stats['New Deals This Month']['value'])->toBe('3')
             ->and($stats['New Contacts This Month']['value'])->toBe('2');
 
@@ -242,7 +236,7 @@ describe('with the mixed deals and contacts of two months', function () {
 
         $stats = ($this->kpiStats)(['owner' => $owner($carol)]);
 
-        expect($stats['Deals Won This Month']['value'])->toBe('2')
+        expect($stats['Revenue Won This Month']['value'])->toBe('$1,000.00')
             ->and($stats['New Deals This Month']['value'])->toBe('3')
             ->and($stats['Cash Collected This Month']['value'])->toBe('$250.00');
     })->with([
@@ -256,7 +250,6 @@ describe('with the mixed deals and contacts of two months', function () {
 
         expect(array_map(fn (array $stat): array => $stat['chart'], $charts))->toBe([
             'Revenue Won This Month' => [0.0, 0.0, 0.0, 0.0, 900.0, 1000.0],
-            'Deals Won This Month' => [0, 0, 0, 0, 1, 2],
             'Win Rate This Month' => [0, 0, 0, 0, 33, 67],
             'New Deals This Month' => [0, 0, 0, 2, 4, 3],
             'Cash Collected This Month' => [0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -288,7 +281,7 @@ describe('with the mixed deals and contacts of two months', function () {
     });
 
     test('the lines follow the period type', function () {
-        expect(($this->kpiCharts)(['period' => 'last_month'])['Deals Won Last Month']['chart'])->toBe([0, 0, 0, 0, 0, 1]);
+        expect(($this->kpiCharts)(['period' => 'last_month'])['Revenue Won Last Month']['chart'])->toBe([0.0, 0.0, 0.0, 0.0, 0.0, 900.0]);
     });
 
     test('the figures take three queries, one each on deals, contacts and the invoice ledger', function () {
@@ -362,7 +355,7 @@ test('the key figures are first, full width and not polled', function () {
     expect(invade($widget)->getPollingInterval())->toBeNull()
         ->and(KpiOverviewWidget::getSort())->toBe(-45)
         ->and($widget->getColumnSpan())->toBe('full')
-        ->and(invade($widget)->getColumns())->toBe(['@xl' => 3, '@5xl' => 6, '!@lg' => 3, '!@xl' => 6]);
+        ->and(invade($widget)->getColumns())->toBe(['@xl' => 3, '@5xl' => 5, '!@lg' => 3, '!@xl' => 5]);
 });
 
 test('every role sees the key figures', function (OrganizationRole $role) {

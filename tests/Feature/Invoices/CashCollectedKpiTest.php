@@ -107,10 +107,9 @@ describe('with the ledger of three invoices', function () {
         'a custom range' => fn () => [['period' => 'custom', 'from' => '2026-10-01', 'to' => '2026-10-05'], 'Cash Collected In Period', '$1,500.00', '+150% from $600.00'],
     ]);
 
-    test('cash collected sits fifth, between new deals and new contacts', function () {
+    test('cash collected sits fourth, between new deals and new contacts', function () {
         expect(array_keys(($this->cashStats)()))->toBe([
             'Revenue Won This Month',
-            'Deals Won This Month',
             'Win Rate This Month',
             'New Deals This Month',
             'Cash Collected This Month',
@@ -239,7 +238,7 @@ test('a refund month dips below zero on the cash line', function () {
     ($this->cashEntry)($invoice, '200.00', '2026-09-10', refund: true);
     ($this->cashEntry)($invoice, '100.00', '2026-10-04');
 
-    $stat = invade(Livewire::test(KpiOverviewWidget::class)->instance())->getStats()[4];
+    $stat = invade(Livewire::test(KpiOverviewWidget::class)->instance())->getStats()[3];
 
     expect($stat->getLabel())->toBe('Cash Collected This Month')
         ->and($stat->getChart())->toBe([0.0, 0.0, 0.0, 200.0, -200.0, 100.0]);
@@ -253,7 +252,7 @@ test('the cash line follows the owner and leaves out the ledger of another organ
     $carol = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
     ($this->cashEntry)(($this->cashInvoice)(null, InvoiceStatus::Sent, $carol->personalOrganization()), '9000.00', '2026-09-10');
 
-    $cash = fn (array $filters): array => invade(Livewire::test(KpiOverviewWidget::class, ['pageFilters' => $filters])->instance())->getStats()[4]->getChart();
+    $cash = fn (array $filters): array => invade(Livewire::test(KpiOverviewWidget::class, ['pageFilters' => $filters])->instance())->getStats()[3]->getChart();
 
     expect($cash([]))->toBe([0.0, 0.0, 0.0, 0.0, 0.0, 110.0])
         ->and($cash(['owner' => 'me']))->toBe([0.0, 0.0, 0.0, 0.0, 0.0, 40.0]);
