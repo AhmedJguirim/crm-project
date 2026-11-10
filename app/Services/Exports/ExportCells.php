@@ -110,6 +110,18 @@ class ExportCells
     }
 
     /**
+     * A money amount: the exact 2-decimal text in a CSV, a number cell in an .xlsx.
+     */
+    public static function money(?string $value, ExportFormat $format): string|float
+    {
+        if ($value === null) {
+            return '';
+        }
+
+        return $format === ExportFormat::Xlsx ? (float) $value : $value;
+    }
+
+    /**
      * The label of the option with the stored value, or the stored value when it is no longer an option.
      */
     private static function optionLabel(CustomField|CompanyCustomField $field, mixed $value): string

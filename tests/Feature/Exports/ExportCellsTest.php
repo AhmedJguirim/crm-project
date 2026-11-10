@@ -110,3 +110,16 @@ it('starts a CSV with the UTF-8 BOM', function () {
 
     expect($contents)->toStartWith("\xEF\xBB\xBFname\n")->toContain('Hélène');
 });
+
+it('writes a money amount as exact text in a CSV and as a number in an .xlsx', function (?string $value, ExportFormat $format, string|float $expected) {
+    $cell = ExportCells::money($value, $format);
+
+    expect($cell)->toBe($expected);
+})->with([
+    'null in a csv' => [null, ExportFormat::Csv, ''],
+    'null in an xlsx' => [null, ExportFormat::Xlsx, ''],
+    'decimal in a csv' => ['1234.50', ExportFormat::Csv, '1234.50'],
+    'the largest value in a csv' => ['99999999.99', ExportFormat::Csv, '99999999.99'],
+    'decimal in an xlsx' => ['1234.50', ExportFormat::Xlsx, 1234.5],
+    'zero in a csv' => ['0.00', ExportFormat::Csv, '0.00'],
+]);

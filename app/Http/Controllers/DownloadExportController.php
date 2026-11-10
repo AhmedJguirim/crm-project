@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\ExportFormat;
 use App\Models\Company;
 use App\Models\Contact;
+use App\Models\Deal;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -29,6 +30,7 @@ class DownloadExportController extends Controller
     public const EXPORT_MODELS = [
         'contacts' => Contact::class,
         'companies' => Company::class,
+        'deals' => Deal::class,
     ];
 
     public function __invoke(Request $request): StreamedResponse|Response
