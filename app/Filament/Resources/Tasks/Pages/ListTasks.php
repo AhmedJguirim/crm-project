@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Tasks\Pages;
 
+use App\Filament\Actions\ExportTasksAction;
 use App\Filament\Resources\Tasks\TaskResource;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use Filament\Actions\CreateAction;
@@ -32,6 +33,7 @@ class ListTasks extends ListRecords
     {
         return [
             CreateAction::make()->label('New Task'),
+            ExportTasksAction::forList(),
         ];
     }
 }

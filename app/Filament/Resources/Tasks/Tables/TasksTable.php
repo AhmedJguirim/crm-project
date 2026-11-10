@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Tasks\Tables;
 
 use App\Enums\TaskStatus;
+use App\Filament\Actions\ExportTasksAction;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Tasks\Schemas\TaskForm;
 use App\Filament\Support\Filters\OptionSelectFilter;
@@ -160,6 +161,8 @@ class TasksTable
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
+
+                    ExportTasksAction::forSelection(),
 
                     DeleteBulkAction::make()->authorizeIndividualRecords(),
                 ]),
