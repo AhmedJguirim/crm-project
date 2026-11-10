@@ -14,10 +14,12 @@ class OrganizationUser extends Pivot
         'organization_id',
         'user_id',
         'role',
+        'checklist_dismissed_at',
     ];
 
     protected $casts = [
         'role' => OrganizationRole::class,
+        'checklist_dismissed_at' => 'datetime',
     ];
 
     /**
