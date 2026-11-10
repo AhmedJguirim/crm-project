@@ -3,6 +3,7 @@
 use App\Filament\Resources\Companies\Pages\CreateCompany;
 use App\Filament\Resources\CompanyTypes\Pages\ManageCompanyTypes;
 use App\Filament\Resources\Contacts\Pages\CreateContact;
+use App\Filament\Resources\Contacts\Pages\EditContact;
 use App\Filament\Resources\PipelineStages\Pages\ManagePipelineStages;
 use App\Filament\Resources\Tags\Pages\CreateTag;
 use App\Models\Company;
@@ -84,6 +85,31 @@ it('guards a field that has no closure rule of its own', function () {
     $page->assertHasFormErrors(['name']);
     expect($page->errors()->get('data.name'))->toBe(['The name field must be a single value.'])
         ->and(Contact::where('email', 'forged@example.com')->exists())->toBeFalse();
+});
+
+// BUG-72
+it('refuses a forged array email on the create contact page with one single-value error', function () {
+    $page = Livewire::test(CreateContact::class)
+        ->set('data.name', 'Arr')
+        ->set('data.email', ['a@b.c'])
+        ->call('create');
+
+    $page->assertHasFormErrors(['email']);
+    expect($page->errors()->get('data.email'))->toBe(['The email field must be a single value.'])
+        ->and(Contact::where('name', 'Arr')->exists())->toBeFalse();
+});
+
+// BUG-72
+it('refuses a forged array email on the edit contact page with one single-value error', function () {
+    $contact = Contact::factory()->for($this->org)->create(['name' => 'Ann', 'email' => 'ann@example.com']);
+
+    $page = Livewire::test(EditContact::class, ['record' => $contact->id])
+        ->set('data.email', ['a@b.c'])
+        ->call('save');
+
+    $page->assertHasFormErrors(['email']);
+    expect($page->errors()->get('data.email'))->toBe(['The email field must be a single value.'])
+        ->and($contact->refresh()->email)->toBe('ann@example.com');
 });
 
 it('guards a textarea', function () {

@@ -45,7 +45,7 @@ class ContactForm
                     ->nullable()
                     ->email()
                     ->maxLength(255)
-                    ->mutateStateForValidationUsing(fn (?string $state): ?string => $state === null ? null : mb_strtolower(trim($state)))
+                    ->mutateStateForValidationUsing(fn (mixed $state): mixed => is_string($state) ? mb_strtolower(trim($state)) : $state)
                     ->unique(Contact::class, 'email', ignoreRecord: true, modifyRuleUsing: function ($rule) {
                         return $rule->where('organization_id', CurrentOrganization::get()->id);
                     }),
