@@ -257,11 +257,11 @@ test('the company_type_id column is gone', function () {
     expect(Schema::hasColumn('company_custom_fields', 'company_type_id'))->toBeFalse();
 });
 
-test('the menu lists contact fields then company fields in the Audience group', function () {
+test('the menu lists contact fields then company fields in the Configuration group', function () {
     expect(CustomFieldResource::getNavigationLabel())->toBe('Contact fields')
         ->and(CompanyCustomFieldResource::getNavigationLabel())->toBe('Company fields')
-        ->and(CustomFieldResource::getNavigationGroup())->toBe('Audience')
-        ->and(CompanyCustomFieldResource::getNavigationGroup())->toBe('Audience')
+        ->and(CustomFieldResource::getNavigationGroup())->toBe('Configuration')
+        ->and(CompanyCustomFieldResource::getNavigationGroup())->toBe('Configuration')
         ->and(CustomFieldResource::getNavigationSort())->toBe(10)
         ->and(CompanyCustomFieldResource::getNavigationSort())->toBe(11)
         ->and(CustomFieldResource::getModelLabel())->toBe('Contact field')

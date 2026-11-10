@@ -30,9 +30,9 @@ class PipelineStageResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Pipeline stages';
 
-    protected static string|UnitEnum|null $navigationGroup = 'Organization';
+    protected static string|UnitEnum|null $navigationGroup = 'Configuration';
 
-    protected static ?int $navigationSort = 20;
+    protected static ?int $navigationSort = 14;
 
     protected static bool $isGloballySearchable = false;
 

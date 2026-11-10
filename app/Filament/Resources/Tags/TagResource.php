@@ -32,9 +32,9 @@ class TagResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Tags';
 
-    protected static string|UnitEnum|null $navigationGroup = 'Audience';
+    protected static string|UnitEnum|null $navigationGroup = 'Configuration';
 
-    protected static ?int $navigationSort = 5;
+    protected static ?int $navigationSort = 12;
 
     public static function form(Schema $schema): Schema
     {

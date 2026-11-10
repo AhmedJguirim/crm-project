@@ -73,10 +73,10 @@ it('lists the stages in board order with their type, probability and deals', fun
         ->assertTableColumnStateSet('type', DealStatus::Won, ($this->stage)('Won'));
 });
 
-it('sits in the Organization group and stays out of the global search', function () {
+it('sits in the Configuration group and stays out of the global search', function () {
     expect(PipelineStageResource::getNavigationLabel())->toBe('Pipeline stages')
-        ->and(PipelineStageResource::getNavigationGroup())->toBe('Organization')
-        ->and(PipelineStageResource::getNavigationSort())->toBe(20)
+        ->and(PipelineStageResource::getNavigationGroup())->toBe('Configuration')
+        ->and(PipelineStageResource::getNavigationSort())->toBe(14)
         ->and(PipelineStageResource::canGloballySearch())->toBeFalse();
 });
 

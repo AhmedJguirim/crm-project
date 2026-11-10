@@ -23,7 +23,7 @@ class CompanyCustomFieldResource extends Resource
 {
     protected static ?string $model = CompanyCustomField::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBriefcase;
 
     protected static ?string $recordTitleAttribute = 'name';
 
@@ -33,7 +33,7 @@ class CompanyCustomFieldResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Company fields';
 
-    protected static string|UnitEnum|null $navigationGroup = 'Audience';
+    protected static string|UnitEnum|null $navigationGroup = 'Configuration';
 
     protected static ?int $navigationSort = 11;
 

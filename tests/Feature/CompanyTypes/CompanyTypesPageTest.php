@@ -10,9 +10,9 @@ use App\Filament\Resources\Companies\CompanyResource;
 use App\Filament\Resources\Companies\Pages\CreateCompany;
 use App\Filament\Resources\Companies\Pages\EditCompany;
 use App\Filament\Resources\Companies\Pages\ListCompanies;
-use App\Filament\Resources\CompanyCustomFields\CompanyCustomFieldResource;
 use App\Filament\Resources\CompanyTypes\CompanyTypeResource;
 use App\Filament\Resources\CompanyTypes\Pages\ManageCompanyTypes;
+use App\Filament\Resources\Tags\TagResource;
 use App\Models\Company;
 use App\Models\CompanyType;
 use App\Models\Organization;
@@ -67,11 +67,11 @@ it('lists the types of the current organization only', function () {
     $this->get(CompanyTypeResource::getUrl('index'))->assertOk();
 });
 
-it('is in the Audience group right after the company fields', function () {
+it('is in the Configuration group right after the tags', function () {
     expect(CompanyTypeResource::getNavigationLabel())->toBe('Company types')
-        ->and(CompanyTypeResource::getNavigationGroup())->toBe('Audience')
-        ->and(CompanyTypeResource::getNavigationSort())->toBe(12)
-        ->and(CompanyTypeResource::getNavigationSort())->toBeGreaterThan(CompanyCustomFieldResource::getNavigationSort());
+        ->and(CompanyTypeResource::getNavigationGroup())->toBe('Configuration')
+        ->and(CompanyTypeResource::getNavigationSort())->toBe(13)
+        ->and(CompanyTypeResource::getNavigationSort())->toBeGreaterThan(TagResource::getNavigationSort());
 });
 
 describe('creating and renaming', function () {

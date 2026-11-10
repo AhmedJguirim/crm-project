@@ -52,10 +52,10 @@ it('does not list the reasons of another organization', function () {
     Livewire::test(ManageLostReasons::class)->assertCanNotSeeTableRecords([$foreign]);
 });
 
-it('is in the Organization group right after the pipeline stages and is not globally searchable', function () {
+it('is in the Configuration group right after the pipeline stages and is not globally searchable', function () {
     expect(LostReasonResource::getNavigationLabel())->toBe('Lost reasons')
-        ->and(LostReasonResource::getNavigationGroup())->toBe('Organization')
-        ->and(LostReasonResource::getNavigationSort())->toBe(21)
+        ->and(LostReasonResource::getNavigationGroup())->toBe('Configuration')
+        ->and(LostReasonResource::getNavigationSort())->toBe(15)
         ->and(LostReasonResource::getNavigationSort())->toBeGreaterThan(PipelineStageResource::getNavigationSort())
         ->and(LostReasonResource::canGloballySearch())->toBeFalse();
 });

@@ -42,6 +42,8 @@ class OrganizationMembers extends Page implements HasTable
 
     protected static string|UnitEnum|null $navigationGroup = 'Organization';
 
+    protected static ?int $navigationSort = 13;
+
     public static function canAccess(): bool
     {
         /** @var Organization|null $organization */

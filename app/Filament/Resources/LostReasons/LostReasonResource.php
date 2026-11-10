@@ -30,9 +30,9 @@ class LostReasonResource extends Resource
 
     protected static ?string $pluralModelLabel = 'Lost reasons';
 
-    protected static string|UnitEnum|null $navigationGroup = 'Organization';
+    protected static string|UnitEnum|null $navigationGroup = 'Configuration';
 
-    protected static ?int $navigationSort = 21;
+    protected static ?int $navigationSort = 15;
 
     protected static bool $isGloballySearchable = false;
 
