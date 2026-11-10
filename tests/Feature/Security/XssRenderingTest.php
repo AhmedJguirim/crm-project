@@ -7,6 +7,7 @@ use App\Enums\DealStatus;
 use App\Enums\OrganizationRole;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentOperator;
+use App\Filament\Resources\Companies\Pages\CreateCompany;
 use App\Filament\Resources\Companies\Pages\EditCompany;
 use App\Filament\Resources\Companies\Pages\ListCompanies;
 use App\Filament\Resources\Companies\RelationManagers\DealsRelationManager;
@@ -118,6 +119,16 @@ describe('record pages', function () {
         $page = Livewire::test(CreateContact::class)->fillForm(['name' => 'Other', 'phone' => '0612345678']);
 
         expect($page->instance()->getSchema('form')->getFlatFields()['phone']->getHint())->toBe('Same phone as: '.$payload);
+
+        SecurityPayloads::assertHtmlIsInert($page->html(), $payload);
+    })->with(SecurityPayloads::xss());
+
+    test('a company named as markup is shown as text in the same-name hint', function (string $payload) {
+        ($this->companyNamed)($payload, ['website' => null]);
+
+        $page = Livewire::test(CreateCompany::class)->fillForm(['name' => $payload]);
+
+        expect($page->instance()->getSchema('form')->getFlatFields()['name']->getHint())->toBe('Same name as: '.$payload);
 
         SecurityPayloads::assertHtmlIsInert($page->html(), $payload);
     })->with(SecurityPayloads::xss());

@@ -9,6 +9,7 @@ use App\Enums\SegmentFieldKind;
 use App\Enums\SegmentOperator;
 use App\Exceptions\DuplicateCustomFieldValueException;
 use App\Filament\Pages\Tenancy\EditOrganization;
+use App\Filament\Resources\Companies\Pages\CreateCompany;
 use App\Filament\Resources\Companies\Pages\EditCompany;
 use App\Filament\Resources\Companies\Pages\ListCompanies;
 use App\Filament\Resources\Companies\RelationManagers\ContactsRelationManager as CompanyContactsRelationManager;
@@ -559,6 +560,18 @@ test('a payload typed as the name and phone of a contact only reaches SQL as a b
 
         expect($fields['name']->getHint())->toBeNull()
             ->and($fields['phone']->getHint())->toBeNull();
+    });
+
+    expect($sql)->not->toBeEmpty();
+
+    SecurityPayloads::assertSqlIsClean($sql, $payload);
+})->with(SecurityPayloads::sql());
+
+test('a payload typed as the name of a company only reaches SQL as a binding', function (string $payload) {
+    $sql = SecurityPayloads::queriesDuring(function () use ($payload): void {
+        $page = Livewire::test(CreateCompany::class)->fillForm(['name' => $payload]);
+
+        expect($page->instance()->getSchema('form')->getFlatFields()['name']->getHint())->toBeNull();
     });
 
     expect($sql)->not->toBeEmpty();

@@ -10,6 +10,7 @@ use App\Filament\Support\RecordKeyField;
 use App\Models\Company;
 use App\Models\CompanyCustomField;
 use App\Models\CompanyType;
+use App\Services\Companies\PossibleDuplicateCompanies;
 use App\Services\Owners\OwnerOptions;
 use Closure;
 use Filament\Actions\Action;
@@ -36,7 +37,12 @@ class CompanyForm
                     ->schema([
                         TextInput::make('name')
                             ->required()
-                            ->maxLength(255),
+                            ->maxLength(255)
+                            ->live(onBlur: true)
+                            ->hint(fn (Get $get, ?Company $record): ?string => static::sameNameHint($get('name'), $record))
+                            ->hintColor('warning')
+                            ->hintIcon(fn (Get $get, ?Company $record): ?Heroicon => filled(static::sameNameHint($get('name'), $record)) ? Heroicon::ExclamationTriangle : null)
+                            ->hintIconTooltip('Another company in this organization has the same name. This is only a warning: you can still save.'),
 
                         RecordKeyField::select('company_type_id')
                             ->label('Type')
@@ -156,6 +162,35 @@ class CompanyForm
         $names = (clone $others)->limit(3)->pluck('name')->implode(', ');
 
         return 'Also used by: '.$names.($count > 3 ? ' and '.($count - 3).' more' : '');
+    }
+
+    /**
+     * A warning, never an error: other non-trashed companies of the organization with the same name, ignoring case and
+     * spacing.
+     */
+    protected static function sameNameHint(mixed $name, ?Company $record): ?string
+    {
+        $others = PossibleDuplicateCompanies::withSameName($name, $record);
+
+        if ($others === null) {
+            return null;
+        }
+
+        $count = (clone $others)->count();
+
+        if ($count === 0) {
+            return null;
+        }
+
+        $names = (clone $others)
+            ->orderBy('name')
+            ->orderBy('id')
+            ->limit(3)
+            ->get(['id', 'name', 'domain'])
+            ->map(fn (Company $company): string => $company->name.(filled($company->domain) ? ' ('.$company->domain.')' : ''))
+            ->implode(', ');
+
+        return 'Same name as: '.$names.($count > 3 ? ' and '.($count - 3).' more' : '');
     }
 
     /** @return Collection<int, CompanyCustomField> */

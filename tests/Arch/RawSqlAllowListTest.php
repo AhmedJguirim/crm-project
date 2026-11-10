@@ -53,6 +53,9 @@ function rawSqlAllowList(): array
         'Services/Companies/CompanyMatcher.php' => [
             'constant' => 'lower(trim(name)) = ? with the name as a binding',
         ],
+        'Services/Companies/PossibleDuplicateCompanies.php' => [
+            'constant' => 'lower(trim(regexp_replace(name))) compared to the normalised typed name as a binding, for the same-name hint',
+        ],
         'Services/Contacts/PossibleDuplicateContacts.php' => [
             'constant' => 'regexp_replace of the phone and lower(trim(name)) compared to bindings, for the possible-duplicate hint',
         ],
