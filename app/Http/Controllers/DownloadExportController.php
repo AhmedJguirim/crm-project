@@ -6,6 +6,7 @@ use App\Enums\ExportFormat;
 use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Deal;
+use App\Models\Task;
 use App\Support\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -31,6 +32,7 @@ class DownloadExportController extends Controller
         'contacts' => Contact::class,
         'companies' => Company::class,
         'deals' => Deal::class,
+        'tasks' => Task::class,
     ];
 
     public function __invoke(Request $request): StreamedResponse|Response
