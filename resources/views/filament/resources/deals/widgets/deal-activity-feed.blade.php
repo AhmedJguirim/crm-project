@@ -2,6 +2,19 @@
     <x-filament::section>
         <x-slot name="heading">Activity Log</x-slot>
 
+        <x-slot name="afterHeader">
+            @include('filament.components.activity-feed.date-range')
+        </x-slot>
+
+        @include('filament.components.activity-feed.type-filter')
+
+        @if($rangeIsReversed)
+            <p class="mb-3 text-xs text-warning-600 dark:text-warning-400" role="alert">
+                From is after To — no day can match.
+                <button type="button" wire:click="swapDateRange" class="underline">Swap them</button>
+            </p>
+        @endif
+
         @if ($activities->isEmpty())
             <div class="flex flex-col items-center justify-center py-8 text-center">
                 <div class="mb-3 rounded-full bg-gray-100 p-3 dark:bg-gray-800">
@@ -10,8 +23,13 @@
                         class="h-6 w-6 text-gray-400 dark:text-gray-500"
                     />
                 </div>
-                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">No activities logged yet</p>
-                <p class="text-xs text-gray-400 dark:text-gray-500">Use the "Log Activity" button above to add the first interaction.</p>
+                @if ($hasFilters)
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">No activities match these filters</p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500">Try adjusting or clearing the filters.</p>
+                @else
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">No activities logged yet</p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500">Use the "Log Activity" button above to add the first interaction.</p>
+                @endif
             </div>
         @else
             <div class="relative">

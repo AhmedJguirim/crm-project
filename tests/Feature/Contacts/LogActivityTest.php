@@ -228,11 +228,12 @@ test('activity feed shows outcome and duration', function () {
         'outcome' => ActivityOutcome::Positive,
     ]);
 
-    Livewire::test(ContactActivityFeed::class, ['record' => $this->contact])
+    $feed = Livewire::test(ContactActivityFeed::class, ['record' => $this->contact])
         ->assertSee('Sprint planning')
-        ->assertSee('Meeting')
         ->assertSee('Positive')
         ->assertDontSee('No activities logged yet');
+
+    expect($feed->html())->toMatch('/fi-badge-label">\s*Meeting\s*</');
 });
 
 test('activity feed date filters scope results', function () {

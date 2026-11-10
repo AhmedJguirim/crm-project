@@ -3,43 +3,10 @@
         <x-slot name="heading">Activity Log</x-slot>
 
         <x-slot name="afterHeader">
-            <div class="flex items-center gap-2">
-                <div class="flex items-center gap-1.5">
-                    <label class="sr-only" for="date-from">From</label>
-                    <input
-                        id="date-from"
-                        type="date"
-                        min="{{ $earliestDate }}"
-                        max="{{ $latestDate }}"
-                        wire:model.live="dateFrom"
-                        class="fi-input h-8 rounded-lg border border-gray-300 bg-white px-3 text-xs text-gray-900 shadow-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                        placeholder="From"
-                    >
-                    <span class="text-xs text-gray-400">—</span>
-                    <label class="sr-only" for="date-to">To</label>
-                    <input
-                        id="date-to"
-                        type="date"
-                        min="{{ $earliestDate }}"
-                        max="{{ $latestDate }}"
-                        wire:model.live="dateTo"
-                        class="fi-input h-8 rounded-lg border border-gray-300 bg-white px-3 text-xs text-gray-900 shadow-sm focus:border-primary-500 focus:ring-1 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
-                        placeholder="To"
-                    >
-                </div>
-
-                @if($hasFilters)
-                    <x-filament::button
-                        wire:click="clearFilters"
-                        color="gray"
-                        size="xs"
-                        icon="heroicon-m-x-mark"
-                    >
-                        Clear
-                    </x-filament::button>
-                @endif
-            </div>
+            @include('filament.components.activity-feed.date-range')
         </x-slot>
+
+        @include('filament.components.activity-feed.type-filter')
 
         @if($rangeIsReversed)
             <p class="mb-3 text-xs text-warning-600 dark:text-warning-400" role="alert">
@@ -57,8 +24,8 @@
                     />
                 </div>
                 @if($hasFilters)
-                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">No activities in this date range</p>
-                    <p class="text-xs text-gray-400 dark:text-gray-500">Try adjusting or clearing the date filters.</p>
+                    <p class="text-sm font-medium text-gray-500 dark:text-gray-400">No activities match these filters</p>
+                    <p class="text-xs text-gray-400 dark:text-gray-500">Try adjusting or clearing the filters.</p>
                 @else
                     <p class="text-sm font-medium text-gray-500 dark:text-gray-400">No activities logged yet</p>
                     <p class="text-xs text-gray-400 dark:text-gray-500">Use the "Log Activity" button above to record your first interaction.</p>

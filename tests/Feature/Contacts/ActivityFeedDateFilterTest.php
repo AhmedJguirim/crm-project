@@ -59,7 +59,7 @@ test('the dates are local days in Asia/Tokyo', function (?string $from, ?string 
     }
 
     if ($listed === []) {
-        $feed->assertSee('No activities in this date range');
+        $feed->assertSee('No activities match these filters');
     }
 })->with([
     'one local day' => ['2026-03-02', '2026-03-02', ['Monday breakfast']],
@@ -115,7 +115,7 @@ test('a value that is not a real date is ignored', function (string $junk) {
         $feed->assertSee($subject);
     }
 
-    $feed->assertDontSee('Clear')->assertDontSee('No activities in this date range');
+    $feed->assertDontSee('Clear')->assertDontSee('No activities match these filters');
 
     $feed = ($this->feed)(null, $junk);
 
@@ -217,7 +217,7 @@ test('from after to lists nothing', function () {
     ($this->logWeek)($this->contact);
 
     ($this->feed)('2026-03-03', '2026-03-01')
-        ->assertSee('No activities in this date range')
+        ->assertSee('No activities match these filters')
         ->assertDontSee('Tuesday midnight');
 });
 
@@ -226,7 +226,7 @@ test('a reversed range shows the hint with a swap link and keeps the empty state
         ->assertSee('From is after To — no day can match.')
         ->assertSee('Swap them')
         ->assertSeeHtml('wire:click="swapDateRange"')
-        ->assertSee('No activities in this date range');
+        ->assertSee('No activities match these filters');
 });
 
 test('no hint unless both bounds are valid days and From is after To', function (?string $from, ?string $to) {

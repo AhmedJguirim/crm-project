@@ -80,11 +80,12 @@ test('the deal feed lists a deal-only activity and its author', function () {
         'occurred_at' => '2026-02-20 09:00:00',
     ]);
 
-    Livewire::test(DealActivityFeed::class, ['record' => $solo])
+    $feed = Livewire::test(DealActivityFeed::class, ['record' => $solo])
         ->assertSuccessful()
         ->assertSee('Scope review')
-        ->assertSee('Meeting')
         ->assertSee('Logged by '.$this->user->name);
+
+    expect($feed->html())->toMatch('/fi-badge-label">\s*Meeting\s*</');
 });
 
 test('the deal feed shows only that deal activities', function () {

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Deals\Widgets;
 
+use App\Filament\Support\Concerns\FiltersActivityFeed;
 use App\Models\Activity;
 use Filament\Widgets\Widget;
 use Illuminate\Database\Eloquent\Model;
@@ -10,6 +11,7 @@ use Livewire\WithPagination;
 
 class DealActivityFeed extends Widget
 {
+    use FiltersActivityFeed;
     use WithPagination;
 
     public ?Model $record = null;
@@ -28,13 +30,14 @@ class DealActivityFeed extends Widget
 
     protected function getViewData(): array
     {
-        $activities = Activity::query()
+        $activities = $this->applyFeedFilters(Activity::query()
             ->where('deal_id', $this->record?->getKey() ?? 0)
-            ->with('user')
+            ->with('user'))
             ->orderByDesc('occurred_at')
             ->paginate($this->perPage);
 
         return [
+            ...$this->feedFilterViewData(),
             'activities' => $activities,
         ];
     }

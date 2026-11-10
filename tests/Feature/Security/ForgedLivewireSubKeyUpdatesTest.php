@@ -45,6 +45,7 @@ test('a forged sub-key update below a scalar or null property answers 419', func
         EditCompany::class => ['record' => $this->acme->id],
         CompanyContactsRelationManager::class => ['ownerRecord' => $this->acme, 'pageClass' => EditCompany::class],
         ContactActivityFeed::class => ['record' => $this->ann],
+        DealActivityFeed::class => ['record' => $this->retainer],
         default => [],
     };
 
@@ -59,6 +60,8 @@ test('a forged sub-key update below a scalar or null property answers 419', func
     'name in the company form' => [EditCompany::class, 'data.name.0'],
     'search of a relation manager' => [CompanyContactsRelationManager::class, 'tableSearch.0'],
     'null date of the feed widget' => [ContactActivityFeed::class, 'dateFrom.0'],
+    'null end date of the contact feed' => [ContactActivityFeed::class, 'dateTo.0'],
+    'null date of the deal feed' => [DealActivityFeed::class, 'dateFrom.0'],
 ]);
 
 test('the refusal does not depend on debug mode', function () {

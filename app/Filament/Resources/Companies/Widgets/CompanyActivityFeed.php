@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Companies\Widgets;
 
+use App\Filament\Support\Concerns\FiltersActivityFeed;
 use App\Models\Activity;
 use App\Models\Contact;
 use App\Models\Deal;
@@ -13,6 +14,7 @@ use Livewire\WithPagination;
 
 class CompanyActivityFeed extends Widget
 {
+    use FiltersActivityFeed;
     use WithPagination;
 
     public ?Model $record = null;
@@ -26,7 +28,12 @@ class CompanyActivityFeed extends Widget
     #[On('activityLogged')]
     public function activityLogged(): void
     {
-        $this->resetPage('activitiesPage');
+        $this->resetFeedPage();
+    }
+
+    protected function feedPageName(): string
+    {
+        return 'activitiesPage';
     }
 
     /**
@@ -38,18 +45,19 @@ class CompanyActivityFeed extends Widget
     {
         $companyId = $this->record?->getKey() ?? 0;
 
-        $activities = Activity::query()
+        $activities = $this->applyFeedFilters(Activity::query()
             ->where(function (Builder $query) use ($companyId): void {
                 $query->where('company_id', $companyId)
                     ->orWhereIn('deal_id', Deal::query()->select('id')->where('company_id', $companyId))
                     ->orWhereIn('contact_id', Contact::query()->select('contacts.id')->whereHas('companies', fn (Builder $companies): Builder => $companies->withTrashed()->whereKey($companyId)));
             })
-            ->with(['user', 'contact', 'deal'])
+            ->with(['user', 'contact', 'deal']))
             ->orderByDesc('occurred_at')
             ->orderByDesc('id')
-            ->paginate($this->perPage, pageName: 'activitiesPage');
+            ->paginate($this->perPage, pageName: $this->feedPageName());
 
         return [
+            ...$this->feedFilterViewData(),
             'activities' => $activities,
         ];
     }
