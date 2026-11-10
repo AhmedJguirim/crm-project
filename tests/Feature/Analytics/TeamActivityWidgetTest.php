@@ -17,7 +17,7 @@ beforeEach(function () {
 test('the widget renders the table', function () {
     Livewire::test(TeamActivityWidget::class, ['pageFilters' => null])
         ->assertSee('Team activity')
-        ->assertSee('Per member, this month. Overdue tasks are counted as of now; unassigned records are not counted.')
+        ->assertSee('Per member, this month. Activities count whether they are logged on a contact, a deal or a company. Overdue tasks are counted as of now; unassigned records are not counted.')
         ->assertSeeHtmlInOrder(['Bob Brown', 'Alice Anders', 'Fred Former (no longer a member)', 'Total'])
         ->assertSee(['$2,000.00', '$1,500.00', '$300.00', '$3,800.00', '67% (2 of 3)', '80% (4 of 5)', 'Call 2 · Email 1 · Meeting 1'])
         ->assertDontSee(['$9,000.00', '$5,000.00', 'Carol Clark', 'Vera Viewer'])
@@ -26,7 +26,7 @@ test('the widget renders the table', function () {
 
 test('the widget follows the page filters', function () {
     Livewire::test(TeamActivityWidget::class, ['pageFilters' => ['period' => 'last_month']])
-        ->assertSee('Per member, last month. Overdue tasks are counted as of now; unassigned records are not counted.');
+        ->assertSee('Per member, last month. Activities count whether they are logged on a contact, a deal or a company. Overdue tasks are counted as of now; unassigned records are not counted.');
 
     Livewire::test(TeamActivityWidget::class, ['pageFilters' => ['owner' => (string) $this->team->bob->id]])
         ->assertSee('Bob Brown')

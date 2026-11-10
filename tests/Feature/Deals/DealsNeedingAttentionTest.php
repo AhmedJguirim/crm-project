@@ -145,6 +145,14 @@ test('boundaries are not flagged', function (string $title, array $options) {
     'future activity' => ['Future', ['created' => '2026-10-01 08:00:00', 'activity' => '2026-10-25 09:00:00']],
 ]);
 
+test('an activity logged only on the deal is recent activity', function () {
+    $deal = ($this->attentionDeal)('DealOnly', ['created' => '2026-10-01 08:00:00', 'activity' => null]);
+    Activity::factory()->onlyOnDeal($deal)->create(['user_id' => $this->me->id, 'occurred_at' => CarbonImmutable::parse('2026-10-19 10:00:00', 'UTC')]);
+
+    expect(($this->widgetReasons)('DealOnly'))->toBeNull()
+        ->and(($this->tabTitles)())->toBe([]);
+});
+
 test('local today decides past close date', function () {
     $this->travelTo(CarbonImmutable::parse('2026-10-19 23:30:00', 'UTC'));
     ($this->attentionDeal)('Late', ['close' => '2026-10-19', 'created' => '2026-10-19 08:00:00', 'activity' => '2026-10-19 09:00:00']);

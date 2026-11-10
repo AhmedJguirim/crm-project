@@ -4,6 +4,8 @@ use App\Enums\ActivityType;
 use App\Enums\DealStatus;
 use App\Enums\OrganizationRole;
 use App\Enums\ReportPeriodPreset;
+use App\Models\Activity;
+use App\Models\Company;
 use App\Models\User;
 use App\Services\Reports\DashboardKpis;
 use App\Services\Reports\TeamActivity;
@@ -17,6 +19,18 @@ beforeEach(function () {
     $this->team = TeamActivityFixture::build();
     $this->thisMonth = fn (): ReportPeriod => ReportPeriod::forPreset(ReportPeriodPreset::ThisMonth);
     $this->lastMonth = fn (): ReportPeriod => ReportPeriod::forPreset(ReportPeriodPreset::LastMonth);
+});
+
+test('deal-only and company-only activities are counted for the member who logged them', function () {
+    $deal = $this->team->deal(DealStatus::Open, null, $this->team->alice, '2026-01-10 10:00:00');
+    $company = Company::factory()->create(['organization_id' => $this->team->org->id]);
+    Activity::factory()->onlyOnDeal($deal)->type(ActivityType::Call)->create(['user_id' => $this->team->bob->id, 'occurred_at' => '2026-10-15 10:00:00']);
+    Activity::factory()->onlyOnCompany($company)->type(ActivityType::Meeting)->create(['user_id' => $this->team->bob->id, 'occurred_at' => '2026-10-16 10:00:00']);
+
+    $rows = TeamActivity::forPeriod(($this->thisMonth)(), null);
+
+    expect($rows["user-{$this->team->bob->id}"])->toMatchArray(['activities' => 3, 'activities_breakdown' => 'Call 1 · Meeting 1 · WhatsApp 1'])
+        ->and($rows['total'])->toMatchArray(['activities' => 7, 'activities_breakdown' => 'Call 3 · Email 1 · Meeting 2 · WhatsApp 1']);
 });
 
 test('rows, order and total for this month', function () {

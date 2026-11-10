@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ActivityType;
 use App\Enums\ContactStatus;
 use App\Enums\DealStatus;
 use App\Enums\LeadSource;
@@ -41,6 +42,7 @@ use App\Filament\Widgets\Reports\StageConversionWidget;
 use App\Filament\Widgets\Reports\TeamActivityWidget;
 use App\Filament\Widgets\RevenueByMonthWidget;
 use App\Models\Activity;
+use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Task;
@@ -362,6 +364,39 @@ describe('widgets', function () {
         expect((int) $stats['Leads Worked'])->toBe((int) $open['Leads Worked'] + 1)
             ->and((int) $stats['Not Worked'])->toBe((int) $open['Not Worked'] + 1)
             ->and((int) $stats['Activities On Leads'])->toBe((int) $open['Activities On Leads'] + 1);
+    });
+
+    test('the activity type doughnut counts contact-less activities', function () {
+        $filters = ['period' => ReportPeriodPreset::Custom->value, 'from' => '2026-06-01', 'to' => '2026-06-30'];
+        $deal = $this->team->deal(DealStatus::Open, null, $this->team->alice, '2026-01-10 10:00:00');
+        $company = Company::factory()->create(['organization_id' => $this->org->id]);
+        Activity::factory()->count(2)->onlyOnDeal($deal)->type(ActivityType::Call)->create(['user_id' => $this->team->alice->id, 'occurred_at' => '2026-06-10 10:00:00']);
+        Activity::factory()->onlyOnCompany($company)->type(ActivityType::Meeting)->create(['user_id' => $this->team->alice->id, 'occurred_at' => '2026-06-11 10:00:00']);
+
+        $data = ($this->data)(ActivityTypesWidget::class, $filters);
+
+        expect(array_combine($data['labels'], $data['datasets'][0]['data']))->toBe(['Call' => 2, 'Meeting' => 1]);
+    });
+
+    test('the leads worked summary ignores deal-only and company-only activities and says so', function () {
+        $filters = ['period' => ReportPeriodPreset::Custom->value, 'from' => '2026-06-01', 'to' => '2026-06-30'];
+        $open = ($this->stats)(LeadsWorkedWidget::class, $filters);
+
+        $lead = ($this->contact)(['status' => ContactStatus::Lead]);
+        $deal = Deal::factory()->create(['organization_id' => $this->org->id, 'contact_id' => $lead->id, 'owner_id' => $this->team->alice->id]);
+        $company = Company::factory()->create(['organization_id' => $this->org->id]);
+        $company->contacts()->attach($lead);
+        Activity::factory()->onlyOnDeal($deal)->type(ActivityType::Call)->create(['user_id' => $this->team->alice->id, 'occurred_at' => '2026-06-10 10:00:00']);
+        Activity::factory()->onlyOnCompany($company)->type(ActivityType::Call)->create(['user_id' => $this->team->alice->id, 'occurred_at' => '2026-06-12 10:00:00']);
+
+        $stats = ($this->stats)(LeadsWorkedWidget::class, $filters);
+
+        expect((int) $stats['Leads Worked'])->toBe((int) $open['Leads Worked'])
+            ->and((int) $stats['Not Worked'])->toBe((int) $open['Not Worked'] + 1)
+            ->and((int) $stats['Activities On Leads'])->toBe((int) $open['Activities On Leads']);
+
+        Livewire::test(LeadsWorkedWidget::class, ['pageFilters' => $filters])
+            ->assertSee('The leads open now, and the activities logged on them from Jun 1, 2026 to Jun 30, 2026. Activities logged only on a deal or a company are not counted.');
     });
 
     test('the task widgets count the open, overdue and completed tasks', function () {

@@ -34,7 +34,7 @@ class TeamActivityWidget extends TableWidget
 
         return $table
             ->heading('Team activity')
-            ->description('Per member, '.$filters->period->phrase().'. Overdue tasks are counted as of now; unassigned records are not counted.')
+            ->description('Per member, '.$filters->period->phrase().'. Activities count whether they are logged on a contact, a deal or a company. Overdue tasks are counted as of now; unassigned records are not counted.')
             ->records(fn (): array => TeamActivity::forPeriod($filters->period, $filters->ownerId))
             ->paginated(false)
             ->headerActions([

@@ -409,6 +409,22 @@ describe('conditions', function () {
             ->assertMountedActionModalDontSee($hint);
     });
 
+    it('tells which activities the activity condition counts', function () {
+        $hint = 'Counts the activities logged on the contact. Activities logged only on a deal or a company are not counted.';
+
+        ruleEngine(ruleEngineSegment([new SegmentRuleData('rule-1', 'Rule', [])]))
+            ->mountAction(TestAction::make('addCondition')->arguments(['rule' => 'rule-1']))
+            ->assertMountedActionModalDontSee($hint)
+            ->fillForm(['type' => 'activity'])
+            ->assertMountedActionModalSee($hint)
+            ->fillForm(['operator' => 'has_had_activity'])
+            ->assertMountedActionModalSee($hint)
+            ->fillForm(['type' => 'tags'])
+            ->assertMountedActionModalDontSee($hint)
+            ->fillForm(['type' => 'attribute', 'field' => 'status'])
+            ->assertMountedActionModalDontSee($hint);
+    });
+
     it('resets the dependent fields when the type changes', function () {
         ruleEngine(ruleEngineSegment([new SegmentRuleData('rule-1', 'Rule', [])]))
             ->mountAction(TestAction::make('addCondition')->arguments(['rule' => 'rule-1']))
