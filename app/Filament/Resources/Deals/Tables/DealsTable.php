@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Deals\Tables;
 
 use App\Enums\DealStatus;
+use App\Filament\Actions\ExportDealsAction;
 use App\Filament\Resources\Companies\CompanyResource;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Support\Filters\OptionSelectFilter;
@@ -161,6 +162,8 @@ class DealsTable
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
+
+                    ExportDealsAction::forSelection(),
 
                     DeleteBulkAction::make()->authorizeIndividualRecords(),
                 ]),

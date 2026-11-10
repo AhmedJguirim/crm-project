@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Deals\Pages;
 
+use App\Filament\Actions\ExportDealsAction;
 use App\Filament\Resources\Deals\DealResource;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Services\Reports\DealsNeedingAttention;
@@ -44,6 +45,8 @@ class ListDeals extends ListRecords
                 ->icon(Heroicon::OutlinedViewColumns)
                 ->color('gray')
                 ->url(DealResource::getUrl('pipeline')),
+
+            ExportDealsAction::forList(),
         ];
     }
 }
