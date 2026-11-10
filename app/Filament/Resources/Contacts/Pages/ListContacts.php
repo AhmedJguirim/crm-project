@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Contacts\Pages;
 
 use App\Enums\ImportMode;
+use App\Filament\Actions\ExportActivitiesAction;
 use App\Filament\Actions\ExportContactsAction;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
@@ -119,6 +120,7 @@ class ListContacts extends ListRecords
                 }),
 
             ExportContactsAction::forList(),
+            ExportActivitiesAction::make(),
 
             CreateAction::make(),
         ];
