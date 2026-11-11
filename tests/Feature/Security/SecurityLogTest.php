@@ -123,7 +123,7 @@ test('the panel login lockout is logged', function () {
     expect($entries[5]['context'])->toMatchArray(['source' => 'panel', 'user_id' => null]);
 });
 
-test('a throttled Fortify login POST is logged with its route and IP', function () {
+test('the old login POST logs no lockout and no login', function () {
     $log = fakeSecurityLog();
     $user = User::factory()->create();
 
@@ -132,12 +132,10 @@ test('a throttled Fortify login POST is logged with its route and IP', function 
             ->post(route('login.store'), ['email' => $user->email, 'password' => 'wrong-password']);
     }
 
-    $response->assertStatus(429);
-    $entries = securityEntriesNamed(securityLogEntries($log), 'auth.lockout');
-    expect($entries)->toHaveCount(1);
-    expect($entries[0]['level'])->toBe('warning');
-    expect($entries[0]['context'])->toMatchArray(['source' => 'login.store', 'ip' => '203.0.113.7']);
-    expect(json_encode(securityLogEntries($log)))->not->toContain($user->email);
+    $response->assertStatus(303);
+    $events = collect(securityLogEntries($log))->pluck('event')->all();
+    expect($events)->not->toContain('auth.lockout')
+        ->and($events)->not->toContain('auth.login');
 });
 
 test('a throttled password reset request is logged with its route and IP', function () {

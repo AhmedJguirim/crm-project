@@ -6,6 +6,10 @@ namespace App\Models;
 use App\Enums\OrganizationRole;
 use App\Notifications\QueuedResetPassword;
 use Database\Factories\UserFactory;
+use Filament\Auth\MultiFactor\App\Concerns\InteractsWithAppAuthentication;
+use Filament\Auth\MultiFactor\App\Concerns\InteractsWithAppAuthenticationRecovery;
+use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthentication;
+use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthenticationRecovery;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Models\Contracts\HasTenants;
 use Filament\Panel;
@@ -28,10 +32,10 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $terms_accepted_at
  * @property string|null $terms_version
  */
-class User extends Authenticatable implements FilamentUser, HasTenants
+class User extends Authenticatable implements FilamentUser, HasAppAuthentication, HasAppAuthenticationRecovery, HasTenants
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, TwoFactorAuthenticatable;
+    use HasFactory, InteractsWithAppAuthentication, InteractsWithAppAuthenticationRecovery, Notifiable, TwoFactorAuthenticatable;
 
     /** @var array<int, string>|null The role of the user by organization ID, once read by `roleIn()`. */
     private ?array $organizationRoles = null;

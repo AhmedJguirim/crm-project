@@ -3,7 +3,6 @@
 use App\Models\User;
 use App\Support\Livewire\RefuseMistypedPropertyUpdates;
 use Illuminate\Support\Facades\Hash;
-use Laravel\Fortify\Features;
 use Livewire\Component;
 use Livewire\Exceptions\PropertyNotFoundException;
 use Livewire\Exceptions\PublicPropertyNotFoundException;
@@ -46,14 +45,6 @@ beforeEach(function () {
 test('a forged array on a settings property answers 419 and writes nothing', function (string $component, string $property, bool $debug) {
     config(['app.debug' => $debug]);
 
-    if (str_ends_with($component, 'two-factor')) {
-        if (! Features::canManageTwoFactorAuthentication()) {
-            $this->markTestSkipped('Two-factor authentication is not enabled.');
-        }
-
-        Features::twoFactorAuthentication(['confirm' => true, 'confirmPassword' => true]);
-    }
-
     Livewire::test($component)->set($property, ['x@example.com'])->assertStatus(419);
 
     $user = $this->user->fresh();
@@ -69,8 +60,6 @@ test('a forged array on a settings property answers 419 and writes nothing', fun
     'password password, debug on' => ['pages::settings.password', 'password', true],
     'password confirmation, debug on' => ['pages::settings.password', 'password_confirmation', true],
     'delete form password, debug on' => ['pages::settings.delete-user-form', 'password', true],
-    'two-factor code, debug on' => ['pages::settings.two-factor', 'code', true],
-    'two-factor showModal, debug on' => ['pages::settings.two-factor', 'showModal', true],
     'profile email, debug off' => ['pages::settings.profile', 'email', false],
     'delete form password, debug off' => ['pages::settings.delete-user-form', 'password', false],
 ]);

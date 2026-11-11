@@ -77,14 +77,13 @@ class UserFactory extends Factory
     }
 
     /**
-     * Indicate that the model has two-factor authentication configured.
+     * Indicate that the user set up an authenticator app (secret `JBSWY3DPEHPK3PXP`, recovery codes `recovery-code-1` and `recovery-code-2`).
      */
-    public function withTwoFactor(): static
+    public function withAppAuthentication(): static
     {
         return $this->state(fn (array $attributes) => [
-            'two_factor_secret' => encrypt('secret'),
-            'two_factor_recovery_codes' => encrypt(json_encode(['recovery-code-1'])),
-            'two_factor_confirmed_at' => now(),
+            'app_authentication_secret' => 'JBSWY3DPEHPK3PXP',
+            'app_authentication_recovery_codes' => [Hash::make('recovery-code-1'), Hash::make('recovery-code-2')],
         ]);
     }
 }

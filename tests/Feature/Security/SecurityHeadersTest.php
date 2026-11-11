@@ -38,7 +38,7 @@ it('adds the five security headers to every kind of response', function (Closure
     'privacy page' => [fn ($t) => $t->get(route('privacy'))->assertOk()],
     'terms page' => [fn ($t) => $t->get(route('terms'))->assertOk()],
     'panel login' => [fn ($t) => $t->get(Filament::getLoginUrl())->assertOk()],
-    'fortify login' => [fn ($t) => $t->get(route('login'))->assertOk()],
+    'old login redirect' => [fn ($t) => $t->get(route('login'))->assertRedirect(Filament::getLoginUrl())],
     'not found page' => [fn ($t) => $t->get('/no-such-page')->assertNotFound()],
     'livewire update endpoint' => [fn ($t) => $t->postJson(route('default-livewire.update'), ['components' => []], ['X-Livewire' => 'true'])],
 ]);

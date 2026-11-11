@@ -74,12 +74,12 @@ it('shows the required terms checkbox on the sign-up page', function () {
 });
 
 it('links the legal pages from both login pages', function (Closure $url) {
-    $html = $this->get($url())->assertOk()->getContent();
+    $html = $this->followingRedirects()->get($url())->assertOk()->getContent();
 
     expect($html)->toContain('href="'.route('terms').'" target="_blank"')
         ->and($html)->toContain('href="'.route('privacy').'" target="_blank"')
         ->and($html)->toContain('rel="noopener noreferrer"');
 })->with([
     'panel login' => [fn () => Filament::getLoginUrl()],
-    'fortify login' => [fn () => route('login')],
+    'old /login, redirected' => [fn () => route('login')],
 ]);

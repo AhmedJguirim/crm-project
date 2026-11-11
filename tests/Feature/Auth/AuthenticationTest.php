@@ -218,13 +218,18 @@ test('the exact-case row wins when two rows differ only by case', function () {
     $this->assertAuthenticatedAs($lower);
 });
 
-test('the Fortify login finds a user stored with capitals', function () {
-    $ann = User::factory()->onboardingCompleted()->create(['email' => 'Ann.Lee@Example.com']);
+test('GET /login redirects to the panel login', function () {
+    $this->get('/login')->assertRedirect(Filament::getLoginUrl());
+});
+
+test('the old login POST signs nobody in, even with the right password', function () {
+    User::factory()->onboardingCompleted()->create(['email' => 'Ann.Lee@Example.com']);
 
     $this->post('/login', ['email' => 'ANN.LEE@example.com', 'password' => 'password'])
-        ->assertSessionHasNoErrors();
+        ->assertStatus(303)
+        ->assertRedirect(Filament::getLoginUrl());
 
-    $this->assertAuthenticatedAs($ann);
+    $this->assertGuest();
 });
 
 test('a lookup credential that is not a string is passed on unchanged and finds nobody', function () {
@@ -236,13 +241,22 @@ test('a lookup credential that is not a string is passed on unchanged and finds 
         ->toBeNull();
 });
 
-// BUG-66: a forged array email is a validation error, not a 500
-test('the Fortify login answers a forged array email with a validation error', function () {
+// BUG-66: a forged array email is not a 500
+test('the old login POST answers a forged array email with a redirect', function () {
     User::factory()->create(['email' => 'ann@example.com']);
 
     $this->post('/login', ['email' => ['ann@example.com'], 'password' => 'password'])
-        ->assertStatus(302)
-        ->assertSessionHasErrors(['email' => 'The email field must be a string.']);
+        ->assertStatus(303)
+        ->assertRedirect(Filament::getLoginUrl());
 
     $this->assertGuest();
+});
+
+test('GET /login sends a signed-in user away from the login', function () {
+    $user = User::factory()->onboardingCompleted()->create();
+
+    $response = $this->actingAs($user)->get('/login');
+
+    $response->assertRedirect();
+    expect($response->headers->get('Location'))->not->toBe(Filament::getLoginUrl());
 });

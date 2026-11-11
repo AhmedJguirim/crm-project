@@ -10,7 +10,6 @@ use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\FailedPasswordResetLinkRequestResponse;
 use Laravel\Fortify\Fortify;
 use Laravel\Fortify\Http\Controllers\NewPasswordController;
@@ -50,9 +49,7 @@ class FortifyServiceProvider extends ServiceProvider
      */
     private function configureViews(): void
     {
-        Fortify::loginView(fn () => view('pages::auth.login'));
         Fortify::verifyEmailView(fn () => view('pages::auth.verify-email'));
-        Fortify::twoFactorChallengeView(fn () => view('pages::auth.two-factor-challenge'));
         Fortify::confirmPasswordView(fn () => view('pages::auth.confirm-password'));
         Fortify::registerView(fn () => view('pages::auth.register'));
         Fortify::resetPasswordView(fn () => view('pages::auth.reset-password'));
@@ -60,26 +57,12 @@ class FortifyServiceProvider extends ServiceProvider
     }
 
     /**
-     * Configure rate limiting: the two-factor challenge, the login (per email and IP, plus a looser
-     * per-IP cap across emails; a non-string email is keyed as empty so the request reaches validation, BUG-66), and `password-reset`, which limits the POSTs of the forgot-password
-     * and reset-password routes per IP (5 a minute, 20 an hour) and lets every other Fortify route through.
+     * Configure rate limiting: `password-reset` limits the POSTs of the forgot-password and reset-password
+     * routes per IP (5 a minute, 20 an hour) and lets every other Fortify route through. The sign-in (and its
+     * second factor) is the panel login, which has its own limits.
      */
     private function configureRateLimiting(): void
     {
-        RateLimiter::for('two-factor', function (Request $request) {
-            return Limit::perMinute(5)->by($request->session()->get('login.id'));
-        });
-
-        RateLimiter::for('login', function (Request $request) {
-            $email = $request->input(Fortify::username());
-            $throttleKey = Str::transliterate(Str::lower(is_string($email) ? $email : '').'|'.$request->ip());
-
-            return [
-                Limit::perMinute(5)->by($throttleKey),
-                Limit::perMinute(10)->by('ip|'.$request->ip()),
-            ];
-        });
-
         RateLimiter::for('password-reset', function (Request $request) {
             if (! $request->isMethod('POST') || ! in_array($request->route()?->getName(), ['password.email', 'password.update'], true)) {
                 return Limit::none();

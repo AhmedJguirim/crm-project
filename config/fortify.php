@@ -114,10 +114,7 @@ return [
     |
     */
 
-    'limiters' => [
-        'login' => 'login',
-        'two-factor' => 'two-factor',
-    ],
+    'limiters' => [],
 
     /*
     |--------------------------------------------------------------------------
@@ -147,11 +144,6 @@ return [
         // Registration is handled by Filament's admin panel.
         Features::resetPasswords(),
         Features::emailVerification(),
-        Features::twoFactorAuthentication([
-            'confirm' => true,
-            'confirmPassword' => true,
-            // 'window' => 0
-        ]),
     ],
 
 ];

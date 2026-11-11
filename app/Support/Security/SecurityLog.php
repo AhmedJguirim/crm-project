@@ -20,7 +20,7 @@ final class SecurityLog
      *
      * @var list<string>
      */
-    public const array THROTTLED_AUTH_ROUTES = ['login.store', 'two-factor.login.store', 'password.email', 'password.update'];
+    public const array THROTTLED_AUTH_ROUTES = ['password.email', 'password.update'];
 
     /**
      * @param  array<string, scalar|null>  $context

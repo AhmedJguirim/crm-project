@@ -3,6 +3,7 @@
 use App\Models\User;
 use App\Notifications\QueuedResetPassword;
 use Carbon\CarbonImmutable;
+use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Notification;
 
 const PASSWORD_RESET_GENERIC_STATUS = 'If an account exists for this email address, we have emailed a password reset link.';
@@ -108,22 +109,22 @@ test('the forgot-password page and the reset form are not limited', function () 
     }
 });
 
-test('the Fortify login is limited to 10 a minute per IP across emails', function () {
-    foreach (range(1, 10) as $i) {
+test('the old login POST never signs in and never answers 429', function () {
+    foreach (range(1, 12) as $i) {
         $this->post('/login', ['email' => "nobody{$i}@example.com", 'password' => 'wrong-password'])
-            ->assertSessionHasErrors('email');
+            ->assertStatus(303)
+            ->assertRedirect(Filament::getLoginUrl());
     }
 
-    $this->post('/login', ['email' => 'nobody11@example.com', 'password' => 'wrong-password'])->assertStatus(429);
-    $this->withServerVariables(['REMOTE_ADDR' => '10.0.0.2'])
-        ->post('/login', ['email' => 'nobody12@example.com', 'password' => 'wrong-password'])
-        ->assertSessionHasErrors('email');
+    $this->assertGuest();
 });
 
-test('the Fortify login keeps its limit per email and IP', function () {
-    foreach (range(1, 5) as $i) {
-        $this->post('/login', ['email' => 'ann@example.com', 'password' => 'wrong-password'])->assertSessionHasErrors('email');
+test('the old login POST ignores the right password and never answers 429', function () {
+    foreach (range(1, 6) as $i) {
+        $this->post('/login', ['email' => 'ann@example.com', 'password' => 'password'])
+            ->assertStatus(303)
+            ->assertRedirect(Filament::getLoginUrl());
     }
 
-    $this->post('/login', ['email' => 'ann@example.com', 'password' => 'wrong-password'])->assertStatus(429);
+    $this->assertGuest();
 });
