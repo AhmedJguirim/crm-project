@@ -9,9 +9,7 @@ use App\Exceptions\InvoicePaymentRefused;
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
 use App\Models\User;
-use App\Support\Tenancy\CurrentOrganization;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Number;
 
 /**
  * Records the payments and refunds of an invoice in its append-only ledger and derives the amount paid, the paid date
@@ -77,7 +75,7 @@ class InvoiceLedger
             $balance = self::cents($invoice->amount) - $paid;
 
             if ($cents <= 0 || $cents > $balance) {
-                throw new InvoicePaymentRefused("The payment can't be more than the balance due (".self::money($balance).').');
+                throw new InvoicePaymentRefused("The payment can't be more than the balance due (".self::money($balance, $invoice).').');
             }
 
             return;
@@ -88,7 +86,7 @@ class InvoiceLedger
         }
 
         if ($cents <= 0 || $cents > $paid) {
-            throw new InvoicePaymentRefused("The refund can't be more than the amount paid (".self::money($paid).').');
+            throw new InvoicePaymentRefused("The refund can't be more than the amount paid (".self::money($paid, $invoice).').');
         }
     }
 
@@ -131,8 +129,8 @@ class InvoiceLedger
         return (int) round((float) $value * 100);
     }
 
-    private static function money(int $cents): string
+    private static function money(int $cents, Invoice $invoice): string
     {
-        return (string) Number::currency($cents / 100, CurrentOrganization::find()?->currencyCode() ?? 'USD');
+        return $invoice->formatMoney($cents / 100);
     }
 }

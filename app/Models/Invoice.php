@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Number;
 
 #[ObservedBy([InvoiceObserver::class])]
 class Invoice extends Model
@@ -119,6 +120,14 @@ class Invoice extends Model
                         ->where('due_at', '<', LocalTime::todayDate());
                 });
         });
+    }
+
+    /**
+     * An amount of this invoice in its own currency, always with 2 decimals.
+     */
+    public function formatMoney(float|int|string|null $amount): string
+    {
+        return (string) Number::currency((float) $amount, $this->currency->value, precision: 2);
     }
 
     /**
