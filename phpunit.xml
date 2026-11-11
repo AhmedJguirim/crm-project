@@ -28,9 +28,10 @@
         <env name="CACHE_STORE" value="array"/>
         <env name="DB_CONNECTION" value="pgsql"/>
         <env name="DB_DATABASE" value="srw-crm-test"/>
-        <env name="MAIL_MAILER" value="array"/>
-        <env name="QUEUE_CONNECTION" value="sync"/>
-        <env name="QUEUE_LONG_RUNNING_CONNECTION" value="sync"/>
+        <env name="MAIL_MAILER" value="array" force="true"/>
+        <env name="RESEND_API_KEY" value="(null)" force="true"/>
+        <env name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <env name="QUEUE_LONG_RUNNING_CONNECTION" value="sync" force="true"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
