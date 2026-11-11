@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
+use Monolog\Handler\TestHandler;
 
 /**
  * The panel login at the password step, ready for the code step.
@@ -180,4 +181,106 @@ test('the old password-only login post signs nobody in', function () {
         ->assertRedirect(Filament::getLoginUrl());
 
     $this->assertGuest();
+});
+
+/**
+ * @return list<array{event: string, level: string, context: array<string, mixed>}>
+ */
+function challengeEntriesNamed(TestHandler $log, string $event): array
+{
+    return array_values(array_filter(securityLogEntries($log), fn (array $entry): bool => $entry['event'] === $event));
+}
+
+test('a wrong challenge code logs a failed attempt for that user', function () {
+    $log = fakeSecurityLog();
+
+    panelLoginAtChallenge($this->ann)
+        ->set('data.multiFactor.app.code', wrongAppCode($this->ann))
+        ->call('authenticate');
+
+    $failures = challengeEntriesNamed($log, 'auth.two_factor_failed');
+    expect($failures)->toHaveCount(1);
+    expect($failures[0]['level'])->toBe('warning');
+    expect($failures[0]['context'])->toMatchArray(['user_id' => $this->ann->id, 'source' => 'panel']);
+    $this->assertGuest();
+});
+
+test('a wrong recovery code at the challenge logs a failed attempt without the code', function () {
+    $log = fakeSecurityLog();
+
+    panelLoginAtChallenge($this->ann)
+        ->set('data.multiFactor.app.useRecoveryCode', true)
+        ->set('data.multiFactor.app.recoveryCode', 'wrong-code-9')
+        ->call('authenticate');
+
+    $failures = challengeEntriesNamed($log, 'auth.two_factor_failed');
+    expect($failures)->toHaveCount(1);
+    expect($failures[0]['context'])->toMatchArray(['user_id' => $this->ann->id]);
+    expect(json_encode(securityLogEntries($log)))->not->toContain('wrong-code-9');
+});
+
+test('a blank challenge code is a failed attempt too', function () {
+    $log = fakeSecurityLog();
+
+    panelLoginAtChallenge($this->ann)
+        ->set('data.multiFactor.app.code', '')
+        ->call('authenticate');
+
+    expect(challengeEntriesNamed($log, 'auth.two_factor_failed'))->toHaveCount(1);
+});
+
+test('a recovery code at the challenge signs in and logs its use', function () {
+    $log = fakeSecurityLog();
+
+    panelLoginAtChallenge($this->ann)
+        ->set('data.multiFactor.app.useRecoveryCode', true)
+        ->set('data.multiFactor.app.recoveryCode', 'recovery-code-1')
+        ->call('authenticate')
+        ->assertRedirect(Filament::getUrl());
+
+    $this->assertAuthenticatedAs($this->ann);
+    $used = challengeEntriesNamed($log, 'auth.recovery_code_used');
+    expect($used)->toHaveCount(1);
+    expect($used[0]['context'])->toMatchArray(['user_id' => $this->ann->id]);
+    expect(challengeEntriesNamed($log, 'auth.login'))->toHaveCount(1);
+    expect(challengeEntriesNamed($log, 'auth.two_factor_failed'))->toBe([]);
+    expect(json_encode(securityLogEntries($log)))->not->toContain('recovery-code-1');
+});
+
+test('the right challenge code logs no failure', function () {
+    $log = fakeSecurityLog();
+
+    panelLoginAtChallenge($this->ann)
+        ->set('data.multiFactor.app.code', AppAuthentication::make()->getCurrentCode($this->ann))
+        ->call('authenticate')
+        ->assertRedirect(Filament::getUrl());
+
+    $this->assertAuthenticatedAs($this->ann);
+    expect(challengeEntriesNamed($log, 'auth.two_factor_failed'))->toBe([]);
+});
+
+test('a wrong password at the first step logs no two-factor failure', function () {
+    $log = fakeSecurityLog();
+
+    Livewire::test(Login::class)
+        ->fillForm(['email' => $this->ann->email, 'password' => 'wrong-password'])
+        ->call('authenticate');
+
+    expect(challengeEntriesNamed($log, 'auth.login_failed'))->toHaveCount(1);
+    expect(challengeEntriesNamed($log, 'auth.two_factor_failed'))->toBe([]);
+    $this->assertGuest();
+});
+
+test('a locked challenge logs the lockout and only the tries that were checked', function () {
+    $log = fakeSecurityLog();
+    $page = panelLoginAtChallenge($this->ann);
+
+    foreach (range(1, 6) as $attempt) {
+        $page->set('data.multiFactor.app.code', wrongAppCode($this->ann))->call('authenticate');
+    }
+
+    expect(challengeEntriesNamed($log, 'auth.two_factor_failed'))->toHaveCount(4);
+    $lockouts = challengeEntriesNamed($log, 'auth.lockout');
+    expect($lockouts)->not->toBe([]);
+    expect($lockouts[0]['context'])->toMatchArray(['source' => 'panel']);
 });

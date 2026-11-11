@@ -4,6 +4,7 @@ use App\Filament\Pages\Auth\Login;
 use App\Filament\Pages\Auth\Register;
 use App\Models\User;
 use App\Notifications\QueuedResetPassword;
+use App\Support\Security\LoggedAppAuthentication;
 use App\Support\Security\SecurityLog;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\File;
@@ -11,12 +12,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Route;
-use Laravel\Fortify\Actions\DisableTwoFactorAuthentication;
-use Laravel\Fortify\Actions\EnableTwoFactorAuthentication;
-use Laravel\Fortify\Actions\GenerateNewRecoveryCodes;
-use Laravel\Fortify\Events\RecoveryCodeReplaced;
-use Laravel\Fortify\Events\TwoFactorAuthenticationConfirmed;
-use Laravel\Fortify\Events\TwoFactorAuthenticationFailed;
+use Illuminate\Support\Facades\Schema;
 use Livewire\Livewire;
 
 /**
@@ -333,36 +329,97 @@ test('deleting the account is logged before the logout, and a wrong password log
     expect($entries[0]['context'])->toMatchArray(['user_id' => $user->id]);
 });
 
-test('two-factor events are logged with the right level', function (string $event, string $level, Closure $dispatch) {
-    $log = fakeSecurityLog();
-    $user = User::factory()->create();
+test('the panel uses the logging authenticator app provider', function () {
+    expect(Filament::getPanel('admin')->getMultiFactorAuthenticationProviders()['app'])->toBeInstanceOf(LoggedAppAuthentication::class);
+});
 
-    $dispatch($user);
+test('each authenticator app change is logged with the user id', function (string $event, string $level, bool $startsEnabled, Closure $call, ?string $storedSecret) {
+    $log = fakeSecurityLog();
+    $provider = Filament::getPanel('admin')->getMultiFactorAuthenticationProviders()['app'];
+    $ann = $startsEnabled
+        ? User::factory()->withAppAuthentication()->create()
+        : User::factory()->create();
+
+    $call($provider, $ann);
 
     $entries = securityLogEntries($log);
     $last = end($entries);
     expect($last['event'])->toBe($event);
     expect($last['level'])->toBe($level);
-    expect($last['context'])->toMatchArray(['user_id' => $user->id]);
+    expect($last['context'])->toMatchArray(['user_id' => $ann->id]);
+    expect($ann->fresh()->getAppAuthenticationSecret())->toBe($storedSecret);
 })->with([
-    'enabled' => ['auth.two_factor_enabled', 'info', fn (User $user) => app(EnableTwoFactorAuthentication::class)($user)],
-    'confirmed' => ['auth.two_factor_confirmed', 'info', fn (User $user) => event(new TwoFactorAuthenticationConfirmed($user))],
-    'disabled' => ['auth.two_factor_disabled', 'warning', function (User $user) {
-        app(EnableTwoFactorAuthentication::class)($user);
-        app(DisableTwoFactorAuthentication::class)($user);
-    }],
-    'failed' => ['auth.two_factor_failed', 'warning', fn (User $user) => event(new TwoFactorAuthenticationFailed($user))],
-    'recovery code used' => ['auth.recovery_code_used', 'warning', fn (User $user) => event(new RecoveryCodeReplaced($user, 'abcd1-efgh2'))],
-    'recovery codes regenerated' => ['auth.recovery_codes_regenerated', 'info', fn (User $user) => app(GenerateNewRecoveryCodes::class)($user)],
+    'enabled' => ['auth.two_factor_enabled', 'info', false, fn ($provider, User $ann) => $provider->saveSecret($ann, 'JBSWY3DPEHPK3PXP'), 'JBSWY3DPEHPK3PXP'],
+    'disabled' => ['auth.two_factor_disabled', 'warning', true, fn ($provider, User $ann) => $provider->saveSecret($ann, null), null],
+    'recovery code used' => ['auth.recovery_code_used', 'warning', true, fn ($provider, User $ann) => $provider->verifyRecoveryCode('recovery-code-1', $ann), 'JBSWY3DPEHPK3PXP'],
 ]);
 
-test('a replaced recovery code is never logged', function () {
+test('a recovery code used without a passed user is logged for the signed-in user', function () {
     $log = fakeSecurityLog();
-    $user = User::factory()->create();
+    $provider = Filament::getPanel('admin')->getMultiFactorAuthenticationProviders()['app'];
+    $ann = User::factory()->withAppAuthentication()->create();
+    $this->actingAs($ann);
 
-    event(new RecoveryCodeReplaced($user, 'abcd1-efgh2'));
+    expect($provider->verifyRecoveryCode('recovery-code-2'))->toBeTrue();
 
-    expect(json_encode(securityLogEntries($log)))->not->toContain('abcd1-efgh2');
+    $entries = securityEntriesNamed(securityLogEntries($log), 'auth.recovery_code_used');
+    expect($entries)->toHaveCount(1);
+    expect($entries[0]['context'])->toMatchArray(['user_id' => $ann->id]);
+});
+
+test('a wrong recovery code logs nothing', function () {
+    $log = fakeSecurityLog();
+    $provider = Filament::getPanel('admin')->getMultiFactorAuthenticationProviders()['app'];
+    $ann = User::factory()->withAppAuthentication()->create();
+
+    expect($provider->verifyRecoveryCode('not-a-code', $ann))->toBeFalse();
+
+    expect(securityEntriesNamed(securityLogEntries($log), 'auth.recovery_code_used'))->toBe([]);
+});
+
+test('a used recovery code and the secret are never logged', function () {
+    $log = fakeSecurityLog();
+    $provider = Filament::getPanel('admin')->getMultiFactorAuthenticationProviders()['app'];
+    $ann = User::factory()->withAppAuthentication()->create();
+
+    $provider->verifyRecoveryCode('recovery-code-1', $ann);
+    $provider->saveSecret($ann, 'KRSXG5CTMVRXEZLU');
+
+    $encoded = json_encode(securityLogEntries($log));
+    expect($encoded)->toContain('auth.recovery_code_used')
+        ->not->toContain('recovery-code-1')
+        ->not->toContain('KRSXG5CTMVRXEZLU')
+        ->not->toContain('JBSWY3DPEHPK3PXP');
+});
+
+test('regenerating the recovery codes is logged and the other actions stay', function () {
+    $log = fakeSecurityLog();
+    $provider = Filament::getPanel('admin')->getMultiFactorAuthenticationProviders()['app'];
+    $ann = User::factory()->withAppAuthentication()->create();
+    $this->actingAs($ann);
+
+    $actions = collect($provider->getActions())->keyBy(fn ($action) => $action->getName());
+
+    expect($actions->keys()->all())->toContain('setUpAppAuthentication', 'regenerateAppAuthenticationRecoveryCodes', 'disableAppAuthentication');
+    expect(securityEntriesNamed(securityLogEntries($log), 'auth.recovery_codes_regenerated'))->toBe([]);
+
+    $actions['regenerateAppAuthenticationRecoveryCodes']->callAfter();
+
+    $entries = securityLogEntries($log);
+    $last = end($entries);
+    expect($last['event'])->toBe('auth.recovery_codes_regenerated');
+    expect($last['level'])->toBe('info');
+    expect($last['context'])->toMatchArray(['user_id' => $ann->id]);
+    expect(securityEntriesNamed($entries, 'auth.recovery_codes_regenerated'))->toHaveCount(1);
+});
+
+test('the Fortify two-factor leftovers are gone', function () {
+    foreach (['two_factor_secret', 'two_factor_recovery_codes', 'two_factor_confirmed_at'] as $column) {
+        expect(Schema::hasColumn('users', $column))->toBeFalse();
+    }
+
+    expect(class_uses_recursive(User::class))->not->toContain('Laravel\Fortify\TwoFactorAuthenticatable');
+    expect((new User)->getHidden())->not->toContain('two_factor_secret', 'two_factor_recovery_codes');
 });
 
 test('the organization id is the current panel tenant and the base keys win over the passed context', function () {

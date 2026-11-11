@@ -10,9 +10,9 @@ use App\Filament\Pages\Tenancy\RegisterOrganization;
 use App\Models\Organization;
 use App\Models\User;
 use App\Support\NotificationText;
+use App\Support\Security\LoggedAppAuthentication;
 use App\Support\Tenancy\CurrentOrganization;
 use Filament\Actions\Action;
-use Filament\Auth\MultiFactor\App\AppAuthentication;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\TextInput;
 use Filament\Http\Middleware\Authenticate;
@@ -44,7 +44,7 @@ class AdminPanelProvider extends PanelProvider
             ->login(Login::class)
             ->registration(Register::class)
             ->profile(EditProfile::class)
-            ->multiFactorAuthentication([AppAuthentication::make()->recoverable()])
+            ->multiFactorAuthentication([LoggedAppAuthentication::make()->recoverable()])
             ->renderHook(PanelsRenderHook::AUTH_LOGIN_FORM_AFTER, fn (): View => view('filament.auth.legal-links'))
             ->tenant(Organization::class, slugAttribute: 'slug')
             ->tenantRegistration(RegisterOrganization::class)

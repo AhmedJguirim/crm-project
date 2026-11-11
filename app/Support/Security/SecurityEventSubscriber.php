@@ -8,16 +8,9 @@ use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Events\Dispatcher;
-use Laravel\Fortify\Events\RecoveryCodeReplaced;
-use Laravel\Fortify\Events\RecoveryCodesGenerated;
-use Laravel\Fortify\Events\TwoFactorAuthenticationConfirmed;
-use Laravel\Fortify\Events\TwoFactorAuthenticationDisabled;
-use Laravel\Fortify\Events\TwoFactorAuthenticationEnabled;
-use Laravel\Fortify\Events\TwoFactorAuthenticationFailed;
 
 /**
- * Turns the framework's sign-in and two-factor events into security log lines. It never reads the credentials of a
- * failed attempt nor the code of a replaced recovery code.
+ * Turns the framework's sign-in events into security log lines. It never reads the credentials of a failed attempt.
  */
 class SecurityEventSubscriber
 {
@@ -32,12 +25,6 @@ class SecurityEventSubscriber
             Logout::class => 'handleLogout',
             PasswordReset::class => 'handlePasswordReset',
             Registered::class => 'handleRegistered',
-            TwoFactorAuthenticationEnabled::class => 'handleTwoFactorEnabled',
-            TwoFactorAuthenticationConfirmed::class => 'handleTwoFactorConfirmed',
-            TwoFactorAuthenticationDisabled::class => 'handleTwoFactorDisabled',
-            TwoFactorAuthenticationFailed::class => 'handleTwoFactorFailed',
-            RecoveryCodeReplaced::class => 'handleRecoveryCodeReplaced',
-            RecoveryCodesGenerated::class => 'handleRecoveryCodesGenerated',
         ];
     }
 
@@ -64,35 +51,5 @@ class SecurityEventSubscriber
     public function handleRegistered(Registered $event): void
     {
         SecurityLog::info('auth.registered', $event->getUser());
-    }
-
-    public function handleTwoFactorEnabled(TwoFactorAuthenticationEnabled $event): void
-    {
-        SecurityLog::info('auth.two_factor_enabled', $event->user);
-    }
-
-    public function handleTwoFactorConfirmed(TwoFactorAuthenticationConfirmed $event): void
-    {
-        SecurityLog::info('auth.two_factor_confirmed', $event->user);
-    }
-
-    public function handleTwoFactorDisabled(TwoFactorAuthenticationDisabled $event): void
-    {
-        SecurityLog::warning('auth.two_factor_disabled', $event->user);
-    }
-
-    public function handleTwoFactorFailed(TwoFactorAuthenticationFailed $event): void
-    {
-        SecurityLog::warning('auth.two_factor_failed', $event->user);
-    }
-
-    public function handleRecoveryCodeReplaced(RecoveryCodeReplaced $event): void
-    {
-        SecurityLog::warning('auth.recovery_code_used', $event->user);
-    }
-
-    public function handleRecoveryCodesGenerated(RecoveryCodesGenerated $event): void
-    {
-        SecurityLog::info('auth.recovery_codes_regenerated', $event->user);
     }
 }

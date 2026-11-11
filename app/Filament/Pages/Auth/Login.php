@@ -12,13 +12,20 @@ use Filament\Auth\Pages\Login as BaseLogin;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use SensitiveParameter;
 
 class Login extends BaseLogin
 {
     public function authenticate(): ?LoginResponse
     {
-        $response = parent::authenticate();
+        try {
+            $response = parent::authenticate();
+        } catch (ValidationException $exception) {
+            $this->logFailedMultiFactorChallenge($exception);
+
+            throw $exception;
+        }
 
         if ($response) {
             /** @var User|null $user */
@@ -32,6 +39,22 @@ class Login extends BaseLogin
         }
 
         return $response;
+    }
+
+    /**
+     * Filament fires no event for a wrong authenticator code, so the failed challenge is logged here (SEC-22). Any
+     * other validation error (wrong password, bad email) is already logged by the framework's failed-login event.
+     */
+    private function logFailedMultiFactorChallenge(ValidationException $exception): void
+    {
+        $isChallengeError = collect(array_keys($exception->errors()))
+            ->contains(fn (string $key): bool => str_starts_with($key, 'data.multiFactor.'));
+
+        if (! $isChallengeError) {
+            return;
+        }
+
+        SecurityLog::warning('auth.two_factor_failed', $this->getUserUndertakingMultiFactorAuthentication(), ['source' => 'panel']);
     }
 
     /**

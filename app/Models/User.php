@@ -25,7 +25,6 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Laravel\Fortify\TwoFactorAuthenticatable;
 
 /**
  * @property-read Pivot|null $pivot
@@ -35,7 +34,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
 class User extends Authenticatable implements FilamentUser, HasAppAuthentication, HasAppAuthenticationRecovery, HasTenants
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, InteractsWithAppAuthentication, InteractsWithAppAuthenticationRecovery, Notifiable, TwoFactorAuthenticatable;
+    use HasFactory, InteractsWithAppAuthentication, InteractsWithAppAuthenticationRecovery, Notifiable;
 
     /** @var array<int, string>|null The role of the user by organization ID, once read by `roleIn()`. */
     private ?array $organizationRoles = null;
@@ -59,8 +58,6 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
      */
     protected $hidden = [
         'password',
-        'two_factor_secret',
-        'two_factor_recovery_codes',
         'remember_token',
     ];
 
