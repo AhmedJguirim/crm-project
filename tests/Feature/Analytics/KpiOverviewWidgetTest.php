@@ -5,6 +5,7 @@ use App\Enums\DealStatus;
 use App\Enums\OrganizationRole;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Resources\Contacts\ContactResource;
+use App\Filament\Resources\Contacts\Pages\ListContacts;
 use App\Filament\Resources\Deals\DealResource;
 use App\Filament\Resources\Deals\Pages\ListDeals;
 use App\Filament\Resources\Invoices\InvoiceResource;
@@ -140,10 +141,53 @@ describe('with the mixed deals and contacts of two months', function () {
         expect(collect($stats)->map(fn (Stat $stat): ?string => $stat->getUrl())->all())->toBe([
             DealResource::getUrl('index').'?filters[status][value]=won&filters[closed_between][from]=2026-10-01&filters[closed_between][until]=2026-10-31',
             null,
-            DealResource::getUrl('index'),
+            DealResource::getUrl('index').'?filters[created_between][from]=2026-10-01&filters[created_between][until]=2026-10-31',
             InvoiceResource::getUrl('index'),
-            ContactResource::getUrl('index'),
+            ContactResource::getUrl('index').'?filters[created_between][from]=2026-10-01&filters[created_between][until]=2026-10-31',
         ]);
+    });
+
+    test('the list behind each created link shows as many records as the stat counts', function (array $pageFilters, string $label, string $list, string $count) {
+        $pageFilters = array_map(fn (mixed $value): mixed => $value === '<bob id>' ? (string) $this->bob->id : $value, $pageFilters);
+        $globex = User::factory()->onboardingCompleted()->withPersonalOrganization()->create()->personalOrganization();
+        $foreignDeal = ($this->kpiDeal)(DealStatus::Open, '100', null, '2026-10-10 10:00:00', null, $globex);
+        $foreignContact = ($this->kpiContact)(null, '2026-10-10 10:00:00', $globex);
+
+        $stats = invade(Livewire::test(KpiOverviewWidget::class, ['pageFilters' => $pageFilters])->instance())->getStats();
+        $stat = collect($stats)->first(fn (Stat $stat): bool => (string) $stat->getLabel() === $label);
+
+        parse_str((string) parse_url($stat->getUrl(), PHP_URL_QUERY), $query);
+
+        expect((string) $stat->getValue())->toBe($count);
+
+        Livewire::withQueryParams($query)->test($list)
+            ->assertCountTableRecords((int) $count)
+            ->assertCanNotSeeTableRecords([$list === ListDeals::class ? $foreignDeal : $foreignContact]);
+    })->with([
+        'new deals' => [[], 'New Deals This Month', ListDeals::class, '3'],
+        'new deals of Bob' => [['owner' => '<bob id>'], 'New Deals This Month', ListDeals::class, '1'],
+        'new deals last month' => [['period' => 'last_month'], 'New Deals Last Month', ListDeals::class, '4'],
+        'new contacts' => [[], 'New Contacts This Month', ListContacts::class, '2'],
+        'new contacts of me' => [['owner' => 'me'], 'New Contacts This Month', ListContacts::class, '1'],
+    ]);
+
+    test('the owner key is in the created links only for a resolved member', function () {
+        $url = fn (string $owner): string => (string) collect(invade(Livewire::test(KpiOverviewWidget::class, ['pageFilters' => ['owner' => $owner]])->instance())->getStats())
+            ->first(fn (Stat $stat): bool => str_starts_with((string) $stat->getLabel(), 'New Deals'))
+            ->getUrl();
+
+        expect($url((string) $this->bob->id))->toEndWith('&filters[created_between][until]=2026-10-31&filters[owner_id][value]='.$this->bob->id)
+            ->and($url('999999'))->not->toContain('owner_id');
+    });
+
+    test('a custom period goes into the created links as is', function () {
+        $stats = collect(invade(Livewire::test(KpiOverviewWidget::class, ['pageFilters' => ['period' => 'custom', 'from' => '2026-09-15', 'to' => '2026-10-05']])->instance())->getStats());
+
+        foreach (['New Deals ' => DealResource::class, 'New Contacts ' => ContactResource::class] as $prefix => $resource) {
+            $url = $stats->first(fn (Stat $stat): bool => str_starts_with((string) $stat->getLabel(), $prefix))->getUrl();
+
+            expect($url)->toBe($resource::getUrl('index').'?filters[created_between][from]=2026-09-15&filters[created_between][until]=2026-10-05');
+        }
     });
 
     test('the won figure links open the deal list on the won status only', function () {

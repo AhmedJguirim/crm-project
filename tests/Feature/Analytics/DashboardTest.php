@@ -48,6 +48,7 @@ use App\Models\Deal;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\Reports\DashboardBreakdowns;
+use App\Support\Reports\ContactListLink;
 use App\Support\Reports\DashboardFilters;
 use App\Support\Reports\DealListLink;
 use App\Support\Reports\ReportPeriod;
@@ -57,6 +58,7 @@ use Filament\Navigation\NavigationItem;
 use Filament\Widgets\AccountWidget;
 use Filament\Widgets\FilamentInfoWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Route;
 use Livewire\Livewire;
 use Tests\Feature\Analytics\TeamActivityFixture;
@@ -202,16 +204,84 @@ test('the deals closed stats open the deal list filtered on the status and perio
     }
 });
 
-test('the lead stats open the contact list filtered on the lead status', function () {
-    $stats = collect(invade(Livewire::test(LeadsSummaryWidget::class)->instance())->getStats())
+test('the deals created stats open the deal list filtered on the period', function () {
+    $stats = collect(invade(Livewire::test(DealsCreatedWidget::class)->instance())->getStats())
         ->mapWithKeys(fn (Stat $stat): array => [(string) $stat->getLabel() => $stat->getUrl()]);
+    $filters = DashboardFilters::fromPageFilters([]);
+    $created = DealListLink::created($filters);
+
+    expect($stats->values()->all())->toBe([$created, $created])
+        ->and($created)->toBe(DealResource::getUrl('index').'?filters[created_between][from]=2026-10-01&filters[created_between][until]=2026-10-31');
+
+    parse_str((string) parse_url($created, PHP_URL_QUERY), $query);
+
+    Livewire::withQueryParams($query)
+        ->test(ListDeals::class)
+        ->assertSet('tableFilters.created_between.from', '2026-10-01')
+        ->assertSet('tableFilters.created_between.until', '2026-10-31');
+});
+
+test('the new contacts created stat opens the contact list filtered on the period', function () {
+    $stats = invade(Livewire::test(NewContactsWidget::class)->instance())->getStats();
+    $created = ContactListLink::created(DashboardFilters::fromPageFilters([]));
+
+    expect($stats[0]->getUrl())->toBe($created)
+        ->and($created)->toBe(ContactResource::getUrl('index').'?filters[created_between][from]=2026-10-01&filters[created_between][until]=2026-10-31');
+
+    parse_str((string) parse_url($created, PHP_URL_QUERY), $query);
+
+    Livewire::withQueryParams($query)
+        ->test(ListContacts::class)
+        ->assertSet('tableFilters.created_between.from', '2026-10-01')
+        ->assertSet('tableFilters.created_between.until', '2026-10-31');
+});
+
+test('the lead stats open the contact list: new leads in the period, open leads as they are now, both for the owner', function () {
+    $urls = fn (array $pageFilters): Collection => collect(invade(Livewire::test(LeadsSummaryWidget::class, ['pageFilters' => $pageFilters])->instance())->getStats())
+        ->mapWithKeys(fn (Stat $stat): array => [(string) $stat->getLabel() => $stat]);
+    $lead = fn (?User $owner, string $createdAt, $organization): Contact => Contact::factory()->create([
+        'organization_id' => $organization->id,
+        'owner_id' => $owner?->id,
+        'status' => ContactStatus::Lead,
+        'created_at' => $createdAt,
+    ]);
+    Contact::query()->update(['status' => ContactStatus::Prospect]);
+    $ownLead = $lead($this->team->alice, '2026-10-03 10:00:00', $this->org);
+    $otherLead = $lead($this->team->bob, '2026-10-04 10:00:00', $this->org);
+    $oldLead = $lead($this->team->alice, '2026-09-04 10:00:00', $this->org);
+    $foreignLead = $lead(null, '2026-10-04 10:00:00', $this->team->globex);
+
+    $stats = $urls([]);
+    $newLeads = $stats->first(fn (Stat $stat, string $label): bool => str_starts_with($label, 'New Leads'));
     $leads = ContactResource::getUrl('index').'?filters[status][values][0]='.ContactStatus::Lead->value;
 
-    expect($stats->filter(fn (?string $url, string $label): bool => str_starts_with($label, 'New Leads') || $label === 'Open Leads')->values()->all())->toBe([$leads, $leads]);
+    expect($newLeads->getUrl())->toBe($leads.'&filters[created_between][from]=2026-10-01&filters[created_between][until]=2026-10-31')
+        ->and($stats['Open Leads']->getUrl())->toBe($leads)
+        ->and($stats['Past Lead Status']->getUrl())->toBeNull();
 
-    Livewire::withQueryParams(['filters' => ['status' => ['values' => [ContactStatus::Lead->value]]]])
+    parse_str((string) parse_url($newLeads->getUrl(), PHP_URL_QUERY), $query);
+
+    Livewire::withQueryParams($query)
         ->test(ListContacts::class)
-        ->assertSet('tableFilters.status.values', [ContactStatus::Lead->value]);
+        ->assertSet('tableFilters.status.values', [ContactStatus::Lead->value])
+        ->assertCanSeeTableRecords([$ownLead, $otherLead])
+        ->assertCanNotSeeTableRecords([$oldLead, $foreignLead])
+        ->assertCountTableRecords(2);
+
+    expect($newLeads->getValue())->toBe('2');
+
+    $own = $urls(['owner' => 'me']);
+
+    expect($own->first(fn (Stat $stat, string $label): bool => str_starts_with($label, 'New Leads'))->getUrl())->toEndWith('&filters[owner_id][value]='.$this->team->alice->id)
+        ->and($own['Open Leads']->getUrl())->toBe($leads.'&filters[owner_id][value]='.$this->team->alice->id)
+        ->and($own['Open Leads']->getValue())->toBe('2');
+
+    parse_str((string) parse_url($own['Open Leads']->getUrl(), PHP_URL_QUERY), $ownQuery);
+
+    Livewire::withQueryParams($ownQuery)->test(ListContacts::class)
+        ->assertCanSeeTableRecords([$ownLead, $oldLead])
+        ->assertCanNotSeeTableRecords([$otherLead, $foreignLead])
+        ->assertCountTableRecords(2);
 });
 
 test('forged filters reach no SQL text', function (string $widget, string $payload) {

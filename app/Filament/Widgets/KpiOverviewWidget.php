@@ -2,10 +2,9 @@
 
 namespace App\Filament\Widgets;
 
-use App\Filament\Resources\Contacts\ContactResource;
-use App\Filament\Resources\Deals\DealResource;
 use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Services\Reports\DashboardKpis;
+use App\Support\Reports\ContactListLink;
 use App\Support\Reports\DashboardFilters;
 use App\Support\Reports\DealListLink;
 use App\Support\Reports\ReportStats;
@@ -90,7 +89,7 @@ class KpiOverviewWidget extends StatsOverviewWidget
                 $current['created_count'],
                 $previous['created_count'],
                 (string) $previous['created_count'],
-            )->url(DealResource::getUrl('index')), array_column($deals, 'created_count')),
+            )->url(DealListLink::created($filters)), array_column($deals, 'created_count')),
 
             $this->withTrend(ReportStats::compared(
                 Stat::make('Cash Collected '.$title, Number::currency($cash, $currency)),
@@ -104,7 +103,7 @@ class KpiOverviewWidget extends StatsOverviewWidget
                 $newContacts,
                 $previousNewContacts,
                 (string) $previousNewContacts,
-            )->url(ContactResource::getUrl('index')), $contacts),
+            )->url(ContactListLink::created($filters)), $contacts),
         ];
     }
 

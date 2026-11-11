@@ -3,8 +3,8 @@
 namespace App\Filament\Widgets\DashboardV2;
 
 use App\Enums\ContactStatus;
-use App\Filament\Resources\Contacts\ContactResource;
 use App\Models\Contact;
+use App\Support\Reports\ContactListLink;
 use App\Support\Reports\ReportPeriod;
 use App\Support\Reports\ReportStats;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -28,7 +28,6 @@ class LeadsSummaryWidget extends DashboardStatsWidget
     protected function getStats(): array
     {
         $filters = $this->filters();
-        $leadsUrl = ContactResource::getUrl('index').'?filters[status][values][0]='.ContactStatus::Lead->value;
         $period = $filters->period;
         $contacts = fn (): Builder => Contact::query()->when($filters->ownerId !== null, fn (Builder $query): Builder => $query->where('owner_id', $filters->ownerId));
         $newLeads = fn (ReportPeriod $of): int => $contacts()
@@ -50,11 +49,11 @@ class LeadsSummaryWidget extends DashboardStatsWidget
                 $current,
                 $previous,
                 (string) $previous,
-            )->url($leadsUrl),
+            )->url(ContactListLink::newLeads($filters)),
 
             Stat::make('Open Leads', (string) $contacts()->where('status', ContactStatus::Lead->value)->count())
                 ->description('All the leads right now, whatever their age')
-                ->url($leadsUrl),
+                ->url(ContactListLink::openLeads($filters)),
 
             Stat::make('Past Lead Status', (string) $converted)
                 ->description($created === 0 ? 'No contact created '.$period->phrase() : 'Prospect or further, of '.$created.' contacts created '.$period->phrase())

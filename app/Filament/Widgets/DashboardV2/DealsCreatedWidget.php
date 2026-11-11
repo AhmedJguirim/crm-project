@@ -2,9 +2,9 @@
 
 namespace App\Filament\Widgets\DashboardV2;
 
-use App\Filament\Resources\Deals\DealResource;
 use App\Models\Deal;
 use App\Services\Reports\DashboardKpis;
+use App\Support\Reports\DealListLink;
 use App\Support\Reports\ReportPeriod;
 use App\Support\Reports\ReportStats;
 use App\Support\Tenancy\CurrentOrganization;
@@ -47,14 +47,14 @@ class DealsCreatedWidget extends DashboardStatsWidget
                 $counts[self::TREND_PERIODS - 1],
                 $counts[self::TREND_PERIODS - 2],
                 (string) $counts[self::TREND_PERIODS - 2],
-            )->url(DealResource::getUrl('index'))->chart($counts)->chartColor('primary'),
+            )->url(DealListLink::created($filters))->chart($counts)->chartColor('primary'),
 
             ReportStats::compared(
                 Stat::make('Value Created '.$filters->period->title(), Number::currency($value, $currency)),
                 $value,
                 $previousValue,
                 Number::currency($previousValue, $currency),
-            ),
+            )->url(DealListLink::created($filters)),
         ];
     }
 }

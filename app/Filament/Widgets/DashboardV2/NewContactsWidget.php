@@ -2,8 +2,8 @@
 
 namespace App\Filament\Widgets\DashboardV2;
 
-use App\Filament\Resources\Contacts\ContactResource;
 use App\Services\Reports\DashboardKpis;
+use App\Support\Reports\ContactListLink;
 use App\Support\Reports\ReportStats;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
@@ -30,7 +30,7 @@ class NewContactsWidget extends DashboardStatsWidget
                 $current,
                 $previous,
                 (string) $previous,
-            )->url(ContactResource::getUrl('index'))->chart($counts)->chartColor('primary'),
+            )->url(ContactListLink::created($filters))->chart($counts)->chartColor('primary'),
         ];
     }
 }
