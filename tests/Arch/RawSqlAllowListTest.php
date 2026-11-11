@@ -78,6 +78,9 @@ function rawSqlAllowList(): array
         'Services/Reports/RevenueByClient.php' => [
             'dynamic' => 'aggregate selects built from constants and HomeAmount::sql(), whose amount expression is checked against an allow-list at the sink; dates, statuses, kind, owner id and the home currency are bindings',
         ],
+        'Filament/Resources/Deals/Widgets/DealInvoicesWidget.php' => [
+            'dynamic' => 'aggregate selects built from constants and HomeAmount::sql(), whose amount expression is checked against an allow-list at the sink; dates, statuses, kind, owner id and the home currency are bindings',
+        ],
         'Services/Reports/StageConversion.php' => [
             'constant' => 'constant aggregate selects (COUNT over CASE, MAX(position), grouped COUNT) for the stage conversion; status and period bounds are bindings',
         ],
