@@ -33,7 +33,7 @@
                                     </x-filament::badge>
                                 </td>
                                 <td class="py-2 pr-4 text-right font-semibold text-gray-900 dark:text-gray-100">
-                                    {{ Number::currency((float) $invoice->amount, $currency) }}
+                                    {{ $invoice->formatMoney($invoice->amount) }}
                                 </td>
                                 <td class="py-2 pr-4 text-gray-600 dark:text-gray-400">
                                     {{ $invoice->issued_at?->format('M j, Y') ?? '—' }}

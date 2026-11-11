@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Invoices\Tables;
 
+use App\Enums\Currency;
 use App\Enums\DealStatus;
 use App\Enums\InvoicePaymentKind;
 use App\Enums\InvoiceStatus;
@@ -16,7 +17,6 @@ use App\Services\Invoices\InvoiceLedger;
 use App\Support\LocalTime;
 use App\Support\MoneyLimit;
 use App\Support\NotificationText;
-use App\Support\Tenancy\CurrentOrganization;
 use Carbon\CarbonImmutable;
 use Closure;
 use Filament\Actions\Action;
@@ -35,7 +35,6 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\Indicator;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Number;
 
 class InvoicesTable
 {
@@ -73,7 +72,7 @@ class InvoicesTable
                         : null),
 
                 TextColumn::make('amount')
-                    ->money(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD')
+                    ->money(fn (Invoice $record): Currency => $record->currency, decimalPlaces: 2)
                     ->sortable(),
 
                 TextColumn::make('status')
@@ -237,20 +236,19 @@ class InvoicesTable
                 ->minValue(0.01)
                 ->maxValue(MoneyLimit::MAX)
                 ->step(0.01)
-                ->prefix(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD')
+                ->prefix(fn (Invoice $record): string => $record->currency->value)
                 ->rule(fn (Invoice $record): Closure => function (string $attribute, mixed $value, Closure $fail) use ($record, $kind): void {
                     if (! is_numeric($value)) {
                         return;
                     }
 
                     $cents = InvoiceLedger::cents($value);
-                    $currency = CurrentOrganization::find()?->currencyCode() ?? 'USD';
 
                     if ($kind === InvoicePaymentKind::Payment) {
                         $balance = InvoiceLedger::cents($record->amount) - InvoiceLedger::cents($record->amount_paid);
 
                         if ($cents > $balance) {
-                            $fail("The payment can't be more than the balance due (".Number::currency($balance / 100, $currency).').');
+                            $fail("The payment can't be more than the balance due (".$record->formatMoney($balance / 100).').');
                         }
 
                         return;
@@ -259,7 +257,7 @@ class InvoicesTable
                     $paid = InvoiceLedger::cents($record->amount_paid);
 
                     if ($cents > $paid) {
-                        $fail("The refund can't be more than the amount paid (".Number::currency($paid / 100, $currency).').');
+                        $fail("The refund can't be more than the amount paid (".$record->formatMoney($paid / 100).').');
                     }
                 }),
 

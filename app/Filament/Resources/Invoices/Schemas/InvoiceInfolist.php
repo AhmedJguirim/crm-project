@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Invoices\Schemas;
 
+use App\Enums\Currency;
 use App\Enums\InvoicePaymentKind;
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
@@ -37,12 +38,19 @@ class InvoiceInfolist
                             ->placeholder('No deal linked'),
 
                         TextEntry::make('amount')
-                            ->money(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD')
+                            ->money(fn (Invoice $record): Currency => $record->currency, decimalPlaces: 2)
                             ->label('Amount'),
 
                         TextEntry::make('amount_paid')
-                            ->money(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD')
+                            ->money(fn (Invoice $record): Currency => $record->currency, decimalPlaces: 2)
                             ->label('Amount Paid'),
+
+                        TextEntry::make('exchange_rate')
+                            ->label('Exchange rate')
+                            ->visible(fn (Invoice $record): bool => $record->exchange_rate !== null
+                                && $record->currency->value !== self::homeCurrencyCode())
+                            ->state(fn (Invoice $record): string => '1 '.$record->currency->value.' = '
+                                .rtrim(rtrim((string) $record->exchange_rate, '0'), '.').' '.self::homeCurrencyCode()),
 
                         TextEntry::make('payment_terms')
                             ->label('Payment Terms')
@@ -53,7 +61,7 @@ class InvoiceInfolist
 
                         TextEntry::make('balance')
                             ->label('Balance Due')
-                            ->state(fn ($record): string => number_format((float) $record->amount - (float) $record->amount_paid, 2).' '.(CurrentOrganization::find()?->currencyCode() ?? 'USD'))
+                            ->state(fn (Invoice $record): string => number_format((float) $record->amount - (float) $record->amount_paid, 2).' '.$record->currency->value)
                             ->color(fn ($record): ?string => (float) $record->amount - (float) $record->amount_paid > 0 ? 'danger' : 'success'),
 
                         TextEntry::make('issued_at')
@@ -87,7 +95,8 @@ class InvoiceInfolist
                     ->schema([
                         RepeatableEntry::make('payments')
                             ->hiddenLabel()
-                            ->state(fn (Invoice $record) => $record->payments()->with('recordedBy')->orderBy('paid_on')->orderBy('id')->get())
+                            ->state(fn (Invoice $record) => $record->payments()->with('recordedBy')->orderBy('paid_on')->orderBy('id')->get()
+                                ->each(fn (InvoicePayment $payment) => $payment->setRelation('invoice', $record)))
                             ->table([
                                 TableColumn::make('Date'),
                                 TableColumn::make('Type'),
@@ -107,7 +116,7 @@ class InvoiceInfolist
                                     ->state(fn (InvoicePayment $record): float => $record->kind === InvoicePaymentKind::Refund
                                         ? -(float) $record->amount
                                         : (float) $record->amount)
-                                    ->money(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD'),
+                                    ->money(fn (InvoicePayment $record): Currency => $record->invoice->currency, decimalPlaces: 2),
 
                                 TextEntry::make('method')
                                     ->placeholder('—'),
@@ -120,5 +129,10 @@ class InvoiceInfolist
                             ]),
                     ]),
             ]);
+    }
+
+    private static function homeCurrencyCode(): string
+    {
+        return CurrentOrganization::find()?->currencyCode() ?? 'USD';
     }
 }

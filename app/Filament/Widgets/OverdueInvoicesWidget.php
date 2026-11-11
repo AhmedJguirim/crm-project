@@ -2,11 +2,11 @@
 
 namespace App\Filament\Widgets;
 
+use App\Enums\Currency;
 use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Models\Invoice;
 use App\Support\LocalTime;
-use App\Support\Tenancy\CurrentOrganization;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Action;
 use Filament\Support\Icons\Heroicon;
@@ -45,7 +45,7 @@ class OverdueInvoicesWidget extends TableWidget
 
                 TextColumn::make('balance')
                     ->state(fn (Invoice $record): float => (float) $record->amount - (float) $record->amount_paid)
-                    ->money(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD'),
+                    ->money(fn (Invoice $record): Currency => $record->currency, decimalPlaces: 2),
 
                 TextColumn::make('due_at')
                     ->label('Due date')

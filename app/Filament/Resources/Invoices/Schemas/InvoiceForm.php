@@ -110,7 +110,7 @@ class InvoiceForm
                     ->minValue(0)
                     ->maxValue(MoneyLimit::MAX)
                     ->step(0.01)
-                    ->prefix(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD')
+                    ->prefix(fn (?Invoice $record): string => $record?->currency->value ?? (CurrentOrganization::find()?->currencyCode() ?? 'USD'))
                     ->disabled(fn (?Invoice $record): bool => $record?->payments()->exists() ?? false)
                     ->helperText(fn (?Invoice $record): ?string => $record?->payments()->exists()
                         ? "The amount can't change once a payment is recorded."
