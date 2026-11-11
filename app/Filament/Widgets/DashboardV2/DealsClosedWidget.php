@@ -2,9 +2,8 @@
 
 namespace App\Filament\Widgets\DashboardV2;
 
-use App\Enums\DealStatus;
-use App\Filament\Resources\Deals\DealResource;
 use App\Services\Reports\DashboardKpis;
+use App\Support\Reports\DealListLink;
 use App\Support\Reports\ReportStats;
 use App\Support\Tenancy\CurrentOrganization;
 use Filament\Widgets\StatsOverviewWidget\Stat;
@@ -30,8 +29,8 @@ class DealsClosedWidget extends DashboardStatsWidget
         $currency = CurrentOrganization::find()?->currencyCode() ?? 'USD';
         $title = $filters->period->title();
         [$previous, $current] = DashboardKpis::salesResultsByPeriod($filters->period->trail(2), $filters->ownerId);
-        $wonUrl = DealResource::getUrl('index').'?filters[status][value]='.DealStatus::Won->value;
-        $lostUrl = DealResource::getUrl('index').'?filters[status][value]='.DealStatus::Lost->value;
+        $wonUrl = DealListLink::won($filters);
+        $lostUrl = DealListLink::lost($filters);
 
         return [
             ReportStats::compared(Stat::make('Deals Won '.$title, (string) $current['won_count']), $current['won_count'], $previous['won_count'], (string) $previous['won_count'])->url($wonUrl),

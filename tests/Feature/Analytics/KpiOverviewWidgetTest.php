@@ -138,7 +138,7 @@ describe('with the mixed deals and contacts of two months', function () {
         $stats = invade(Livewire::test(KpiOverviewWidget::class)->instance())->getStats();
 
         expect(collect($stats)->map(fn (Stat $stat): ?string => $stat->getUrl())->all())->toBe([
-            DealResource::getUrl('index').'?filters[status][value]=won',
+            DealResource::getUrl('index').'?filters[status][value]=won&filters[closed_between][from]=2026-10-01&filters[closed_between][until]=2026-10-31',
             null,
             DealResource::getUrl('index'),
             InvoiceResource::getUrl('index'),
@@ -150,6 +150,7 @@ describe('with the mixed deals and contacts of two months', function () {
         $won = ($this->kpiDeal)(DealStatus::Won, '1000', $this->user, '2026-10-01 10:00:00', '2026-10-11 10:00:00');
         $lost = ($this->kpiDeal)(DealStatus::Lost, '700', $this->user, '2026-10-02 10:00:00', '2026-10-12 10:00:00');
         $open = ($this->kpiDeal)(DealStatus::Open, '800', $this->user, '2026-10-15 10:00:00');
+        $wonLastMonth = ($this->kpiDeal)(DealStatus::Won, '500', $this->user, '2026-09-01 10:00:00', '2026-09-15 10:00:00');
 
         $stats = invade(Livewire::test(KpiOverviewWidget::class)->instance())->getStats();
 
@@ -157,8 +158,10 @@ describe('with the mixed deals and contacts of two months', function () {
 
         Livewire::withQueryParams($query)->test(ListDeals::class)
             ->assertSet('tableFilters.status.value', DealStatus::Won->value)
+            ->assertSet('tableFilters.closed_between.from', '2026-10-01')
+            ->assertSet('tableFilters.closed_between.until', '2026-10-31')
             ->assertCanSeeTableRecords([$won])
-            ->assertCanNotSeeTableRecords([$lost, $open]);
+            ->assertCanNotSeeTableRecords([$lost, $open, $wonLastMonth]);
     });
 
     test('the owner narrows every figure and its comparison', function () {

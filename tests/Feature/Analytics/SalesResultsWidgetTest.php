@@ -129,16 +129,53 @@ describe('with the won and lost deals of two months', function () {
             ->assertSee('Deals won or lost this month, compared with the previous period, from Sep 1, 2026 to Sep 30, 2026. Deals reopened since are not counted.');
     });
 
-    test('the won and lost figures link to the deals list filtered by status', function () {
+    test('the won and lost figures link to the deals list filtered by status and period', function () {
         $stats = ($this->salesStats)();
-        $won = DealResource::getUrl('index').'?filters[status][value]=won';
-        $lost = DealResource::getUrl('index').'?filters[status][value]=lost';
+        $won = DealResource::getUrl('index').'?filters[status][value]=won&filters[closed_between][from]=2026-10-01&filters[closed_between][until]=2026-10-31';
+        $lost = DealResource::getUrl('index').'?filters[status][value]=lost&filters[closed_between][from]=2026-10-01&filters[closed_between][until]=2026-10-31';
 
         expect($stats['Deals Won This Month']['url'])->toBe($won)
             ->and($stats['Revenue Won This Month']['url'])->toBe($won)
             ->and($stats['Deals Lost This Month']['url'])->toBe($lost)
             ->and($stats['Lost Value This Month']['url'])->toBe($lost)
             ->and($stats['Average Won Deal This Month']['url'])->toBeNull();
+    });
+
+    test('the list behind each link shows as many deals as the stat counts', function (array $pageFilters, string $label, int $expected) {
+        if (($pageFilters['owner'] ?? null) === 'bob') {
+            $pageFilters['owner'] = (string) $this->bob->id;
+        }
+
+        $stat = ($this->salesStats)($pageFilters)[$label];
+
+        parse_str((string) parse_url($stat['url'], PHP_URL_QUERY), $query);
+
+        expect((int) $stat['value'])->toBe($expected);
+
+        Livewire::withQueryParams($query)->test(ListDeals::class)->assertCountTableRecords($expected);
+    })->with([
+        'won, everyone' => [[], 'Deals Won This Month', 3],
+        'lost, everyone' => [[], 'Deals Lost This Month', 2],
+        'won, Bob' => [['owner' => 'bob'], 'Deals Won This Month', 2],
+        'lost, Bob' => [['owner' => 'bob'], 'Deals Lost This Month', 0],
+        'won, me' => [['owner' => 'me'], 'Deals Won This Month', 1],
+        'won, last month' => [['period' => 'last_month'], 'Deals Won Last Month', 1],
+        'lost, last month' => [['period' => 'last_month'], 'Deals Lost Last Month', 2],
+    ]);
+
+    test('the owner id is in the link only when the page owner filter resolves to a member', function () {
+        $url = fn (array $pageFilters): string => ($this->salesStats)($pageFilters)['Deals Won This Month']['url'];
+
+        expect($url(['owner' => (string) $this->bob->id]))->toEndWith('&filters[owner_id][value]='.$this->bob->id)
+            ->and($url(['owner' => 'me']))->toEndWith('&filters[owner_id][value]='.$this->user->id)
+            ->and($url(['owner' => '999999']))->not->toContain('owner_id')
+            ->and($url([]))->not->toContain('owner_id');
+    });
+
+    test('a custom period goes into the link as is', function () {
+        $stats = ($this->salesStats)(['period' => 'custom', 'from' => '2026-09-15', 'to' => '2026-10-05']);
+
+        expect($stats['Deals Won In Period']['url'])->toEndWith('&filters[closed_between][from]=2026-09-15&filters[closed_between][until]=2026-10-05');
     });
 
     test('the owner filter keeps one member and says so when the previous period had no won deal', function () {

@@ -48,6 +48,8 @@ use App\Models\Deal;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\Reports\DashboardBreakdowns;
+use App\Support\Reports\DashboardFilters;
+use App\Support\Reports\DealListLink;
 use App\Support\Reports\ReportPeriod;
 use Filament\Facades\Filament;
 use Filament\Navigation\NavigationGroup;
@@ -178,19 +180,25 @@ test('the dashboard hands its filters to the widgets of every tab', function () 
     }
 });
 
-test('the deals closed stats open the deal list filtered on the status', function () {
+test('the deals closed stats open the deal list filtered on the status and period', function () {
     $stats = collect(invade(Livewire::test(DealsClosedWidget::class)->instance())->getStats())
         ->mapWithKeys(fn (Stat $stat): array => [(string) $stat->getLabel() => $stat->getUrl()]);
-    $won = DealResource::getUrl('index').'?filters[status][value]='.DealStatus::Won->value;
-    $lost = DealResource::getUrl('index').'?filters[status][value]='.DealStatus::Lost->value;
+    $filters = DashboardFilters::fromPageFilters([]);
+    $won = DealListLink::won($filters);
+    $lost = DealListLink::lost($filters);
 
     expect($stats->filter(fn (?string $url, string $label): bool => str_starts_with($label, 'Deals Won') || str_starts_with($label, 'Won Value'))->values()->all())->toBe([$won, $won])
-        ->and($stats->filter(fn (?string $url, string $label): bool => str_starts_with($label, 'Deals Lost') || str_starts_with($label, 'Lost Value'))->values()->all())->toBe([$lost, $lost]);
+        ->and($stats->filter(fn (?string $url, string $label): bool => str_starts_with($label, 'Deals Lost') || str_starts_with($label, 'Lost Value'))->values()->all())->toBe([$lost, $lost])
+        ->and($won)->toBe(DealResource::getUrl('index').'?filters[status][value]=won&filters[closed_between][from]=2026-10-01&filters[closed_between][until]=2026-10-31');
 
-    foreach ([DealStatus::Won, DealStatus::Lost] as $status) {
-        Livewire::withQueryParams(['filters' => ['status' => ['value' => $status->value]]])
+    foreach ([[DealStatus::Won, $won], [DealStatus::Lost, $lost]] as [$status, $url]) {
+        parse_str((string) parse_url($url, PHP_URL_QUERY), $query);
+
+        Livewire::withQueryParams($query)
             ->test(ListDeals::class)
-            ->assertSet('tableFilters.status.value', $status->value);
+            ->assertSet('tableFilters.status.value', $status->value)
+            ->assertSet('tableFilters.closed_between.from', $filters->period->dates()[0])
+            ->assertSet('tableFilters.closed_between.until', $filters->period->dates()[1]);
     }
 });
 

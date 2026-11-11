@@ -2,12 +2,12 @@
 
 namespace App\Filament\Widgets;
 
-use App\Enums\DealStatus;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Deals\DealResource;
 use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Services\Reports\DashboardKpis;
 use App\Support\Reports\DashboardFilters;
+use App\Support\Reports\DealListLink;
 use App\Support\Reports\ReportStats;
 use App\Support\Tenancy\CurrentOrganization;
 use Filament\Widgets\Concerns\InteractsWithPageFilters;
@@ -73,7 +73,7 @@ class KpiOverviewWidget extends StatsOverviewWidget
         $previousCash = $cashByPeriod[self::TREND_PERIODS - 2];
 
         $title = $period->title();
-        $wonUrl = DealResource::getUrl('index').'?filters[status][value]='.DealStatus::Won->value;
+        $wonUrl = DealListLink::won($filters);
 
         return [
             $this->withTrend(ReportStats::compared(
