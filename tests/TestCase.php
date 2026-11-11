@@ -7,11 +7,18 @@ use RuntimeException;
 
 abstract class TestCase extends BaseTestCase
 {
-    protected function setUp(): void
+    public const string TESTING_DATABASE = 'srw-crm-test';
+
+    /**
+     * Creates the application and runs the safety guards right away, before the parallel callbacks and the
+     * traits (`RefreshDatabase` would run `migrate:fresh` on whatever database is configured).
+     */
+    protected function refreshApplication(): void
     {
-        parent::setUp();
+        parent::refreshApplication();
 
         $this->refuseRealMailOrQueue();
+        $this->refuseNonTestingDatabase();
     }
 
     /**
@@ -31,6 +38,28 @@ abstract class TestCase extends BaseTestCase
 
         if ($unsafe) {
             throw new RuntimeException('Refusing to run the tests: they could reach a real mailer or queue. Run php artisan config:clear and check phpunit.xml.');
+        }
+    }
+
+    /**
+     * Stops the test run unless the default connection is pgsql on the testing database (or a parallel worker
+     * copy of it), so `migrate:fresh` can never reach the dev database.
+     *
+     * @throws RuntimeException
+     */
+    private function refuseNonTestingDatabase(): void
+    {
+        $database = (string) config('database.connections.pgsql.database');
+
+        $unsafe = config('database.default') !== 'pgsql'
+            || preg_match('/^'.preg_quote(self::TESTING_DATABASE, '/').'(_test_\d+)?\z/', $database) !== 1;
+
+        if ($unsafe) {
+            throw new RuntimeException(sprintf(
+                "Refusing to run the tests: the database '%s' is not the testing database '%s'. Run php artisan config:clear and check .env.testing and phpunit.xml.",
+                config('database.default').'/'.$database,
+                self::TESTING_DATABASE,
+            ));
         }
     }
 }
