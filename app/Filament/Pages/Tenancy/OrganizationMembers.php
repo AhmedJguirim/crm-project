@@ -13,6 +13,7 @@ use App\Models\OrganizationUser;
 use App\Models\User;
 use App\Support\NotificationText;
 use App\Support\Tenancy\CurrentOrganization;
+use App\Support\Tenancy\InvitationLimits;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -215,6 +216,21 @@ class OrganizationMembers extends Page implements HasTable
                                 ->warning()
                                 ->title('Invite already pending')
                                 ->body('A pending invitation already exists for this email address.')
+                                ->send();
+
+                            return;
+                        }
+
+                        /** @var User $inviter */
+                        $inviter = auth()->user();
+
+                        $refusal = InvitationLimits::claim($organization, $inviter);
+
+                        if ($refusal !== null) {
+                            Notification::make()
+                                ->danger()
+                                ->title('Too many invitations')
+                                ->body(NotificationText::plain($refusal))
                                 ->send();
 
                             return;

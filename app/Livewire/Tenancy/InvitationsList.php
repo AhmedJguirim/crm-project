@@ -7,8 +7,10 @@ use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Mail\OrganizationInvitationMail;
 use App\Models\Organization;
 use App\Models\OrganizationInvite;
+use App\Models\User;
 use App\Support\NotificationText;
 use App\Support\Tenancy\CurrentOrganization;
+use App\Support\Tenancy\InvitationLimits;
 use Filament\Actions\Action;
 use Filament\Actions\Concerns\InteractsWithActions;
 use Filament\Actions\Contracts\HasActions;
@@ -69,6 +71,36 @@ class InvitationsList extends Component implements HasActions, HasSchemas, HasTa
                     ->label('Resend')
                     ->icon('heroicon-o-envelope')
                     ->action(function (OrganizationInvite $invite) {
+                        if (InvitationLimits::resendOnCooldown($invite)) {
+                            Notification::make()
+                                ->warning()
+                                ->title('Invitation already resent')
+                                ->body('Wait 10 minutes before resending this invitation.')
+                                ->send();
+
+                            return;
+                        }
+
+                        /** @var Organization $organization */
+                        $organization = CurrentOrganization::find();
+
+                        /** @var User $sender */
+                        $sender = auth()->user();
+
+                        $refusal = InvitationLimits::claim($organization, $sender);
+
+                        if ($refusal !== null) {
+                            Notification::make()
+                                ->danger()
+                                ->title('Too many invitations')
+                                ->body(NotificationText::plain($refusal))
+                                ->send();
+
+                            return;
+                        }
+
+                        InvitationLimits::startResendCooldown($invite);
+
                         // Regenerate token and extend expiry by 7 days
                         $token = $invite->regenerateToken(7);
 

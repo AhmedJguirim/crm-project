@@ -8,11 +8,14 @@ use App\Filament\Support\OrganizationNameInput;
 use App\Filament\Support\OrganizationTimezoneSelect;
 use App\Models\Organization;
 use App\Models\User;
+use App\Support\NotificationText;
+use App\Support\Tenancy\InvitationLimits;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Textarea;
+use Filament\Notifications\Notification;
 use Filament\Pages\Tenancy\RegisterTenant;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Str;
@@ -118,6 +121,21 @@ class RegisterOrganization extends RegisterTenant
 
     protected function handleRegistration(array $data): Organization
     {
+        User::query()->whereKey(auth()->id())->lockForUpdate()->first();
+
+        /** @var User $user */
+        $user = auth()->user();
+
+        if (InvitationLimits::organizationLimitReached($user)) {
+            Notification::make()
+                ->danger()
+                ->title('Organization limit reached')
+                ->body(NotificationText::plain('You can create up to '.InvitationLimits::ORGANIZATIONS_PER_USER.' organizations.'))
+                ->send();
+
+            $this->halt(shouldRollbackDatabaseTransaction: true);
+        }
+
         $data['slug'] = Str::slug($data['name']).'-'.Str::random(6);
         $data['created_by'] = auth()->id();
         $data['personal_team'] = false;
