@@ -2,6 +2,7 @@
 
 use App\Concerns\ProfileValidationRules;
 use App\Models\User;
+use App\Support\Security\SecurityLog;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
@@ -40,11 +41,17 @@ new class extends Component {
 
         $user->fill($validated);
 
-        if (Str::lower((string) $user->getOriginal('email')) !== Str::lower($user->email)) {
+        $emailChanged = Str::lower((string) $user->getOriginal('email')) !== Str::lower($user->email);
+
+        if ($emailChanged) {
             $user->email_verified_at = null;
         }
 
         $user->save();
+
+        if ($emailChanged) {
+            SecurityLog::info('account.email_changed', $user);
+        }
 
         $this->dispatch('profile-updated', name: $user->name);
     }

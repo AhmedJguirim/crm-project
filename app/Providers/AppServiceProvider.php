@@ -14,6 +14,7 @@ use App\Support\Auth\CaseInsensitiveEmailUserProvider;
 use App\Support\Livewire\RefuseMistypedCallArguments;
 use App\Support\Livewire\RefuseMistypedPropertyUpdates;
 use App\Support\Livewire\RefuseSubKeyUpdatesOfScalars;
+use App\Support\Security\SecurityEventSubscriber;
 use App\Support\Tenancy\CurrentOrganization;
 use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
@@ -29,6 +30,7 @@ use Illuminate\Session\SessionManager;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
 use Spatie\LaravelTypeScriptTransformer\TypeScriptTransformerApplicationServiceProvider;
@@ -115,6 +117,15 @@ class AppServiceProvider extends ServiceProvider
         $this->configureLivewireUpdateGuard();
         $this->configureLivewireCallGuard();
         $this->configureSingleValueFormFields();
+        $this->configureSecurityLog();
+    }
+
+    /**
+     * Sign-in and two-factor events are written to the `security` log channel (SEC-08).
+     */
+    protected function configureSecurityLog(): void
+    {
+        Event::subscribe(SecurityEventSubscriber::class);
     }
 
     /**

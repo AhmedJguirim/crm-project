@@ -7,7 +7,10 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Monolog\Handler\TestHandler;
+use Monolog\LogRecord;
 use OpenSpout\Common\Entity\Cell;
 use OpenSpout\Common\Entity\Row;
 use OpenSpout\Common\Entity\Style\Style;
@@ -138,4 +141,23 @@ function makeXlsx(array $rows, array $extraSheets = []): string
     $writer->close();
 
     return $path;
+}
+
+/**
+ * Route the `security` log channel to an in-memory handler and return it.
+ */
+function fakeSecurityLog(): TestHandler
+{
+    config(['logging.channels.security' => ['driver' => 'monolog', 'handler' => TestHandler::class, 'level' => 'debug']]);
+    Log::forgetChannel('security');
+
+    return Log::channel('security')->getLogger()->getHandlers()[0];
+}
+
+/**
+ * @return list<array{event: string, level: string, context: array<string, mixed>}>
+ */
+function securityLogEntries(TestHandler $log): array
+{
+    return array_map(fn (LogRecord $record): array => ['event' => $record->message, 'level' => $record->level->toPsrLogLevel(), 'context' => $record->context], $log->getRecords());
 }

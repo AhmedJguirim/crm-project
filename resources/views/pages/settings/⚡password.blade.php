@@ -1,6 +1,7 @@
 <?php
 
 use App\Concerns\PasswordValidationRules;
+use App\Support\Security\SecurityLog;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
@@ -32,6 +33,8 @@ new class extends Component {
         Auth::user()->update([
             'password' => $validated['password'],
         ]);
+
+        SecurityLog::info('account.password_changed', Auth::user());
 
         $this->reset('current_password', 'password', 'password_confirmation');
 

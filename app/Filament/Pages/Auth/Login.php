@@ -5,9 +5,12 @@ namespace App\Filament\Pages\Auth;
 use App\Http\Controllers\InviteAcceptController;
 use App\Models\OrganizationInvite;
 use App\Models\User;
+use App\Support\Security\SecurityLog;
+use DanHarrin\LivewireRateLimiting\Exceptions\TooManyRequestsException;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse;
 use Filament\Auth\Pages\Login as BaseLogin;
 use Filament\Facades\Filament;
+use Filament\Notifications\Notification;
 use Illuminate\Support\Str;
 use SensitiveParameter;
 
@@ -29,6 +32,16 @@ class Login extends BaseLogin
         }
 
         return $response;
+    }
+
+    /**
+     * Filament fires no event when the panel login is throttled, so the lockout is logged here (SEC-08).
+     */
+    protected function getRateLimitedNotification(TooManyRequestsException $exception): ?Notification
+    {
+        SecurityLog::warning('auth.lockout', context: ['source' => 'panel']);
+
+        return parent::getRateLimitedNotification($exception);
     }
 
     /**

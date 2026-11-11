@@ -2,6 +2,7 @@
 
 use App\Concerns\PasswordValidationRules;
 use App\Livewire\Actions\Logout;
+use App\Support\Security\SecurityLog;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
@@ -18,6 +19,8 @@ new class extends Component {
         $this->validate([
             'password' => $this->currentPasswordRules(),
         ]);
+
+        SecurityLog::warning('account.deleted', Auth::user());
 
         tap(Auth::user(), $logout(...))->delete();
 
