@@ -159,6 +159,7 @@ describe('dashboard access', function () {
         Livewire::test('pages::settings.profile')
             ->set('name', $this->ops->name)
             ->set('email', 'ops.new@example.com')
+            ->set('current_password', 'password')
             ->call('updateProfileInformation')
             ->assertHasNoErrors();
 
@@ -203,6 +204,7 @@ describe('dashboard access', function () {
         Livewire::test('pages::settings.profile')
             ->set('name', 'Impostor')
             ->set('email', 'ops@ourcompany.example')
+            ->set('current_password', 'password')
             ->call('updateProfileInformation')
             ->assertHasNoErrors();
 

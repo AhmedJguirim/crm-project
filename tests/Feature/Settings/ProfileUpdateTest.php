@@ -20,6 +20,7 @@ test('profile information can be updated', function () {
     $response = Livewire::test('pages::settings.profile')
         ->set('name', 'Test User')
         ->set('email', 'test@example.com')
+        ->set('current_password', 'password')
         ->call('updateProfileInformation');
 
     $response->assertHasNoErrors();
@@ -86,6 +87,7 @@ test('a changed profile email is stored lower-case', function () {
     Livewire::test('pages::settings.profile')
         ->set('name', 'Ann')
         ->set('email', 'Ann.New@Example.COM')
+        ->set('current_password', 'password')
         ->call('updateProfileInformation')
         ->assertHasNoErrors();
 
@@ -149,6 +151,7 @@ test('a real address change still resets the verification', function () {
 
     Livewire::test('pages::settings.profile')
         ->set('email', 'ann.new@example.com')
+        ->set('current_password', 'password')
         ->call('updateProfileInformation')
         ->assertHasNoErrors();
 
@@ -166,4 +169,136 @@ test('the unique email rule leaves a forged non-string value to the string rule 
         ->and($forged->errors()->keys())->toBe(['email'])
         ->and($own->passes())->toBeTrue()
         ->and($other->fails())->toBeTrue();
+});
+
+describe('SEC-03: the current password is required to change the email', function () {
+    beforeEach(function () {
+        $this->verifiedAt = CarbonImmutable::parse('2026-11-01 10:00:00', 'UTC');
+        $this->ann = User::factory()->create(['email' => 'ann@example.com', 'email_verified_at' => $this->verifiedAt]);
+        $this->actingAs($this->ann);
+    });
+
+    test('an email change without a password is refused', function () {
+        $log = fakeSecurityLog();
+
+        $page = Livewire::test('pages::settings.profile')
+            ->set('email', 'ann.new@example.com')
+            ->call('updateProfileInformation')
+            ->assertHasErrors(['current_password']);
+
+        $ann = $this->ann->fresh();
+
+        expect($page->errors()->get('current_password'))->toBe(['The current password field is required.'])
+            ->and($ann->email)->toBe('ann@example.com')
+            ->and($ann->email_verified_at->equalTo($this->verifiedAt))->toBeTrue()
+            ->and(securityLogEntries($log))->toBe([]);
+    });
+
+    test('an email change with a wrong password is refused and the field is cleared', function () {
+        $page = Livewire::test('pages::settings.profile')
+            ->set('email', 'ann.new@example.com')
+            ->set('current_password', 'wrong-password')
+            ->call('updateProfileInformation')
+            ->assertHasErrors(['current_password'])
+            ->assertSet('current_password', '');
+
+        expect($page->errors()->get('current_password'))->toBe(['The password is incorrect.'])
+            ->and($this->ann->fresh()->email)->toBe('ann@example.com');
+    });
+
+    test('an email change with the right password works and clears the field', function () {
+        $log = fakeSecurityLog();
+
+        Livewire::test('pages::settings.profile')
+            ->set('email', 'Ann.New@Example.COM')
+            ->set('current_password', 'password')
+            ->call('updateProfileInformation')
+            ->assertHasNoErrors()
+            ->assertSet('current_password', '');
+
+        $ann = $this->ann->fresh();
+
+        expect($ann->email)->toBe('ann.new@example.com')
+            ->and($ann->email_verified_at)->toBeNull()
+            ->and(securityLogEntries($log))->toHaveCount(1)
+            ->and(securityLogEntries($log)[0]['event'])->toBe('account.email_changed');
+    });
+
+    test('a name-only change needs no password', function () {
+        Livewire::test('pages::settings.profile')
+            ->set('name', 'Ann L.')
+            ->call('updateProfileInformation')
+            ->assertHasNoErrors();
+
+        expect($this->ann->fresh()->name)->toBe('Ann L.');
+    });
+
+    test('a name-only change with a stray wrong password is not checked and is cleared', function () {
+        Livewire::test('pages::settings.profile')
+            ->set('name', 'Ann L.')
+            ->set('current_password', 'wrong-password')
+            ->call('updateProfileInformation')
+            ->assertHasNoErrors()
+            ->assertSet('current_password', '');
+
+        expect($this->ann->fresh()->name)->toBe('Ann L.');
+    });
+
+    test('a case-only change needs no password and keeps the verification', function () {
+        $lee = User::factory()->create(['email' => 'Ann.Lee@Example.com', 'email_verified_at' => $this->verifiedAt]);
+        $this->actingAs($lee);
+
+        Livewire::test('pages::settings.profile')
+            ->set('email', 'ANN.LEE@example.com')
+            ->call('updateProfileInformation')
+            ->assertHasNoErrors();
+
+        $lee->refresh();
+
+        expect($lee->email)->toBe('ann.lee@example.com')
+            ->and($lee->email_verified_at->equalTo($this->verifiedAt))->toBeTrue();
+    });
+
+    test("another user's password does not count", function () {
+        User::factory()->create(['email' => 'bob@example.com', 'password' => 'bob-secret-123']);
+
+        $page = Livewire::test('pages::settings.profile')
+            ->set('email', 'ann.new@example.com')
+            ->set('current_password', 'bob-secret-123')
+            ->call('updateProfileInformation')
+            ->assertHasErrors(['current_password']);
+
+        expect($page->errors()->get('current_password'))->toBe(['The password is incorrect.'])
+            ->and($this->ann->fresh()->email)->toBe('ann@example.com');
+    });
+
+    test('a padded password is not the password', function () {
+        Livewire::test('pages::settings.profile')
+            ->set('email', 'ann.new@example.com')
+            ->set('current_password', ' password ')
+            ->call('updateProfileInformation')
+            ->assertHasErrors(['current_password']);
+
+        expect($this->ann->fresh()->email)->toBe('ann@example.com');
+    });
+
+    test('a taken address without a password shows both errors', function () {
+        User::factory()->create(['email' => 'bob@example.com']);
+
+        Livewire::test('pages::settings.profile')
+            ->set('email', 'bob@example.com')
+            ->call('updateProfileInformation')
+            ->assertHasErrors(['email', 'current_password']);
+    });
+
+    test('the profile form shows the current password field', function () {
+        $page = Livewire::test('pages::settings.profile')
+            ->assertSee('Current password')
+            ->assertSee('Required only when you change your email.');
+
+        preg_match('/<input\b[^>]*wire:model="current_password"[^>]*>/s', $page->html(), $input);
+
+        expect($input)->toHaveCount(1)
+            ->and($input[0])->toContain('type="password"')->toContain('autocomplete="current-password"');
+    });
 });

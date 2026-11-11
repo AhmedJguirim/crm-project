@@ -1,21 +1,26 @@
 <?php
 
+use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
 use App\Models\User;
 use App\Support\Security\SecurityLog;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Computed;
 use Livewire\Component;
 
 new class extends Component {
+    use PasswordValidationRules;
     use ProfileValidationRules;
 
     public string $name = '';
     public string $email = '';
+    public string $current_password = '';
 
     /**
      * Mount the component.
@@ -37,9 +42,23 @@ new class extends Component {
             $this->email = Str::lower($this->email);
         }
 
-        $validated = $this->validate($this->profileRules($user->id));
+        $emailChanges = Str::lower($this->email) !== Str::lower((string) $user->email);
 
-        $user->fill($validated);
+        $rules = $this->profileRules($user->id);
+
+        if ($emailChanges) {
+            $rules['current_password'] = $this->currentPasswordRules();
+        }
+
+        try {
+            $validated = $this->validate($rules);
+        } catch (ValidationException $e) {
+            $this->reset('current_password');
+
+            throw $e;
+        }
+
+        $user->fill(Arr::only($validated, ['name', 'email']));
 
         $emailChanged = Str::lower((string) $user->getOriginal('email')) !== Str::lower($user->email);
 
@@ -52,6 +71,8 @@ new class extends Component {
         if ($emailChanged) {
             SecurityLog::info('account.email_changed', $user);
         }
+
+        $this->reset('current_password');
 
         $this->dispatch('profile-updated', name: $user->name);
     }
@@ -118,6 +139,14 @@ new class extends Component {
                     </div>
                 @endif
             </div>
+
+            <flux:input
+                wire:model="current_password"
+                :label="__('Current password')"
+                type="password"
+                autocomplete="current-password"
+                :description="__('Required only when you change your email.')"
+            />
 
             <div class="flex items-center gap-4">
                 <div class="flex items-center justify-end">

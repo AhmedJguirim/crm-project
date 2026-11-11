@@ -278,6 +278,7 @@ test('an email change is logged and a name-only change or a case-only change is 
     Livewire::test('pages::settings.profile')
         ->set('name', 'Ann')
         ->set('email', 'ann.new@example.com')
+        ->set('current_password', 'password')
         ->call('updateProfileInformation')
         ->assertHasNoErrors();
 

@@ -56,6 +56,7 @@ test('a forged array on a settings property answers 419 and writes nothing', fun
 })->with([
     'profile name, debug on' => ['pages::settings.profile', 'name', true],
     'profile email, debug on' => ['pages::settings.profile', 'email', true],
+    'profile current_password, debug on' => ['pages::settings.profile', 'current_password', true],
     'password current_password, debug on' => ['pages::settings.password', 'current_password', true],
     'password password, debug on' => ['pages::settings.password', 'password', true],
     'password confirmation, debug on' => ['pages::settings.password', 'password_confirmation', true],
