@@ -131,6 +131,34 @@ class Invoice extends Model
     }
 
     /**
+     * An exchange rate without its trailing decimal zeros (`3.40000000` becomes `3.4`, `10.00000000` becomes `10`).
+     */
+    public static function trimExchangeRate(?string $rate): ?string
+    {
+        if ($rate === null || ! str_contains($rate, '.')) {
+            return $rate;
+        }
+
+        return rtrim(rtrim($rate, '0'), '.');
+    }
+
+    /**
+     * The rate of the most recently issued invoice of the current organization in that currency, trimmed, or null.
+     */
+    public static function latestExchangeRate(Currency $currency): ?string
+    {
+        $rate = self::query()
+            ->where('currency', $currency->value)
+            ->where('status', '!=', InvoiceStatus::Draft->value)
+            ->whereNotNull('exchange_rate')
+            ->orderByDesc('issued_at')
+            ->orderByDesc('id')
+            ->value('exchange_rate');
+
+        return self::trimExchangeRate($rate === null ? null : (string) $rate);
+    }
+
+    /**
      * An unpaid invoice whose due date is strictly before today in the organization timezone (an invoice due today is
      * not past due yet).
      */

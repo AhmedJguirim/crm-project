@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Invoices\Schemas;
 
+use App\Enums\Currency;
 use App\Enums\InvoiceStatus;
 use App\Filament\Support\RecordKeyField;
 use App\Models\Contact;
@@ -11,6 +12,7 @@ use App\Services\Invoices\InvoiceLedger;
 use App\Support\LocalTime;
 use App\Support\MoneyLimit;
 use App\Support\Tenancy\CurrentOrganization;
+use Closure;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -72,8 +74,8 @@ class InvoiceForm
                             ])
                             ->all();
                     })
-                    ->afterStateUpdated(function (?string $state, Set $set): void {
-                        if (! $state) {
+                    ->afterStateUpdated(function (?string $state, Set $set, Get $get): void {
+                        if (! $state || self::currencyCode($get('currency')) !== self::homeCurrencyCode()) {
                             return;
                         }
 
@@ -104,17 +106,56 @@ class InvoiceForm
                             ->where('organization_id', CurrentOrganization::find()?->id)
                     ),
 
+                Select::make('currency')
+                    ->label('Currency')
+                    ->options(fn (?Invoice $record): array => self::currencyOptions($record))
+                    ->default(fn (): string => self::homeCurrencyCode())
+                    ->required()
+                    ->selectablePlaceholder(false)
+                    ->live()
+                    ->disabled(fn (?Invoice $record): bool => self::isIssued($record))
+                    ->helperText(fn (?Invoice $record): ?string => self::isIssued($record)
+                        ? "The currency and exchange rate can't change once the invoice is issued."
+                        : null)
+                    ->afterStateUpdated(function (?string $state, Set $set): void {
+                        $currency = Currency::tryFrom((string) $state);
+
+                        if ($currency === null || $currency->value === self::homeCurrencyCode()) {
+                            $set('exchange_rate', null);
+
+                            return;
+                        }
+
+                        $set('exchange_rate', Invoice::latestExchangeRate($currency));
+                    }),
+
                 TextInput::make('amount')
                     ->numeric()
                     ->required()
                     ->minValue(0)
                     ->maxValue(MoneyLimit::MAX)
                     ->step(0.01)
-                    ->prefix(fn (?Invoice $record): string => $record?->currency->value ?? (CurrentOrganization::find()?->currencyCode() ?? 'USD'))
+                    ->prefix(fn (Get $get): string => self::currencyCode($get('currency')))
                     ->disabled(fn (?Invoice $record): bool => $record?->payments()->exists() ?? false)
                     ->helperText(fn (?Invoice $record): ?string => $record?->payments()->exists()
                         ? "The amount can't change once a payment is recorded."
                         : null),
+
+                self::exchangeRateField(fn (Get $get): string => '1 '.self::currencyCode($get('currency')).' =')
+                    ->visible(fn (Get $get): bool => self::currencyCode($get('currency')) !== self::homeCurrencyCode())
+                    ->required(fn (Get $get): bool => self::issuesInvoice($get('status')))
+                    ->disabled(fn (?Invoice $record): bool => self::isIssued($record))
+                    ->afterStateHydrated(function (TextInput $component, mixed $state, ?Invoice $record): void {
+                        if ($state !== null) {
+                            $component->state(Invoice::trimExchangeRate((string) $state));
+
+                            return;
+                        }
+
+                        if ($record?->status === InvoiceStatus::Draft && $record->currency->value !== self::homeCurrencyCode()) {
+                            $component->state(Invoice::latestExchangeRate($record->currency));
+                        }
+                    }),
 
                 Select::make('payment_terms')
                     ->label('Payment Terms')
@@ -173,6 +214,77 @@ class InvoiceForm
                     ->nullable()
                     ->columnSpanFull(),
             ]);
+    }
+
+    /**
+     * The currency code of the current organization (USD when it has none).
+     */
+    public static function homeCurrencyCode(): string
+    {
+        return CurrentOrganization::find()?->currencyCode() ?? 'USD';
+    }
+
+    /**
+     * TND, EUR and USD, the home currency when it is none of them, and the record's own currency when still missing.
+     *
+     * @return array<string, string>
+     */
+    public static function currencyOptions(?Invoice $record): array
+    {
+        return collect([Currency::Tnd, Currency::Eur, Currency::Usd, Currency::tryFrom(self::homeCurrencyCode()), $record?->currency])
+            ->filter()
+            ->unique(fn (Currency $currency): string => $currency->value)
+            ->mapWithKeys(fn (Currency $currency): array => [$currency->value => $currency->getLabel()])
+            ->all();
+    }
+
+    /**
+     * The exchange rate input shared by the form and the "Mark as Sent" modal: home-currency units per 1 unit of the invoice currency.
+     *
+     * @param  Closure(): string  $prefix
+     */
+    public static function exchangeRateField(Closure $prefix): TextInput
+    {
+        return TextInput::make('exchange_rate')
+            ->label('Exchange rate')
+            ->numeric()
+            ->maxValue('9999999999')
+            ->rules(['gt:0', 'decimal:0,8'])
+            ->prefix($prefix)
+            ->suffix(fn (): string => self::homeCurrencyCode())
+            ->helperText('Frozen when the invoice is issued.')
+            ->validationMessages([
+                'required' => 'Enter the exchange rate to issue an invoice in another currency.',
+                'numeric' => 'The exchange rate must be a number greater than 0.',
+                'gt' => 'The exchange rate must be a number greater than 0.',
+                'decimal' => 'The exchange rate can have at most 8 decimal places.',
+                'max' => "The exchange rate can't be more than 9,999,999,999.",
+            ]);
+    }
+
+    private static function currencyCode(mixed $state): string
+    {
+        if ($state instanceof Currency) {
+            return $state->value;
+        }
+
+        if (is_string($state) && Currency::tryFrom($state) !== null) {
+            return $state;
+        }
+
+        return self::homeCurrencyCode();
+    }
+
+    private static function issuesInvoice(mixed $status): bool
+    {
+        $status = $status instanceof InvoiceStatus ? $status : InvoiceStatus::tryFrom((string) (is_scalar($status) ? $status : ''));
+
+        return in_array($status, [InvoiceStatus::Sent, InvoiceStatus::Paid, InvoiceStatus::Partial, InvoiceStatus::Overdue], true);
+    }
+
+    private static function isIssued(?Invoice $record): bool
+    {
+        return $record !== null && $record->status !== InvoiceStatus::Draft;
     }
 
     /**

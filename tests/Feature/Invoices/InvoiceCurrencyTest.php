@@ -38,12 +38,12 @@ beforeEach(function () {
     ]);
 });
 
-test('the invoice forms have no currency field and prefix the amounts with the organization currency', function () {
-    $create = Livewire::test(CreateInvoice::class)->assertFormFieldDoesNotExist('currency');
+test('the invoice forms have a currency field and prefix the amounts with the chosen currency', function () {
+    $create = Livewire::test(CreateInvoice::class)->assertFormFieldExists('currency')->assertFormSet(['currency' => 'EUR']);
 
     expect(invoiceFormComponent($create, 'amount')->getPrefixLabel())->toBe('EUR');
 
-    $edit = Livewire::test(EditInvoice::class, ['record' => $this->invoice->id])->assertFormFieldDoesNotExist('currency');
+    $edit = Livewire::test(EditInvoice::class, ['record' => $this->invoice->id])->assertFormFieldDisabled('currency');
 
     expect(invoiceFormComponent($edit, 'amount')->getPrefixLabel())->toBe('EUR');
 
