@@ -223,6 +223,33 @@ class Deal extends Model
     }
 
     /**
+     * Deals won or lost between two local days, by the date of their current status; open deals never match. Null bounds
+     * are open.
+     *
+     * @param  Builder<Deal>  $query
+     * @param  string|null  $fromDate  a valid `Y-m-d` local day
+     * @param  string|null  $untilDate  a valid `Y-m-d` local day
+     * @return Builder<Deal>
+     */
+    public function scopeClosedBetween(Builder $query, ?string $fromDate, ?string $untilDate): Builder
+    {
+        if ($fromDate === null && $untilDate === null) {
+            return $query;
+        }
+
+        $from = $fromDate === null ? null : LocalTime::dayBounds($fromDate)[0];
+        $until = $untilDate === null ? null : LocalTime::dayBounds($untilDate)[1];
+
+        $within = fn (Builder $branch, string $column): Builder => $branch
+            ->when($from !== null, fn (Builder $builder): Builder => $builder->where($column, '>=', $from))
+            ->when($until !== null, fn (Builder $builder): Builder => $builder->where($column, '<=', $until));
+
+        return $query->where(fn (Builder $closed): Builder => $closed
+            ->where(fn (Builder $won): Builder => $within($won->where('status', DealStatus::Won->value), 'won_at'))
+            ->orWhere(fn (Builder $lost): Builder => $within($lost->where('status', DealStatus::Lost->value), 'lost_at')));
+    }
+
+    /**
      * An open deal whose expected close date is strictly before today in the organization timezone (a deal closing
      * today is not late yet).
      */

@@ -45,6 +45,7 @@ use Filament\Forms\Components\Field;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
 use Livewire\Livewire;
+use Tests\Feature\Security\SecurityPayloads;
 
 beforeEach(function () {
     $this->owner = User::factory()->onboardingCompleted()->withPersonalOrganization()->create(['name' => 'Test Owner']);
@@ -239,6 +240,24 @@ test('the invoice date range ignores a non-date', function () {
         ->assertCanSeeTableRecords([$march])
         ->assertCanNotSeeTableRecords([$january]);
 });
+
+test('a forged closed date on the deals list reaches no SQL text', function (string $payload) {
+    $sql = SecurityPayloads::queriesDuring(fn () => Livewire::withQueryParams(['filters' => ['closed_between' => ['from' => $payload, 'until' => $payload]]])
+        ->test(ListDeals::class)
+        ->assertSuccessful()
+        ->assertCanSeeTableRecords([$this->annDeal, $this->bobDeal]));
+
+    SecurityPayloads::assertSqlIsClean($sql, $payload);
+    expect($sql)->not->toBeEmpty();
+})->with(SecurityPayloads::sql());
+
+test('the deals list with an array closed date in the URL is a 200', function (string $query) {
+    $this->get(DealResource::getUrl('index', tenant: $this->org).'?'.$query)->assertOk();
+})->with([
+    'array from' => ['filters[closed_between][from][]=abc'],
+    'map until' => ['filters[closed_between][until][a]=1'],
+    'nested from' => ['filters[closed_between][from][a][b]=1'],
+]);
 
 dataset('forgedFilterPages', [
     'ListDeals' => [ListDeals::class],

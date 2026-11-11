@@ -14,17 +14,21 @@ use App\Models\Deal;
 use App\Models\PipelineStage;
 use App\Services\Deals\DefaultPipeline;
 use App\Services\Owners\OwnerOptions;
+use App\Support\LocalTime;
 use App\Support\NotificationText;
 use App\Support\Tenancy\CurrentOrganization;
+use Carbon\CarbonImmutable;
 use Filament\Actions\BulkAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\DatePicker;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\Indicator;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
@@ -117,6 +121,42 @@ class DealsTable
                     ->label('Deal owner')
                     ->options(fn (): array => OwnerOptions::forFilter(Deal::class))
                     ->searchable(),
+
+                Filter::make('closed_between')
+                    ->label('Closed Date')
+                    ->schema([
+                        DatePicker::make('from')->label('From'),
+                        DatePicker::make('until')->label('Until'),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        /** @var Builder<Deal> $query */
+                        return $query->closedBetween(
+                            LocalTime::boundedFilterDate($data['from'] ?? null),
+                            LocalTime::boundedFilterDate($data['until'] ?? null),
+                        );
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $indicators = [];
+
+                        foreach (['from' => 'Closed from', 'until' => 'Closed until'] as $bound => $label) {
+                            $date = LocalTime::boundedFilterDate($data[$bound] ?? null);
+
+                            if ($date === null) {
+                                continue;
+                            }
+
+                            $indicators[] = Indicator::make($label.' '.CarbonImmutable::createFromFormat('!Y-m-d', $date)->format('M j, Y'))->removeField($bound);
+                        }
+
+                        $from = LocalTime::boundedFilterDate($data['from'] ?? null);
+                        $until = LocalTime::boundedFilterDate($data['until'] ?? null);
+
+                        if ($from !== null && $until !== null && $from > $until) {
+                            $indicators[] = Indicator::make('From is after Until — no deal can match')->color('warning');
+                        }
+
+                        return $indicators;
+                    }),
 
                 Filter::make('closing_this_week')
                     ->label('Closing This Week')
