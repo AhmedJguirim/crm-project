@@ -4,6 +4,7 @@ namespace App\Services\Reports;
 
 use App\Enums\InvoiceStatus;
 use App\Models\Invoice;
+use App\Support\Reports\HomeAmount;
 use Carbon\CarbonImmutable;
 
 /**
@@ -14,7 +15,9 @@ final class Receivables
     public const BUCKETS = ['not_due', 'days_1_30', 'days_31_60', 'days_61_90', 'over_90'];
 
     /**
-     * Count and unpaid balance (amount minus amount paid) of the outstanding invoices (sent, partial, overdue) by age.
+     * Count and unpaid balance (amount minus amount paid) of the outstanding invoices (sent, partial, overdue) by age. The
+     * balance is in the home currency, each invoice at its frozen exchange rate (an invoice in another currency without a
+     * rate counts in the number but not in the balance).
      * Days late is the given local today minus the due date; an invoice with the Overdue status that is not yet past
      * its due date counts as 1 to 30 days late. Every bucket is returned, empty ones with zeros, in the order of
      * BUCKETS.
@@ -34,13 +37,14 @@ final class Receivables
                 "WHEN due_at < ? THEN 'days_31_60' ".
                 "WHEN due_at < ? OR status = ? THEN 'days_1_30' ".
                 "ELSE 'not_due' END AS bucket, ".
-                'COUNT(*) AS invoices_count, COALESCE(SUM(amount - amount_paid), 0) AS balance',
+                'COUNT(*) AS invoices_count, COALESCE(SUM('.HomeAmount::sql('invoices.amount - invoices.amount_paid').'), 0) AS balance',
                 [
                     $today->subDays(90)->toDateString(),
                     $today->subDays(60)->toDateString(),
                     $today->subDays(30)->toDateString(),
                     $todayDate,
                     InvoiceStatus::Overdue->value,
+                    HomeAmount::binding(),
                 ],
             )
             ->groupBy('bucket')

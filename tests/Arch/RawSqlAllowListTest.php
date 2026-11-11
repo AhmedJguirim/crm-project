@@ -64,6 +64,7 @@ function rawSqlAllowList(): array
         ],
         'Services/Reports/DashboardKpis.php' => [
             'constant' => 'constant conditional aggregate select (COUNT/SUM over CASE, EXTRACT(EPOCH) for the sales cycle) for the dashboard KPIs and the sales results, and the lost deals counted per lost reason (grouped COUNT), one UNION ALL part per period; statuses, ledger kind, period bounds and the period index are bindings',
+            'dynamic' => 'aggregate selects built from constants and HomeAmount::sql(), whose amount expression is checked against an allow-list at the sink; dates, statuses, kind, owner id and the home currency are bindings',
         ],
         'Services/Reports/DashboardBreakdowns.php' => [
             'constant' => 'constant grouped COUNT selects, and a date_trunc of the local created_at; the bucket unit and the timezone are bindings',
@@ -72,10 +73,10 @@ function rawSqlAllowList(): array
             'constant' => 'constant grouped aggregate selects (COUNT, COALESCE(SUM(deals.value), 0)) for the new contacts and won deals by lead source; status, period bounds and owner id are bindings',
         ],
         'Services/Reports/Receivables.php' => [
-            'constant' => 'constant CASE bucket select (COUNT, COALESCE(SUM(amount - amount_paid), 0)) for the invoice aging; dates and status are bindings',
+            'dynamic' => 'aggregate selects built from constants and HomeAmount::sql(), whose amount expression is checked against an allow-list at the sink; dates, statuses, kind, owner id and the home currency are bindings',
         ],
         'Services/Reports/RevenueByClient.php' => [
-            'constant' => 'constant grouped aggregate selects (SUM over CASE of the ledger kind, SUM(amount - amount_paid)) for the revenue by client; kind, period dates and owner id are bindings',
+            'dynamic' => 'aggregate selects built from constants and HomeAmount::sql(), whose amount expression is checked against an allow-list at the sink; dates, statuses, kind, owner id and the home currency are bindings',
         ],
         'Services/Reports/StageConversion.php' => [
             'constant' => 'constant aggregate selects (COUNT over CASE, MAX(position), grouped COUNT) for the stage conversion; status and period bounds are bindings',

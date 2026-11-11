@@ -6,12 +6,13 @@ use App\Enums\DealStatus;
 use App\Enums\InvoicePaymentKind;
 use App\Models\Contact;
 use App\Models\Deal;
-use App\Models\Invoice;
 use App\Models\InvoicePayment;
+use App\Support\Reports\HomeAmount;
 use App\Support\Reports\ReportPeriod;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Query\JoinClause;
 
 /**
  * The figures of the dashboard KPI row for a list of periods (oldest first) and an optional owner, one UNION ALL query
@@ -166,7 +167,8 @@ final class DashboardKpis
     }
 
     /**
-     * Per period, payments minus refunds of the invoice ledger dated in it, optionally for the invoices one user created.
+     * Per period, payments minus refunds of the invoice ledger dated in it, optionally for the invoices one user created. The
+     * amounts are in the home currency, each invoice at its frozen exchange rate.
      *
      * @param  list<ReportPeriod>  $periods
      * @return list<float>
@@ -174,15 +176,15 @@ final class DashboardKpis
     public static function cashCollectedByPeriod(array $periods, ?int $ownerId): array
     {
         $rows = self::rowsByPeriod($periods, fn (ReportPeriod $period, int $index): Builder => InvoicePayment::query()
-            ->when($ownerId !== null, fn (Builder $query): Builder => $query->whereIn(
-                'invoice_id',
-                Invoice::query()->select('id')->where('created_by', $ownerId),
-            ))
-            ->whereBetween('paid_on', $period->dates())
+            ->join('invoices', fn (JoinClause $join) => $join
+                ->on('invoices.id', '=', 'invoice_payments.invoice_id')
+                ->on('invoices.organization_id', '=', 'invoice_payments.organization_id'))
+            ->when($ownerId !== null, fn (Builder $query): Builder => $query->where('invoices.created_by', $ownerId))
+            ->whereBetween('invoice_payments.paid_on', $period->dates())
             ->selectRaw(
-                'COALESCE(SUM(CASE WHEN kind = ? THEN amount ELSE -amount END), 0) AS cash_collected, '.
+                'COALESCE(SUM(CASE WHEN invoice_payments.kind = ? THEN 1 ELSE -1 END * '.HomeAmount::sql('invoice_payments.amount').'), 0) AS cash_collected, '.
                 'CAST(? AS integer) AS period_index',
-                [InvoicePaymentKind::Payment->value, $index],
+                [InvoicePaymentKind::Payment->value, HomeAmount::binding(), $index],
             ));
 
         return array_map(

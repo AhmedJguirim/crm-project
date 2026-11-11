@@ -9,6 +9,7 @@ use App\Models\Deal;
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
 use App\Services\Invoices\InvoiceLedger;
+use App\Support\Reports\HomeAmount;
 use App\Support\Reports\ReportPeriod;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Query\JoinClause;
@@ -21,7 +22,7 @@ use Illuminate\Support\Collection;
  * the "Cash Collected" KPI). Outstanding is the unpaid balance of the Sent, Partial and Overdue invoices as of today.
  * An invoice counts for the company of its deal; without a deal company, for its contact's company when the contact
  * has exactly one live company; otherwise for the contact itself. Soft-deleted companies and contacts keep their row,
- * labelled "(deleted)". The owner filter is the invoice creator.
+ * labelled "(deleted)". The owner filter is the invoice creator. Every amount is in the home currency, each invoice at its frozen exchange rate.
  */
 final class RevenueByClient
 {
@@ -46,8 +47,8 @@ final class RevenueByClient
             ->groupBy('invoices.contact_id', 'invoices.deal_id')
             ->select(['invoices.contact_id', 'invoices.deal_id'])
             ->selectRaw(
-                'SUM(CASE WHEN invoice_payments.kind = ? THEN invoice_payments.amount ELSE -invoice_payments.amount END) AS collected',
-                [InvoicePaymentKind::Payment->value],
+                'SUM(CASE WHEN invoice_payments.kind = ? THEN 1 ELSE -1 END * '.HomeAmount::sql('invoice_payments.amount').') AS collected',
+                [InvoicePaymentKind::Payment->value, HomeAmount::binding()],
             )
             ->toBase()
             ->get();
@@ -57,7 +58,7 @@ final class RevenueByClient
             ->when($ownerId !== null, fn (Builder $query): Builder => $query->where('created_by', $ownerId))
             ->groupBy('contact_id', 'deal_id')
             ->select(['contact_id', 'deal_id'])
-            ->selectRaw('SUM(amount - amount_paid) AS balance')
+            ->selectRaw('SUM('.HomeAmount::sql('invoices.amount - invoices.amount_paid').') AS balance', [HomeAmount::binding()])
             ->toBase()
             ->get();
 
