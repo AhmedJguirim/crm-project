@@ -23,6 +23,7 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Component;
 
@@ -32,6 +33,16 @@ class InvitationsList extends Component implements HasActions, HasSchemas, HasTa
     use InteractsWithSchemas;
     use InteractsWithTable;
     use SanitizesTableSearch;
+
+    public function mount(): void
+    {
+        abort_unless($this->canManageInvitations(), 403);
+    }
+
+    public function hydrate(): void
+    {
+        abort_unless($this->canManageInvitations(), 403);
+    }
 
     public function table(Table $table): Table
     {
@@ -57,6 +68,7 @@ class InvitationsList extends Component implements HasActions, HasSchemas, HasTa
                     ->icon('heroicon-o-x-circle')
                     ->requiresConfirmation()
                     ->color('danger')
+                    ->authorize(fn (): bool => $this->canManageInvitations())
                     ->action(function (OrganizationInvite $invite) {
                         $invite->revoke();
 
@@ -70,6 +82,7 @@ class InvitationsList extends Component implements HasActions, HasSchemas, HasTa
                 Action::make('resend')
                     ->label('Resend')
                     ->icon('heroicon-o-envelope')
+                    ->authorize(fn (): bool => $this->canManageInvitations())
                     ->action(function (OrganizationInvite $invite) {
                         if (InvitationLimits::resendOnCooldown($invite)) {
                             Notification::make()
@@ -119,6 +132,16 @@ class InvitationsList extends Component implements HasActions, HasSchemas, HasTa
             ->toolbarActions([
                 // ...
             ]);
+    }
+
+    /**
+     * This nested component is not covered by the page's canAccess(), so every request re-checks the admin/owner role itself.
+     */
+    private function canManageInvitations(): bool
+    {
+        $organization = CurrentOrganization::find();
+
+        return $organization !== null && Gate::allows('manageMembers', $organization);
     }
 
     private function getPendingInvites(): Builder
