@@ -259,6 +259,29 @@ test('the deals list with an array closed date in the URL is a 200', function (s
     'nested from' => ['filters[closed_between][from][a][b]=1'],
 ]);
 
+test('a forged created date reaches no SQL text', function (string $page, string $payload) {
+    $sql = SecurityPayloads::queriesDuring(fn () => Livewire::withQueryParams(['filters' => ['created_between' => ['from' => $payload, 'until' => $payload]]])
+        ->test($page)
+        ->assertSuccessful());
+
+    SecurityPayloads::assertSqlIsClean($sql, $payload);
+    expect($sql)->not->toBeEmpty();
+})->with(function (): Generator {
+    foreach ([ListDeals::class, ListContacts::class] as $page) {
+        foreach (SecurityPayloads::sql() as $name => [$payload]) {
+            yield class_basename($page).' '.$name => [$page, $payload];
+        }
+    }
+});
+
+test('the deals and contacts lists with an array created date in the URL are a 200', function (string $resource, string $query) {
+    $this->get($resource::getUrl('index', tenant: $this->org).'?'.$query)->assertOk();
+})->with([
+    'deals array from' => [DealResource::class, 'filters[created_between][from][]=abc'],
+    'deals map until' => [DealResource::class, 'filters[created_between][until][a]=1'],
+    'contacts nested from' => [ContactResource::class, 'filters[created_between][from][a][b]=1'],
+]);
+
 dataset('forgedFilterPages', [
     'ListDeals' => [ListDeals::class],
     'DealPipeline' => [DealPipeline::class],

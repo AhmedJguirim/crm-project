@@ -8,6 +8,7 @@ use App\Filament\Actions\AssignOwnerBulkAction;
 use App\Filament\Actions\ExportContactsAction;
 use App\Filament\Actions\LogActivityAction;
 use App\Filament\Actions\QuickTaskAction;
+use App\Filament\Support\Filters\CreatedDateFilter;
 use App\Filament\Support\Filters\OptionSelectFilter;
 use App\Filament\Support\Filters\RecordKeySelectFilter;
 use App\Filament\Support\NullsLastSort;
@@ -111,6 +112,8 @@ class ContactsTable
                     ->label('Contact owner')
                     ->options(fn (): array => OwnerOptions::forFilter(Contact::class))
                     ->searchable(),
+
+                CreatedDateFilter::make('contact'),
 
                 TrashedFilter::make(),
             ])

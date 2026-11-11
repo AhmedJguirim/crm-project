@@ -6,6 +6,7 @@ use App\Enums\DealStatus;
 use App\Filament\Actions\ExportDealsAction;
 use App\Filament\Resources\Companies\CompanyResource;
 use App\Filament\Resources\Contacts\ContactResource;
+use App\Filament\Support\Filters\CreatedDateFilter;
 use App\Filament\Support\Filters\OptionSelectFilter;
 use App\Filament\Support\Filters\RecordKeySelectFilter;
 use App\Filament\Support\NullsLastSort;
@@ -157,6 +158,8 @@ class DealsTable
 
                         return $indicators;
                     }),
+
+                CreatedDateFilter::make('deal'),
 
                 Filter::make('closing_this_week')
                     ->label('Closing This Week')
