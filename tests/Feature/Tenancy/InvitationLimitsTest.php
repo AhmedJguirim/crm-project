@@ -11,6 +11,11 @@ use App\Support\Tenancy\InvitationLimits;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
+use Illuminate\Cache\Events\CacheHit;
+use Illuminate\Cache\Events\KeyWritten;
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
 use Livewire\Livewire;
@@ -275,6 +280,141 @@ describe('resend cooldown', function () {
     });
 });
 
+function limitsPresetCounter(string $key, int $count): void
+{
+    foreach (range(1, $count) as $ignored) {
+        RateLimiter::increment($key, InvitationLimits::WINDOW_SECONDS);
+    }
+}
+
+function limitsInjectOnce(string $eventClass, string $key, int $window): void
+{
+    $injected = false;
+
+    Event::listen($eventClass, function ($event) use ($key, $window, &$injected): void {
+        if ($event->key !== $key || $injected) {
+            return;
+        }
+
+        $injected = true;
+        RateLimiter::increment($key, $window);
+    });
+}
+
+describe('parallel requests', function () {
+    test('a parallel invite at 19 of 20 organization mails lets only one through', function () {
+        $key = "invitations:organization:{$this->acme->id}";
+        limitsPresetCounter($key, 19);
+        limitsInjectOnce(CacheHit::class, $key, InvitationLimits::WINDOW_SECONDS);
+
+        $refusal = InvitationLimits::claim($this->acme, $this->owner);
+
+        expect($refusal)->toBe('This organization has sent 20 invitations in the last 24 hours. Try again later.')
+            ->and(RateLimiter::attempts($key))->toBe(20)
+            ->and(RateLimiter::attempts("invitations:user:{$this->owner->id}"))->toBe(0);
+    });
+
+    test('a parallel invite at 49 of 50 user mails lets only one through', function () {
+        $key = "invitations:user:{$this->owner->id}";
+        limitsPresetCounter($key, 49);
+        limitsInjectOnce(CacheHit::class, $key, InvitationLimits::WINDOW_SECONDS);
+
+        $refusal = InvitationLimits::claim($this->acme, $this->owner);
+
+        expect($refusal)->toBe('You have sent 50 invitations in the last 24 hours. Try again later.')
+            ->and(RateLimiter::attempts($key))->toBe(50)
+            ->and(RateLimiter::attempts("invitations:organization:{$this->acme->id}"))->toBe(0);
+    });
+
+    test('a user refused at the cap leaves a non-zero organization counter unchanged', function () {
+        $organizationKey = "invitations:organization:{$this->acme->id}";
+        $userKey = "invitations:user:{$this->owner->id}";
+        limitsPresetCounter($organizationKey, 5);
+        limitsPresetCounter($userKey, 50);
+
+        $refusal = InvitationLimits::claim($this->acme, $this->owner);
+
+        expect($refusal)->toBe('You have sent 50 invitations in the last 24 hours. Try again later.')
+            ->and(RateLimiter::attempts($organizationKey))->toBe(5)
+            ->and(RateLimiter::attempts($userKey))->toBe(50);
+    });
+
+    test('the last free organization mail is counted exactly once', function () {
+        $key = "invitations:organization:{$this->acme->id}";
+        limitsPresetCounter($key, 19);
+
+        expect(InvitationLimits::claim($this->acme, $this->owner))->toBeNull()
+            ->and(RateLimiter::attempts($key))->toBe(20)
+            ->and(InvitationLimits::claim($this->acme, $this->owner))->toBe('This organization has sent 20 invitations in the last 24 hours. Try again later.')
+            ->and(RateLimiter::attempts($key))->toBe(20);
+    });
+
+    test('a refused first mail leaves both counters at zero', function () {
+        $organizationKey = "invitations:organization:{$this->acme->id}";
+        $userKey = "invitations:user:{$this->owner->id}";
+        limitsPresetCounter($userKey, 50);
+
+        InvitationLimits::claim($this->acme, $this->owner);
+
+        expect(RateLimiter::attempts($organizationKey))->toBe(0)
+            ->and(RateLimiter::attempts($userKey))->toBe(50);
+    });
+
+    describe('resend', function () {
+        beforeEach(function () {
+            $this->invite = OrganizationInvite::factory()->create([
+                'organization_id' => $this->acme->id,
+                'email' => 'resend-me@example.com',
+                'invited_by' => $this->owner->id,
+            ]);
+            $this->resendKey = "invitations:resend:{$this->invite->id}";
+        });
+
+        test('two parallel resends of one invitation send one mail', function () {
+            limitsInjectOnce(KeyWritten::class, $this->resendKey, InvitationLimits::RESEND_COOLDOWN_SECONDS);
+
+            expect(InvitationLimits::claimResend($this->invite))->toBeFalse()
+                ->and(RateLimiter::attempts($this->resendKey))->toBe(2);
+        });
+
+        test('the first resend claims the cooldown, the second within 10 minutes does not', function () {
+            expect(InvitationLimits::claimResend($this->invite))->toBeTrue()
+                ->and(InvitationLimits::claimResend($this->invite))->toBeFalse();
+        });
+
+        test('a refused claim does not extend the cooldown', function () {
+            $this->travelTo(now()->startOfSecond());
+            InvitationLimits::claimResend($this->invite);
+            $this->travelTo(now()->addMinutes(9));
+            InvitationLimits::claimResend($this->invite);
+            $this->travelTo(now()->addMinutes(2));
+
+            expect(InvitationLimits::claimResend($this->invite))->toBeTrue();
+        });
+
+        test('releasing the cooldown lets the invitation be resent', function () {
+            InvitationLimits::claimResend($this->invite);
+
+            InvitationLimits::releaseResend($this->invite);
+
+            expect(InvitationLimits::claimResend($this->invite))->toBeTrue();
+        });
+
+        test('releasing the cooldown of one invitation leaves another one alone', function () {
+            $other = OrganizationInvite::factory()->create([
+                'organization_id' => $this->acme->id,
+                'invited_by' => $this->owner->id,
+            ]);
+            InvitationLimits::claimResend($this->invite);
+            InvitationLimits::claimResend($other);
+
+            InvitationLimits::releaseResend($this->invite);
+
+            expect(InvitationLimits::claimResend($other))->toBeFalse();
+        });
+    });
+});
+
 describe('organizations per user', function () {
     beforeEach(function () {
         Filament::setTenant($this->acme);
@@ -329,5 +469,36 @@ describe('organizations per user', function () {
         limitsRegister('Other first');
 
         expect(Organization::query()->where('name', 'Other first')->exists())->toBeTrue();
+    });
+
+    test('the registration page runs in a database transaction', function () {
+        expect((new RegisterOrganization)->hasDatabaseTransactions())->toBeTrue();
+    });
+
+    test('the user row lock is taken inside that transaction', function () {
+        $lockLevels = [];
+        DB::listen(function (QueryExecuted $query) use (&$lockLevels): void {
+            if (str_contains($query->sql, 'for update') && str_contains($query->sql, '"users"')) {
+                $lockLevels[] = DB::transactionLevel();
+            }
+        });
+        $levelBefore = DB::transactionLevel();
+
+        limitsRegister('Lock Check')->assertHasNoFormErrors();
+
+        expect($lockLevels)->not->toBeEmpty()
+            ->and(min($lockLevels))->toBeGreaterThan($levelBefore)
+            ->and(Organization::query()->where('name', 'Lock Check')->exists())->toBeTrue()
+            ->and(DB::transactionLevel())->toBe($levelBefore);
+    });
+
+    test('a refused registration rolls its transaction back', function () {
+        Organization::factory()->count(9)->create(['created_by' => $this->owner->id]);
+        $levelBefore = DB::transactionLevel();
+
+        limitsRegister('Eleventh')->assertNotified('Organization limit reached');
+
+        expect(DB::transactionLevel())->toBe($levelBefore)
+            ->and(Organization::query()->where('name', 'Eleventh')->exists())->toBeFalse();
     });
 });

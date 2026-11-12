@@ -26,6 +26,8 @@ class RegisterOrganization extends RegisterTenant
     #[Locked]
     public ?string $returnUrl = null;
 
+    protected ?bool $hasDatabaseTransactions = true;
+
     public static function getLabel(): string
     {
         return 'New Organization';
@@ -119,6 +121,10 @@ class RegisterOrganization extends RegisterTenant
         }
     }
 
+    /**
+     * The user row lock below is held until the page's database transaction commits, which serializes the organization
+     * limit check per user.
+     */
     protected function handleRegistration(array $data): Organization
     {
         User::query()->whereKey(auth()->id())->lockForUpdate()->first();

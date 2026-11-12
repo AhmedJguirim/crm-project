@@ -84,7 +84,7 @@ class InvitationsList extends Component implements HasActions, HasSchemas, HasTa
                     ->icon('heroicon-o-envelope')
                     ->authorize(fn (): bool => $this->canManageInvitations())
                     ->action(function (OrganizationInvite $invite) {
-                        if (InvitationLimits::resendOnCooldown($invite)) {
+                        if (! InvitationLimits::claimResend($invite)) {
                             Notification::make()
                                 ->warning()
                                 ->title('Invitation already resent')
@@ -103,6 +103,8 @@ class InvitationsList extends Component implements HasActions, HasSchemas, HasTa
                         $refusal = InvitationLimits::claim($organization, $sender);
 
                         if ($refusal !== null) {
+                            InvitationLimits::releaseResend($invite);
+
                             Notification::make()
                                 ->danger()
                                 ->title('Too many invitations')
@@ -111,8 +113,6 @@ class InvitationsList extends Component implements HasActions, HasSchemas, HasTa
 
                             return;
                         }
-
-                        InvitationLimits::startResendCooldown($invite);
 
                         // Regenerate token and extend expiry by 7 days
                         $token = $invite->regenerateToken(7);

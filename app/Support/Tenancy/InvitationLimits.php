@@ -9,8 +9,9 @@ use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Caps the invitation mails one organization and one user can send, and how often one invitation can be resent (SEC-04),
- * so invitations cannot be used as a spam relay. The counters live in the cache through the RateLimiter; a window
- * starts at the first mail counted.
+ * so invitations cannot be used as a spam relay. The counters live in the cache through the RateLimiter and are
+ * incremented first, then compared, so parallel requests cannot pass the same count; a window starts at the first
+ * mail counted.
  */
 final class InvitationLimits
 {
@@ -26,6 +27,8 @@ final class InvitationLimits
 
     /**
      * Counts one invitation mail (new or resent) against the organization and the user, unless a cap is reached.
+     * Each counter is incremented first and the returned count is compared, so parallel requests never pass on the
+     * same count. A refused call gives back what it counted.
      *
      * @return string|null the text to show when the mail is refused, null when it was counted
      */
@@ -34,34 +37,38 @@ final class InvitationLimits
         $organizationKey = "invitations:organization:{$organization->id}";
         $userKey = "invitations:user:{$user->id}";
 
-        if (RateLimiter::tooManyAttempts($organizationKey, self::ORGANIZATION_PER_DAY)) {
+        if (RateLimiter::increment($organizationKey, self::WINDOW_SECONDS) > self::ORGANIZATION_PER_DAY) {
+            RateLimiter::decrement($organizationKey, self::WINDOW_SECONDS);
+
             return 'This organization has sent '.self::ORGANIZATION_PER_DAY.' invitations in the last 24 hours. Try again later.';
         }
 
-        if (RateLimiter::tooManyAttempts($userKey, self::USER_PER_DAY)) {
+        if (RateLimiter::increment($userKey, self::WINDOW_SECONDS) > self::USER_PER_DAY) {
+            RateLimiter::decrement($userKey, self::WINDOW_SECONDS);
+            RateLimiter::decrement($organizationKey, self::WINDOW_SECONDS);
+
             return 'You have sent '.self::USER_PER_DAY.' invitations in the last 24 hours. Try again later.';
         }
-
-        RateLimiter::hit($organizationKey, self::WINDOW_SECONDS);
-        RateLimiter::hit($userKey, self::WINDOW_SECONDS);
 
         return null;
     }
 
     /**
-     * Whether this invitation was resent less than 10 minutes ago.
+     * Claims the resend cooldown of this invitation: true for the one caller whose increment created the counter,
+     * false when it was resent less than 10 minutes ago (or a parallel request claimed it first). The counter keeps
+     * the lifetime of its first increment, so refused calls do not extend the cooldown.
      */
-    public static function resendOnCooldown(OrganizationInvite $invite): bool
+    public static function claimResend(OrganizationInvite $invite): bool
     {
-        return RateLimiter::tooManyAttempts(self::resendKey($invite), 1);
+        return RateLimiter::increment(self::resendKey($invite), self::RESEND_COOLDOWN_SECONDS) === 1;
     }
 
     /**
-     * Starts the resend cooldown of this invitation.
+     * Gives the resend cooldown of this invitation back, when the resend was refused after it was claimed.
      */
-    public static function startResendCooldown(OrganizationInvite $invite): void
+    public static function releaseResend(OrganizationInvite $invite): void
     {
-        RateLimiter::hit(self::resendKey($invite), self::RESEND_COOLDOWN_SECONDS);
+        RateLimiter::clear(self::resendKey($invite));
     }
 
     /**
