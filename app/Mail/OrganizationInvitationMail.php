@@ -39,7 +39,7 @@ class OrganizationInvitationMail extends Mailable implements ShouldBeEncrypted, 
             with: [
                 'acceptUrl' => OrganizationInvite::acceptUrl($this->token),
                 'organizationName' => $this->invite->organization->name,
-                'inviterName' => $this->invite->inviter->name,
+                'inviterName' => $this->invite->inviter?->name,
                 'role' => $this->invite->role->label(),
                 'expiresAt' => $this->invite->expires_at->format('F j, Y'),
             ],

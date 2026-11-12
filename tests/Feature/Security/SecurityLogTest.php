@@ -327,7 +327,7 @@ test('deleting the account is logged before the logout, and a wrong password log
     $entries = securityLogEntries($log);
     expect(array_column($entries, 'event'))->toBe(['account.deleted', 'auth.logout']);
     expect($entries[0]['level'])->toBe('warning');
-    expect($entries[0]['context'])->toMatchArray(['user_id' => $user->id]);
+    expect($entries[0]['context'])->toMatchArray(['user_id' => $user->id, 'deleted_organizations' => 0, 'left_organizations' => 0]);
 });
 
 test('the panel uses the logging authenticator app provider', function () {

@@ -1,8 +1,8 @@
 <?php
 
 use App\Concerns\PasswordValidationRules;
+use App\Actions\Account\DeleteUserAccount;
 use App\Livewire\Actions\Logout;
-use App\Support\Security\SecurityLog;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
 
@@ -12,17 +12,22 @@ new class extends Component {
     public string $password = '';
 
     /**
-     * Delete the currently authenticated user.
+     * Delete the currently authenticated user, or explain which organizations to transfer or delete first (SEC-27).
      */
-    public function deleteUser(Logout $logout): void
+    public function deleteUser(Logout $logout, DeleteUserAccount $deleteUserAccount): void
     {
         $this->validate([
             'password' => $this->currentPasswordRules(),
         ]);
 
-        SecurityLog::warning('account.deleted', Auth::user());
+        $refusal = $deleteUserAccount->handle(Auth::user(), fn () => $logout());
 
-        tap(Auth::user(), $logout(...))->delete();
+        if ($refusal !== null) {
+            $this->reset('password');
+            $this->addError('organizations', $refusal);
+
+            return;
+        }
 
         $this->redirect('/', navigate: true);
     }
@@ -31,7 +36,7 @@ new class extends Component {
 <section class="mt-10 space-y-6">
     <div class="relative mb-5">
         <flux:heading>{{ __('Delete account') }}</flux:heading>
-        <flux:subheading>{{ __('Delete your account and all of its resources') }}</flux:subheading>
+        <flux:subheading>{{ __('Delete your account and your personal workspace') }}</flux:subheading>
     </div>
 
     <flux:modal.trigger name="confirm-user-deletion">
@@ -46,9 +51,11 @@ new class extends Component {
                 <flux:heading size="lg">{{ __('Are you sure you want to delete your account?') }}</flux:heading>
 
                 <flux:subheading>
-                    {{ __('Once your account is deleted, all of its resources and data will be permanently deleted. Please enter your password to confirm you would like to permanently delete your account.') }}
+                    {{ __('Your personal workspace and any organization where you are the only member are deleted with all their data. What you created in organizations other people still use stays there. Enter your password to confirm.') }}
                 </flux:subheading>
             </div>
+
+            <flux:error name="organizations" />
 
             <flux:input wire:model="password" :label="__('Password')" type="password" />
 

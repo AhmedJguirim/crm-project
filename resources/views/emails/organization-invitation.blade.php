@@ -1,7 +1,11 @@
 <x-mail::message>
 # You've Been Invited
 
+@if ($inviterName)
 **{{ $inviterName }}** has invited you to join **{{ $organizationName }}** as a **{{ $role }}**.
+@else
+You have been invited to join **{{ $organizationName }}** as a **{{ $role }}**.
+@endif
 
 <x-mail::button :url="$acceptUrl">
 Accept Invitation

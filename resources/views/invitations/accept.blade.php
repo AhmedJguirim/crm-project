@@ -2,7 +2,9 @@
     <div class="flex flex-col gap-6">
         <x-auth-header
             :title="'Join '.$invite->organization->name"
-            :description="$invite->inviter->name.' invited you to join '.$invite->organization->name.' as '.$invite->role->label().'.'"
+            :description="$invite->inviter
+                ? $invite->inviter->name.' invited you to join '.$invite->organization->name.' as '.$invite->role->label().'.'
+                : 'You have been invited to join '.$invite->organization->name.' as '.$invite->role->label().'.'"
         />
 
         <form method="POST" action="{{ route('invite.accept.store', $token) }}" class="flex flex-col gap-6">

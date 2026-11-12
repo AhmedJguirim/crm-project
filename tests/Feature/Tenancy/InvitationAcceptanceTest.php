@@ -500,6 +500,18 @@ describe('confirmation page and POST', function () {
         ]);
     });
 
+    test('an invitation whose inviter was deleted shows the page without a name', function () {
+        $this->olga->delete();
+
+        $this->actingAs($this->bob)
+            ->get(route('invite.accept', $this->token))
+            ->assertOk()
+            ->assertSee('You have been invited to join Acme as Admin.')
+            ->assertDontSee('invited you to join');
+
+        expect(OrganizationInvite::query()->findOrFail($this->invite->id)->invited_by)->toBeNull();
+    });
+
     test('opening the link shows the page and changes nothing', function () {
         $this->actingAs($this->bob)
             ->get(route('invite.accept', $this->token))
