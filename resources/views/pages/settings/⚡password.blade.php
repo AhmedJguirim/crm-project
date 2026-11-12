@@ -1,8 +1,11 @@
 <?php
 
+use App\Actions\Account\EndOtherSessions;
 use App\Concerns\PasswordValidationRules;
 use App\Support\Security\SecurityLog;
+use Illuminate\Auth\SessionGuard;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Livewire\Component;
@@ -30,11 +33,24 @@ new class extends Component {
             throw $e;
         }
 
-        Auth::user()->update([
-            'password' => $validated['password'],
-        ]);
+        $user = Auth::user();
 
-        SecurityLog::info('account.password_changed', Auth::user());
+        $user->forceFill([
+            'password' => $validated['password'],
+            'remember_token' => Str::random(60),
+        ])->save();
+
+        /** @var SessionGuard $guard */
+        $guard = Auth::guard('web');
+
+        session()->put(
+            'password_hash_'.Auth::getDefaultDriver(),
+            $guard->hashPasswordForCookie($user->getAuthPassword()),
+        );
+
+        app(EndOtherSessions::class)->handle($user, session()->getId());
+
+        SecurityLog::info('account.password_changed', $user);
 
         $this->reset('current_password', 'password', 'password_confirmation');
 
@@ -79,7 +95,7 @@ new class extends Component {
                 </div>
 
                 <x-action-message class="me-3" on="password-updated">
-                    {{ __('Saved.') }}
+                    {{ __('Saved. You are signed out on your other devices.') }}
                 </x-action-message>
             </div>
         </form>
