@@ -4,6 +4,7 @@ namespace Tests;
 
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use RuntimeException;
+use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -11,10 +12,13 @@ abstract class TestCase extends BaseTestCase
 
     /**
      * Creates the application and runs the safety guards right away, before the parallel callbacks and the
-     * traits (`RefreshDatabase` would run `migrate:fresh` on whatever database is configured).
+     * traits (`RefreshDatabase` would run `migrate:fresh` on whatever database is configured). It also clears the
+     * trusted host patterns that Symfony keeps in a static, so a test that ran as production cannot refuse the next test's host.
      */
     protected function refreshApplication(): void
     {
+        SymfonyRequest::setTrustedHosts([]);
+
         parent::refreshApplication();
 
         $this->refuseRealMailOrQueue();

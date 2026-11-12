@@ -69,7 +69,7 @@ it('sends HSTS in production on an https APP_URL', function () {
     app()->detectEnvironment(fn (): string => 'production');
     config(['app.url' => 'https://crm.example.com']);
 
-    $response = $this->get('/')->assertOk();
+    $response = $this->get('https://crm.example.com/')->assertOk();
 
     $response->assertHeader('Strict-Transport-Security', 'max-age=31536000');
     expect($response->headers->get('Strict-Transport-Security'))->not->toContain('includeSubDomains')->not->toContain('preload');
@@ -80,7 +80,7 @@ it('does not send HSTS without production and an https APP_URL', function (strin
     app()->detectEnvironment(fn (): string => $environment);
     config(['app.url' => $url]);
 
-    $this->get('/')->assertOk()->assertHeaderMissing('Strict-Transport-Security');
+    $this->get($url.'/')->assertOk()->assertHeaderMissing('Strict-Transport-Security');
 })->with([
     'production on http' => ['production', 'http://crm.example.com'],
     'testing on https' => ['testing', 'https://crm.example.com'],

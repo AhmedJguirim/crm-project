@@ -285,6 +285,29 @@ if env_mode=$(stat -c '%a' "$env_file" 2>/dev/null) && [ -n "$env_mode" ] && [ "
     warn ".env is readable by other users of the server (mode $env_mode). Run: chmod 600 .env"
 fi
 
+# 14
+if [ "$(lower "$(value_or_default QUEUE_CONNECTION database)")" = "sync" ]; then
+    fail "QUEUE_CONNECTION is sync: mails, imports and exports then run inside the web request and time out, and mail links follow the address the visitor typed. Set QUEUE_CONNECTION=redis."
+fi
+if [ "$(lower "$(value_or_default QUEUE_LONG_RUNNING_CONNECTION redis-long)")" = "sync" ]; then
+    fail "QUEUE_LONG_RUNNING_CONNECTION is sync: imports and exports then run inside the web request and time out. Set QUEUE_LONG_RUNNING_CONNECTION=redis-long."
+fi
+
+# 15
+if is_set TRUSTED_PROXIES; then
+    proxy_items=()
+    IFS=',' read -r -a proxy_items <<< "$(value_or_default TRUSTED_PROXIES "")"
+    for proxy_item in ${proxy_items[@]+"${proxy_items[@]}"}; do
+        proxy_item=$(trim "$proxy_item")
+        case "$(lower "$proxy_item")" in
+            '*'|'**'|remote_addr)
+                fail "TRUSTED_PROXIES contains \"$proxy_item\", which the application ignores: list the addresses or ranges of your proxies, or remove the line when nginx runs on the same server."
+                break
+                ;;
+        esac
+    done
+fi
+
 if [ "$failures" -eq 0 ] && [ "$warnings" -eq 0 ]; then
     echo "Production env check: no problems found."
 else

@@ -3,6 +3,7 @@
 use App\Http\Middleware\AddSecurityHeaders;
 use App\Http\Middleware\SetTenantContextFromRoute;
 use App\Http\Middleware\StripNullBytes;
+use App\Support\Security\ProxyTrust;
 use App\Support\Security\SecurityLog;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -18,6 +19,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->trustProxies(headers: Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_PROTO | Request::HEADER_X_FORWARDED_PORT);
+        $middleware->trustHosts(at: fn (): array => ProxyTrust::hostPatterns(config('app.url')), subdomains: false);
         $middleware->alias([
             'tenant.context' => SetTenantContextFromRoute::class,
         ]);

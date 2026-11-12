@@ -108,6 +108,11 @@ const ENV_CHECK_LINES = [
     'webhook' => 'FAIL  POST /resend/webhook accepts unsigned requests: set RESEND_WEBHOOK_SECRET (Resend dashboard), or RESEND_ROUTES=false while no webhook is used.',
     'git_history_prefix' => 'WARN  Could not read the git history of .env.example (git: ',
     'git_history_suffix' => '): keys committed earlier are not checked.',
+    'proxies_star' => 'FAIL  TRUSTED_PROXIES contains "*", which the application ignores: list the addresses or ranges of your proxies, or remove the line when nginx runs on the same server.',
+    'proxies_double_star' => 'FAIL  TRUSTED_PROXIES contains "**", which the application ignores: list the addresses or ranges of your proxies, or remove the line when nginx runs on the same server.',
+    'proxies_remote_addr' => 'FAIL  TRUSTED_PROXIES contains "REMOTE_ADDR", which the application ignores: list the addresses or ranges of your proxies, or remove the line when nginx runs on the same server.',
+    'queue_sync' => 'FAIL  QUEUE_CONNECTION is sync: mails, imports and exports then run inside the web request and time out, and mail links follow the address the visitor typed. Set QUEUE_CONNECTION=redis.',
+    'long_queue_sync' => 'FAIL  QUEUE_LONG_RUNNING_CONNECTION is sync: imports and exports then run inside the web request and time out. Set QUEUE_LONG_RUNNING_CONNECTION=redis-long.',
     'redis' => 'WARN  REDIS_PASSWORD is empty: make sure Redis only listens on localhost or a private network.',
 ];
 
@@ -158,6 +163,12 @@ dataset('env check single failures', [
     'RESEND_WEBHOOK_SECRET removed' => [['RESEND_WEBHOOK_SECRET' => null], ENV_CHECK_LINES['webhook']],
     'RESEND_WEBHOOK_SECRET empty' => [['RESEND_WEBHOOK_SECRET' => ''], ENV_CHECK_LINES['webhook']],
     'RESEND_ROUTES=true explicit' => [['RESEND_ROUTES' => 'true', 'RESEND_WEBHOOK_SECRET' => null], ENV_CHECK_LINES['webhook']],
+    'QUEUE_CONNECTION=sync' => [['QUEUE_CONNECTION' => 'sync'], ENV_CHECK_LINES['queue_sync']],
+    'QUEUE_CONNECTION=SYNC' => [['QUEUE_CONNECTION' => 'SYNC'], ENV_CHECK_LINES['queue_sync']],
+    'QUEUE_LONG_RUNNING_CONNECTION=sync' => [['QUEUE_LONG_RUNNING_CONNECTION' => 'sync'], ENV_CHECK_LINES['long_queue_sync']],
+    'TRUSTED_PROXIES=*' => [['TRUSTED_PROXIES' => '*'], ENV_CHECK_LINES['proxies_star']],
+    'TRUSTED_PROXIES list with **' => [['TRUSTED_PROXIES' => '"10.0.0.5, **"'], ENV_CHECK_LINES['proxies_double_star']],
+    'TRUSTED_PROXIES first bad item only' => [['TRUSTED_PROXIES' => '10.0.0.5,REMOTE_ADDR,*'], ENV_CHECK_LINES['proxies_remote_addr']],
 ]);
 
 it('reports exactly one failure', function (array $changes, string $line) {
@@ -167,6 +178,20 @@ it('reports exactly one failure', function (array $changes, string $line) {
         ->and($result['lines'])->toContain($line)
         ->and(end($result['lines']))->toBe('Production env check: 1 failure(s), 0 warning(s).');
 })->with('env check single failures');
+
+test('queue and proxy settings that are fine give no line', function (array $changes) {
+    $dir = envCheckDirectory($changes);
+
+    $result = envCheckRun($dir);
+
+    expect($result['code'])->toBe(0)
+        ->and($result['lines'])->toBe(["Checking {$dir}/.env", 'Production env check: no problems found.']);
+})->with([
+    'redis queue' => [['QUEUE_CONNECTION' => 'redis']],
+    'redis-long queue' => [['QUEUE_LONG_RUNNING_CONNECTION' => 'redis-long']],
+    'empty proxy list' => [['TRUSTED_PROXIES' => '']],
+    'address and range list' => [['TRUSTED_PROXIES' => '10.0.0.0/8,::1']],
+]);
 
 test('development packages are a failure', function () {
     $dir = envCheckDirectory();
