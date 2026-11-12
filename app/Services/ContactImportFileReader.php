@@ -24,6 +24,11 @@ class ContactImportFileReader
      */
     public const MAX_UPLOAD_KILOBYTES = 10240;
 
+    /**
+     * The most data rows an import file may have; the header and blank rows are not counted.
+     */
+    public const int MAX_DATA_ROWS = 20000;
+
     private const SUPPORTED_EXTENSIONS = ['csv', 'txt', 'xlsx'];
 
     /**
@@ -86,6 +91,28 @@ class ContactImportFileReader
         }
 
         return $semicolons > $commas ? ';' : ',';
+    }
+
+    /**
+     * Whether the file has more than `$limit` data rows (the header row and blank rows do not count). It stops reading
+     * as soon as the answer is known and makes no query. A file that cannot be read gives `false`: reading the rows
+     * for the import is what reports that.
+     */
+    public function hasMoreDataRowsThan(string $absolutePath, string $extension, CsvDialect $dialect, int $limit): bool
+    {
+        $dataRows = -1;
+
+        try {
+            foreach ($this->rows($absolutePath, $extension, $dialect) as $ignored) {
+                if (++$dataRows > $limit) {
+                    return true;
+                }
+            }
+        } catch (UnreadableImportFileException) {
+            return false;
+        }
+
+        return false;
     }
 
     /**

@@ -187,3 +187,65 @@ it('removes NUL bytes from csv cells', function (string $content) {
     'comma' => ["name,email\nAnn\0Lee,ann@example.com\n"],
     'semicolon' => ["name;email\nAnn\0Lee;ann@example.com\n"],
 ]);
+
+describe('counting data rows against a limit', function () {
+    it('counts only non-empty data rows, never the header or blank rows', function (string $format, int $dataRows, bool $expected) {
+        $rows = [['name', 'email'], ['', '']];
+
+        foreach (range(1, $dataRows) as $number) {
+            $rows[] = ["P{$number}", "p{$number}@example.com"];
+            $rows[] = ['', ''];
+        }
+
+        $path = $format === 'csv'
+            ? storeImportFile('limit.csv', implode("\n", array_map(fn (array $row): string => implode(',', $row), $rows))."\n")
+            : makeXlsx($rows);
+
+        $absolutePath = Storage::disk('local')->path($path);
+
+        expect((new ContactImportFileReader)->hasMoreDataRowsThan($absolutePath, $format, new CsvDialect, 3))->toBe($expected);
+    })->with([
+        'csv at the limit' => ['csv', 3, false],
+        'csv over the limit' => ['csv', 4, true],
+        'xlsx at the limit' => ['xlsx', 3, false],
+        'xlsx over the limit' => ['xlsx', 4, true],
+    ]);
+
+    it('does not count a header-only file', function () {
+        $path = Storage::disk('local')->path(storeImportFile('header-only.csv', "name,email\n"));
+
+        expect((new ContactImportFileReader)->hasMoreDataRowsThan($path, 'csv', new CsvDialect, 0))->toBeFalse();
+    });
+
+    it('leaves an unreadable file to the import loop', function () {
+        $path = Storage::disk('local')->path(storeImportFile('broken.xlsx', 'not a zip'));
+
+        expect((new ContactImportFileReader)->hasMoreDataRowsThan($path, 'xlsx', new CsvDialect, 3))->toBeFalse();
+    });
+
+    it('leaves an unsupported file type to the import loop', function () {
+        $path = Storage::disk('local')->path(storeImportFile('macro.exe', "name\nAnn\n"));
+
+        expect((new ContactImportFileReader)->hasMoreDataRowsThan($path, 'exe', new CsvDialect, 0))->toBeFalse();
+    });
+
+    it('goes through rows() so a reader that fails partway is caught', function () {
+        $reader = new class extends ContactImportFileReader
+        {
+            public function rows(string $absolutePath, string $extension, ?CsvDialect $dialect = null): Generator
+            {
+                yield ['name'];
+                yield ['Ann'];
+
+                throw UnreadableImportFileException::unreadable(new RuntimeException('Corrupt file'));
+            }
+        };
+
+        expect($reader->hasMoreDataRowsThan('ignored', 'csv', new CsvDialect, 5))->toBeFalse()
+            ->and($reader->hasMoreDataRowsThan('ignored', 'csv', new CsvDialect, 0))->toBeTrue();
+    });
+
+    it('caps imports at 20,000 data rows', function () {
+        expect(ContactImportFileReader::MAX_DATA_ROWS)->toBe(20000);
+    });
+});

@@ -21,6 +21,15 @@ class UnreadableImportFileException extends RuntimeException
         return $exception;
     }
 
+    public static function tooManyRows(int $limit): self
+    {
+        $formatted = number_format($limit);
+        $exception = new self("The file has more than {$limit} rows.");
+        $exception->userMessage = "This file has more than {$formatted} rows. Split it into files of {$formatted} rows or fewer and import them one after the other.";
+
+        return $exception;
+    }
+
     public static function unsupportedType(string $extension): self
     {
         return new self("Unsupported file type: .{$extension}");

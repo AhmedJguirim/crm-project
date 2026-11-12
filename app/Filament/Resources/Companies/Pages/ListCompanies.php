@@ -76,7 +76,7 @@ class ListCompanies extends ListRecords
                         ->required(),
                     FileUpload::make('file')
                         ->label('File')
-                        ->helperText('CSV or Excel (.xlsx). Comma- or semicolon-separated CSV files are accepted. The first row must contain the column headers — use the Excel template for the expected columns. Separate several multi-select values with "'.ImportCellParser::MULTI_VALUE_SEPARATOR.'". Write dates as dd-mm-yyyy (or yyyy-mm-dd). A company that already exists is not updated in "Create only" mode. Up to '.$maximumSize.'.')
+                        ->helperText('CSV or Excel (.xlsx). Comma- or semicolon-separated CSV files are accepted. The first row must contain the column headers — use the Excel template for the expected columns. Separate several multi-select values with "'.ImportCellParser::MULTI_VALUE_SEPARATOR.'". Write dates as dd-mm-yyyy (or yyyy-mm-dd). A company that already exists is not updated in "Create only" mode. Up to '.$maximumSize.' and '.number_format(ContactImportFileReader::MAX_DATA_ROWS).' rows.')
                         ->rule(new ImportFileIsNotBinary)
                         ->acceptedFileTypes([
                             'text/csv',

@@ -31,6 +31,10 @@ use Throwable;
  * Imports of one organization run one at a time, contact imports included (both create companies and check them
  * against the existing ones, which is not safe against a concurrent import); the others wait, for up to three hours.
  * Imports of other organizations are not blocked.
+ *
+ * Files with more than {@see ContactImportFileReader::MAX_DATA_ROWS} data rows are refused before any row is imported,
+ * and only the first 1,000 failed rows are kept ({@see ReportsImportResults}), so one file holds an `imports` worker for
+ * a bounded time and memory.
  */
 class ProcessCompanyImportJob implements ShouldQueue
 {
@@ -106,6 +110,10 @@ class ProcessCompanyImportJob implements ShouldQueue
         $rowNumber = 0;
 
         try {
+            if ($reader->hasMoreDataRowsThan($tmpPath, $extension, $dialect, ContactImportFileReader::MAX_DATA_ROWS)) {
+                throw UnreadableImportFileException::tooManyRows(ContactImportFileReader::MAX_DATA_ROWS);
+            }
+
             foreach ($reader->rows($tmpPath, $extension, $dialect) as $row) {
                 if ($headers === null) {
                     $headers = $row;
@@ -129,11 +137,12 @@ class ProcessCompanyImportJob implements ShouldQueue
 
                 if (count($row) !== count($headers)) {
                     $failedCount++;
-                    $failedRows[] = [
-                        'row' => $rowNumber,
-                        'data' => array_combine($headers, array_slice(array_pad($row, count($headers), ''), 0, count($headers))),
-                        'error' => 'Column count mismatch.',
-                    ];
+                    $this->keepFailedRow(
+                        $failedRows,
+                        $rowNumber,
+                        array_combine($headers, array_slice(array_pad($row, count($headers), ''), 0, count($headers))),
+                        'Column count mismatch.',
+                    );
 
                     continue;
                 }
@@ -145,15 +154,11 @@ class ProcessCompanyImportJob implements ShouldQueue
                     $importedCount++;
                 } else {
                     $failedCount++;
-                    $failedRows[] = [
-                        'row' => $rowNumber,
-                        'data' => $rowData,
-                        'error' => $result['error'] ?? 'Unknown error.',
-                    ];
+                    $this->keepFailedRow($failedRows, $rowNumber, $rowData, $result['error'] ?? 'Unknown error.');
                 }
             }
         } catch (UnreadableImportFileException $exception) {
-            $this->handleUnreadableFile($exception, $importedCount, $failedRows, $headers, $rowNumber, $ignoredColumns, $dialect, $service);
+            $this->handleUnreadableFile($exception, $importedCount, $failedCount, $failedRows, $headers, $rowNumber, $ignoredColumns, $dialect, $service);
 
             return;
         } finally {
@@ -183,6 +188,7 @@ class ProcessCompanyImportJob implements ShouldQueue
         }
 
         $failedCsvPath = $this->storeFailedRowsCsv($headers, $failedRows, $dialect);
+        $notListedLine = $this->failedRowsNotListedLine($failedCount, count($failedRows));
 
         $errorSummary = collect($failedRows)
             ->take(5)
@@ -192,7 +198,7 @@ class ProcessCompanyImportJob implements ShouldQueue
         Notification::make()
             ->warning()
             ->title('Import complete with errors')
-            ->body(NotificationText::plain(implode("\n\n", array_filter([$this->countsLine($importedCount, $failedCount, $service), $ignoredLine, $errorSummary]))))
+            ->body(NotificationText::plain(implode("\n\n", array_filter([$this->countsLine($importedCount, $failedCount, $service), $ignoredLine, $notListedLine, $errorSummary]))))
             ->actions([$this->failedRowsAction($failedCsvPath)])
             ->sendToDatabase($user);
     }
@@ -221,7 +227,7 @@ class ProcessCompanyImportJob implements ShouldQueue
      * @param  array<int, string>|null  $headers
      * @param  array<int, string>  $ignoredColumns
      */
-    private function handleUnreadableFile(UnreadableImportFileException $exception, int $importedCount, array $failedRows, ?array $headers, int $lastRowRead, array $ignoredColumns, CsvDialect $dialect, CompanyImportService $service): void
+    private function handleUnreadableFile(UnreadableImportFileException $exception, int $importedCount, int $failedCount, array $failedRows, ?array $headers, int $lastRowRead, array $ignoredColumns, CsvDialect $dialect, CompanyImportService $service): void
     {
         Storage::disk('local')->delete($this->filePath);
 
@@ -241,14 +247,13 @@ class ProcessCompanyImportJob implements ShouldQueue
             return;
         }
 
-        $failedCount = count($failedRows);
-
         $notification = Notification::make()
             ->warning()
             ->title('Import stopped partway')
             ->body(NotificationText::plain(implode("\n\n", array_filter([
                 $this->countsLine($importedCount, $failedCount, $service).". The file could not be read after row {$lastRowRead}, so the rest of it was not imported. The companies above were kept; import the remaining rows in a new file.",
                 $this->ignoredColumnsLine($ignoredColumns),
+                $this->failedRowsNotListedLine($failedCount, count($failedRows)),
             ]))));
 
         if ($failedRows !== [] && $headers !== null) {

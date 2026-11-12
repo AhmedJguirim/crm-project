@@ -25,6 +25,15 @@ beforeEach(function () {
         {
             return $this->{$method}(...$arguments);
         }
+
+        /**
+         * @param  array<int, array{row: int, data: array<string, string>, error: string}>  $failedRows
+         * @param  array<string, string>  $data
+         */
+        public function keep(array &$failedRows, int $rowNumber, array $data, string $error): void
+        {
+            $this->keepFailedRow($failedRows, $rowNumber, $data, $error);
+        }
     };
 });
 
@@ -74,3 +83,24 @@ it('offers a signed link to the failed rows file for the user who started the im
         ->and($url)->toContain('file=failed-abc.csv')
         ->and($url)->toContain('user=7');
 });
+
+it('keeps at most 1,000 failed rows', function () {
+    $failedRows = [];
+
+    foreach (range(1, 1005) as $rowNumber) {
+        $this->reporter->keep($failedRows, $rowNumber, ['name' => "N{$rowNumber}"], 'Bad.');
+    }
+
+    expect($failedRows)->toHaveCount(1000)
+        ->and($failedRows[0])->toBe(['row' => 1, 'data' => ['name' => 'N1'], 'error' => 'Bad.'])
+        ->and($failedRows[999]['row'])->toBe(1000);
+});
+
+it('says how many failed rows are not in the failed rows file', function (int $failed, int $kept, ?string $line) {
+    expect($this->reporter->call('failedRowsNotListedLine', $failed, $kept))->toBe($line);
+})->with([
+    'all listed' => [1000, 1000, null],
+    'fewer failed than kept' => [3, 3, null],
+    'one not listed' => [1001, 1000, 'Only the first 1,000 failed rows are in the failed rows file. Failed rows not listed: 1.'],
+    'thousands not listed' => [21500, 1000, 'Only the first 1,000 failed rows are in the failed rows file. Failed rows not listed: 20,500.'],
+]);

@@ -20,6 +20,36 @@ trait ReportsImportResults
 {
     private const MAX_IGNORED_COLUMNS_LISTED = 10;
 
+    private const int MAX_FAILED_ROWS_KEPT = 1000;
+
+    /**
+     * Keeps a failed row for the failed rows file while fewer than {@see self::MAX_FAILED_ROWS_KEPT} are kept, so a
+     * file where every row fails cannot grow the worker's memory without bound. The caller still counts every failure.
+     *
+     * @param  array<int, array{row: int, data: array<string, string>, error: string}>  $failedRows
+     * @param  array<string, string>  $data
+     */
+    protected function keepFailedRow(array &$failedRows, int $rowNumber, array $data, string $error): void
+    {
+        if (count($failedRows) >= self::MAX_FAILED_ROWS_KEPT) {
+            return;
+        }
+
+        $failedRows[] = ['row' => $rowNumber, 'data' => $data, 'error' => $error];
+    }
+
+    /**
+     * The line telling that some failed rows are not in the failed rows file, or null when all of them are.
+     */
+    protected function failedRowsNotListedLine(int $failedCount, int $keptCount): ?string
+    {
+        if ($failedCount <= $keptCount) {
+            return null;
+        }
+
+        return 'Only the first '.number_format($keptCount).' failed rows are in the failed rows file. Failed rows not listed: '.number_format($failedCount - $keptCount).'.';
+    }
+
     /**
      * The line naming the columns that matched no field, at most {@see self::MAX_IGNORED_COLUMNS_LISTED} of them.
      *
