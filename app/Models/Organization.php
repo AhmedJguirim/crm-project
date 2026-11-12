@@ -209,6 +209,18 @@ class Organization extends Model
     }
 
     /**
+     * Marks this organization's pending invitations to the address whose expiry has passed as expired, so a new invitation can be created.
+     */
+    public function expireStalePendingInvitesFor(string $email): void
+    {
+        $this->invitations()
+            ->whereEmailIgnoringCase($email)
+            ->where('status', InviteStatus::Pending)
+            ->where('expires_at', '<=', now())
+            ->update(['status' => InviteStatus::Expired]);
+    }
+
+    /**
      * Delete every invitation of this organization sent to the user's email, whatever the case.
      */
     public function deleteInvitesFor(User $user): void

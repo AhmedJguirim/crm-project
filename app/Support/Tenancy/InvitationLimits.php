@@ -34,8 +34,8 @@ final class InvitationLimits
      */
     public static function claim(Organization $organization, User $user): ?string
     {
-        $organizationKey = "invitations:organization:{$organization->id}";
-        $userKey = "invitations:user:{$user->id}";
+        $organizationKey = self::organizationKey($organization);
+        $userKey = self::userKey($user);
 
         if (RateLimiter::increment($organizationKey, self::WINDOW_SECONDS) > self::ORGANIZATION_PER_DAY) {
             RateLimiter::decrement($organizationKey, self::WINDOW_SECONDS);
@@ -51,6 +51,15 @@ final class InvitationLimits
         }
 
         return null;
+    }
+
+    /**
+     * Gives back one invitation counted by claim(), when the invitation could not be created after it was counted.
+     */
+    public static function release(Organization $organization, User $user): void
+    {
+        RateLimiter::decrement(self::organizationKey($organization), self::WINDOW_SECONDS);
+        RateLimiter::decrement(self::userKey($user), self::WINDOW_SECONDS);
     }
 
     /**
@@ -80,6 +89,16 @@ final class InvitationLimits
             ->where('created_by', $user->id)
             ->where('personal_team', false)
             ->count() >= self::ORGANIZATIONS_PER_USER;
+    }
+
+    private static function organizationKey(Organization $organization): string
+    {
+        return "invitations:organization:{$organization->id}";
+    }
+
+    private static function userKey(User $user): string
+    {
+        return "invitations:user:{$user->id}";
     }
 
     private static function resendKey(OrganizationInvite $invite): string

@@ -23,6 +23,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -134,7 +135,10 @@ class OrganizationMembers extends Page implements HasTable
                     ->modalHeading('Remove Member')
                     ->modalDescription(fn (OrganizationUser $record) => "Are you sure you want to remove {$record->user->name} from this organization? This action is irreversible.")
                     ->action(function (OrganizationUser $record) use ($organization): void {
-                        $organization->members()->detach($record->user_id);
+                        DB::transaction(function () use ($organization, $record): void {
+                            $organization->deleteInvitesFor($record->user);
+                            $organization->members()->detach($record->user_id);
+                        });
 
                         Notification::make()
                             ->success()
@@ -210,6 +214,8 @@ class OrganizationMembers extends Page implements HasTable
                             return;
                         }
 
+                        $organization->expireStalePendingInvitesFor($email);
+
                         // Block duplicate pending invites for the same email
                         if ($organization->hasPendingInviteFor($email)) {
                             Notification::make()
@@ -238,15 +244,28 @@ class OrganizationMembers extends Page implements HasTable
 
                         // Store only the token's hash; the plain token goes into the mail link
                         $token = OrganizationInvite::generateToken();
-                        $invite = OrganizationInvite::create([
-                            'organization_id' => $organization->id,
-                            'email' => $email,
-                            'token_hash' => OrganizationInvite::hashToken($token),
-                            'role' => $data['role'],
-                            'status' => InviteStatus::Pending,
-                            'invited_by' => auth()->id(),
-                            'expires_at' => now()->addDays(7),
-                        ]);
+
+                        try {
+                            $invite = DB::transaction(fn (): OrganizationInvite => OrganizationInvite::create([
+                                'organization_id' => $organization->id,
+                                'email' => $email,
+                                'token_hash' => OrganizationInvite::hashToken($token),
+                                'role' => $data['role'],
+                                'status' => InviteStatus::Pending,
+                                'invited_by' => auth()->id(),
+                                'expires_at' => now()->addDays(7),
+                            ]));
+                        } catch (UniqueConstraintViolationException) {
+                            InvitationLimits::release($organization, $inviter);
+
+                            Notification::make()
+                                ->warning()
+                                ->title('Invite already pending')
+                                ->body('A pending invitation already exists for this email address.')
+                                ->send();
+
+                            return;
+                        }
 
                         // Queue the invitation email
                         Mail::to($email)->send(new OrganizationInvitationMail($invite, $token));
