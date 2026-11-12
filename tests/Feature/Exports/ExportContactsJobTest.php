@@ -1,6 +1,7 @@
 <?php
 
 use App\Jobs\ExportContactsJob;
+use App\Jobs\Middleware\ReleasesImportExportSlot;
 use App\Jobs\Middleware\WithTenantContext;
 use App\Models\Company;
 use App\Models\Contact;
@@ -181,8 +182,9 @@ it('runs on a queue a Horizon supervisor listens to, with a timeout the supervis
 it('runs inside the tenant context of its organization', function () {
     $middleware = (new ExportContactsJob([1], $this->org->id, $this->user->id, 'xlsx', 'contacts.xlsx'))->middleware();
 
-    expect($middleware)->toHaveCount(1)
-        ->and($middleware[0])->toBeInstanceOf(WithTenantContext::class);
+    expect($middleware)->toHaveCount(2)
+        ->and($middleware[0])->toBeInstanceOf(ReleasesImportExportSlot::class)
+        ->and($middleware[1])->toBeInstanceOf(WithTenantContext::class);
 });
 
 it('exports tags and companies of the contacts without a query per contact', function () {

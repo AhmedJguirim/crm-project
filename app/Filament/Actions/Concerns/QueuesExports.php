@@ -3,13 +3,16 @@
 namespace App\Filament\Actions\Concerns;
 
 use App\Enums\ExportFormat;
+use App\Support\NotificationText;
 use App\Support\Tenancy\CurrentOrganization;
+use App\Support\Tenancy\ImportExportLimits;
 use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
+use Illuminate\Support\Str;
 
 /**
  * What every export action shares: the format select, reading the chosen format and queueing the export job with
- * the "Export queued" or "Nothing to export." notification.
+ * the "Export queued", "Export not queued" (a cap of {@see ImportExportLimits} is reached) or "Nothing to export." notification.
  */
 trait QueuesExports
 {
@@ -51,13 +54,26 @@ trait QueuesExports
 
         $organization = CurrentOrganization::find();
 
+        $slot = (string) Str::uuid();
+        $refusal = ImportExportLimits::claim(ImportExportLimits::EXPORTS, $organization->getKey(), auth()->id(), $slot);
+
+        if ($refusal !== null) {
+            Notification::make()
+                ->danger()
+                ->title('Export not queued')
+                ->body(NotificationText::plain($refusal))
+                ->send();
+
+            return;
+        }
+
         $jobClass::dispatch(
             $ids,
             $organization->getKey(),
             auth()->id(),
             $format->value,
             "{$fileLabel}-{$organization->localNow()->format('Y-m-d')}.{$format->value}",
-        );
+        )->holdingSlot(ImportExportLimits::EXPORTS, $slot);
 
         Notification::make()
             ->success()

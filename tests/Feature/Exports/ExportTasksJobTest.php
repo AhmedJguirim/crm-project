@@ -1,6 +1,7 @@
 <?php
 
 use App\Jobs\ExportTasksJob;
+use App\Jobs\Middleware\ReleasesImportExportSlot;
 use App\Jobs\Middleware\WithTenantContext;
 use App\Models\Contact;
 use App\Models\Deal;
@@ -208,8 +209,9 @@ it('runs on a queue a Horizon supervisor listens to, inside the tenant context o
         ->and($supervisor['timeout'])->toBeGreaterThan($job->timeout)
         ->and($job->failOnTimeout)->toBeTrue()
         ->and($job->tries)->toBe(1)
-        ->and($job->middleware())->toHaveCount(1)
-        ->and($job->middleware()[0])->toBeInstanceOf(WithTenantContext::class);
+        ->and($job->middleware())->toHaveCount(2)
+        ->and($job->middleware()[0])->toBeInstanceOf(ReleasesImportExportSlot::class)
+        ->and($job->middleware()[1])->toBeInstanceOf(WithTenantContext::class);
 });
 
 it('exports the relations of the tasks without a query per task', function () {

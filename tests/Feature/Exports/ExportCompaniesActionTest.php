@@ -11,6 +11,7 @@ use App\Models\Contact;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
@@ -96,6 +97,9 @@ describe('an admin', function () {
         expect(($this->pushedJob)()[0]['ids'])->toBe([$this->ann->id, $this->bob->id]);
 
         Queue::fake();
+
+        // SEC-32: the faked jobs never end, so free their two export slots.
+        Cache::flush();
 
         Livewire::test(ListCompanies::class)
             ->searchTable('Bob')

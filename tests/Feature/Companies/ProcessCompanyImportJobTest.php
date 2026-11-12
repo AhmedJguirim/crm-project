@@ -151,7 +151,7 @@ it('waits for contact imports of the same organization, and not for another orga
         ->and($company[0]->key)->not->toBe($other[0]->key)
         ->and($company[0]->releaseAfter)->toBe($contact[0]->releaseAfter)
         ->and($company[0]->expiresAfter)->toBe($contact[0]->expiresAfter)
-        ->and($company)->toHaveCount(2);
+        ->and($company)->toHaveCount(3);
 });
 
 it('runs on the imports queue of the long-running connection', function () {

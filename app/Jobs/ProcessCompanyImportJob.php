@@ -4,13 +4,16 @@ namespace App\Jobs;
 
 use App\Enums\ImportMode;
 use App\Exceptions\UnreadableImportFileException;
+use App\Jobs\Concerns\HoldsImportExportSlot;
 use App\Jobs\Concerns\ReportsImportResults;
+use App\Jobs\Middleware\ReleasesImportExportSlot;
 use App\Jobs\Middleware\WithTenantContext;
 use App\Models\User;
 use App\Services\CompanyImportService;
 use App\Services\ContactImportFileReader;
 use App\Support\CsvDialect;
 use App\Support\NotificationText;
+use App\Support\Tenancy\ImportExportLimits;
 use DateTimeInterface;
 use Filament\Notifications\Notification;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -35,9 +38,12 @@ use Throwable;
  * Files with more than {@see ContactImportFileReader::MAX_DATA_ROWS} data rows are refused before any row is imported,
  * and only the first 1,000 failed rows are kept ({@see ReportsImportResults}), so one file holds an `imports` worker for
  * a bounded time and memory.
+ *
+ * The import holds one slot of {@see ImportExportLimits} from the moment it is queued until it ends.
  */
 class ProcessCompanyImportJob implements ShouldQueue
 {
+    use HoldsImportExportSlot;
     use Queueable;
     use ReportsImportResults;
 
@@ -76,6 +82,7 @@ class ProcessCompanyImportJob implements ShouldQueue
             (new WithoutOverlapping("organization-{$this->organizationId}"))
                 ->releaseAfter(30)
                 ->expireAfter(1800),
+            new ReleasesImportExportSlot,
             new WithTenantContext($this->organizationId),
         ];
     }
@@ -269,6 +276,8 @@ class ProcessCompanyImportJob implements ShouldQueue
      */
     public function failed(?Throwable $exception): void
     {
+        $this->releaseImportExportSlot();
+
         Storage::disk('local')->delete($this->filePath);
 
         $user = User::find($this->userId);

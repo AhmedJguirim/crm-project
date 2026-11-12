@@ -1,5 +1,6 @@
 <?php
 
+use App\Jobs\Middleware\ReleasesImportExportSlot;
 use App\Jobs\Middleware\WithTenantContext;
 use App\Jobs\ProcessContactImportJob;
 use App\Jobs\SyncSegmentMembership;
@@ -47,9 +48,10 @@ describe('one import per organization at a time', function () {
     it('is guarded by a per-organization overlap lock', function () {
         $middleware = (new ProcessContactImportJob('contact-imports/file.csv', 12, 1))->middleware();
 
-        expect($middleware)->toHaveCount(2)
+        expect($middleware)->toHaveCount(3)
             ->and($middleware[0])->toBeInstanceOf(WithoutOverlapping::class)
-            ->and($middleware[1])->toBeInstanceOf(WithTenantContext::class)
+            ->and($middleware[1])->toBeInstanceOf(ReleasesImportExportSlot::class)
+            ->and($middleware[2])->toBeInstanceOf(WithTenantContext::class)
             ->and($middleware[0]->key)->toBe('organization-12')
             ->and($middleware[0]->releaseAfter)->toBe(30)
             ->and($middleware[0]->expiresAfter)->toBe(1800);

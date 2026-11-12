@@ -12,7 +12,9 @@ use App\Services\ContactImportFileReader;
 use App\Services\ContactImportService;
 use App\Services\ContactImportTemplate;
 use App\Services\Imports\ImportFileIsNotBinary;
+use App\Support\NotificationText;
 use App\Support\Tenancy\CurrentOrganization;
+use App\Support\Tenancy\ImportExportLimits;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Forms\Components\FileUpload;
@@ -24,6 +26,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Number;
+use Illuminate\Support\Str;
 
 class ListContacts extends ListRecords
 {
@@ -110,7 +113,23 @@ class ListContacts extends ListRecords
                     $orgId = CurrentOrganization::get()->id;
                     $userId = auth()->id();
 
-                    ProcessContactImportJob::dispatch($path, $orgId, $userId, ImportMode::fromState($data['mode'] ?? ImportMode::CreateOnly));
+                    $slot = (string) Str::uuid();
+                    $refusal = ImportExportLimits::claim(ImportExportLimits::IMPORTS, $orgId, $userId, $slot);
+
+                    if ($refusal !== null) {
+                        Storage::disk('local')->delete($path);
+
+                        Notification::make()
+                            ->danger()
+                            ->title('Import not queued')
+                            ->body(NotificationText::plain($refusal))
+                            ->send();
+
+                        return;
+                    }
+
+                    ProcessContactImportJob::dispatch($path, $orgId, $userId, ImportMode::fromState($data['mode'] ?? ImportMode::CreateOnly))
+                        ->holdingSlot(ImportExportLimits::IMPORTS, $slot);
 
                     Notification::make()
                         ->success()

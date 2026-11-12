@@ -4,10 +4,12 @@ namespace App\Jobs\Concerns;
 
 use App\Enums\ExportFormat;
 use App\Http\Controllers\DownloadExportController;
+use App\Jobs\Middleware\ReleasesImportExportSlot;
 use App\Jobs\Middleware\WithTenantContext;
 use App\Models\User;
 use App\Support\NotificationText;
 use App\Support\TemporaryFile;
+use App\Support\Tenancy\ImportExportLimits;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -23,9 +25,13 @@ use Throwable;
  * may still export from that organization. The job using it must have the `$organizationId`, `$userId`, `$format` (a value of
  * {@see ExportFormat}) and `$downloadName` properties, call `prepareExportQueue()` in its constructor and implement
  * the three hooks below.
+ *
+ * The export holds one slot of {@see ImportExportLimits} from the moment it is queued until it ends.
  */
 trait DeliversExport
 {
+    use HoldsImportExportSlot;
+
     /**
      * Just under the timeout of the `imports` Horizon supervisor, so a very long export fails cleanly before the
      * worker is killed.
@@ -61,7 +67,7 @@ trait DeliversExport
     /** @return array<int, object> */
     public function middleware(): array
     {
-        return [new WithTenantContext($this->organizationId)];
+        return [new ReleasesImportExportSlot, new WithTenantContext($this->organizationId)];
     }
 
     public function handle(): void
@@ -112,6 +118,8 @@ trait DeliversExport
 
     public function failed(?Throwable $exception): void
     {
+        $this->releaseImportExportSlot();
+
         $user = User::find($this->userId);
 
         if (! $user) {

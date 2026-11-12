@@ -15,6 +15,7 @@ use Filament\Facades\Filament;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Radio;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
@@ -387,6 +388,9 @@ test('a normal csv, an Excel-typed csv and an xlsx are still accepted', function
     Livewire::test(ListContacts::class)
         ->callAction('importContacts', ['file' => UploadedFile::fake()->create('contacts.xlsx', 10, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')])
         ->assertHasNoActionErrors();
+
+    // SEC-32: the faked jobs never end, so free their two import slots.
+    Cache::flush();
 
     Livewire::test(ListContacts::class)
         ->callAction('importContacts', ['file' => UploadedFile::fake()->create('excel-export.csv', 10, 'application/vnd.ms-excel')])
