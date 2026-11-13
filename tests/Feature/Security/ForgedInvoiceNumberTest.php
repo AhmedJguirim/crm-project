@@ -4,6 +4,7 @@ use App\Filament\Resources\Invoices\Pages\CreateInvoice;
 use App\Filament\Resources\Invoices\Pages\EditInvoice;
 use App\Models\Contact;
 use App\Models\Invoice;
+use App\Models\InvoiceSequence;
 use App\Models\Organization;
 use App\Models\User;
 use Filament\Facades\Filament;
@@ -72,4 +73,15 @@ test('forging another organization sequence does not shift ours', function () {
     expect(Invoice::query()->latest('id')->value('invoice_number'))->toBe('INV-2026-001')
         ->and($globexInvoice->refresh()->invoice_number)->toBe('INV-2026-050')
         ->and(Invoice::query()->forOrganization($globex->id)->count())->toBe(1);
+});
+
+test('a forged high invoice number does not push the counter', function () {
+    Livewire::test(CreateInvoice::class)
+        ->set('data.invoice_number', 'INV-2026-900')
+        ->fillForm(['contact_id' => $this->jane->id, 'amount' => 100])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    expect(Invoice::query()->sole()->invoice_number)->toBe('INV-2026-001')
+        ->and(InvoiceSequence::query()->forOrganization($this->org->id)->where('year', 2026)->value('last_sequence'))->toBe(1);
 });

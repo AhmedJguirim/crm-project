@@ -1,12 +1,15 @@
 <?php
 
+use App\Enums\InvoiceStatus;
 use App\Filament\Resources\Invoices\Pages\CreateInvoice;
 use App\Filament\Resources\Invoices\Pages\EditInvoice;
 use App\Models\Contact;
 use App\Models\Invoice;
+use App\Models\InvoiceSequence;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Invoices\InvoiceNumbers;
+use Filament\Actions\DeleteAction;
 use Filament\Facades\Filament;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -123,9 +126,13 @@ test('the lock is taken before the next number is read', function () {
         && $q[1] === ['invoice-number:'.$this->org->id]);
     $read = collect($queries)->search(fn (array $q): bool => str_contains($q[0], 'substring(invoice_number from 10)'));
 
+    $counterRead = collect($queries)->search(fn (array $q): bool => str_contains($q[0], 'invoice_sequences'));
+
     expect($lock)->not->toBeFalse()
         ->and($read)->not->toBeFalse()
-        ->and($lock)->toBeLessThan($read);
+        ->and($counterRead)->not->toBeFalse()
+        ->and($lock)->toBeLessThan($read)
+        ->and($lock)->toBeLessThan($counterRead);
 });
 
 test('the edit page shows the stored number and has no helper text', function () {
@@ -179,3 +186,91 @@ test('the page assigns its own number even when handed one', function () {
 
     expect($invoice->invoice_number)->toBe('INV-2026-001');
 });
+
+test('deleting the last sent invoice does not free its number', function () {
+    foreach (range(1, 15) as $i) {
+        expect(($this->createViaPage)())->toBe(sprintf('INV-2026-%03d', $i));
+    }
+
+    expect(($this->createViaPage)())->toBe('INV-2026-016');
+    $sent = Invoice::query()->where('invoice_number', 'INV-2026-016')->sole();
+    $sent->update(['status' => InvoiceStatus::Sent]);
+
+    Livewire::test(EditInvoice::class, ['record' => $sent->getRouteKey()])
+        ->callAction(DeleteAction::class);
+
+    expect(Invoice::query()->where('invoice_number', 'INV-2026-016')->exists())->toBeFalse()
+        ->and(($this->createViaPage)())->toBe('INV-2026-017')
+        ->and(invoiceCounterOf($this->org))->toBe(17);
+});
+
+test('deleting a draft does not free its number either', function () {
+    expect(($this->createViaPage)())->toBe('INV-2026-001');
+    Invoice::query()->where('invoice_number', 'INV-2026-001')->sole()->delete();
+
+    Livewire::test(CreateInvoice::class)->assertFormSet(['invoice_number' => 'INV-2026-002']);
+
+    expect(($this->createViaPage)())->toBe('INV-2026-002');
+});
+
+test('the next number is above both the counter and the existing invoices', function (?int $counter, ?string $existing, string $expected) {
+    if ($counter !== null) {
+        InvoiceSequence::factory()->create(['organization_id' => $this->org->id, 'year' => 2026, 'last_sequence' => $counter]);
+    }
+
+    if ($existing !== null) {
+        ($this->existing)($existing);
+    }
+
+    expect(($this->createViaPage)())->toBe($expected);
+})->with([
+    'no counter, one invoice' => [null, 'INV-2026-004', 'INV-2026-005'],
+    'counter above the invoice' => [16, 'INV-2026-004', 'INV-2026-017'],
+    'invoice above the counter' => [3, 'INV-2026-009', 'INV-2026-010'],
+    'counter alone grows past 999' => [999, null, 'INV-2026-1000'],
+    'invoice of another year is ignored' => [7, 'INV-2025-042', 'INV-2026-008'],
+]);
+
+test('a new local year starts its own counter', function () {
+    $this->org->update(['timezone' => 'Africa/Tunis']);
+    InvoiceSequence::factory()->create(['organization_id' => $this->org->id, 'year' => 2026, 'last_sequence' => 40]);
+    $this->travelTo(Carbon::parse('2026-12-31 23:30:00', 'UTC'));
+
+    expect(($this->createViaPage)())->toBe('INV-2027-001')
+        ->and(invoiceCounterOf($this->org, 2027))->toBe(1)
+        ->and(invoiceCounterOf($this->org, 2026))->toBe(40);
+});
+
+test('the counter belongs to one organization', function () {
+    $globex = Organization::factory()->create();
+    InvoiceSequence::factory()->create(['organization_id' => $globex->id, 'year' => 2026, 'last_sequence' => 50]);
+
+    expect(($this->createViaPage)())->toBe('INV-2026-001')
+        ->and(InvoiceNumbers::preview($globex))->toBe('INV-2026-051')
+        ->and(invoiceCounterOf($globex))->toBe(50)
+        ->and(invoiceCounterOf($this->org))->toBe(1);
+});
+
+test('the preview never writes a counter', function () {
+    Livewire::test(CreateInvoice::class)->assertFormSet(['invoice_number' => 'INV-2026-001']);
+
+    expect(InvoiceNumbers::preview($this->org))->toBe('INV-2026-001')
+        ->and(InvoiceNumbers::preview($this->org))->toBe('INV-2026-001')
+        ->and(InvoiceSequence::query()->withoutGlobalScopes()->count())->toBe(0);
+});
+
+test('a failed create does not move the counter', function () {
+    InvoiceSequence::factory()->create(['organization_id' => $this->org->id, 'year' => 2026, 'last_sequence' => 5]);
+
+    expect(fn () => InvoiceNumbers::withNextNumber($this->org, fn (string $number): Invoice => throw new RuntimeException('boom')))
+        ->toThrow(RuntimeException::class, 'boom');
+
+    expect(invoiceCounterOf($this->org))->toBe(5)
+        ->and(Invoice::query()->count())->toBe(0)
+        ->and(($this->createViaPage)())->toBe('INV-2026-006');
+});
+
+function invoiceCounterOf(Organization $organization, int $year = 2026): ?int
+{
+    return InvoiceSequence::query()->forOrganization($organization->id)->where('year', $year)->value('last_sequence');
+}
