@@ -32,3 +32,6 @@ Schedule::command('queue:prune-batches --hours=48 --unfinished=168 --cancelled=1
 Schedule::command('auth:clear-resets')->dailyAt('03:15');
 
 Schedule::command('horizon:snapshot')->everyFiveMinutes();
+
+// Mails the app owner when yesterday's security log shows too many failed sign-ins or any lockout (toggle checked in the command).
+Schedule::command('security:alert-owner')->dailyAt('00:20')->withoutOverlapping();
