@@ -6,6 +6,7 @@ use App\Http\Controllers\InviteAcceptController;
 use App\Models\OrganizationInvite;
 use App\Models\User;
 use App\Support\NotificationText;
+use App\Support\Security\KnownDevice;
 use App\Support\Security\LoginLimits;
 use App\Support\Security\SecurityLog;
 use DanHarrin\LivewireRateLimiting\Exceptions\TooManyRequestsException;
@@ -23,22 +24,30 @@ class Login extends BaseLogin
 {
     /**
      * Besides Filament's per-IP limit, an email address is locked for 15 minutes after 10 failed password checks from
-     * any IP (SEC-42). A locked email never reaches the password check and the refusal is the same for an unknown email.
+     * any IP (SEC-42). A locked email never reaches the password check and the refusal is the same for an unknown email,
+     * except for a known device (SEC-45): a browser where the account already signed in passes the lock with the right
+     * password. That pass does not clear the account counter, so whoever caused the lock stays locked.
      */
     public function authenticate(): ?LoginResponse
     {
         $typedEmail = $this->data['email'] ?? null;
 
+        $passesLockAsKnownDevice = false;
+
         if (is_string($typedEmail) && LoginLimits::isLocked($typedEmail)) {
-            $minutes = (int) ceil(LoginLimits::secondsUntilUnlocked($typedEmail) / 60);
+            $passesLockAsKnownDevice = KnownDevice::passesLock($typedEmail);
 
-            Notification::make()
-                ->title('Too many login attempts')
-                ->body(NotificationText::plain('Please try again in '.$minutes.' '.Str::plural('minute', $minutes).'.'))
-                ->danger()
-                ->send();
+            if (! $passesLockAsKnownDevice) {
+                $minutes = (int) ceil(LoginLimits::secondsUntilUnlocked($typedEmail) / 60);
 
-            return null;
+                Notification::make()
+                    ->title('Too many login attempts')
+                    ->body(NotificationText::plain('Please try again in '.$minutes.' '.Str::plural('minute', $minutes).'.'))
+                    ->danger()
+                    ->send();
+
+                return null;
+            }
         }
 
         try {
@@ -53,8 +62,16 @@ class Login extends BaseLogin
             /** @var User|null $user */
             $user = Filament::auth()->user();
 
-            if ($user) {
+            if ($user && $passesLockAsKnownDevice) {
+                SecurityLog::info('auth.known_device_login', $user, ['source' => 'panel_account']);
+            }
+
+            if ($user && ! $passesLockAsKnownDevice) {
                 LoginLimits::clear($user->email);
+            }
+
+            if ($user) {
+                KnownDevice::remember($user->email);
             }
 
             if ($user && ! $user->onboarding_completed) {
@@ -85,7 +102,8 @@ class Login extends BaseLogin
 
     /**
      * Every failed password check (wrong password, unknown email, panel access refused) counts toward the per-account
-     * limit (SEC-42); the 10th one writes the lockout to the security log once, without the email.
+     * limit (SEC-42); the 10th one writes the lockout to the security log once, without the email. A wrong password on
+     * a known device also counts toward that device's own limit (SEC-45).
      *
      * @param  array<string, mixed>  $credentials
      */
@@ -102,6 +120,8 @@ class Login extends BaseLogin
         if (LoginLimits::recordFailure($email) === LoginLimits::MAX_FAILURES) {
             SecurityLog::warning('auth.lockout', $user, ['source' => 'panel_account']);
         }
+
+        KnownDevice::recordFailure($email);
     }
 
     /**

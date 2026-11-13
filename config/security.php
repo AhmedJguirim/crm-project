@@ -8,6 +8,13 @@ return [
          */
         'enabled' => env('SECURITY_USER_MAILS_ENABLED', true),
     ],
+    'known_device_login' => [
+        /*
+         * A browser where the account already signed in passes the per-account sign-in lock (SEC-42) with the right
+         * password. False makes every browser wait out the lock.
+         */
+        'enabled' => env('SECURITY_KNOWN_DEVICE_LOGIN_ENABLED', true),
+    ],
     'owner_alerts' => [
         /*
          * Daily mail to the person running the app (not an organization owner) when yesterday's security log shows
