@@ -20,10 +20,13 @@ use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Filament\Schemas\Components\StateCasts\DateTimeStateCast;
 use Filament\Support\Facades\FilamentTimezone;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\Console\Seeds\SeedCommand;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Mail\Markdown;
 use Illuminate\Session\Middleware\StartSession as FrameworkStartSession;
 use Illuminate\Session\SessionManager;
@@ -31,7 +34,9 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Date;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
 use Spatie\LaravelTypeScriptTransformer\TypeScriptTransformerApplicationServiceProvider;
 
@@ -118,6 +123,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureLivewireCallGuard();
         $this->configureSingleValueFormFields();
         $this->configureSecurityLog();
+        $this->configureUploadRateLimiting();
     }
 
     /**
@@ -126,6 +132,30 @@ class AppServiceProvider extends ServiceProvider
     protected function configureSecurityLog(): void
     {
         Event::subscribe(SecurityEventSubscriber::class);
+    }
+
+    /**
+     * The Livewire temporary-upload route allows each signed-in user 10 uploads a minute, 30 an hour and 100 a day,
+     * so one account cannot fill the disk (SEC-36). A refused upload answers 422 on the field with the wait in minutes.
+     */
+    protected function configureUploadRateLimiting(): void
+    {
+        RateLimiter::for('livewire-uploads', function (Request $request): array {
+            $key = (string) ($request->user()?->getAuthIdentifier() ?? $request->ip());
+
+            $refuse = function (Request $request, array $headers): JsonResponse {
+                $minutes = max(1, (int) ceil(((int) ($headers['Retry-After'] ?? 60)) / 60));
+                $message = 'Too many uploads in a short time. Please try again in '.$minutes.' '.Str::plural('minute', $minutes).'.';
+
+                return response()->json(['message' => $message, 'errors' => ['files.0' => [$message]]], 422, $headers);
+            };
+
+            return [
+                Limit::perMinute(10)->by('minute|'.$key)->response($refuse),
+                Limit::perHour(30)->by('hour|'.$key)->response($refuse),
+                Limit::perDay(100)->by('day|'.$key)->response($refuse),
+            ];
+        });
     }
 
     /**

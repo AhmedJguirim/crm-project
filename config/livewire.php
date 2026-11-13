@@ -134,7 +134,7 @@ return [
         // ContactImportFileReader::MAX_UPLOAD_KILOBYTES) and below PHP's upload_max_filesize.
         'rules' => ['required', 'file', 'max:12288'],         // 12 MB
         'directory' => null,                                  // Example: 'tmp'                     | Default: 'livewire-tmp'
-        'middleware' => null,                                 // Example: 'throttle:5,1'            | Default: 'throttle:60,1'
+        'middleware' => ['auth', 'throttle:livewire-uploads'], // SEC-36: signed-in users only, per-user budget defined in AppServiceProvider::configureUploadRateLimiting()
         'preview_mimes' => [                                  // Supported file types for temporary pre-signed file URLs...
             'png', 'gif', 'bmp', 'svg', 'wav', 'mp4',
             'mov', 'avi', 'wmv', 'mp3', 'm4a',
