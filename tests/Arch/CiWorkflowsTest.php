@@ -181,3 +181,57 @@ test('dependabot covers composer, npm and github actions on master', function ()
         ->toContain('package-ecosystem: "github-actions"')
         ->and(substr_count($content, 'target-branch: "master"'))->toBe(3);
 });
+
+/**
+ * Whether a workflow `run:` line runs Pint in fix mode (the composer `lint` script, or pint without `--test`).
+ */
+function archRunsPintInFixMode(string $line): bool
+{
+    if (preg_match('/\bcomposer\s+(run\s+)?lint\b(?!:)/', $line) === 1) {
+        return true;
+    }
+
+    return preg_match('/\bpint\b/', $line) === 1 && preg_match('/--test\b/', $line) !== 1;
+}
+
+test('the fix-mode pint detector classifies run lines', function (string $line, bool $offender) {
+    expect(archRunsPintInFixMode($line))->toBe($offender);
+})->with([
+    'composer lint' => ['run: composer lint', true],
+    'composer run lint' => ['run: composer run lint', true],
+    'pint without test' => ['run: vendor/bin/pint --parallel', true],
+    'composer test:lint' => ['run: composer test:lint', false],
+    'another lint: script' => ['run: composer lint:check', false],
+    'pint with test' => ['run: vendor/bin/pint --parallel --test', false],
+]);
+
+test('the lint workflow runs pint in check mode', function () {
+    $offenders = [];
+    $lintCodeLines = [];
+
+    foreach (archWorkflowLines() as $file => $lines) {
+        $code = archCodeLines($lines);
+
+        if ($file === 'lint.yml') {
+            $lintCodeLines = $code;
+        }
+
+        foreach ($code as $line) {
+            if (str_contains($line, 'run:') && archRunsPintInFixMode($line)) {
+                $offenders[] = $file.': '.trim($line);
+            }
+        }
+    }
+
+    expect($offenders)->toBe([]);
+
+    $checkModeLines = array_filter($lintCodeLines, fn (string $line): bool => preg_match('/^\s*run:\s*composer\s+test:lint\s*$/', $line) === 1);
+
+    expect($checkModeLines)->not->toBeEmpty();
+
+    $composer = json_decode((string) file_get_contents(dirname(__DIR__, 2).'/composer.json'), true);
+    $script = $composer['scripts']['test:lint'] ?? [];
+    $checkMode = array_filter((array) $script, fn (mixed $command): bool => is_string($command) && str_contains($command, 'pint') && str_contains($command, '--test'));
+
+    expect($checkMode)->not->toBeEmpty();
+});
