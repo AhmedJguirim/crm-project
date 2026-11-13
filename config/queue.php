@@ -43,8 +43,10 @@ return [
 
     'connections' => [
 
+        // after_commit: same rule as the redis connection, so the tests run jobs in the production order.
         'sync' => [
             'driver' => 'sync',
+            'after_commit' => true,
         ],
 
         'database' => [
@@ -76,6 +78,7 @@ return [
             'after_commit' => false,
         ],
 
+        // after_commit: a job dispatched inside a database transaction is pushed only when the outermost transaction commits, and dropped if it rolls back, so a worker never runs it before its rows are visible (SB-13).
         'redis' => [
             'driver' => 'redis',
             'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
@@ -84,7 +87,7 @@ return [
             // config/horizon.php). It is also how long a quick job stays invisible after its worker died hard.
             'retry_after' => (int) env('REDIS_QUEUE_RETRY_AFTER', 90),
             'block_for' => null,
-            'after_commit' => false,
+            'after_commit' => true,
         ],
 
         // The same Redis, for the long jobs. Must stay greater than the longest timeout of the supervisors on this
@@ -96,7 +99,7 @@ return [
             'queue' => env('REDIS_QUEUE', 'default'),
             'retry_after' => (int) env('REDIS_LONG_QUEUE_RETRY_AFTER', 1900),
             'block_for' => null,
-            'after_commit' => false,
+            'after_commit' => true,
         ],
 
         'deferred' => [
