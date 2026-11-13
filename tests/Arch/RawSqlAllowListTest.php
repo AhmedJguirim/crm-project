@@ -62,6 +62,9 @@ function rawSqlAllowList(): array
         'Services/Deals/DealForecast.php' => [
             'constant' => 'constant aggregate select (COUNT, COALESCE(SUM(value), 0)) for the forecast by close month',
         ],
+        'Services/Invoices/InvoiceNumbers.php' => [
+            'constant' => 'advisory lock query with the lock key as a binding; the invoice number regex is a binding built from an integer year, and the max(cast(substring(...))) select is constant',
+        ],
         'Services/Reports/DashboardKpis.php' => [
             'constant' => 'constant conditional aggregate select (COUNT/SUM over CASE, EXTRACT(EPOCH) for the sales cycle) for the dashboard KPIs and the sales results, and the lost deals counted per lost reason (grouped COUNT), one UNION ALL part per period; statuses, ledger kind, period bounds and the period index are bindings',
             'dynamic' => 'aggregate selects built from constants and HomeAmount::sql(), whose amount expression is checked against an allow-list at the sink; dates, statuses, kind, owner id and the home currency are bindings',

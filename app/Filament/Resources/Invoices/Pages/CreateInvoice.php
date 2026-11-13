@@ -4,11 +4,14 @@ namespace App\Filament\Resources\Invoices\Pages;
 
 use App\Enums\InvoiceStatus;
 use App\Filament\Resources\Invoices\InvoiceResource;
-use App\Filament\Resources\Invoices\Schemas\InvoiceForm;
 use App\Models\Contact;
 use App\Models\Deal;
+use App\Models\Invoice;
+use App\Services\Invoices\InvoiceNumbers;
+use App\Support\Tenancy\CurrentOrganization;
 use Filament\Resources\Pages\CreateRecord;
 use Filament\Support\Enums\Width;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Url;
 
@@ -25,16 +28,30 @@ class CreateInvoice extends CreateRecord
     public ?string $prefillDealId = null;
 
     /**
-     * Forces Draft status, no paid date, the next invoice number when empty, and the authenticated user as creator (overriding anything forged into the form data).
+     * Forces Draft status, no paid date, and the authenticated user as creator (overriding anything forged into the form data).
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['created_by'] = Auth::id();
         $data['status'] = InvoiceStatus::Draft;
         $data['paid_at'] = null;
-        $data['invoice_number'] ??= InvoiceForm::nextInvoiceNumber();
 
         return $data;
+    }
+
+    /**
+     * Saves the invoice with the number assigned by the server under a per-organization lock; the form never sends one.
+     */
+    protected function handleRecordCreation(array $data): Model
+    {
+        $organization = CurrentOrganization::find();
+
+        abort_if($organization === null, 404);
+
+        return InvoiceNumbers::withNextNumber(
+            $organization,
+            fn (string $number): Invoice => parent::handleRecordCreation([...$data, 'invoice_number' => $number]),
+        );
     }
 
     /**

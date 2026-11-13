@@ -9,6 +9,7 @@ use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Invoice;
 use App\Services\Invoices\InvoiceLedger;
+use App\Services\Invoices\InvoiceNumbers;
 use App\Support\LocalTime;
 use App\Support\MoneyLimit;
 use App\Support\Tenancy\CurrentOrganization;
@@ -21,7 +22,6 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Illuminate\Validation\Rule;
-use Illuminate\Validation\Rules\Unique;
 
 class InvoiceForm
 {
@@ -95,16 +95,14 @@ class InvoiceForm
 
                 TextInput::make('invoice_number')
                     ->label('Invoice #')
-                    ->required()
-                    ->maxLength(255)
-                    ->default(fn (): string => self::nextInvoiceNumber())
-                    ->readOnly()
-                    ->unique(
-                        table: Invoice::class,
-                        column: 'invoice_number',
-                        modifyRuleUsing: fn (Unique $rule): Unique => $rule
-                            ->where('organization_id', CurrentOrganization::find()?->id)
-                    ),
+                    ->default(fn (): ?string => ($organization = CurrentOrganization::find()) !== null
+                        ? InvoiceNumbers::preview($organization)
+                        : null)
+                    ->disabled()
+                    ->dehydrated(false)
+                    ->helperText(fn (string $operation): ?string => $operation === 'create'
+                        ? 'The final number is assigned when you save.'
+                        : null),
 
                 Select::make('currency')
                     ->label('Currency')
@@ -309,21 +307,5 @@ class InvoiceForm
     {
         return in_array($record?->status, [InvoiceStatus::Paid, InvoiceStatus::Partial], true)
             || InvoiceLedger::cents($record?->amount_paid) > 0;
-    }
-
-    public static function nextInvoiceNumber(): string
-    {
-        $year = now()->year;
-
-        $lastInvoice = Invoice::query()
-            ->where('invoice_number', 'like', sprintf('INV-%s-%%', $year))
-            ->orderByDesc('invoice_number')
-            ->value('invoice_number');
-
-        if (! is_string($lastInvoice) || ! preg_match('/^INV-\d{4}-(\d{3})$/', $lastInvoice, $matches)) {
-            return sprintf('INV-%s-001', $year);
-        }
-
-        return sprintf('INV-%s-%03d', $year, ((int) $matches[1]) + 1);
     }
 }
