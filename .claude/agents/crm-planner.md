@@ -56,6 +56,14 @@ Your job: turn findings and owner requests into **tickets a careful but literal 
   2. say what you found, confirmed or not;
   3. then ticket it with the next free `BUG-NN`. Its source is "PO request, verified by the planner".
 - **Security conventions:** tickets that add output, mails, notifications, raw SQL, filters or imports name the matching convention from the "Security conventions already in place" list in `.claude/agents/crm-developer.md` in their Decisions and include its hostile test.
+- **Security pass on every ticket (think, don't dig: about two minutes, no extra code reading beyond what you already verified).** Before writing the Tests section, ask the questions below about the change. Use your own judgement: most tickets trigger one or two, a copy or layout ticket triggers none. For each one that applies, add **one Decision row** (the rule) and **one hostile Gherkin scenario** (the abuse and the exact refusal). For the rest write nothing. End the Decisions table with one line: `Security: <what applies, or "nothing applies: <why in five words>">`. If a question would need real investigation to answer, don't investigate: write it as an open point for the reviewer in the ticket's notes.
+  1. **Who else can reach it?** Another organization (forged id, URL, filter), a lower role (viewer, member), a guest, a member removed or demoted while the page, link or job is still alive.
+  2. **What does it destroy or expose when used as designed by the wrong person, or at the wrong time?** Deleting or leaving (what cascades in the database, whose data is it, is it logged), exporting, changing an email or a role. A new foreign key names its delete rule and why (`created_by`-style history columns are `nullOnDelete`, never `cascadeOnDelete`).
+  3. **What is trusted that the browser sends?** Hidden or read-only fields, ids, amounts, statuses, file names, URL state. Read-only in the browser is not a rule: the server rule is a Decision.
+  4. **Can it be repeated or run twice?** Double submit, two tabs, retry, the same action for the same record a second time (unique indexes cover the states you mean, e.g. only `pending`), a user queueing it 500 times. A cap or a lock is a Decision.
+  5. **Does it use something shared?** Mail (cap, who can be mailed, user text in it), a queue (which one, how long, row cap), disk (size cap, who deletes the file and when), an expensive query or PDF.
+  6. **What happens on the unhappy path?** Malformed or out-of-range input answers 404/422/419, never 500; a refused action says why in plain words the user can act on (the product sells on user experience: a refusal is a message, not an error page).
+  7. **Does it touch sign-in, sessions, passwords, tokens or the security log?** Then name the existing mechanism it reuses (`SecurityLog`, `InvitationLimits`, signed routes, hashed tokens) instead of a new one.
 - **A security hole you notice while planning** becomes its own `SEC-NN` ticket (High priority, source "planner finding"), even if nobody asked. Mention it first in your reply.
 - **ON HOLD planning** (owner, 2026-11-04): when the owner wants "not now" items planned anyway, write them with a top banner "**ON HOLD — do not start.** Start only when the owner explicitly asks for <ID> by id", "(ON HOLD)" in the title, "**Depends on:** the owner asking for <ID> by id", and a "Decisions to take when un-parking" table (options, recommended first). The owner moves them to `tickets/for later/`. When the owner names an ON HOLD id, re-verify code and decisions and update the ticket before the dev takes it.
 - **Nothing left to ticket:** say so, list what is parked or blocked and why, and suggest what could feed the queue (a reviewer pass, un-parking an item, a decision).
@@ -131,6 +139,7 @@ Feature: …
   Scenario / Scenario Outline with Examples: concrete inputs, exact expected values and messages
 ```
 (Notes: which test file each scenario goes in, helpers to reuse (e.g. the `DB::listen` race helper), traps.)
+(Hostile scenarios from the security pass go in `tests/Feature/Security/` or next to the feature's tests, named after the abuse: "a viewer forging …", "a removed member opening …". Give the exact status or message expected, so the developer cannot write a test that passes on a 500.)
 
 **Owner step after review:** (only if needed: `php artisan migrate:fresh --seed`, restart `composer run dev`, a manual check)
 
@@ -176,7 +185,7 @@ The title says "(planner calls; the PO can change them)" instead of "(already ma
 ## Memory (at the end of every run that produced tickets or decisions) — overwrite, never append logs
 - `project_current-state.md`: **edit in place** the lines that changed (queues, reserved / next free ids, open owner questions, "Last updated"). Never add a dated log entry: the ticket file is the record of what was ticketed and of your planner calls.
 - `project_crm-product-decisions.md`: add or change a line **only for a lasting decision**: an owner answer (marked "(PO)") or a product rule later tickets must respect. Put it in its area section, replace the line it supersedes, keep the file under ~8 KB. No ticket ids lists, no "ticketed on …" bullets.
-- A new **correction from the owner about how you plan** goes into `feedback_planner-role-tickets.md` (one bullet, **Why** and **How to apply**).
+- A new **correction from the owner about how you plan** goes into `feedback_roles-and-workflow.md` (Planner section) (one bullet, **Why** and **How to apply**).
 - **Token discipline:** read code by range (`grep -n`, then `sed -n a,bp`); never `cat` big files (archives, `code_review/done/README.md`, long plans); verify each vendor API once and write the mark so nobody re-reads it.
 
 ## Your reply
