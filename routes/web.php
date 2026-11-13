@@ -52,8 +52,13 @@ Route::get('/exports/download', DownloadExportController::class)
 
 // Invoice PDF download (authenticated users only, tenant check in controller)
 Route::get('/invoices/{invoice}/pdf', InvoicePdfController::class)
+    ->where('invoice', '[0-9]{1,18}')
     ->middleware(['auth'])
     ->name('invoices.pdf');
+
+// SB-09: the app doesn't use Filament's exporters or importers; their download routes 404 instead of failing on missing tables
+Route::get('filament/exports/{export}/download', fn () => abort(404))->name('filament.exports.download');
+Route::get('filament/imports/{import}/failed-rows/download', fn () => abort(404))->name('filament.imports.failed-rows.download');
 
 // Inertia + React section (middleware scoped here to keep Filament/Livewire untouched)
 Route::middleware(HandleInertiaRequests::class)
@@ -69,6 +74,7 @@ Route::middleware(HandleInertiaRequests::class)
             });
 
         Route::get('/tags/{tag}', [TagsController::class, 'show'])
+            ->where('tag', '[0-9]{1,18}')
             ->middleware('auth')
             ->name('tags.show');
     });

@@ -82,3 +82,15 @@ test('guests are redirected to login when viewing a single tag', function () {
     $this->get(route('app.tags.show', $tag))
         ->assertRedirect(route('login'));
 });
+
+test('a malformed or out-of-range tag id answers not found', function (string $id) {
+    $organization = Organization::factory()->create();
+
+    $this->actingAs(memberOf($organization))
+        ->get("/app/tags/{$id}")
+        ->assertNotFound();
+})->with(['abc', '99999999999999999999', '9223372036854775807', '9999999999999999999', '999999999999999999', '1abc', '-1']);
+
+test('a malformed tag id answers not found for guests too', function () {
+    $this->get('/app/tags/abc')->assertNotFound();
+});

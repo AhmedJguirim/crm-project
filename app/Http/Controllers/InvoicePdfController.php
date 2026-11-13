@@ -26,7 +26,17 @@ class InvoicePdfController
                 'organization' => $invoice->organization,
             ])->setPaper('a4');
 
-            return $pdf->download("{$invoice->invoice_number}.pdf");
+            return $pdf->download($this->downloadName($invoice));
         });
+    }
+
+    /**
+     * A download name without path separators or non-ASCII characters (SB-09).
+     */
+    private function downloadName(Invoice $invoice): string
+    {
+        $name = trim(preg_replace('/[^A-Za-z0-9._-]+/', '-', $invoice->invoice_number), '-.');
+
+        return ($name === '' ? "invoice-{$invoice->id}" : $name).'.pdf';
     }
 }
