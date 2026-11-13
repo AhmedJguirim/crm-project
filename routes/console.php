@@ -25,4 +25,10 @@ Schedule::command('custom-fields:report-duplicates')->dailyAt('02:00')->withoutO
 
 Schedule::command('exports:prune')->dailyAt('03:00')->withoutOverlapping();
 
+// Nightly cleanup: abandoned uploads, old failed jobs and batches, expired password-reset tokens.
+Schedule::command('uploads:prune')->dailyAt('03:10')->withoutOverlapping();
+Schedule::command('queue:prune-failed --hours=168')->dailyAt('03:15');
+Schedule::command('queue:prune-batches --hours=48 --unfinished=168 --cancelled=168')->dailyAt('03:15');
+Schedule::command('auth:clear-resets')->dailyAt('03:15');
+
 Schedule::command('horizon:snapshot')->everyFiveMinutes();
