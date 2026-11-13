@@ -2,6 +2,8 @@
 
 namespace App\Support\Security;
 
+use App\Enums\AccountSecurityEvent;
+use App\Models\User;
 use Filament\Auth\Events\Registered;
 use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
@@ -10,7 +12,7 @@ use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Events\Dispatcher;
 
 /**
- * Turns the framework's sign-in events into security log lines. It never reads the credentials of a failed attempt.
+ * Turns the framework's sign-in events into security log lines, and mails the user when their password is reset. It never reads the credentials of a failed attempt.
  */
 class SecurityEventSubscriber
 {
@@ -46,6 +48,10 @@ class SecurityEventSubscriber
     public function handlePasswordReset(PasswordReset $event): void
     {
         SecurityLog::info('auth.password_reset', $event->user);
+
+        if ($event->user instanceof User) {
+            SecurityMails::send($event->user, AccountSecurityEvent::PasswordChanged);
+        }
     }
 
     public function handleRegistered(Registered $event): void

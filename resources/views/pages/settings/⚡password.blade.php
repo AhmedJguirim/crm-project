@@ -2,7 +2,9 @@
 
 use App\Actions\Account\EndOtherSessions;
 use App\Concerns\PasswordValidationRules;
+use App\Enums\AccountSecurityEvent;
 use App\Support\Security\SecurityLog;
+use App\Support\Security\SecurityMails;
 use Illuminate\Auth\SessionGuard;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
@@ -51,6 +53,8 @@ new class extends Component {
         app(EndOtherSessions::class)->handle($user, session()->getId());
 
         SecurityLog::info('account.password_changed', $user);
+
+        SecurityMails::send($user, AccountSecurityEvent::PasswordChanged);
 
         $this->reset('current_password', 'password', 'password_confirmation');
 

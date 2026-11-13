@@ -2,8 +2,10 @@
 
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
+use App\Enums\AccountSecurityEvent;
 use App\Models\User;
 use App\Support\Security\SecurityLog;
+use App\Support\Security\SecurityMails;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
@@ -60,7 +62,8 @@ new class extends Component {
 
         $user->fill(Arr::only($validated, ['name', 'email']));
 
-        $emailChanged = Str::lower((string) $user->getOriginal('email')) !== Str::lower($user->email);
+        $previousEmail = Str::lower((string) $user->getOriginal('email'));
+        $emailChanged = $previousEmail !== Str::lower($user->email);
 
         if ($emailChanged) {
             $user->email_verified_at = null;
@@ -70,6 +73,8 @@ new class extends Component {
 
         if ($emailChanged) {
             SecurityLog::info('account.email_changed', $user);
+
+            SecurityMails::send($user, AccountSecurityEvent::EmailChanged, $previousEmail);
         }
 
         $this->reset('current_password');

@@ -2,6 +2,8 @@
 
 namespace App\Support\Security;
 
+use App\Enums\AccountSecurityEvent;
+use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Auth\MultiFactor\App\AppAuthentication;
 use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthentication;
@@ -11,7 +13,8 @@ use Illuminate\Contracts\Auth\Authenticatable;
 use SensitiveParameter;
 
 /**
- * The panel's authenticator app, with a security log line for each change and each used recovery code (SEC-22).
+ * The panel's authenticator app, with a security log line for each change and each used recovery code (SEC-22), and a mail
+ * to the user when it is turned off or a recovery code is used (SEC-43).
  * Filament fires no event for these.
  */
 class LoggedAppAuthentication extends AppAuthentication
@@ -27,6 +30,10 @@ class LoggedAppAuthentication extends AppAuthentication
         }
 
         SecurityLog::warning('auth.two_factor_disabled', $this->asAuthenticatable($user));
+
+        if ($user instanceof User) {
+            SecurityMails::send($user, AccountSecurityEvent::TwoFactorDisabled);
+        }
     }
 
     public function verifyRecoveryCode(#[SensitiveParameter] string $recoveryCode, ?HasAppAuthenticationRecovery $user = null): bool
@@ -34,7 +41,13 @@ class LoggedAppAuthentication extends AppAuthentication
         $isValid = parent::verifyRecoveryCode($recoveryCode, $user);
 
         if ($isValid) {
-            SecurityLog::warning('auth.recovery_code_used', $this->asAuthenticatable($user ?? Filament::auth()->user()));
+            $codeOwner = $user ?? Filament::auth()->user();
+
+            SecurityLog::warning('auth.recovery_code_used', $this->asAuthenticatable($codeOwner));
+
+            if ($codeOwner instanceof User) {
+                SecurityMails::send($codeOwner, AccountSecurityEvent::RecoveryCodeUsed);
+            }
         }
 
         return $isValid;
