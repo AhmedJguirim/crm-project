@@ -8,18 +8,21 @@ use App\Filament\Support\StateCasts\ScalarDateTimeStateCast;
 use App\Http\Middleware\StartSession;
 use App\Mail\SecuredMarkdown;
 use App\Models\Organization;
+use App\Models\User;
 use App\Policies\SegmentPolicy;
 use App\Services\Segments\SegmentUsageIndex;
 use App\Support\Auth\CaseInsensitiveEmailUserProvider;
 use App\Support\Livewire\RefuseMistypedCallArguments;
 use App\Support\Livewire\RefuseMistypedPropertyUpdates;
 use App\Support\Livewire\RefuseSubKeyUpdatesOfScalars;
+use App\Support\Security\LoginLimits;
 use App\Support\Security\SecurityEventSubscriber;
 use App\Support\Tenancy\CurrentOrganization;
 use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
 use Filament\Schemas\Components\StateCasts\DateTimeStateCast;
 use Filament\Support\Facades\FilamentTimezone;
+use Illuminate\Auth\Events\PasswordReset;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Cache\Factory as CacheFactory;
 use Illuminate\Contracts\Foundation\Application;
@@ -123,6 +126,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureLivewireCallGuard();
         $this->configureSingleValueFormFields();
         $this->configureSecurityLog();
+        $this->configureLoginLimits();
         $this->configureUploadRateLimiting();
     }
 
@@ -132,6 +136,20 @@ class AppServiceProvider extends ServiceProvider
     protected function configureSecurityLog(): void
     {
         Event::subscribe(SecurityEventSubscriber::class);
+    }
+
+    /**
+     * A completed password reset unlocks the email address locked by too many failed sign-ins (SEC-42): the reset needs
+     * the mailbox, so it is the way out for a user someone locked on purpose.
+     */
+    protected function configureLoginLimits(): void
+    {
+        Event::listen(PasswordReset::class, function (PasswordReset $event): void {
+            /** @var User $user */
+            $user = $event->user;
+
+            LoginLimits::clear($user->email);
+        });
     }
 
     /**
