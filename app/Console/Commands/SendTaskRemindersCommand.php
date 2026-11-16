@@ -61,9 +61,12 @@ class SendTaskRemindersCommand extends Command
             ->whereBetween('due_at', [$tomorrow->startOfDay()->utc(), $tomorrow->endOfDay()->utc()])
             ->get();
 
+        $windowStart = $organization->localNow()->subDay()->startOfHour()->utc();
+
         $overdueTasks = Task::query()
             ->where('status', TaskStatus::Pending)
             ->whereNotNull('due_at')
+            ->where('due_at', '>=', $windowStart)
             ->where('due_at', '<', now())
             ->get();
 
@@ -90,12 +93,14 @@ class SendTaskRemindersCommand extends Command
     }
 
     /**
+     * Sends the overdue reminder once per task, due instant and recipient: the key is the due instant in UTC, and only tasks that became overdue since the previous run's hour are selected; older ones stay in the daily digest.
+     *
      * @param  Collection<int, Task>  $tasks
      */
     private function sendOverdueNotifications(Organization $organization, Collection $tasks): void
     {
         foreach ($tasks as $task) {
-            $notificationKey = 'overdue:'.$task->getKey().':'.$organization->localNow()->toDateString();
+            $notificationKey = 'overdue:'.$task->getKey().':'.$task->due_at?->toImmutable()->utc()->format('Y-m-d\TH:i\Z');
 
             foreach (TaskRecipients::for($task, $organization->members) as $member) {
                 if (! $member instanceof User || $this->alreadyNotified($member, TaskOverdueNotification::class, $notificationKey)) {

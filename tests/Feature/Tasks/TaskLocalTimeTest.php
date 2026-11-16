@@ -9,6 +9,7 @@ use App\Notifications\TaskDueSoonNotification;
 use App\Notifications\TaskOverdueNotification;
 use Carbon\CarbonImmutable;
 use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Notification;
 
@@ -77,10 +78,10 @@ describe('reminders', function () {
 
         $keys = DatabaseNotification::where('notifiable_id', $this->parisOwner->id)->get()->pluck('data.notification_key')->sort()->values()->all();
 
-        expect($keys)->toBe(["due-soon:{$dueTomorrow->id}:2026-03-16", "overdue:{$overdue->id}:2026-03-15"]);
+        expect($keys)->toBe(["due-soon:{$dueTomorrow->id}:2026-03-16", "overdue:{$overdue->id}:2026-03-14T10:00Z"]);
     });
 
-    it('key the overdue reminder with the local date', function () {
+    it('key the overdue reminder with its due instant in UTC', function () {
         $this->travelTo(now()->setDate(2026, 3, 14)->setTime(17, 0));
         $kiritimati = Organization::factory()->timezone('Pacific/Kiritimati')->create(['created_by' => $this->parisOwner->id]);
         $kiritimati->members()->attach($this->parisOwner, ['role' => 'owner']);
@@ -90,7 +91,7 @@ describe('reminders', function () {
 
         $keys = DatabaseNotification::where('notifiable_id', $this->parisOwner->id)->get()->pluck('data.notification_key')->all();
 
-        expect($keys)->toBe(["overdue:{$overdue->id}:2026-03-15"]);
+        expect($keys)->toBe(["overdue:{$overdue->id}:2026-03-14T10:00Z"]);
     });
 
     it('use the configured hour', function () {
@@ -112,6 +113,116 @@ describe('reminders', function () {
         Artisan::call('tasks:send-reminders');
 
         Notification::assertSentTo($this->parisOwner, TaskOverdueNotification::class, fn (TaskOverdueNotification $notification): bool => $notification->task->is($overdue));
+    });
+});
+
+describe('the overdue reminder', function () {
+    beforeEach(function () {
+        $this->overdueNotifications = fn (): Collection => DatabaseNotification::query()
+            ->where('notifiable_id', $this->parisOwner->id)
+            ->where('type', TaskOverdueNotification::class)
+            ->get();
+    });
+
+    it('is sent once, on the run right after the task became overdue', function () {
+        $this->travelTo(CarbonImmutable::parse('2026-03-15 06:00:00', 'UTC'));
+        $task = ($this->taskOf)($this->paris, '2026-03-14 10:00:00');
+
+        Artisan::call('tasks:send-reminders');
+
+        expect(($this->overdueNotifications)()->pluck('data.notification_key')->all())->toBe(["overdue:{$task->id}:2026-03-14T10:00Z"]);
+
+        $this->travelTo(CarbonImmutable::parse('2026-03-16 06:00:00', 'UTC'));
+        Artisan::call('tasks:send-reminders');
+
+        expect(($this->overdueNotifications)())->toHaveCount(1);
+    });
+
+    it('is not sent again by --all runs the same day', function () {
+        $this->travelTo(CarbonImmutable::parse('2026-03-15 06:00:00', 'UTC'));
+        ($this->taskOf)($this->paris, '2026-03-14 10:00:00');
+        Artisan::call('tasks:send-reminders');
+
+        $this->travelTo(CarbonImmutable::parse('2026-03-15 09:00:00', 'UTC'));
+        Artisan::call('tasks:send-reminders', ['--all' => true]);
+        Artisan::call('tasks:send-reminders', ['--all' => true]);
+
+        expect(($this->overdueNotifications)())->toHaveCount(1);
+    });
+
+    it('only covers tasks due since the start of the previous run hour', function (string $now, string $due, int $count) {
+        $this->travelTo(CarbonImmutable::parse($now, 'UTC'));
+        ($this->taskOf)($this->paris, $due);
+
+        Artisan::call('tasks:send-reminders');
+
+        expect(($this->overdueNotifications)())->toHaveCount($count);
+    })->with([
+        'exactly the window start' => ['2026-03-15 06:00:00', '2026-03-14 06:00:00', 1],
+        'a minute before the window' => ['2026-03-15 06:00:00', '2026-03-14 05:59:00', 0],
+        'a stale task' => ['2026-03-15 06:00:00', '2026-03-10 09:00:00', 0],
+        'overdue by one minute' => ['2026-03-15 06:00:00', '2026-03-15 05:59:00', 1],
+        'DST spring, window start' => ['2026-03-29 05:00:00', '2026-03-28 06:00:00', 1],
+        'DST spring, before the window' => ['2026-03-29 05:00:00', '2026-03-28 05:59:00', 0],
+        'DST autumn, window start' => ['2026-10-25 06:00:00', '2026-10-24 05:00:00', 1],
+        'DST autumn, before the window' => ['2026-10-25 06:00:00', '2026-10-24 04:59:00', 0],
+        'run mid-hour, due after the hour start' => ['2026-03-15 06:30:00', '2026-03-14 06:10:00', 1],
+        'run mid-hour, due before the hour start' => ['2026-03-15 06:30:00', '2026-03-14 05:59:00', 0],
+        'not yet overdue' => ['2026-03-15 06:00:00', '2026-03-15 06:00:00', 0],
+    ]);
+
+    it('is not sent for a done task', function () {
+        $this->travelTo(CarbonImmutable::parse('2026-03-15 06:00:00', 'UTC'));
+        $task = ($this->taskOf)($this->paris, '2026-03-14 10:00:00');
+        $task->forceFill(['status' => TaskStatus::Done])->save();
+
+        Artisan::call('tasks:send-reminders');
+
+        expect(($this->overdueNotifications)())->toHaveCount(0);
+    });
+
+    it('is not sent for a task without a due date', function () {
+        $this->travelTo(CarbonImmutable::parse('2026-03-15 06:00:00', 'UTC'));
+        Task::factory()->create([
+            'organization_id' => $this->paris->id,
+            'created_by' => $this->paris->created_by,
+            'status' => TaskStatus::Pending,
+            'due_at' => null,
+        ]);
+
+        Artisan::call('tasks:send-reminders');
+
+        expect(($this->overdueNotifications)())->toHaveCount(0);
+    });
+
+    it('is sent once more for a new due date, and only once for it', function () {
+        $this->travelTo(CarbonImmutable::parse('2026-03-15 06:00:00', 'UTC'));
+        $task = ($this->taskOf)($this->paris, '2026-03-14 10:00:00');
+        Artisan::call('tasks:send-reminders');
+
+        $task->forceFill(['due_at' => '2026-03-15 12:00:00'])->save();
+        $this->travelTo(CarbonImmutable::parse('2026-03-16 06:00:00', 'UTC'));
+        Artisan::call('tasks:send-reminders');
+
+        expect(($this->overdueNotifications)()->pluck('data.notification_key')->sort()->values()->all())
+            ->toBe(["overdue:{$task->id}:2026-03-14T10:00Z", "overdue:{$task->id}:2026-03-15T12:00Z"]);
+
+        $this->travelTo(CarbonImmutable::parse('2026-03-17 06:00:00', 'UTC'));
+        Artisan::call('tasks:send-reminders');
+
+        expect(($this->overdueNotifications)())->toHaveCount(2);
+    });
+
+    it('keeps its key when the organization changes timezone', function () {
+        $this->travelTo(CarbonImmutable::parse('2026-03-15 06:00:00', 'UTC'));
+        $task = ($this->taskOf)($this->paris, '2026-03-14 10:00:00');
+        Artisan::call('tasks:send-reminders');
+
+        $this->paris->update(['timezone' => 'Asia/Tokyo']);
+        $this->travelTo(CarbonImmutable::parse('2026-03-15 22:00:00', 'UTC'));
+        Artisan::call('tasks:send-reminders', ['--all' => true]);
+
+        expect(($this->overdueNotifications)()->pluck('data.notification_key')->all())->toBe(["overdue:{$task->id}:2026-03-14T10:00Z"]);
     });
 });
 

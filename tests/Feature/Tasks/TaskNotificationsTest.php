@@ -121,3 +121,22 @@ test('digest command skips sending when feature is disabled', function () {
 
     Notification::assertNothingSent();
 });
+
+test('an old overdue task gets no overdue reminder but stays in the daily digest', function () {
+    config(['tasks.notifications.daily_digest_enabled' => true]);
+    $this->org->update(['timezone' => 'UTC']);
+    Notification::fake();
+
+    $old = Task::factory()->create([
+        'organization_id' => $this->org->id,
+        'created_by' => $this->user->id,
+        'status' => TaskStatus::Pending,
+        'due_at' => '2026-02-10 09:00:00',
+    ]);
+
+    Artisan::call('tasks:send-reminders', ['--all' => true]);
+    Artisan::call('tasks:send-digest', ['--all' => true]);
+
+    Notification::assertNotSentTo($this->user, TaskOverdueNotification::class);
+    Notification::assertSentTo($this->user, TaskDailyDigestNotification::class, fn (TaskDailyDigestNotification $notification): bool => $notification->overdueTasks->contains(fn (Task $task): bool => $task->is($old)));
+});
