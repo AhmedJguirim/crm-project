@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Invoices\Pages;
 
+use App\Filament\Actions\ExportInvoicesAction;
 use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use Filament\Actions\CreateAction;
@@ -17,6 +18,7 @@ class ListInvoices extends ListRecords
     {
         return [
             CreateAction::make(),
+            ExportInvoicesAction::forList(),
         ];
     }
 }

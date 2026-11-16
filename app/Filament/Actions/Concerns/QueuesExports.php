@@ -43,8 +43,9 @@ trait QueuesExports
      * @param  string  $fileLabel  The start of the file name the user gets, e.g. `contacts`.
      * @param  class-string  $jobClass  A job using `DeliversExport`, whose constructor takes the ids, the organization id, the
      *                                  user id, the format value and the download name, in that order.
+     * @param  string|null  $downloadExtension  The extension of the download name when it is not the format's (a ZIP).
      */
-    protected static function queueExport(array $ids, ExportFormat $format, string $fileLabel, string $jobClass): void
+    protected static function queueExport(array $ids, ExportFormat $format, string $fileLabel, string $jobClass, ?string $downloadExtension = null): void
     {
         if ($ids === []) {
             Notification::make()->warning()->title('Nothing to export.')->send();
@@ -72,7 +73,7 @@ trait QueuesExports
             $organization->getKey(),
             auth()->id(),
             $format->value,
-            "{$fileLabel}-{$organization->localNow()->format('Y-m-d')}.{$format->value}",
+            "{$fileLabel}-{$organization->localNow()->format('Y-m-d')}.".($downloadExtension ?? $format->value),
         )->holdingSlot(ImportExportLimits::EXPORTS, $slot);
 
         Notification::make()

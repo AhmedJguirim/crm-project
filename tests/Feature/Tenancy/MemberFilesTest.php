@@ -226,3 +226,23 @@ test('the name patterns accept the names written by the paths and nothing around
         ->and(preg_match(UserFiles::FAILED_ROWS_NAME_PATTERN, $failed."\n"))->toBe(0)
         ->and(preg_match(UserFiles::FAILED_ROWS_NAME_PATTERN, $export))->toBe(0);
 });
+
+test('leaving deletes the leaver\'s invoices ZIP there and keeps another member\'s ZIP and the leaver\'s ZIP elsewhere', function () {
+    $annZip = ($this->put)(UserFiles::exportPath('invoices', $this->acme->id, $this->ann->id, 'zip'));
+    $annElsewhere = ($this->put)(UserFiles::exportPath('invoices', $this->ann->personalOrganization()->id, $this->ann->id, 'zip'));
+    $bobZip = ($this->put)(UserFiles::exportPath('invoices', $this->acme->id, $this->bob->id, 'zip'));
+
+    $this->actingAs($this->ann);
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+    Filament::setTenant($this->acme);
+
+    Livewire::test(Topbar::class)
+        ->call('mountAction', 'leaveOrganization')
+        ->set('mountedActions.0.data.confirmation', 'Acme')
+        ->call('callMountedAction')
+        ->assertHasNoErrors();
+
+    expect(Storage::disk('local')->exists($annZip))->toBeFalse()
+        ->and(Storage::disk('local')->exists($annElsewhere))->toBeTrue()
+        ->and(Storage::disk('local')->exists($bobZip))->toBeTrue();
+});

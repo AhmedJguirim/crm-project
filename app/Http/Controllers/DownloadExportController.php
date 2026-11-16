@@ -7,6 +7,7 @@ use App\Models\Activity;
 use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Deal;
+use App\Models\Invoice;
 use App\Models\Task;
 use App\Support\Tenancy\TenantContext;
 use App\Support\UserFiles;
@@ -36,7 +37,15 @@ class DownloadExportController extends Controller
         'deals' => Deal::class,
         'tasks' => Task::class,
         'activities' => Activity::class,
+        'invoices' => Invoice::class,
     ];
+
+    /**
+     * The prefixes of the exports that are a ZIP; a `.zip` file with any other prefix is refused.
+     *
+     * @var array<int, string>
+     */
+    private const ZIP_PREFIXES = ['invoices'];
 
     public function __invoke(Request $request): StreamedResponse|Response
     {
@@ -50,7 +59,7 @@ class DownloadExportController extends Controller
 
         $model = self::EXPORT_MODELS[$matches[1]] ?? null;
 
-        if ($model === null) {
+        if ($model === null || ($matches[2] === 'zip' && ! in_array($matches[1], self::ZIP_PREFIXES, true))) {
             abort(404);
         }
 
@@ -69,7 +78,7 @@ class DownloadExportController extends Controller
         }
 
         return Storage::disk('local')->download($path, $name, [
-            'Content-Type' => ExportFormat::from($matches[2])->contentType(),
+            'Content-Type' => $matches[2] === 'zip' ? 'application/zip' : ExportFormat::from($matches[2])->contentType(),
         ]);
     }
 

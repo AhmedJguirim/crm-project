@@ -11,7 +11,7 @@ use Illuminate\Support\Str;
  */
 final class UserFiles
 {
-    public const EXPORT_NAME_PATTERN = '/^([a-z]+)-o[1-9][0-9]*-u[1-9][0-9]*-[A-Za-z0-9]{40}\.(xlsx|csv)\z/';
+    public const EXPORT_NAME_PATTERN = '/^([a-z]+)-o[1-9][0-9]*-u[1-9][0-9]*-[A-Za-z0-9]{40}\.(xlsx|csv|zip)\z/';
 
     public const FAILED_ROWS_NAME_PATTERN = '/^failed-o[1-9][0-9]*-u[1-9][0-9]*-[A-Za-z0-9]{40}\.csv\z/';
 
@@ -59,7 +59,7 @@ final class UserFiles
         $ids = $organizationPart.'-'.$userPart.'-[A-Za-z0-9]{40}';
 
         $patterns = [
-            'exports' => '/^[a-z]+-'.$ids.'\.(?:xlsx|csv)\z/',
+            'exports' => '/^[a-z]+-'.$ids.'\.(?:xlsx|csv|zip)\z/',
             'contact-imports' => '/^failed-'.$ids.'\.csv\z/',
         ];
 

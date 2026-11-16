@@ -25,6 +25,23 @@ class ExportFileWriter
     {
         $writer = SimpleExcelWriter::create($path)->noHeaderRow();
 
+        $count = self::writeSheet($writer, $headers, $chunks, $rowOf);
+
+        $writer->close();
+
+        return $count;
+    }
+
+    /**
+     * Writes the bold header row and the records into the current sheet of an open writer, without closing it.
+     *
+     * @param  array<int, string>  $headers  Final: the caller applied {@see ExportCells::headers()}.
+     * @param  iterable<int, iterable<int, mixed>>  $chunks  The records, a chunk at a time.
+     * @param  Closure(mixed): array<int, string|int|float>  $rowOf  The final cells of a record: the caller applied {@see ExportCells::row()}.
+     * @return int The number of records written.
+     */
+    public static function writeSheet(SimpleExcelWriter $writer, array $headers, iterable $chunks, Closure $rowOf): int
+    {
         $headerStyle = (new Style)->setFontBold();
 
         $writer->addRow(new Row(array_map(
@@ -43,8 +60,6 @@ class ExportFileWriter
                 $count++;
             }
         }
-
-        $writer->close();
 
         return $count;
     }

@@ -25,7 +25,7 @@ use Throwable;
  * "Export failed" one. The signed link carries the user and the organization, so the download can check that the user
  * may still export from that organization. The job using it must have the `$organizationId`, `$userId`, `$format` (a value of
  * {@see ExportFormat}) and `$downloadName` properties, call `prepareExportQueue()` in its constructor and implement
- * the three hooks below.
+ * the three hooks below (`exportFileExtension()` is an optional fourth).
  *
  * The export holds one slot of {@see ImportExportLimits} from the moment it is queued until it ends.
  */
@@ -59,6 +59,15 @@ trait DeliversExport
      */
     abstract protected function writeExport(string $temporaryPath, ExportFormat $format): int;
 
+    /**
+     * The extension of the stored file: the format, unless the export of that format is another kind of file (the
+     * invoices CSV export is a ZIP).
+     */
+    protected function exportFileExtension(ExportFormat $format): string
+    {
+        return $format->value;
+    }
+
     protected function prepareExportQueue(): void
     {
         $this->onQueue('imports');
@@ -75,12 +84,13 @@ trait DeliversExport
     {
         $format = ExportFormat::from($this->format);
         $prefix = $this->exportFilePrefix();
-        $temporaryPath = TemporaryFile::reserve("{$prefix}-export-", $format->value);
+        $extension = $this->exportFileExtension($format);
+        $temporaryPath = TemporaryFile::reserve("{$prefix}-export-", $extension);
 
         try {
             $count = $this->writeExport($temporaryPath, $format);
 
-            $path = UserFiles::exportPath($prefix, $this->organizationId, $this->userId, $format->value);
+            $path = UserFiles::exportPath($prefix, $this->organizationId, $this->userId, $extension);
 
             $stream = fopen($temporaryPath, 'rb');
             Storage::disk('local')->put($path, $stream);

@@ -7,6 +7,7 @@ use App\Models\Activity;
 use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Deal;
+use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\Task;
 use App\Models\User;
@@ -127,7 +128,7 @@ it('only accepts the file names of exports', function (string $file) {
     'a path to another folder' => '../livewire-tmp/secret.csv',
     'too short' => 'contacts-o1-u1-short.xlsx',
     'wrong extension' => 'contacts-o1-u1-'.str_repeat('a', 40).'.pdf',
-    'wrong prefix' => 'invoices-o1-u1-'.str_repeat('a', 40).'.xlsx',
+    'wrong prefix' => 'payments-o1-u1-'.str_repeat('a', 40).'.xlsx',
     'a failed rows file' => 'failed-o1-u1-'.str_repeat('a', 40).'.csv',
     'a trailing newline' => 'contacts-o1-u1-'.str_repeat('a', 40).".csv\n",
     'old name without ids' => 'contacts-'.str_repeat('a', 40).'.xlsx',
@@ -159,7 +160,7 @@ describe('the access of the user at download time', function () {
         $this->open = fn (string $url) => $this->actingAs($this->ann->fresh())->get($url);
     });
 
-    it('lets an admin or an owner download a contacts, companies, deals, tasks or activities file', function (OrganizationRole $role, string $prefix) {
+    it('lets an admin or an owner download a contacts, companies, deals, tasks, activities or invoices file', function (OrganizationRole $role, string $prefix) {
         $this->acme->members()->updateExistingPivot($this->ann->id, ['role' => $role->value]);
         $file = ($this->stored)('xlsx', "{$prefix} bytes", $prefix);
 
@@ -167,7 +168,7 @@ describe('the access of the user at download time', function () {
 
         $response->assertOk();
         expect($response->streamedContent())->toBe("{$prefix} bytes");
-    })->with([OrganizationRole::Admin, OrganizationRole::Owner])->with(['contacts', 'companies', 'deals', 'tasks', 'activities']);
+    })->with([OrganizationRole::Admin, OrganizationRole::Owner])->with(['contacts', 'companies', 'deals', 'tasks', 'activities', 'invoices']);
 
     it('refuses a user who was demoted after asking for the export', function (OrganizationRole $role, string $prefix) {
         $file = ($this->stored)('xlsx', 'secret', $prefix);
@@ -178,7 +179,7 @@ describe('the access of the user at download time', function () {
         $this->acme->members()->updateExistingPivot($this->ann->id, ['role' => $role->value]);
 
         ($this->open)($url)->assertForbidden();
-    })->with([OrganizationRole::Member, OrganizationRole::Viewer])->with(['contacts', 'companies', 'deals', 'tasks', 'activities']);
+    })->with([OrganizationRole::Member, OrganizationRole::Viewer])->with(['contacts', 'companies', 'deals', 'tasks', 'activities', 'invoices']);
 
     it('refuses a user who was removed from the organization', function (string $prefix) {
         $file = ($this->stored)('xlsx', 'secret', $prefix);
@@ -187,7 +188,7 @@ describe('the access of the user at download time', function () {
         $this->acme->members()->detach($this->ann->id);
 
         ($this->open)($url)->assertForbidden();
-    })->with(['contacts', 'companies', 'deals', 'tasks', 'activities']);
+    })->with(['contacts', 'companies', 'deals', 'tasks', 'activities', 'invoices']);
 
     it('refuses a link signed without an organization', function () {
         $file = ($this->stored)();
@@ -251,8 +252,8 @@ describe('the access of the user at download time', function () {
 });
 
 describe('the policy checked for the prefix of the file', function () {
-    it('maps the five exports of today', function () {
-        expect(DownloadExportController::EXPORT_MODELS)->toBe(['contacts' => Contact::class, 'companies' => Company::class, 'deals' => Deal::class, 'tasks' => Task::class, 'activities' => Activity::class]);
+    it('maps the six exports of today', function () {
+        expect(DownloadExportController::EXPORT_MODELS)->toBe(['contacts' => Contact::class, 'companies' => Company::class, 'deals' => Deal::class, 'tasks' => Task::class, 'activities' => Activity::class, 'invoices' => Invoice::class]);
     });
 
     it('is told the prefix of every export job', function () {
@@ -265,7 +266,7 @@ describe('the policy checked for the prefix of the file', function () {
                 return $method->invoke((new ReflectionClass($class))->newInstanceWithoutConstructor());
             });
 
-        expect($prefixes)->toHaveCount(5)
+        expect($prefixes)->toHaveCount(6)
             ->and(array_keys(DownloadExportController::EXPORT_MODELS))->toContain(...$prefixes->all());
     });
 
@@ -289,6 +290,7 @@ describe('the policy checked for the prefix of the file', function () {
         'deals' => ['deals', Deal::class],
         'tasks' => ['tasks', Task::class],
         'activities' => ['activities', Activity::class],
+        'invoices' => ['invoices', Invoice::class],
     ]);
 
     it('refuses an existing file with a prefix that is not in the map before any access check', function (string $file) {
@@ -306,9 +308,65 @@ describe('the policy checked for the prefix of the file', function () {
 
         expect($checked)->toBe([]);
     })->with([
-        'invoices' => 'invoices-'.str_repeat('a', 40).'.xlsx',
+        'payments' => 'payments-'.str_repeat('a', 40).'.xlsx',
         'segments' => 'segments-'.str_repeat('a', 40).'.csv',
         'an upper-case prefix' => 'Contacts-'.str_repeat('a', 40).'.xlsx',
         'a failed rows file' => 'failed-'.str_repeat('a', 40).'.csv',
     ]);
+});
+
+describe('the invoices ZIP', function () {
+    it('downloads a zip file as application/zip', function () {
+        $file = ($this->stored)('zip', 'zip bytes', 'invoices');
+
+        $response = $this->actingAs($this->ann)->get(($this->link)(['file' => $file, 'name' => 'invoices-2026-11-16.zip']));
+
+        $response->assertOk()->assertDownload('invoices-2026-11-16.zip')->assertHeader('Content-Type', 'application/zip');
+        expect($response->streamedContent())->toBe('zip bytes');
+    });
+
+    it('still downloads an invoices xlsx and csv under their own content type', function (string $extension, string $type) {
+        $file = ($this->stored)($extension, 'bytes', 'invoices');
+
+        $this->actingAs($this->ann)->get(($this->link)(['file' => $file]))->assertOk()->assertHeader('Content-Type', $type);
+    })->with([
+        'xlsx' => ['xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        'csv' => ['csv', 'text/csv; charset=utf-8'],
+    ]);
+
+    it('answers 404 for a zip with another prefix before any access check', function (string $prefix) {
+        $file = ($this->stored)('zip', 'secret', $prefix);
+        $checked = [];
+        Gate::before(function ($user, string $ability, array $arguments) use (&$checked) {
+            if ($ability === 'export') {
+                $checked[] = $arguments[0];
+            }
+
+            return null;
+        });
+
+        $this->actingAs($this->ann)->get(($this->link)(['file' => $file]))->assertNotFound();
+
+        expect($checked)->toBe([]);
+    })->with(['contacts', 'deals', 'companies', 'tasks', 'activities', 'segments']);
+
+    it('refuses a member who was demoted after the export was made with 403', function () {
+        $acme = User::factory()->onboardingCompleted()->withPersonalOrganization()->create()->personalOrganization();
+        $acme->members()->attach($this->ann->id, ['role' => OrganizationRole::Admin->value]);
+        $file = ($this->stored)('zip', 'secret', 'invoices');
+        $url = ($this->link)(['file' => $file, 'organization' => $acme->id]);
+
+        $this->actingAs($this->ann->fresh())->get($url)->assertOk();
+
+        $acme->members()->updateExistingPivot($this->ann->id, ['role' => OrganizationRole::Member->value]);
+
+        $this->actingAs($this->ann->fresh())->get($url)->assertForbidden();
+    });
+
+    it('refuses an unknown extension', function (string $extension) {
+        $file = 'invoices-o1-u1-'.str_repeat('a', 40).'.'.$extension;
+        Storage::disk('local')->put("exports/{$file}", 'x');
+
+        $this->actingAs($this->ann)->get(($this->link)(['file' => $file]))->assertNotFound();
+    })->with(['7z', 'zipx', 'ZIP', 'zip ']);
 });

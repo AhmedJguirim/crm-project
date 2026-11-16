@@ -175,6 +175,7 @@ describe('policies', function () {
             ->and(Gate::forUser($user)->allows('export', Deal::class))->toBe($allowed)
             ->and(Gate::forUser($user)->allows('export', Task::class))->toBe($allowed)
             ->and(Gate::forUser($user)->allows('export', Activity::class))->toBe($allowed)
+            ->and(Gate::forUser($user)->allows('export', Invoice::class))->toBe($allowed)
             ->and(Gate::forUser($user)->allows('publish', authorizationRecord(Segment::class, $this->acme)))->toBe($allowed)
             ->and(Gate::forUser($user)->allows('cancel', authorizationRecord(Invoice::class, $this->acme)))->toBe($allowed)
             ->and(Gate::forUser($user)->allows('refund', authorizationRecord(Invoice::class, $this->acme)))->toBe($allowed)

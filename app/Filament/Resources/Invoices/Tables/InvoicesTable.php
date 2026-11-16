@@ -8,6 +8,7 @@ use App\Enums\InvoicePaymentKind;
 use App\Enums\InvoiceStatus;
 use App\Enums\PaymentMethod;
 use App\Exceptions\InvoicePaymentRefused;
+use App\Filament\Actions\ExportInvoicesAction;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Filament\Resources\Deals\DealResource;
 use App\Filament\Support\Filters\OptionSelectFilter;
@@ -164,6 +165,7 @@ class InvoicesTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
+                    ExportInvoicesAction::forSelection(),
                     DeleteBulkAction::make()->authorizeIndividualRecords(),
                 ]),
             ])
