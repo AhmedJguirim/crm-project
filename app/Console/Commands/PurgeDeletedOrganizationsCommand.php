@@ -16,19 +16,40 @@ class PurgeDeletedOrganizationsCommand extends Command
 
     /**
      * Every row of the organization goes through the `organization_id` cascades, in one transaction per organization;
-     * its files and logo are deleted by `OrganizationObserver::forceDeleted()` once that transaction commits.
+     * its files and logo are deleted by `OrganizationObserver::forceDeleted()` once that transaction commits. The row
+     * is read again with a lock before the force delete (SEC-52), so an organization restored after the list was
+     * built (or after its cutoff moved) is kept and not counted.
      */
     public function handle(): int
     {
         $purged = 0;
+        $cutoff = now()->subDays(Organization::DELETION_GRACE_DAYS);
 
         Organization::onlyTrashed()
-            ->where('deleted_at', '<=', now()->subDays(Organization::DELETION_GRACE_DAYS))
+            ->where('deleted_at', '<=', $cutoff)
             ->lazyById()
-            ->each(function (Organization $organization) use (&$purged): void {
+            ->each(function (Organization $organization) use (&$purged, $cutoff): void {
                 $id = $organization->getKey();
 
-                DB::transaction(fn () => $organization->forceDelete());
+                $done = DB::transaction(function () use ($id, $cutoff): bool {
+                    $locked = Organization::onlyTrashed()
+                        ->whereKey($id)
+                        ->where('deleted_at', '<=', $cutoff)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if ($locked === null) {
+                        return false;
+                    }
+
+                    $locked->forceDelete();
+
+                    return true;
+                });
+
+                if (! $done) {
+                    return;
+                }
 
                 SecurityLog::warning('organization.purged', null, ['deleted_organization_id' => $id]);
 

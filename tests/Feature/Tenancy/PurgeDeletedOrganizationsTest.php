@@ -6,6 +6,8 @@ use App\Models\User;
 use App\Support\UserFiles;
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 
 /*
@@ -92,6 +94,56 @@ it('purges several organizations and logs each one', function () {
 
     expect(collect(securityLogEntries($log))->where('event', 'organization.purged')->pluck('context.deleted_organization_id')->sort()->values()->all())
         ->toBe(collect([$this->acme->id, $other->id])->sort()->values()->all());
+});
+
+it('keeps an organization restored after the purge built its list', function () {
+    $this->travelTo('2026-12-01 09:00:00');
+    $before = organizationRowCounts($this->acme, $this->tables);
+    $log = fakeSecurityLog();
+    $restored = false;
+
+    DB::listen(function (QueryExecuted $query) use (&$restored): void {
+        if ($restored || ! str_contains($query->sql, 'from "organizations"') || ! str_contains($query->sql, 'deleted_at')) {
+            return;
+        }
+
+        $restored = true;
+        DB::table('organizations')->where('id', $this->acme->id)->update(['deleted_at' => null]);
+    });
+
+    $this->artisan('organizations:purge')->expectsOutputToContain('Purged 0 organizations.')->assertSuccessful();
+
+    $fresh = Organization::query()->find($this->acme->id);
+
+    expect($restored)->toBeTrue()
+        ->and($fresh)->not->toBeNull()
+        ->and($fresh->deleted_at)->toBeNull()
+        ->and(organizationRowCounts($this->acme, $this->tables))->toBe($before)
+        ->and(Storage::disk('local')->exists('organization-logos/acme.png'))->toBeTrue()
+        ->and(collect(securityLogEntries($log))->where('event', 'organization.purged'))->toBeEmpty();
+});
+
+it('keeps an organization restored and deleted again after the purge built its list', function () {
+    $this->travelTo('2026-12-01 09:00:00');
+    $before = organizationRowCounts($this->acme, $this->tables);
+    $log = fakeSecurityLog();
+    $moved = false;
+
+    DB::listen(function (QueryExecuted $query) use (&$moved): void {
+        if ($moved || ! str_contains($query->sql, 'from "organizations"') || ! str_contains($query->sql, 'deleted_at')) {
+            return;
+        }
+
+        $moved = true;
+        DB::table('organizations')->where('id', $this->acme->id)->update(['deleted_at' => now()]);
+    });
+
+    $this->artisan('organizations:purge')->expectsOutputToContain('Purged 0 organizations.')->assertSuccessful();
+
+    expect($moved)->toBeTrue()
+        ->and(Organization::onlyTrashed()->whereKey($this->acme->id)->exists())->toBeTrue()
+        ->and(organizationRowCounts($this->acme, $this->tables))->toBe($before)
+        ->and(collect(securityLogEntries($log))->where('event', 'organization.purged'))->toBeEmpty();
 });
 
 it('is scheduled daily at 03:25 without overlapping', function () {
