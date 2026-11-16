@@ -1,10 +1,12 @@
 <?php
 
+use App\Http\Middleware\LimitTemporaryUploadFiles;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Features\SupportFileUploads\GenerateSignedUploadUrl;
 
@@ -140,3 +142,57 @@ it('words the refusal in whole minutes from the retry-after header', function (i
     'two minutes rounded up' => [61, 'Too many uploads in a short time. Please try again in 2 minutes.'],
     'an hour' => [3600, 'Too many uploads in a short time. Please try again in 60 minutes.'],
 ]);
+
+it('refuses a post carrying more than one file with a message on the field and writes nothing', function (array $keys) {
+    $user = User::factory()->create(['email' => 'ana@example.com']);
+    $url = (new GenerateSignedUploadUrl)->forLocal();
+
+    $payload = match ($keys) {
+        ['files', 'files'] => ['files' => [UploadedFile::fake()->create('a.png', 10), UploadedFile::fake()->create('b.png', 10)]],
+        ['files', 'other'] => ['files' => [UploadedFile::fake()->create('a.png', 10)], 'other' => [UploadedFile::fake()->create('b.png', 10)]],
+        default => ['files' => [[UploadedFile::fake()->create('a.png', 10), UploadedFile::fake()->create('b.png', 10)]]],
+    };
+
+    $response = $this->actingAs($user)->post($url, $payload, ['Accept' => 'application/json'])->assertStatus(422);
+
+    expect($response->json('message'))->toBe('Upload one file at a time.')
+        ->and($response->json('errors')['files.0'])->toBe(['Upload one file at a time.'])
+        ->and(($this->uploadedFiles)())->toBeEmpty();
+})->with([
+    'two files under files' => [['files', 'files']],
+    'one under files and one under another key' => [['files', 'other']],
+    'two files nested one level deeper' => [['nested']],
+]);
+
+it('spends the budget on a refused multi-file post', function () {
+    $user = User::factory()->create(['email' => 'ana@example.com']);
+    $url = (new GenerateSignedUploadUrl)->forLocal();
+
+    foreach (range(1, 10) as $ignored) {
+        $this->actingAs($user)
+            ->post($url, ['files' => [UploadedFile::fake()->create('a.png', 10), UploadedFile::fake()->create('b.png', 10)]], ['Accept' => 'application/json'])
+            ->assertStatus(422)
+            ->assertJsonPath('message', 'Upload one file at a time.');
+    }
+
+    $response = ($this->postUpload)($user)->assertStatus(422);
+
+    expect($response->json('message'))->toBe(($this->uploadMessage)(1))
+        ->and(($this->uploadedFiles)())->toBeEmpty();
+});
+
+it('refuses a guest posting several files at the sign-in step and writes nothing', function () {
+    $url = (new GenerateSignedUploadUrl)->forLocal();
+
+    $this->post($url, ['files' => [UploadedFile::fake()->create('a.png', 10), UploadedFile::fake()->create('b.png', 10)]], ['Accept' => 'application/json'])
+        ->assertUnauthorized();
+
+    expect(($this->uploadedFiles)())->toBeEmpty();
+});
+
+it('runs the one-file guard after sign-in and the throttle on the upload route', function () {
+    $middleware = Route::getRoutes()->getByName('livewire.upload-file')->gatherMiddleware();
+
+    expect(array_values(array_filter($middleware, fn ($class): bool => is_string($class) && ! in_array($class, ['web']))))
+        ->toBe(['auth', 'throttle:livewire-uploads', LimitTemporaryUploadFiles::class]);
+});
