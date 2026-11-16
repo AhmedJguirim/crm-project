@@ -1,7 +1,15 @@
 <?php
 
+use App\Models\Activity;
+use App\Models\Company;
+use App\Models\Contact;
+use App\Models\Deal;
+use App\Models\Invoice;
+use App\Models\InvoicePayment;
 use App\Models\Organization;
 use App\Models\PipelineStage;
+use App\Models\Segment;
+use App\Models\Task;
 use App\Services\Deals\DefaultPipeline;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Events\QueryExecuted;
@@ -160,4 +168,37 @@ function fakeSecurityLog(): TestHandler
 function securityLogEntries(TestHandler $log): array
 {
     return array_map(fn (LogRecord $record): array => ['event' => $record->message, 'level' => $record->level->toPsrLogLevel(), 'context' => $record->context], $log->getRecords());
+}
+
+/**
+ * Create one row of every kind an organization owns (contact, company, deal, invoice with a payment, task, activity,
+ * published segment) and return the tables they are in, for the organization-deletion tests (SEC-51).
+ *
+ * @return list<string>
+ */
+function seedOrganizationRows(Organization $organization): array
+{
+    $contact = Contact::factory()->create(['organization_id' => $organization->id, 'name' => 'Ada Lovelace']);
+    Company::factory()->create(['organization_id' => $organization->id]);
+    $deal = Deal::factory()->inStage('Won')->create(['organization_id' => $organization->id, 'contact_id' => $contact->id]);
+    $invoice = Invoice::factory()->create(['organization_id' => $organization->id, 'contact_id' => $contact->id, 'deal_id' => $deal->id]);
+    InvoicePayment::factory()->create(['invoice_id' => $invoice->id]);
+    Task::factory()->create(['organization_id' => $organization->id, 'contact_id' => $contact->id]);
+    Activity::factory()->create(['organization_id' => $organization->id, 'contact_id' => $contact->id]);
+    Segment::factory()->published()->create(['organization_id' => $organization->id]);
+
+    return ['contacts', 'companies', 'deals', 'invoices', 'invoice_payments', 'tasks', 'contact_activities', 'segments', 'pipelines', 'pipeline_stages', 'organization_user'];
+}
+
+/**
+ * How many rows of each of those tables belong to the organization.
+ *
+ * @param  list<string>  $tables
+ * @return array<string, int>
+ */
+function organizationRowCounts(Organization $organization, array $tables): array
+{
+    return collect($tables)->mapWithKeys(fn (string $table): array => [
+        $table => DB::table($table)->where('organization_id', $organization->id)->count(),
+    ])->all();
 }

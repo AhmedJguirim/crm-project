@@ -151,7 +151,7 @@ test('another organization keeps its own won and lost stage', function () {
 });
 
 test('deleting an organization deletes its pipelines and stages', function () {
-    $this->acme->delete();
+    $this->acme->forceDelete();
 
     expect(Pipeline::forOrganization($this->acme->id)->count())->toBe(0)
         ->and(PipelineStage::forOrganization($this->acme->id)->count())->toBe(0)

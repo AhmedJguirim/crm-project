@@ -230,7 +230,7 @@ test('deleting an organization deletes its deals and its pipeline', function () 
     $organization = User::factory()->onboardingCompleted()->withPersonalOrganization()->create()->personalOrganization();
     $deal = Deal::factory()->inStage('Won')->create(['organization_id' => $organization->id]);
 
-    $organization->delete();
+    $organization->forceDelete();
 
     expect(Deal::query()->withoutGlobalScope('organization')->whereKey($deal->id)->exists())->toBeFalse()
         ->and(Pipeline::query()->withoutGlobalScope('organization')->where('organization_id', $organization->id)->exists())->toBeFalse()

@@ -56,7 +56,7 @@ There are no analytics, advertising or third-party cookies. The dark-mode choice
 ## How long we keep it
 
 - Account data is kept while your account exists. When you delete your account in Settings, it is permanently deleted.
-- The data of an organization is deleted with the organization.
+- When its owner deletes an organization, its data is kept for 30 days and then permanently deleted, with its stored files.
 - Sessions expire after a period of inactivity.
 - Backups are kept for [OWNER: backup retention].
 

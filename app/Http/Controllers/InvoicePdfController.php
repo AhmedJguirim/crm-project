@@ -14,7 +14,7 @@ class InvoicePdfController
         $invoice = Invoice::withoutGlobalScope('organization')->findOrFail($invoice);
 
         abort_unless(
-            $invoice->organization->hasMember(auth()->user()),
+            $invoice->organization?->hasMember(auth()->user()) === true,
             403,
         );
 

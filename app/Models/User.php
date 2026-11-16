@@ -103,13 +103,16 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
 
     /**
      * The role of the user in an organization, or null when the user is not a member. All the roles of the user are read
-     * with the first call and kept on the instance, as the policies ask once per table row.
+     * with the first call and kept on the instance, as the policies ask once per table row. Memberships of deleted
+     * organizations give no role.
      */
     public function roleIn(int $organizationId): ?OrganizationRole
     {
         $this->organizationRoles ??= DB::table('organization_user')
-            ->where('user_id', $this->getKey())
-            ->pluck('role', 'organization_id')
+            ->join('organizations', 'organizations.id', '=', 'organization_user.organization_id')
+            ->whereNull('organizations.deleted_at')
+            ->where('organization_user.user_id', $this->getKey())
+            ->pluck('organization_user.role', 'organization_user.organization_id')
             ->all();
 
         $role = $this->organizationRoles[$organizationId] ?? null;

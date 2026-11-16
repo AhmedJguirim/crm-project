@@ -166,7 +166,7 @@ class SyncSegmentMembership implements ShouldBeUniqueUntilProcessing, ShouldQueu
     {
         $user = $this->notifyUserId ? User::find($this->notifyUserId) : null;
 
-        if (! $user) {
+        if (! $user || $segment->organization === null) {
             return;
         }
 

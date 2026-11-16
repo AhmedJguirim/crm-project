@@ -81,11 +81,13 @@ final class InvitationLimits
     }
 
     /**
-     * Whether the user already created the most organizations they may.
+     * Whether the user already created the most organizations they may. Organizations in their deletion grace period
+     * still count, so creating and deleting organizations does not get round the cap.
      */
     public static function organizationLimitReached(User $user): bool
     {
         return Organization::query()
+            ->withTrashed()
             ->where('created_by', $user->id)
             ->where('personal_team', false)
             ->count() >= self::ORGANIZATIONS_PER_USER;

@@ -16,12 +16,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 #[ObservedBy([OrganizationObserver::class])]
 class Organization extends Model
 {
     /** @use HasFactory<OrganizationFactory> */
     use HasFactory;
+
+    use SoftDeletes;
+
+    /** Days a deleted organization is kept before `organizations:purge` removes it for good. */
+    public const int DELETION_GRACE_DAYS = 30;
 
     protected $fillable = [
         'name',

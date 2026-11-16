@@ -75,7 +75,7 @@ class DeleteUserAccount
             }
 
             foreach ($toDelete as $organization) {
-                $organization->delete();
+                $organization->forceDelete();
             }
 
             $user->notifications()->delete();

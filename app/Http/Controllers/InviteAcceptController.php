@@ -137,7 +137,7 @@ class InviteAcceptController extends Controller
             return $this->redirectWithError('This invitation has already been accepted.');
         }
 
-        if ($invite->status === InviteStatus::Revoked) {
+        if ($invite->status === InviteStatus::Revoked || $invite->organization === null) {
             return $this->redirectWithError('This invitation has been revoked. Please contact the organization admin for a new invite.');
         }
 

@@ -32,6 +32,9 @@ Schedule::command('queue:prune-batches --hours=48 --unfinished=168 --cancelled=1
 Schedule::command('auth:clear-resets')->dailyAt('03:15');
 Schedule::command('records:prune')->dailyAt('03:20')->withoutOverlapping();
 
+// Removes for good the organizations their owner deleted more than 30 days ago, with their files and logo.
+Schedule::command('organizations:purge')->dailyAt('03:25')->withoutOverlapping();
+
 Schedule::command('horizon:snapshot')->everyFiveMinutes();
 
 // Mails the app owner when yesterday's security log shows too many failed sign-ins or any lockout (toggle checked in the command).

@@ -30,7 +30,15 @@ final class UserFiles
      */
     public static function deleteForMember(int $userId, int $organizationId): int
     {
-        return self::deleteMatching('o'.$organizationId, $userId);
+        return self::deleteMatching('o'.$organizationId, 'u'.$userId);
+    }
+
+    /**
+     * Deletes the files every user has in one organization and returns how many were deleted.
+     */
+    public static function deleteForOrganization(int $organizationId): int
+    {
+        return self::deleteMatching('o'.$organizationId, 'u[1-9][0-9]*');
     }
 
     /**
@@ -38,13 +46,17 @@ final class UserFiles
      */
     public static function deleteForUser(int $userId): int
     {
-        return self::deleteMatching('o[1-9][0-9]*', $userId);
+        return self::deleteMatching('o[1-9][0-9]*', 'u'.$userId);
     }
 
-    private static function deleteMatching(string $organizationPart, int $userId): int
+    /**
+     * @param  string  $organizationPart  `o<id>` or a pattern for any organization
+     * @param  string  $userPart  `u<id>` or a pattern for any user
+     */
+    private static function deleteMatching(string $organizationPart, string $userPart): int
     {
         $disk = Storage::disk('local');
-        $ids = $organizationPart.'-u'.$userId.'-[A-Za-z0-9]{40}';
+        $ids = $organizationPart.'-'.$userPart.'-[A-Za-z0-9]{40}';
 
         $patterns = [
             'exports' => '/^[a-z]+-'.$ids.'\.(?:xlsx|csv)\z/',
