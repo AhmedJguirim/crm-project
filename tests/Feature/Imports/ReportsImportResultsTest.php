@@ -21,6 +21,8 @@ beforeEach(function () {
 
         public int $userId = 7;
 
+        public int $organizationId = 3;
+
         public function call(string $method, mixed ...$arguments): mixed
         {
             return $this->{$method}(...$arguments);
@@ -61,7 +63,7 @@ it('writes the failed rows in the delimiter of the source file, with the row num
 
     $lines = preg_split('/\R/', trim(Storage::disk('local')->get($path)));
 
-    expect($path)->toStartWith('contact-imports/failed-')
+    expect($path)->toStartWith('contact-imports/failed-o3-u7-')
         ->and($lines[0])->toEndWith('_row_number;_error;name;revenue')
         ->and($lines[1])->toBe('3;"Bad revenue";Ann;25,5');
 });
@@ -81,6 +83,7 @@ it('offers a signed link to the failed rows file for the user who started the im
     expect($action->getLabel())->toBe('Download failed rows')
         ->and($url)->toContain('signature=')
         ->and($url)->toContain('file=failed-abc.csv')
+        ->and($url)->toContain('organization=3')
         ->and($url)->toContain('user=7');
 });
 

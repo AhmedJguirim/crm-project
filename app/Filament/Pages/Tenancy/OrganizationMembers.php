@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Support\NotificationText;
 use App\Support\Tenancy\CurrentOrganization;
 use App\Support\Tenancy\InvitationLimits;
+use App\Support\UserFiles;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -139,6 +140,8 @@ class OrganizationMembers extends Page implements HasTable
                             $organization->deleteInvitesFor($record->user);
                             $organization->members()->detach($record->user_id);
                         });
+
+                        UserFiles::deleteForMember($record->user_id, $organization->id);
 
                         Notification::make()
                             ->success()

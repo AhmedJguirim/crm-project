@@ -6,6 +6,7 @@ use App\Enums\OrganizationRole;
 use App\Models\Organization;
 use App\Models\User;
 use App\Support\Security\SecurityLog;
+use App\Support\UserFiles;
 use Closure;
 use Illuminate\Support\Facades\DB;
 
@@ -86,7 +87,11 @@ class DeleteUserAccount
 
             $signOut();
 
+            $userId = $user->id;
+
             $user->delete();
+
+            DB::afterCommit(fn () => UserFiles::deleteForUser($userId));
 
             return null;
         });

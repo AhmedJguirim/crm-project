@@ -74,6 +74,19 @@ it('respects the 7-day boundary for failed-rows files', function (string $direct
     'company-imports 7 days 1 second' => ['company-imports', 7 * 86400 + 1, false],
 ]);
 
+it('respects the 7-day boundary for failed-rows files named with their organization and user', function (int $seconds, bool $exists) {
+    $file = 'contact-imports/failed-o3-u7-'.UPLOAD_NAME.'.csv';
+    ($this->uploadModifiedAgo)('local', $file, $seconds);
+
+    $this->artisan('uploads:prune')->assertSuccessful();
+
+    expect(Storage::disk('local')->exists($file))->toBe($exists);
+})->with([
+    '2 days' => [2 * 86400, true],
+    'exactly 7 days' => [7 * 86400, true],
+    '7 days 1 second' => [7 * 86400 + 1, false],
+]);
+
 it('counts an old failed-rows file and an abandoned upload together', function () {
     ($this->uploadModifiedAgo)('local', 'contact-imports/failed-'.UPLOAD_NAME.'.csv', 30 * 86400);
     ($this->uploadModifiedAgo)('local', 'contact-imports/ZyXwVuTsRqPoNmLkJiHgFeDcBa9876543210ZyXw.csv', 3 * 86400);
@@ -105,6 +118,8 @@ it('prunes a file that only looks like a failed-rows file', function (string $na
     'truncated extension' => 'failed-'.UPLOAD_NAME.'.cs',
     'suffix after the extension' => 'failed-'.UPLOAD_NAME.'.csv.bak',
     'prefix before failed' => 'old-failed-'.UPLOAD_NAME.'.csv',
+    'organization id zero' => 'failed-o0-u7-'.UPLOAD_NAME.'.csv',
+    'missing user part' => 'failed-o3-'.UPLOAD_NAME.'.csv',
 ]);
 
 it('prunes a failed-rows looking name in the temporary folder, where the guard does not apply', function () {

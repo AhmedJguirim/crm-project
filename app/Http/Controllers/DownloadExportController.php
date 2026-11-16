@@ -9,6 +9,7 @@ use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Task;
 use App\Support\Tenancy\TenantContext;
+use App\Support\UserFiles;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -43,7 +44,7 @@ class DownloadExportController extends Controller
 
         $file = $request->query('file');
 
-        if (! is_string($file) || preg_match('/^([a-z]+)-[A-Za-z0-9]{40}\.(xlsx|csv)$/D', $file, $matches) !== 1) {
+        if (! is_string($file) || preg_match(UserFiles::EXPORT_NAME_PATTERN, $file, $matches) !== 1) {
             abort(404);
         }
 

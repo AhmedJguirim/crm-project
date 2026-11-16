@@ -22,7 +22,7 @@ beforeEach(function () {
     $this->bob = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
 
     $this->stored = function (string $extension = 'xlsx', string $contents = 'file contents', string $prefix = 'contacts'): string {
-        $file = "{$prefix}-".Str::random(40).".{$extension}";
+        $file = "{$prefix}-o1-u1-".Str::random(40).".{$extension}";
         Storage::disk('local')->put("exports/{$file}", $contents);
 
         return $file;
@@ -125,22 +125,23 @@ it('only accepts the file names of exports', function (string $file) {
 })->with([
     'a path' => '../.env',
     'a path to another folder' => '../livewire-tmp/secret.csv',
-    'too short' => 'contacts-short.xlsx',
-    'wrong extension' => 'contacts-'.str_repeat('a', 40).'.pdf',
-    'wrong prefix' => 'invoices-'.str_repeat('a', 40).'.xlsx',
-    'a failed rows file' => 'failed-'.str_repeat('a', 40).'.csv',
-    'a trailing newline' => 'contacts-'.str_repeat('a', 40).".csv\n",
+    'too short' => 'contacts-o1-u1-short.xlsx',
+    'wrong extension' => 'contacts-o1-u1-'.str_repeat('a', 40).'.pdf',
+    'wrong prefix' => 'invoices-o1-u1-'.str_repeat('a', 40).'.xlsx',
+    'a failed rows file' => 'failed-o1-u1-'.str_repeat('a', 40).'.csv',
+    'a trailing newline' => 'contacts-o1-u1-'.str_repeat('a', 40).".csv\n",
+    'old name without ids' => 'contacts-'.str_repeat('a', 40).'.xlsx',
 ]);
 
 it('refuses an existing file whose name is not the one of an export', function (string $file) {
     Storage::disk('local')->put("exports/{$file}", 'secret');
 
     $this->actingAs($this->ann)->get(($this->link)(['file' => $file]))->assertNotFound();
-})->with(['too short' => 'contacts-short.xlsx', 'too long' => 'contacts-'.str_repeat('a', 41).'.csv', 'other characters' => 'contacts-'.str_repeat('a', 39).'_.csv']);
+})->with(['too short' => 'contacts-o1-u1-short.xlsx', 'too long' => 'contacts-o1-u1-'.str_repeat('a', 41).'.csv', 'other characters' => 'contacts-o1-u1-'.str_repeat('a', 39).'_.csv']);
 
 it('answers 404 when the file is gone', function () {
     $this->actingAs($this->ann)
-        ->get(($this->link)(['file' => 'contacts-'.str_repeat('a', 40).'.xlsx']))
+        ->get(($this->link)(['file' => 'contacts-o1-u1-'.str_repeat('a', 40).'.xlsx']))
         ->assertNotFound();
 });
 
@@ -245,7 +246,7 @@ describe('the access of the user at download time', function () {
         $this->acme->members()->detach($this->ann->id);
 
         ($this->open)(($this->link)(['file' => '../.env', 'organization' => $this->acme->id]))->assertNotFound();
-        ($this->open)(($this->link)(['file' => 'contacts-'.str_repeat('a', 40).'.xlsx', 'organization' => $this->acme->id]))->assertForbidden();
+        ($this->open)(($this->link)(['file' => 'contacts-o1-u1-'.str_repeat('a', 40).'.xlsx', 'organization' => $this->acme->id]))->assertForbidden();
     });
 });
 

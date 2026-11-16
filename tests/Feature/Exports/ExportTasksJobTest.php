@@ -52,7 +52,7 @@ it('tells the user the export is ready with a signed download link', function ()
     expect($notification->data['title'])->toBe('Export ready')
         ->and($notification->data['body'])->toBe('3 tasks')
         ->and($notification->data['actions'][0]['label'])->toBe('Download')
-        ->and($file)->toMatch('/^tasks-[A-Za-z0-9]{40}\.xlsx$/')
+        ->and($file)->toMatch('/^tasks-o'.$this->org->id.'-u'.$this->user->id.'-[A-Za-z0-9]{40}\.xlsx$/')
         ->and($url)->toContain('signature=')
         ->and($url)->toContain('name=tasks-2026-11-10.xlsx');
 

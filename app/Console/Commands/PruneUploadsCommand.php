@@ -25,8 +25,8 @@ class PruneUploadsCommand extends Command
      */
     private const FAILED_ROWS_KEEP_DAYS = 7;
 
-    /** Failed-rows files keep the 7-day rule, not the 24-hour one. */
-    private const FAILED_ROWS_PATTERN = '/^failed-[A-Za-z0-9]{40}\.csv\z/';
+    /** Failed-rows files (also the names written before SEC-49) keep the 7-day rule, not the 24-hour one. */
+    private const FAILED_ROWS_PATTERN = '/^failed-(?:o[1-9][0-9]*-u[1-9][0-9]*-)?[A-Za-z0-9]{40}\.csv\z/';
 
     protected $signature = 'uploads:prune';
 

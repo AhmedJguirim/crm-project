@@ -5,16 +5,17 @@ namespace App\Jobs\Concerns;
 use App\Services\ContactImportService;
 use App\Support\CsvDialect;
 use App\Support\TemporaryFile;
+use App\Support\UserFiles;
 use Filament\Actions\Action;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
-use Illuminate\Support\Str;
 use Spatie\SimpleExcel\SimpleExcelWriter;
 
 /**
  * What every import job reports back to the user: the failed rows file, its signed download link and the columns that
- * were ignored. The job using it must have the `$filePath` (the uploaded file on the local disk) and `$userId`
- * (the user who started the import) properties.
+ * were ignored. The job using it must have the `$filePath` (the uploaded file on the local disk), `$userId` (the user
+ * who started the import) and `$organizationId` properties. The failed rows file name and its signed link carry the
+ * organization, so the download can check that the user may still import there.
  */
 trait ReportsImportResults
 {
@@ -74,7 +75,7 @@ trait ReportsImportResults
             ->url(URL::temporarySignedRoute(
                 'contacts.import.failed-rows',
                 now()->addDays(7),
-                ['file' => basename($failedCsvPath), 'user' => $this->userId],
+                ['file' => basename($failedCsvPath), 'organization' => $this->organizationId, 'user' => $this->userId],
             ))
             ->openUrlInNewTab();
     }
@@ -122,7 +123,7 @@ trait ReportsImportResults
 
             $writer->close();
 
-            $path = 'contact-imports/failed-'.Str::random(40).'.csv';
+            $path = UserFiles::failedRowsPath($this->organizationId, $this->userId);
 
             Storage::disk('local')->put($path, file_get_contents($tmpPath));
         } finally {

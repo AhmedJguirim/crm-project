@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Support\NotificationText;
 use App\Support\TemporaryFile;
 use App\Support\Tenancy\ImportExportLimits;
+use App\Support\UserFiles;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\Storage;
@@ -79,7 +80,7 @@ trait DeliversExport
         try {
             $count = $this->writeExport($temporaryPath, $format);
 
-            $path = "exports/{$prefix}-".Str::random(40).".{$format->value}";
+            $path = UserFiles::exportPath($prefix, $this->organizationId, $this->userId, $format->value);
 
             $stream = fopen($temporaryPath, 'rb');
             Storage::disk('local')->put($path, $stream);
@@ -91,6 +92,8 @@ trait DeliversExport
         $user = User::find($this->userId);
 
         if (! $user) {
+            Storage::disk('local')->delete($path);
+
             return;
         }
 

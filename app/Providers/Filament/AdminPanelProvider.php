@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Support\NotificationText;
 use App\Support\Security\LoggedAppAuthentication;
 use App\Support\Tenancy\CurrentOrganization;
+use App\Support\UserFiles;
 use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Filament\Forms\Components\TextInput;
@@ -93,6 +94,8 @@ class AdminPanelProvider extends PanelProvider
 
                         // Delete invite if user was invited
                         $organization->deleteInvitesFor($user);
+
+                        UserFiles::deleteForMember($user->id, $organization->id);
 
                         Notification::make()
                             ->success()
