@@ -179,8 +179,8 @@ return [
     */
 
     'custom' => [
-        'attribute-name' => [
-            'rule-name' => 'custom-message',
+        'files.*' => [
+            'mimetypes' => 'This file type is not accepted. Upload a CSV or Excel (.xlsx) file, or an image.',
         ],
     ],
 

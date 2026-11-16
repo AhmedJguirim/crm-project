@@ -3,6 +3,7 @@
 use App\Enums\ContactStatus;
 use App\Enums\ImportMode;
 use App\Enums\LeadSource;
+use App\Filament\Resources\Companies\Pages\ListCompanies;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
 use App\Jobs\ProcessContactImportJob;
 use App\Models\Contact;
@@ -152,6 +153,23 @@ test('the import limits are consistent and shown to the user', function () {
 
     expect((int) substr($livewireMaximum, 4))->toBeGreaterThan(ContactImportFileReader::MAX_UPLOAD_KILOBYTES)
         ->and(trans('validation.uploaded'))->not->toContain(':attribute');
+});
+
+test('the upload endpoint allow-list covers every accepted type of the contacts and companies import fields', function () {
+    $allowed = collect(config('livewire.temporary_file_upload.rules'))
+        ->first(fn (string $rule): bool => str_starts_with($rule, 'mimetypes:'));
+    $allowedTypes = explode(',', substr($allowed, strlen('mimetypes:')));
+
+    $assertCovered = function (string $page, string $action) use ($allowedTypes): void {
+        Livewire::test($page)
+            ->mountAction($action)
+            ->assertSchemaComponentExists('file', 'mountedActionSchema0', function (FileUpload $field) use ($allowedTypes): bool {
+                return $field->getAcceptedFileTypes() !== [] && array_diff($field->getAcceptedFileTypes(), $allowedTypes) === [];
+            });
+    };
+
+    $assertCovered(ListContacts::class, 'importContacts');
+    $assertCovered(ListCompanies::class, 'importCompanies');
 });
 
 test('an .xls upload is refused', function () {
@@ -366,15 +384,15 @@ test('bulk delete only removes selected contacts', function () {
     expect(Contact::find($toKeep->id))->not->toBeNull();
 });
 
-test('a csv with binary data is refused with a message that says so, and nothing is queued', function () {
+test('a csv with binary data is refused at upload, before the import sees it, and nothing is queued', function () {
     Storage::fake('local');
     Queue::fake();
 
     $page = Livewire::test(ListContacts::class)
-        ->callAction('importContacts', ['file' => UploadedFile::fake()->createWithContent('nul.csv', "name,email\nAnn Lee,ann\0@x.test\n")->mimeType('application/octet-stream')])
-        ->assertHasActionErrors(['file']);
+        ->mountAction('importContacts')
+        ->set('mountedActions.0.data.file', UploadedFile::fake()->createWithContent('nul.csv', "name,email\nAnn Lee,ann\0@x.test\n")->mimeType('application/octet-stream'));
 
-    expect(collect($page->errors()->all())->first())->toBe('This file contains invalid characters (binary data). Re-save it as CSV UTF-8 or .xlsx.');
+    expect($page->errors()->get('mountedActions.0.data.file'))->toBe(['This file type is not accepted. Upload a CSV or Excel (.xlsx) file, or an image.']);
     Queue::assertNotPushed(ProcessContactImportJob::class);
 });
 
@@ -399,14 +417,14 @@ test('a normal csv, an Excel-typed csv and an xlsx are still accepted', function
     Queue::assertPushed(ProcessContactImportJob::class, 3);
 });
 
-test('a pdf keeps the file type message', function () {
+test('a pdf is refused at upload with the file type message', function () {
     Storage::fake('local');
     Queue::fake();
 
     $page = Livewire::test(ListContacts::class)
-        ->callAction('importContacts', ['file' => UploadedFile::fake()->create('c.pdf', 10, 'application/pdf')])
-        ->assertHasActionErrors(['file']);
+        ->mountAction('importContacts')
+        ->set('mountedActions.0.data.file', UploadedFile::fake()->create('c.pdf', 10, 'application/pdf'));
 
-    expect(collect($page->errors()->all())->first())->toStartWith('The file field must be a file of type:');
+    expect($page->errors()->get('mountedActions.0.data.file'))->toBe(['This file type is not accepted. Upload a CSV or Excel (.xlsx) file, or an image.']);
     Queue::assertNotPushed(ProcessContactImportJob::class);
 });

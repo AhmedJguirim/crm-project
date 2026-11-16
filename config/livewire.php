@@ -133,8 +133,9 @@ return [
     'temporary_file_upload' => [
         'disk' => env('LIVEWIRE_TEMPORARY_FILE_UPLOAD_DISK'), // Example: 'local', 's3'             | Default: 'default'
         // Keep the maximum above every FileUpload::maxSize() in the app (the contacts import allows 10 MB, see
-        // ContactImportFileReader::MAX_UPLOAD_KILOBYTES) and below PHP's upload_max_filesize.
-        'rules' => ['required', 'file', 'max:12288'],         // 12 MB
+        // ContactImportFileReader::MAX_UPLOAD_KILOBYTES) and below PHP's upload_max_filesize. SEC-54: the types are the
+        // union of every FileUpload::acceptedFileTypes() in the app (imports: spreadsheets, logos: image/*); add a new field's types here.
+        'rules' => ['required', 'file', 'max:12288', 'mimetypes:text/csv,application/csv,text/plain,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,image/*'], // 12 MB
         'directory' => null,                                  // Example: 'tmp'                     | Default: 'livewire-tmp'
         'middleware' => ['auth', 'throttle:livewire-uploads', LimitTemporaryUploadFiles::class], // SEC-36: signed-in users only, per-user budget in AppServiceProvider::configureUploadRateLimiting(); SEC-53: one file per request
         'preview_mimes' => [                                  // Supported file types for temporary pre-signed file URLs...

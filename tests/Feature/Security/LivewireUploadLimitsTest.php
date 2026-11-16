@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Features\SupportFileUploads\GenerateSignedUploadUrl;
+use Spatie\SimpleExcel\SimpleExcelWriter;
 
 beforeEach(function () {
     Storage::fake('tmp-for-tests');
@@ -21,6 +22,18 @@ beforeEach(function () {
 
         return $request->post($url, ['files' => [UploadedFile::fake()->create($name, 10)]], ['Accept' => 'application/json']);
     };
+
+    $this->typeMessage = 'This file type is not accepted. Upload a CSV or Excel (.xlsx) file, or an image.';
+
+    $this->realFile = function (string $clientName, string $content): UploadedFile {
+        $path = tempnam(sys_get_temp_dir(), 'sec54');
+        file_put_contents($path, $content);
+
+        return new UploadedFile($path, $clientName, null, null, true);
+    };
+
+    $this->postFile = fn (User $user, UploadedFile $file) => $this->actingAs($user)
+        ->post((new GenerateSignedUploadUrl)->forLocal(), ['files' => [$file]], ['Accept' => 'application/json']);
 
     $this->uploadedFiles = fn (): array => Storage::disk('tmp-for-tests')->allFiles('livewire-tmp');
 });
@@ -195,4 +208,80 @@ it('runs the one-file guard after sign-in and the throttle on the upload route',
 
     expect(array_values(array_filter($middleware, fn ($class): bool => is_string($class) && ! in_array($class, ['web']))))
         ->toBe(['auth', 'throttle:livewire-uploads', LimitTemporaryUploadFiles::class]);
+});
+
+it('stores a file of an accepted type', function (string $name, string $content) {
+    $user = User::factory()->create(['email' => 'ana@example.com']);
+
+    ($this->postFile)($user, ($this->realFile)($name, $content))->assertOk()->assertJsonCount(1, 'paths');
+
+    expect(($this->uploadedFiles)())->toHaveCount(2);
+})->with([
+    'a semicolon csv, sniffed as text/plain' => ['contacts.csv', "email;name\nana@example.com;Ana\n"],
+    'a csv with a utf-8 bom' => ['contacts.csv', "\xEF\xBB\xBFemail;prénom\nana@example.com;Zoé\n"],
+    'a comma csv, sniffed as text/csv' => ['contacts.csv', "email,first_name,last_name\na@example.com,Ana,Lopez\n"],
+    'a windows-1252 csv' => ['contacts.csv', mb_convert_encoding("email;prénom\nana@example.com;Zoé\n", 'Windows-1252', 'UTF-8')],
+]);
+
+it('stores a real xlsx written by the import template writer', function () {
+    $user = User::factory()->create(['email' => 'ana@example.com']);
+    $path = tempnam(sys_get_temp_dir(), 'sec54').'.xlsx';
+    SimpleExcelWriter::create($path)->addRow(['email' => 'ana@example.com', 'name' => 'Ana'])->close();
+
+    ($this->postFile)($user, new UploadedFile($path, 'contacts.xlsx', null, null, true))->assertOk()->assertJsonCount(1, 'paths');
+
+    expect(($this->uploadedFiles)())->toHaveCount(2);
+});
+
+it('stores a real png logo', function () {
+    $user = User::factory()->create(['email' => 'ana@example.com']);
+    $image = imagecreatetruecolor(2, 2);
+    ob_start();
+    imagepng($image);
+    $png = (string) ob_get_clean();
+
+    ($this->postFile)($user, ($this->realFile)('logo.png', $png))->assertOk()->assertJsonCount(1, 'paths');
+
+    expect(($this->uploadedFiles)())->toHaveCount(2);
+});
+
+it('refuses a php file named logo.png before writing it', function () {
+    $user = User::factory()->create(['email' => 'ana@example.com']);
+
+    $response = ($this->postFile)($user, ($this->realFile)('logo.png', '<?php echo 1;'))->assertStatus(422);
+
+    expect($response->json('errors')['files.0'])->toBe([$this->typeMessage])
+        ->and(($this->uploadedFiles)())->toBeEmpty();
+});
+
+it('refuses an html file named contacts.csv before writing it', function () {
+    $user = User::factory()->create(['email' => 'ana@example.com']);
+
+    $response = ($this->postFile)($user, ($this->realFile)('contacts.csv', '<html><body>x</body></html>'))->assertStatus(422);
+
+    expect($response->json('errors')['files.0'])->toBe([$this->typeMessage])
+        ->and(($this->uploadedFiles)())->toBeEmpty();
+});
+
+it('refuses a pdf and an unknown binary before writing them', function (UploadedFile $file) {
+    $user = User::factory()->create(['email' => 'ana@example.com']);
+
+    $response = ($this->postFile)($user, $file)->assertStatus(422);
+
+    expect($response->json('errors')['files.0'])->toBe([$this->typeMessage])
+        ->and(($this->uploadedFiles)())->toBeEmpty();
+})->with([
+    'a pdf' => fn () => UploadedFile::fake()->create('report.pdf', 10, 'application/pdf'),
+    'a bin file' => fn () => UploadedFile::fake()->create('x.bin', 10),
+]);
+
+it('does not mention the word files in the type message, which livewire rewrites', function () {
+    expect(trans('validation.custom')['files.*']['mimetypes'])->not->toContain('files');
+});
+
+it('keeps the maximum size rule next to the type rule', function () {
+    $rules = config('livewire.temporary_file_upload.rules');
+
+    expect($rules)->toContain('required', 'file', 'max:12288')
+        ->and(collect($rules)->filter(fn (string $rule): bool => str_starts_with($rule, 'mimetypes:'))->count())->toBe(1);
 });

@@ -178,18 +178,18 @@ describe('reserved company field names', function () {
     });
 });
 
-it('refuses a csv with binary data with a message that says so', function () {
+it('refuses a csv with binary data at upload, before the import sees it', function () {
     ($this->actAs)(OrganizationRole::Admin);
 
     $page = Livewire::test(ListCompanies::class)
-        ->callAction('importCompanies', ['file' => UploadedFile::fake()->createWithContent('nul.csv', "name,email\nAcme,ann\0@x.test\n")->mimeType('application/octet-stream')])
-        ->assertHasActionErrors(['file']);
+        ->mountAction('importCompanies')
+        ->set('mountedActions.0.data.file', UploadedFile::fake()->createWithContent('nul.csv', "name,email\nAcme,ann\0@x.test\n")->mimeType('application/octet-stream'));
 
-    expect(collect($page->errors()->all())->first())->toBe('This file contains invalid characters (binary data). Re-save it as CSV UTF-8 or .xlsx.');
+    expect($page->errors()->get('mountedActions.0.data.file'))->toBe(['This file type is not accepted. Upload a CSV or Excel (.xlsx) file, or an image.']);
     Queue::assertNotPushed(ProcessCompanyImportJob::class);
 });
 
-it('still accepts a normal csv and an xlsx and keeps the type message for a pdf', function () {
+it('still accepts a normal csv and an xlsx and refuses a pdf at upload with the type message', function () {
     ($this->actAs)(OrganizationRole::Admin);
 
     Livewire::test(ListCompanies::class)
@@ -201,8 +201,9 @@ it('still accepts a normal csv and an xlsx and keeps the type message for a pdf'
     Queue::assertPushed(ProcessCompanyImportJob::class, 2);
 
     $page = Livewire::test(ListCompanies::class)
-        ->callAction('importCompanies', ['file' => UploadedFile::fake()->create('c.pdf', 10, 'application/pdf')])
-        ->assertHasActionErrors(['file']);
+        ->mountAction('importCompanies')
+        ->set('mountedActions.0.data.file', UploadedFile::fake()->create('c.pdf', 10, 'application/pdf'));
 
-    expect(collect($page->errors()->all())->first())->toStartWith('The file field must be a file of type:');
+    expect($page->errors()->get('mountedActions.0.data.file'))->toBe(['This file type is not accepted. Upload a CSV or Excel (.xlsx) file, or an image.']);
+    Queue::assertPushed(ProcessCompanyImportJob::class, 2);
 });
