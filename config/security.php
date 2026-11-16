@@ -24,4 +24,13 @@ return [
         'email' => env('SECURITY_OWNER_ALERTS_EMAIL'),
         'failed_logins_threshold' => (int) env('SECURITY_OWNER_ALERTS_FAILED_LOGINS', 20),
     ],
+    'disk_alert' => [
+        /*
+         * Hourly mail to the person running the app when the disk that holds storage/ has less free space than the
+         * warning or the critical level (in GB). Uses SECURITY_OWNER_ALERTS_EMAIL.
+         */
+        'enabled' => env('SECURITY_DISK_ALERT_ENABLED', true),
+        'warn_free_gb' => (float) env('SECURITY_DISK_WARN_FREE_GB', 8),
+        'critical_free_gb' => (float) env('SECURITY_DISK_CRITICAL_FREE_GB', 4),
+    ],
 ];

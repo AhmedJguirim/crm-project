@@ -35,3 +35,6 @@ Schedule::command('horizon:snapshot')->everyFiveMinutes();
 
 // Mails the app owner when yesterday's security log shows too many failed sign-ins or any lockout (toggle checked in the command).
 Schedule::command('security:alert-owner')->dailyAt('00:20')->withoutOverlapping();
+
+// Mails the app owner when the disk that holds storage/ runs low on free space (toggle and levels checked in the command).
+Schedule::command('security:check-disk')->hourlyAt(40)->withoutOverlapping();
