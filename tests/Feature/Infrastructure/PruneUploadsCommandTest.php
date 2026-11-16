@@ -60,14 +60,37 @@ it('deletes an abandoned import upload and keeps a recent one waiting in the que
         ->and(Storage::disk('local')->exists('company-imports/ZyXwVuTsRqPoNmLkJiHgFeDcBa9876543210ZyXw.csv'))->toBeTrue();
 });
 
-it('never deletes a failed-rows file, however old', function (string $directory) {
+it('respects the 7-day boundary for failed-rows files', function (string $directory, int $seconds, bool $exists) {
     $file = "{$directory}/failed-".UPLOAD_NAME.'.csv';
-    ($this->uploadModifiedAgo)('local', $file, 30 * 86400);
+    ($this->uploadModifiedAgo)('local', $file, $seconds);
 
-    $this->artisan('uploads:prune')->expectsOutputToContain('Deleted 0 upload files.')->assertSuccessful();
+    $this->artisan('uploads:prune')->assertSuccessful();
 
-    expect(Storage::disk('local')->exists($file))->toBeTrue();
-})->with(['contact-imports', 'company-imports']);
+    expect(Storage::disk('local')->exists($file))->toBe($exists);
+})->with([
+    'contact-imports 6 days' => ['contact-imports', 6 * 86400, true],
+    'contact-imports exactly 7 days' => ['contact-imports', 7 * 86400, true],
+    'contact-imports 7 days 1 second' => ['contact-imports', 7 * 86400 + 1, false],
+    'company-imports 7 days 1 second' => ['company-imports', 7 * 86400 + 1, false],
+]);
+
+it('counts an old failed-rows file and an abandoned upload together', function () {
+    ($this->uploadModifiedAgo)('local', 'contact-imports/failed-'.UPLOAD_NAME.'.csv', 30 * 86400);
+    ($this->uploadModifiedAgo)('local', 'contact-imports/ZyXwVuTsRqPoNmLkJiHgFeDcBa9876543210ZyXw.csv', 3 * 86400);
+
+    $this->artisan('uploads:prune')->expectsOutputToContain('Deleted 2 upload files.')->assertSuccessful();
+
+    expect(Storage::disk('local')->allFiles('contact-imports'))->toBe([]);
+});
+
+it('keeps a 2-day-old failed-rows file while a 2-day-old upload is deleted', function () {
+    ($this->uploadModifiedAgo)('local', 'contact-imports/failed-'.UPLOAD_NAME.'.csv', 2 * 86400);
+    ($this->uploadModifiedAgo)('local', 'contact-imports/ZyXwVuTsRqPoNmLkJiHgFeDcBa9876543210ZyXw.csv', 2 * 86400);
+
+    $this->artisan('uploads:prune')->expectsOutputToContain('Deleted 1 upload file.')->assertSuccessful();
+
+    expect(Storage::disk('local')->allFiles('contact-imports'))->toBe(['contact-imports/failed-'.UPLOAD_NAME.'.csv']);
+});
 
 it('prunes a file that only looks like a failed-rows file', function (string $name) {
     ($this->uploadModifiedAgo)('local', "contact-imports/{$name}", 30 * 86400);

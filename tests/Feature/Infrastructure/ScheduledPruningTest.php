@@ -14,14 +14,15 @@ it('schedules each nightly prune command', function (string $command, string $ex
     ['queue:prune-failed --hours=168', '15 3 * * *'],
     ['queue:prune-batches --hours=48 --unfinished=168 --cancelled=168', '15 3 * * *'],
     ['auth:clear-resets', '15 3 * * *'],
+    ['records:prune', '20 3 * * *'],
 ]);
 
-it('does not let uploads:prune overlap', function () {
+it('does not let a prune command overlap', function (string $command) {
     $event = collect(app(Schedule::class)->events())
-        ->first(fn (Event $event): bool => str_contains($event->command, 'uploads:prune'));
+        ->first(fn (Event $event): bool => str_contains($event->command, $command));
 
     expect($event->withoutOverlapping)->toBeTrue();
-});
+})->with(['uploads:prune', 'records:prune']);
 
 it('runs the framework prune commands as scheduled without error', function (string $command) {
     $this->artisan($command)->assertSuccessful();
