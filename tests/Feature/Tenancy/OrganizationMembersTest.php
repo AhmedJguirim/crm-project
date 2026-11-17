@@ -369,3 +369,71 @@ test('an admin forging the ownership transfer is refused', function () {
     expect($setup->acme->getMemberRole($olga))->toBe(OrganizationRole::Owner)
         ->and($setup->acme->getMemberRole($ann))->toBe(OrganizationRole::Admin);
 });
+
+/* BUG-84: only an admin or the owner can open the Members page. */
+
+test('a member or viewer opening the Members page is refused', function (string $who) {
+    $setup = membersPageSetup();
+    $user = $setup->people[$who] ?? null;
+
+    if ($who === 'vic') {
+        $user = User::factory()->onboardingCompleted()->withPersonalOrganization()->create(['email' => 'vic-bug84@example.com']);
+        $setup->acme->members()->attach($user->id, ['role' => OrganizationRole::Viewer->value]);
+    }
+
+    $this->actingAs($user);
+    Filament::setTenant($setup->acme);
+
+    Livewire::test(OrganizationMembers::class)->assertForbidden();
+
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+    $this->get(OrganizationMembers::getUrl(tenant: $setup->acme))->assertForbidden();
+})->with(['member' => 'bob', 'viewer' => 'vic']);
+
+test('the owner and an admin can open the Members page', function (string $who) {
+    $setup = membersPageSetup();
+
+    $this->actingAs($setup->people[$who]);
+    Filament::setTenant($setup->acme);
+
+    Livewire::test(OrganizationMembers::class)->assertOk();
+
+    Filament::setCurrentPanel(Filament::getPanel('admin'));
+
+    $this->get(OrganizationMembers::getUrl(tenant: $setup->acme))
+        ->assertOk()
+        ->assertSee('Organization Members');
+})->with(['owner' => 'olga', 'admin' => 'ann']);
+
+test('an admin demoted to member with the Members page open is refused on the next request', function () {
+    $setup = membersPageSetup();
+    ['ann' => $ann] = $setup->people;
+
+    $this->actingAs($ann);
+    Filament::setTenant($setup->acme);
+
+    $component = Livewire::test(OrganizationMembers::class)->assertOk();
+
+    $setup->acme->members()->updateExistingPivot($ann->id, ['role' => OrganizationRole::Member->value]);
+
+    $component->call('$refresh')->assertForbidden();
+
+    expect($setup->acme->members()->whereKey($ann->id)->exists())->toBeTrue();
+});
+
+test('an admin removed with the Members page open is refused on the next request', function () {
+    $setup = membersPageSetup();
+    ['ann' => $ann] = $setup->people;
+
+    $this->actingAs($ann);
+    Filament::setTenant($setup->acme);
+
+    $component = Livewire::test(OrganizationMembers::class)->assertOk();
+
+    $setup->acme->members()->detach($ann->id);
+
+    $component->call('$refresh')->assertForbidden();
+
+    expect($setup->acme->members()->whereKey($ann->id)->exists())->toBeFalse();
+});
