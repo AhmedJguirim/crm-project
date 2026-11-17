@@ -65,6 +65,10 @@ class OrganizationPolicy
 
     public function changeRole(User $user, Organization $organization, User $member): bool
     {
+        if ($member->id === $user->id) {
+            return false;
+        }
+
         if ($organization->isOwner($member)) {
             return false;
         }

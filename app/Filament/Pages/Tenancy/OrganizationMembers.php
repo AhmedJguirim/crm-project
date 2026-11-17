@@ -26,6 +26,7 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 use UnitEnum;
@@ -116,17 +117,7 @@ class OrganizationMembers extends Page implements HasTable
                             ->body(NotificationText::plain("{$record->user->name}'s role has been changed to ".OrganizationRole::from($data['role'])->label().'.'))
                             ->send();
                     })
-
-                    ->visible(function (OrganizationUser $record) use ($organization): bool {
-                        /** @var User $user */
-                        $user = auth()->user();
-
-                        if ($organization->isOwner($record->user_id)) {
-                            return false;
-                        }
-
-                        return $organization->isAdminOrOwner($user) && $record->user_id !== $user->id;
-                    }),
+                    ->authorize(fn (OrganizationUser $record): bool => Gate::allows('changeRole', [$organization, $record->user])),
 
                 Action::make('removeMember')
                     ->label('Remove')
@@ -149,21 +140,7 @@ class OrganizationMembers extends Page implements HasTable
                             ->body(NotificationText::plain("{$record->user->name} has been removed from the organization."))
                             ->send();
                     })
-
-                    ->visible(function (OrganizationUser $record) use ($organization): bool {
-                        /** @var User $user */
-                        $user = auth()->user();
-
-                        if ($record->user_id === $user->id) {
-                            return false;
-                        }
-
-                        if ($organization->isOwner($record->user_id)) {
-                            return false;
-                        }
-
-                        return $organization->isAdminOrOwner($user);
-                    }),
+                    ->authorize(fn (OrganizationUser $record): bool => Gate::allows('removeMember', [$organization, $record->user])),
             ])
             ->headerActions([
                 // ── View pending invitations in a modal ──
@@ -184,6 +161,7 @@ class OrganizationMembers extends Page implements HasTable
                     ->label('Invite Member')
                     ->icon('heroicon-o-envelope')
                     ->color('primary')
+                    ->authorize(fn (): bool => Gate::allows('manageMembers', $organization))
                     ->schema([
                         TextInput::make('email')
                             ->email()
@@ -326,13 +304,8 @@ class OrganizationMembers extends Page implements HasTable
                             ->body(NotificationText::plain("Ownership has been transferred to {$newOwner->name}."))
                             ->send();
                     })
-                    ->visible(function () use ($organization): bool {
-                        /** @var User $user */
-                        $user = auth()->user();
-
-                        return $organization->isOwner($user)
-                            && $organization->members()->count() > 1;
-                    }),
+                    ->authorize(fn (): bool => Gate::allows('transferOwnership', $organization))
+                    ->visible(fn (): bool => $organization->members()->count() > 1),
             ]);
     }
 
