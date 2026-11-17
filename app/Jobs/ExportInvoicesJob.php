@@ -18,7 +18,7 @@ use Illuminate\Support\Collection;
  * Writes the given invoices and their payments and refunds to a file (a ZIP of two CSV files, or an .xlsx with two
  * sheets) and tells the user when it is ready to download.
  *
- * It runs on the `imports` queue of the long-running connection (a Horizon supervisor listens there, with a timeout
+ * It runs on the `exports` queue of the long-running connection (a Horizon supervisor listens there, with a timeout
  * above the one of this job) and reads the invoices 500 at a time, in the order of the given ids.
  */
 class ExportInvoicesJob implements ShouldQueue

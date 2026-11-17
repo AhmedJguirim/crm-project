@@ -9,6 +9,12 @@ use App\Enums\SegmentOperator;
 use App\Filament\Pages\Auth\Register;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
 use App\Filament\Resources\Segments\Pages\ViewSegment;
+use App\Jobs\ExportActivitiesJob;
+use App\Jobs\ExportCompaniesJob;
+use App\Jobs\ExportContactsJob;
+use App\Jobs\ExportDealsJob;
+use App\Jobs\ExportInvoicesJob;
+use App\Jobs\ExportTasksJob;
 use App\Jobs\ProcessContactImportJob;
 use App\Jobs\ResyncContactSegments;
 use App\Jobs\SyncSegmentMembership;
@@ -55,6 +61,20 @@ describe('queue routing', function () {
         'contact import' => [fn () => ProcessContactImportJob::dispatch('contact-imports/file.csv', 1, 1), ProcessContactImportJob::class],
     ]);
 
+    it('sends every export job to the exports queue on the long running connection', function (Closure $build) {
+        $job = $build($this->org->id, $this->user->id);
+
+        expect($job->queue)->toBe('exports')
+            ->and($job->connection)->toBe(config('queue.long_running_connection'));
+    })->with([
+        'contacts' => [fn (int $org, int $user) => new ExportContactsJob([1], $org, $user, 'csv', 'x.csv')],
+        'companies' => [fn (int $org, int $user) => new ExportCompaniesJob([1], $org, $user, 'csv', 'x.csv')],
+        'deals' => [fn (int $org, int $user) => new ExportDealsJob([1], $org, $user, 'csv', 'x.csv')],
+        'tasks' => [fn (int $org, int $user) => new ExportTasksJob([1], $org, $user, 'csv', 'x.csv')],
+        'activities' => [fn (int $org, int $user) => new ExportActivitiesJob([1], $org, $user, 'csv', 'x.csv')],
+        'invoices' => [fn (int $org, int $user) => new ExportInvoicesJob([1], $org, $user, 'csv', 'x.csv')],
+    ]);
+
     it('leaves the quick jobs on the default queue', function () {
         ResyncContactSegments::dispatch(1);
 
@@ -99,6 +119,7 @@ describe('horizon configuration', function () {
     it('listens to the long queues on the long connection', function () {
         expect(horizonSupervisors()['supervisor-segments']['connection'])->toBe('redis-long')
             ->and(horizonSupervisors()['supervisor-imports']['connection'])->toBe('redis-long')
+            ->and(horizonSupervisors()['supervisor-exports']['connection'])->toBe('redis-long')
             ->and(horizonSupervisors()['supervisor-default']['connection'])->toBe('redis');
     });
 
@@ -115,6 +136,24 @@ describe('horizon configuration', function () {
             ->and(horizonSupervisors()['supervisor-segments']['timeout'])->toBeGreaterThanOrEqual($lockExpiry);
     });
 
+    it('never lets imports and exports share a supervisor', function () {
+        $listening = collect(horizonSupervisors())->filter(fn (array $supervisor): bool => in_array('exports', $supervisor['queue'], true));
+
+        expect($listening->keys()->all())->toBe(['supervisor-exports'])
+            ->and(horizonSupervisors()['supervisor-exports']['queue'])->not->toContain('imports')
+            ->and(horizonSupervisors()['supervisor-imports']['queue'])->not->toContain('exports');
+    });
+
+    it('lets the exports supervisor outlive an export, on the long connection', function () {
+        $job = new ExportContactsJob([1], 1, 1, 'csv', 'c.csv');
+        $supervisor = horizonSupervisors()['supervisor-exports'];
+
+        expect($supervisor['connection'])->toBe('redis-long')
+            ->and($supervisor['timeout'])->toBeGreaterThan($job->timeout)
+            ->and($supervisor['tries'])->toBe(1)
+            ->and(config('horizon.environments.production.supervisor-exports.maxProcesses'))->toBe(2);
+    });
+
     it('lets the imports supervisor outlive an import', function () {
         $job = new ProcessContactImportJob('contact-imports/file.csv', 1, 1);
 
@@ -123,9 +162,14 @@ describe('horizon configuration', function () {
 
     it('has a supervisor for every queue the jobs use', function () {
         $listened = collect(horizonSupervisors())->pluck('queue')->flatten()->unique()->all();
-        $used = [(new SyncSegmentMembership(1))->queue, (new ProcessContactImportJob('f.csv', 1, 1))->queue, config('queue.connections.redis.queue')];
+        $used = [
+            (new SyncSegmentMembership(1))->queue,
+            (new ProcessContactImportJob('f.csv', 1, 1))->queue,
+            (new ExportContactsJob([1], 1, 1, 'csv', 'c.csv'))->queue,
+            config('queue.connections.redis.queue'),
+        ];
 
-        expect($listened)->toEqualCanonicalizing(['default', 'segments', 'imports'])
+        expect($listened)->toEqualCanonicalizing(['default', 'segments', 'imports', 'exports'])
             ->and($used)->each->toBeIn($listened);
     });
 

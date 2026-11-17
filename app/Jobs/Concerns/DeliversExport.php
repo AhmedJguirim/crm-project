@@ -34,7 +34,7 @@ trait DeliversExport
     use HoldsImportExportSlot;
 
     /**
-     * Just under the timeout of the `imports` Horizon supervisor, so a very long export fails cleanly before the
+     * Just under the timeout of the `exports` Horizon supervisor, so a very long export fails cleanly before the
      * worker is killed.
      */
     public int $timeout = 1740;
@@ -70,7 +70,7 @@ trait DeliversExport
 
     protected function prepareExportQueue(): void
     {
-        $this->onQueue('imports');
+        $this->onQueue('exports');
         $this->onConnection(config('queue.long_running_connection'));
     }
 

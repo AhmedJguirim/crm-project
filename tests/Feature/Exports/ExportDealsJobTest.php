@@ -211,7 +211,7 @@ it('runs on a queue a Horizon supervisor listens to, inside the tenant context o
     $job = new ExportDealsJob([1], $this->org->id, $this->user->id, 'xlsx', 'deals.xlsx');
     $supervisor = collect(config('horizon.defaults'))->first(fn (array $supervisor): bool => in_array($job->queue, $supervisor['queue'], true));
 
-    expect($job->queue)->toBe('imports')
+    expect($job->queue)->toBe('exports')
         ->and($job->connection)->toBe(config('queue.long_running_connection'))
         ->and($supervisor['timeout'])->toBeGreaterThan($job->timeout)
         ->and($job->failOnTimeout)->toBeTrue()

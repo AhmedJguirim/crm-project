@@ -172,7 +172,8 @@ it('runs on a queue a Horizon supervisor listens to, with a timeout the supervis
     $job = new ExportContactsJob([1], $this->org->id, $this->user->id, 'xlsx', 'contacts.xlsx');
     $supervisor = collect(config('horizon.defaults'))->first(fn (array $supervisor): bool => in_array($job->queue, $supervisor['queue'], true));
 
-    expect($job->connection)->toBe(config('queue.long_running_connection'))
+    expect($job->queue)->toBe('exports')
+        ->and($job->connection)->toBe(config('queue.long_running_connection'))
         ->and($supervisor['connection'])->toBe('redis-long')
         ->and($supervisor['timeout'])->toBeGreaterThan($job->timeout)
         ->and($job->failOnTimeout)->toBeTrue()

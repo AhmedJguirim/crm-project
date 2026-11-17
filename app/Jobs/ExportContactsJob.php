@@ -15,7 +15,7 @@ use Illuminate\Support\Collection;
 /**
  * Writes the given contacts to a spreadsheet and tells the user when it is ready to download.
  *
- * It runs on the `imports` queue of the long-running connection (a Horizon supervisor listens there, with a timeout
+ * It runs on the `exports` queue of the long-running connection (a Horizon supervisor listens there, with a timeout
  * above the one of this job) and reads the contacts 500 at a time, in the order of the given ids.
  */
 class ExportContactsJob implements ShouldQueue

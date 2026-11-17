@@ -13,7 +13,7 @@ use Laravel\Horizon\Contracts\SupervisorRepository;
  * The first wait is needed because `horizon:pause` only sends a signal: the master and each supervisor apply it on
  * their next one-second loop, and until then workers keep taking jobs, so an empty reserved set proves nothing yet.
  * Without any listed supervisor (Horizon not running) the first wait is skipped. Both waits share one budget. The default timeout of 1900 seconds is the `retry_after` of the
- * `redis-long` connection (config/queue.php), longer than the 1800 second timeout of the imports supervisor, so a
+ * `redis-long` connection (config/queue.php), longer than the 1800 second timeout of the imports and exports supervisors, so a
  * healthy import always has time to finish. Exits 1 when jobs are still running at the end, so the deploy stops.
  */
 class WaitForRunningJobsCommand extends Command

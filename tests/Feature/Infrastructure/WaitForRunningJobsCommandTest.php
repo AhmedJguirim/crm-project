@@ -13,7 +13,7 @@ function fakeReservedQueues(array $reserved): void
 {
     $connections = [
         'redis' => ['default'],
-        'redis-long' => ['segments', 'imports'],
+        'redis-long' => ['segments', 'imports', 'exports'],
     ];
 
     $mocks = [];
@@ -82,6 +82,31 @@ test('two busy queues are listed in config order', function () {
 
     $this->artisan('deploy:wait-for-jobs')
         ->expectsOutputToContain('Waiting for running jobs: segments (2), imports (1)')
+        ->assertExitCode(0);
+
+    Sleep::assertSleptTimes(1);
+});
+
+test('the deploy drain waits for a running export', function () {
+    Sleep::fake();
+    fakeReservedQueues(['exports' => [1, 0]]);
+
+    $code = Artisan::call('deploy:wait-for-jobs');
+    $output = Artisan::output();
+
+    expect($code)->toBe(0)
+        ->and(substr_count($output, 'Waiting for running jobs: exports (1)'))->toBe(1)
+        ->and($output)->toContain('No jobs are running.');
+
+    Sleep::assertSleptTimes(1);
+});
+
+test('a running import and a running export are listed in config order', function () {
+    Sleep::fake();
+    fakeReservedQueues(['imports' => [1, 0], 'exports' => [2, 0]]);
+
+    $this->artisan('deploy:wait-for-jobs')
+        ->expectsOutputToContain('Waiting for running jobs: imports (1), exports (2)')
         ->assertExitCode(0);
 
     Sleep::assertSleptTimes(1);
@@ -179,7 +204,7 @@ test('it waits until every supervisor reports paused before counting jobs', func
         ->and(substr_count($output, 'Waiting for Horizon to pause: host:1-supervisor-default'))->toBe(1)
         ->and($output)->not->toContain('supervisor-imports')
         ->and($output)->toContain('No jobs are running.')
-        ->and($order)->toBe(['all', 'all', 'count', 'count', 'count']);
+        ->and($order)->toBe(['all', 'all', 'count', 'count', 'count', 'count']);
 
     Sleep::assertSleptTimes(1);
 });

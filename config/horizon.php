@@ -257,6 +257,19 @@ return [
             'timeout' => 1800,
             'nice' => 0,
         ],
+        'supervisor-exports' => [
+            'connection' => 'redis-long',
+            'queue' => ['exports'],
+            'balance' => 'simple',
+            'minProcesses' => 1,
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 128,
+            'tries' => 1,
+            'timeout' => 1800,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
@@ -272,12 +285,16 @@ return [
             'supervisor-imports' => [
                 'maxProcesses' => 2,
             ],
+            'supervisor-exports' => [
+                'maxProcesses' => 2,
+            ],
         ],
 
         'local' => [
             'supervisor-default' => [],
             'supervisor-segments' => [],
             'supervisor-imports' => [],
+            'supervisor-exports' => [],
         ],
     ],
 
