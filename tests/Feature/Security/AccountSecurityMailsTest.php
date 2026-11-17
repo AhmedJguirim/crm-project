@@ -247,7 +247,9 @@ test('the toggle turns every mail off and the log lines stay', function () {
     $bob = User::factory()->withAppAuthentication()->create();
     asmPanelProvider()->saveSecret($bob, null);
 
-    Notification::assertNothingSent();
+    Notification::assertNotSentTo($this->ann, AccountSecurityNotification::class);
+    Notification::assertNotSentTo($bob, AccountSecurityNotification::class);
+    expect(asmSentOnDemandCount())->toBe(0);
     $events = array_column(securityLogEntries($log), 'event');
     expect($events)->toContain('account.password_changed', 'account.email_changed', 'auth.two_factor_disabled');
 });

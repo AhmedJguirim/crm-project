@@ -9,10 +9,11 @@ use Illuminate\Auth\Events\Failed;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Auth\Events\PasswordReset;
+use Illuminate\Auth\Events\Verified;
 use Illuminate\Events\Dispatcher;
 
 /**
- * Turns the framework's sign-in events into security log lines, and mails the user when their password is reset. It never reads the credentials of a failed attempt.
+ * Turns the framework's sign-in and verification events into security log lines, and mails the user when their password is reset. It never reads the credentials of a failed attempt.
  */
 class SecurityEventSubscriber
 {
@@ -27,6 +28,7 @@ class SecurityEventSubscriber
             Logout::class => 'handleLogout',
             PasswordReset::class => 'handlePasswordReset',
             Registered::class => 'handleRegistered',
+            Verified::class => 'handleVerified',
         ];
     }
 
@@ -57,5 +59,10 @@ class SecurityEventSubscriber
     public function handleRegistered(Registered $event): void
     {
         SecurityLog::info('auth.registered', $event->getUser());
+    }
+
+    public function handleVerified(Verified $event): void
+    {
+        SecurityLog::info('account.email_verified', $event->user);
     }
 }

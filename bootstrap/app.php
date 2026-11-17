@@ -5,11 +5,15 @@ use App\Http\Middleware\SetTenantContextFromRoute;
 use App\Http\Middleware\StripNullBytes;
 use App\Support\Security\ProxyTrust;
 use App\Support\Security\SecurityLog;
+use Filament\Facades\Filament;
+use Filament\Notifications\Notification;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Exceptions\InvalidSignatureException;
 use Illuminate\Session\Middleware\AuthenticateSession;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -33,5 +37,23 @@ return Application::configure(basePath: dirname(__DIR__))
             SecurityLog::throttledAuthRequest($request);
 
             return null;
+        });
+
+        $exceptions->render(function (InvalidSignatureException $e, Request $request): ?RedirectResponse {
+            if (! $request->routeIs('filament.admin.auth.email-verification.verify')) {
+                return null;
+            }
+
+            if ($request->user()?->hasVerifiedEmail()) {
+                return redirect()->to(Filament::getPanel('admin')->getUrl());
+            }
+
+            Notification::make()
+                ->danger()
+                ->title('This verification link has expired or is not valid.')
+                ->body('Use "Resend it" below to get a new one.')
+                ->send();
+
+            return redirect()->to(Filament::getPanel('admin')->getEmailVerificationPromptUrl());
         });
     })->create();

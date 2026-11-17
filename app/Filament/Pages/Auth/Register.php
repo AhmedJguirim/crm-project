@@ -6,6 +6,7 @@ use App\Http\Controllers\InviteAcceptController;
 use App\Models\OrganizationInvite;
 use App\Models\User;
 use App\Support\Auth\UniqueUserEmail;
+use App\Support\Auth\VerificationMails;
 use App\Support\LegalDocuments;
 use Filament\Auth\Http\Responses\Contracts\RegistrationResponse;
 use Filament\Auth\Pages\Register as BaseRegister;
@@ -150,6 +151,16 @@ class Register extends BaseRegister
         }
 
         return $response;
+    }
+
+    /**
+     * Sends the verification mail through the per-user cap (SEC-24); the sign-up mail counts as one of the day's mails.
+     */
+    protected function sendEmailVerificationNotification(Model $user): void
+    {
+        if ($user instanceof User) {
+            VerificationMails::send($user);
+        }
     }
 
     /**

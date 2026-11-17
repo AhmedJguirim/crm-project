@@ -4,6 +4,7 @@ use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
 use App\Enums\AccountSecurityEvent;
 use App\Models\User;
+use App\Support\Auth\VerificationMails;
 use App\Support\Security\SecurityLog;
 use App\Support\Security\SecurityMails;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -75,6 +76,8 @@ new class extends Component {
             SecurityLog::info('account.email_changed', $user);
 
             SecurityMails::send($user, AccountSecurityEvent::EmailChanged, $previousEmail);
+
+            VerificationMails::send($user);
         }
 
         $this->reset('current_password');
@@ -95,7 +98,13 @@ new class extends Component {
             return;
         }
 
-        $user->sendEmailVerificationNotification();
+        $refusal = VerificationMails::send($user);
+
+        if ($refusal !== null) {
+            $this->addError('email', $refusal);
+
+            return;
+        }
 
         Session::flash('status', 'verification-link-sent');
     }

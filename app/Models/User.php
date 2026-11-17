@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
-// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use App\Enums\OrganizationRole;
 use App\Notifications\QueuedResetPassword;
+use App\Support\Auth\VerificationMails;
 use Database\Factories\UserFactory;
 use Filament\Auth\MultiFactor\App\Concerns\InteractsWithAppAuthentication;
 use Filament\Auth\MultiFactor\App\Concerns\InteractsWithAppAuthenticationRecovery;
@@ -13,6 +13,7 @@ use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthenticationRecovery;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Models\Contracts\HasTenants;
 use Filament\Panel;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -31,7 +32,7 @@ use Illuminate\Support\Str;
  * @property Carbon|null $terms_accepted_at
  * @property string|null $terms_version
  */
-class User extends Authenticatable implements FilamentUser, HasAppAuthentication, HasAppAuthenticationRecovery, HasTenants
+class User extends Authenticatable implements FilamentUser, HasAppAuthentication, HasAppAuthenticationRecovery, HasTenants, MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, InteractsWithAppAuthentication, InteractsWithAppAuthenticationRecovery, Notifiable;
@@ -84,6 +85,14 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
     public function sendPasswordResetNotification(#[\SensitiveParameter] $token): void
     {
         $this->notify(new QueuedResetPassword($token));
+    }
+
+    /**
+     * Sends the verification mail from the queue, through the per-user cap (SEC-24).
+     */
+    public function sendEmailVerificationNotification(): void
+    {
+        VerificationMails::send($this);
     }
 
     public function canAccessPanel(Panel $panel): bool
