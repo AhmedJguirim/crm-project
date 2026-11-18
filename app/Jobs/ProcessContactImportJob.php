@@ -181,6 +181,8 @@ class ProcessContactImportJob implements ShouldQueue
 
         $user = User::find($this->userId);
 
+        $this->logImportOutcome('contacts', 'completed', $user, $this->outcomeCounts($importedCount, $failedCount, $service));
+
         if (! $user) {
             return;
         }
@@ -222,14 +224,25 @@ class ProcessContactImportJob implements ShouldQueue
      */
     private function countsLine(int $importedCount, int $failedCount, ContactImportService $service): string
     {
+        $counts = $this->outcomeCounts($importedCount, $failedCount, $service);
+
         if ($this->mode === ImportMode::CreateOnly) {
-            return "Imported: {$importedCount} | Failed: {$failedCount}";
+            return "Imported: {$importedCount} | Failed: {$counts['failed']}";
         }
 
-        $updatedCount = $service->updatedContactsCount();
-        $createdCount = $importedCount - $updatedCount;
+        return "Created: {$counts['created']} | Updated: {$counts['updated']} | Failed: {$counts['failed']}";
+    }
 
-        return "Created: {$createdCount} | Updated: {$updatedCount} | Failed: {$failedCount}";
+    /**
+     * The created, updated and failed rows of the run, for the notification and the security log alike.
+     *
+     * @return array{created: int, updated: int, failed: int}
+     */
+    private function outcomeCounts(int $importedCount, int $failedCount, ContactImportService $service): array
+    {
+        $updatedCount = $this->mode === ImportMode::CreateOnly ? 0 : $service->updatedContactsCount();
+
+        return ['created' => $importedCount - $updatedCount, 'updated' => $updatedCount, 'failed' => $failedCount];
     }
 
     /**
@@ -263,6 +276,8 @@ class ProcessContactImportJob implements ShouldQueue
         }
 
         $user = User::find($this->userId);
+
+        $this->logImportOutcome('contacts', $importedCount > 0 || $failedCount > 0 ? 'stopped' : 'unreadable', $user, $this->outcomeCounts($importedCount, $failedCount, $service));
 
         if (! $user) {
             return;
@@ -308,6 +323,8 @@ class ProcessContactImportJob implements ShouldQueue
         $this->syncPublishedSegments();
 
         $user = User::find($this->userId);
+
+        $this->logImportOutcome('contacts', 'aborted', $user, null);
 
         if (! $user) {
             return;

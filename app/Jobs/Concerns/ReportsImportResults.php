@@ -2,8 +2,11 @@
 
 namespace App\Jobs\Concerns;
 
+use App\Enums\ImportMode;
+use App\Models\User;
 use App\Services\ContactImportService;
 use App\Support\CsvDialect;
+use App\Support\Security\SecurityLog;
 use App\Support\TemporaryFile;
 use App\Support\UserFiles;
 use Filament\Actions\Action;
@@ -14,8 +17,8 @@ use Spatie\SimpleExcel\SimpleExcelWriter;
 /**
  * What every import job reports back to the user: the failed rows file, its signed download link and the columns that
  * were ignored. The job using it must have the `$filePath` (the uploaded file on the local disk), `$userId` (the user
- * who started the import) and `$organizationId` properties. The failed rows file name and its signed link carry the
- * organization, so the download can check that the user may still import there.
+ * who started the import), `$organizationId` and `$mode` (the {@see ImportMode}) properties. The failed rows file name
+ * and its signed link carry the organization, so the download can check that the user may still import there.
  */
 trait ReportsImportResults
 {
@@ -37,6 +40,23 @@ trait ReportsImportResults
         }
 
         $failedRows[] = ['row' => $rowNumber, 'data' => $data, 'error' => $error];
+    }
+
+    /**
+     * Writes the one `data.import_finished` security line of an import run: the list, the mode, how it ended and the
+     * counts, ids only. The organization goes in `import_organization_id` because a worker has no panel tenant.
+     *
+     * @param  array{created: int, updated: int, failed: int}|null  $counts  null when the job did not finish
+     */
+    protected function logImportOutcome(string $list, string $outcome, ?User $user, ?array $counts): void
+    {
+        SecurityLog::info('data.import_finished', $user, [
+            'list' => $list,
+            'mode' => $this->mode->value,
+            'outcome' => $outcome,
+            ...($counts ?? []),
+            'import_organization_id' => $this->organizationId,
+        ]);
     }
 
     /**

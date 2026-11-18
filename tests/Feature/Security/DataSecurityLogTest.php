@@ -357,6 +357,7 @@ describe('a failed rows download', function () {
     beforeEach(function () {
         Storage::disk('local')->put('contact-imports/ann.csv', "name,email,phone,tags\nBroken,not-an-email,,\n");
         ProcessContactImportJob::dispatchSync('contact-imports/ann.csv', $this->acme->id, $this->people['ann']->id);
+        $this->log->clear();
 
         $this->failedUrl = DatabaseNotification::where('notifiable_id', $this->people['ann']->id)->get()
             ->map(fn (DatabaseNotification $notification): ?string => $notification->data['actions'][0]['url'] ?? null)

@@ -176,6 +176,8 @@ class ProcessCompanyImportJob implements ShouldQueue
 
         $user = User::find($this->userId);
 
+        $this->logImportOutcome('companies', 'completed', $user, $this->outcomeCounts($importedCount, $failedCount, $service));
+
         if (! $user) {
             return;
         }
@@ -216,14 +218,25 @@ class ProcessCompanyImportJob implements ShouldQueue
      */
     private function countsLine(int $importedCount, int $failedCount, CompanyImportService $service): string
     {
+        $counts = $this->outcomeCounts($importedCount, $failedCount, $service);
+
         if ($this->mode === ImportMode::CreateOnly) {
-            return "Imported: {$importedCount} | Failed: {$failedCount}";
+            return "Imported: {$importedCount} | Failed: {$counts['failed']}";
         }
 
-        $updatedCount = $service->updatedCompaniesCount();
-        $createdCount = $importedCount - $updatedCount;
+        return "Created: {$counts['created']} | Updated: {$counts['updated']} | Failed: {$counts['failed']}";
+    }
 
-        return "Created: {$createdCount} | Updated: {$updatedCount} | Failed: {$failedCount}";
+    /**
+     * The created, updated and failed rows of the run, for the notification and the security log alike.
+     *
+     * @return array{created: int, updated: int, failed: int}
+     */
+    private function outcomeCounts(int $importedCount, int $failedCount, CompanyImportService $service): array
+    {
+        $updatedCount = $this->mode === ImportMode::CreateOnly ? 0 : $service->updatedCompaniesCount();
+
+        return ['created' => $importedCount - $updatedCount, 'updated' => $updatedCount, 'failed' => $failedCount];
     }
 
     /**
@@ -239,6 +252,8 @@ class ProcessCompanyImportJob implements ShouldQueue
         Storage::disk('local')->delete($this->filePath);
 
         $user = User::find($this->userId);
+
+        $this->logImportOutcome('companies', $importedCount > 0 || $failedCount > 0 ? 'stopped' : 'unreadable', $user, $this->outcomeCounts($importedCount, $failedCount, $service));
 
         if (! $user) {
             return;
@@ -281,6 +296,8 @@ class ProcessCompanyImportJob implements ShouldQueue
         Storage::disk('local')->delete($this->filePath);
 
         $user = User::find($this->userId);
+
+        $this->logImportOutcome('companies', 'aborted', $user, null);
 
         if (! $user) {
             return;
