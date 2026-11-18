@@ -205,16 +205,17 @@ describe('cancellations', function () {
         ($this->actAs)(OrganizationRole::Member);
         $log = fakeSecurityLog();
 
-        Livewire::test(EditInvoice::class, ['record' => $this->invoice->id])
+        $page = Livewire::test(EditInvoice::class, ['record' => $this->invoice->id])
             ->fillForm(['status' => InvoiceStatus::Cancelled->value])
             ->call('save')
             ->assertHasFormErrors(['status' => 'in']);
 
-        expect($this->invoice->refresh()->status)->toBe($from)
+        expect($page->errors()->get('data.status'))->toBe(['Only the owner, an admin or the person who created this invoice can change its status.'])
+            ->and($this->invoice->refresh()->status)->toBe($from)
             ->and(securityLogEntries($log))->toBe([]);
     })->with([InvoiceStatus::Sent, InvoiceStatus::Draft, InvoiceStatus::Overdue]);
 
-    it('offers Cancelled in the status select only to admins and the owner', function (?OrganizationRole $role, array $options) {
+    it('offers every status to admins and the owner and only the stored one to another member', function (?OrganizationRole $role, array $options) {
         if ($role !== null) {
             ($this->actAs)($role);
         }
@@ -223,7 +224,7 @@ describe('cancellations', function () {
 
         expect(array_keys($page->instance()->getSchema('form')->getComponent('status')->getOptions()))->toBe($options);
     })->with([
-        'member' => [OrganizationRole::Member, ['draft', 'sent', 'overdue']],
+        'member' => [OrganizationRole::Member, ['sent']],
         'admin' => [OrganizationRole::Admin, ['draft', 'sent', 'overdue', 'cancelled']],
         'owner' => [null, ['draft', 'sent', 'overdue', 'cancelled']],
     ]);
@@ -247,7 +248,8 @@ describe('cancellations', function () {
             ->call('save')
             ->assertHasFormErrors(['status' => 'in']);
 
-        expect($this->invoice->refresh()->status)->toBe(InvoiceStatus::Sent)
+        expect($page->errors()->get('data.status'))->toBe(['Only the owner, an admin or the person who created this invoice can change its status.'])
+            ->and($this->invoice->refresh()->status)->toBe(InvoiceStatus::Sent)
             ->and(securityLogEntries($log))->toBe([]);
     });
 

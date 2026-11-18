@@ -32,7 +32,7 @@ class ViewInvoice extends ViewRecord
                 ->openUrlInNewTab(),
 
             Action::make('markAsSent')
-                ->authorize('update')
+                ->authorize('changeStatus')
                 ->label('Mark as Sent')
                 ->icon(Heroicon::OutlinedPaperAirplane)
                 ->color('info')

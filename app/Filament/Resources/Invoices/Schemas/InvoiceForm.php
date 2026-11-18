@@ -26,6 +26,8 @@ use Illuminate\Validation\Rule;
 
 class InvoiceForm
 {
+    private const STATUS_REFUSAL = 'Only the owner, an admin or the person who created this invoice can change its status.';
+
     public static function configure(Schema $schema): Schema
     {
         return $schema
@@ -186,7 +188,12 @@ class InvoiceForm
                     ->default(InvoiceStatus::Draft)
                     ->required()
                     ->disabled(fn (?Invoice $record): bool => self::isSetByPayments($record))
-                    ->helperText(fn (?Invoice $record): ?string => self::isSetByPayments($record) ? 'Set by the payments recorded.' : null)
+                    ->helperText(fn (?Invoice $record): ?string => match (true) {
+                        self::isSetByPayments($record) => 'Set by the payments recorded.',
+                        ! self::canChangeStatus($record) => self::STATUS_REFUSAL,
+                        default => null,
+                    })
+                    ->validationMessages(['in' => fn (?Invoice $record): ?string => self::canChangeStatus($record) ? null : self::STATUS_REFUSAL])
                     ->hiddenOn('create'),
 
                 DatePicker::make('issued_at')
@@ -288,28 +295,30 @@ class InvoiceForm
 
     /**
      * The statuses a person can pick: Paid and Partial are set by the payments recorded, so they are only offered (and
-     * the field locked) when the payments decide the status of the invoice. Cancelled is offered only to people who may
-     * cancel (admins and the owner) or when the invoice is already cancelled.
+     * the field locked) when the payments decide the status of the invoice. A person who may not change the status
+     * (only the owner, admins and the invoice's creator may) is offered the stored status alone.
      *
      * @return array<string, string>
      */
     private static function statusOptions(?Invoice $record): array
     {
+        if ($record !== null && ! self::canChangeStatus($record)) {
+            return [$record->status->value => $record->status->getLabel()];
+        }
+
         return collect(InvoiceStatus::cases())
             ->reject(fn (InvoiceStatus $status): bool => ! self::isSetByPayments($record) && in_array($status, [InvoiceStatus::Paid, InvoiceStatus::Partial], true))
-            ->reject(fn (InvoiceStatus $status): bool => $status === InvoiceStatus::Cancelled && ! self::canPickCancelled($record))
             ->mapWithKeys(fn (InvoiceStatus $status): array => [$status->value => $status->getLabel()])
             ->all();
     }
 
     /**
-     * Whether "Cancelled" can be offered: cancelling is for admins and the owner (the `cancel` ability), and an invoice
-     * that is already cancelled keeps the option so that its other fields can still be saved.
+     * Whether the signed-in user may change the status of the invoice (the `changeStatus` ability); always true on
+     * create, where the status field is hidden and forced to Draft.
      */
-    private static function canPickCancelled(?Invoice $record): bool
+    private static function canChangeStatus(?Invoice $record): bool
     {
-        return $record !== null
-            && ($record->status === InvoiceStatus::Cancelled || (Auth::user()?->can('cancel', $record) ?? false));
+        return $record === null || (Auth::user()?->can('changeStatus', $record) ?? false);
     }
 
     /**

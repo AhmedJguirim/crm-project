@@ -187,6 +187,40 @@ describe('policies', function () {
         'owner' => [OrganizationRole::Owner, true],
     ]);
 
+    it('lets only admins, the owner and the creator change the status of an invoice', function () {
+        $carl = ($this->userWith)(OrganizationRole::Member);
+        $mia = ($this->userWith)(OrganizationRole::Member);
+        $ada = ($this->userWith)(OrganizationRole::Admin);
+        $vic = ($this->userWith)(OrganizationRole::Viewer);
+        $stranger = ($this->userWith)(OrganizationRole::Owner, Organization::factory()->create());
+        $invoice = Invoice::factory()->create(['organization_id' => $this->acme->id, 'created_by' => $carl->id]);
+
+        foreach (['changeStatus', 'cancel'] as $ability) {
+            expect(Gate::forUser($this->owner)->allows($ability, $invoice))->toBeTrue("owner {$ability}")
+                ->and(Gate::forUser($ada)->allows($ability, $invoice))->toBeTrue("admin {$ability}")
+                ->and(Gate::forUser($carl)->allows($ability, $invoice))->toBeTrue("creator {$ability}")
+                ->and(Gate::forUser($mia)->allows($ability, $invoice))->toBeFalse("other member {$ability}")
+                ->and(Gate::forUser($vic)->allows($ability, $invoice))->toBeFalse("viewer {$ability}")
+                ->and(Gate::forUser($stranger)->allows($ability, $invoice))->toBeFalse("other organization {$ability}");
+        }
+
+        $this->acme->members()->updateExistingPivot($carl->id, ['role' => OrganizationRole::Viewer->value]);
+        expect(Gate::forUser($carl->fresh())->allows('changeStatus', $invoice))->toBeFalse('creator demoted to viewer');
+
+        $this->acme->members()->detach($carl->id);
+        expect(Gate::forUser($carl->fresh())->allows('changeStatus', $invoice))->toBeFalse('creator removed');
+    });
+
+    it('lets only admins and the owner change the status of an invoice without a creator', function () {
+        $carl = ($this->userWith)(OrganizationRole::Member);
+        $ada = ($this->userWith)(OrganizationRole::Admin);
+        $invoice = Invoice::factory()->create(['organization_id' => $this->acme->id, 'created_by' => null]);
+
+        expect(Gate::forUser($this->owner)->allows('changeStatus', $invoice))->toBeTrue()
+            ->and(Gate::forUser($ada)->allows('changeStatus', $invoice))->toBeTrue()
+            ->and(Gate::forUser($carl)->allows('changeStatus', $invoice))->toBeFalse();
+    });
+
     it('deny everything to a member of another organization', function (string $model, bool $definition, string $policy) {
         $globex = Organization::factory()->create();
         $stranger = ($this->userWith)(OrganizationRole::Owner, $globex);
