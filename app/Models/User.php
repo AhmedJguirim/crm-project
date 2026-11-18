@@ -31,6 +31,7 @@ use Illuminate\Support\Str;
  * @property-read Pivot|null $pivot
  * @property Carbon|null $terms_accepted_at
  * @property string|null $terms_version
+ * @property string|null $pending_email
  */
 class User extends Authenticatable implements FilamentUser, HasAppAuthentication, HasAppAuthenticationRecovery, HasTenants, MustVerifyEmail
 {
@@ -60,6 +61,7 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
     protected $hidden = [
         'password',
         'remember_token',
+        'pending_email',
     ];
 
     /**

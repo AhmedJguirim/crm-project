@@ -28,8 +28,9 @@ test('profile information can be updated', function () {
     $user->refresh();
 
     expect($user->name)->toEqual('Test User');
-    expect($user->email)->toEqual('test@example.com');
-    expect($user->email_verified_at)->toBeNull();
+    expect($user->email)->not->toEqual('test@example.com');
+    expect($user->pending_email)->toEqual('test@example.com');
+    expect($user->email_verified_at)->not->toBeNull();
 });
 
 test('email verification status is unchanged when email address is unchanged', function () {
@@ -91,7 +92,8 @@ test('a changed profile email is stored lower-case', function () {
         ->call('updateProfileInformation')
         ->assertHasNoErrors();
 
-    expect($user->fresh()->email)->toBe('ann.new@example.com');
+    expect($user->fresh()->email)->toBe('ann@example.com')
+        ->and($user->fresh()->pending_email)->toBe('ann.new@example.com');
 });
 
 test('an address taken in another case is refused on the profile page', function () {
@@ -144,7 +146,7 @@ test('a user stored with capitals saves the profile and keeps the verification',
         ->and($ann->email_verified_at->equalTo($verifiedAt))->toBeTrue();
 });
 
-test('a real address change still resets the verification', function () {
+test('a real address change keeps the verification until the new address is confirmed', function () {
     $ann = User::factory()->create(['email' => 'Ann.Lee@Example.com']);
 
     $this->actingAs($ann);
@@ -155,7 +157,8 @@ test('a real address change still resets the verification', function () {
         ->call('updateProfileInformation')
         ->assertHasNoErrors();
 
-    expect($ann->fresh()->email_verified_at)->toBeNull();
+    expect($ann->fresh()->email_verified_at)->not->toBeNull()
+        ->and($ann->fresh()->pending_email)->toBe('ann.new@example.com');
 });
 
 test('the unique email rule leaves a forged non-string value to the string rule and ignores the given user', function () {
@@ -218,10 +221,10 @@ describe('SEC-03: the current password is required to change the email', functio
 
         $ann = $this->ann->fresh();
 
-        expect($ann->email)->toBe('ann.new@example.com')
-            ->and($ann->email_verified_at)->toBeNull()
+        expect($ann->email)->toBe('ann@example.com')
+            ->and($ann->pending_email)->toBe('ann.new@example.com')
             ->and(securityLogEntries($log))->toHaveCount(1)
-            ->and(securityLogEntries($log)[0]['event'])->toBe('account.email_changed');
+            ->and(securityLogEntries($log)[0]['event'])->toBe('account.email_change_requested');
     });
 
     test('a name-only change needs no password', function () {

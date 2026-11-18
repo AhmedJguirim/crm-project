@@ -10,12 +10,15 @@ use App\Models\Organization;
 use App\Models\PipelineStage;
 use App\Models\Segment;
 use App\Models\Task;
+use App\Notifications\ConfirmNewEmailAddress;
 use App\Services\Deals\DefaultPipeline;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Monolog\Handler\TestHandler;
 use Monolog\LogRecord;
@@ -149,6 +152,22 @@ function makeXlsx(array $rows, array $extraSheets = []): string
     $writer->close();
 
     return $path;
+}
+
+/**
+ * The confirmation links of the faked `ConfirmNewEmailAddress` notifications sent to the address, oldest first (SEC-56).
+ *
+ * @return list<string>
+ */
+function emailChangeUrlsSentTo(string $address): array
+{
+    return collect(Notification::sentNotifications()[AnonymousNotifiable::class] ?? [])
+        ->flatten(2)
+        ->filter(fn ($entry): bool => ($entry['notification'] ?? null) instanceof ConfirmNewEmailAddress
+            && ($entry['notifiable']->routes['mail'] ?? null) === $address)
+        ->map(fn ($entry): string => $entry['notification']->url)
+        ->values()
+        ->all();
 }
 
 /**

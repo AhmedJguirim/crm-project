@@ -2,13 +2,10 @@
 
 use App\Concerns\PasswordValidationRules;
 use App\Concerns\ProfileValidationRules;
-use App\Enums\AccountSecurityEvent;
 use App\Models\User;
+use App\Support\Auth\EmailChanges;
 use App\Support\Auth\VerificationMails;
-use App\Support\Security\SecurityLog;
-use App\Support\Security\SecurityMails;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Str;
@@ -61,23 +58,27 @@ new class extends Component {
             throw $e;
         }
 
-        $user->fill(Arr::only($validated, ['name', 'email']));
+        $user->fill(['name' => $validated['name']]);
 
-        $previousEmail = Str::lower((string) $user->getOriginal('email'));
-        $emailChanged = $previousEmail !== Str::lower($user->email);
+        if ($emailChanges) {
+            $refusal = EmailChanges::request($user, Str::lower($validated['email']));
 
-        if ($emailChanged) {
-            $user->email_verified_at = null;
-        }
+            if ($refusal !== null) {
+                $this->reset('current_password');
+                $this->addError('email', $refusal);
 
-        $user->save();
+                return;
+            }
 
-        if ($emailChanged) {
-            SecurityLog::info('account.email_changed', $user);
+            $user->save();
 
-            SecurityMails::send($user, AccountSecurityEvent::EmailChanged, $previousEmail);
+            $this->email = $user->email;
 
-            VerificationMails::send($user);
+            Session::flash('email-change-status', 'Check '.$user->pending_email.' for a link to confirm your new email address.');
+        } else {
+            $user->email = $validated['email'];
+
+            $user->save();
         }
 
         $this->reset('current_password');
@@ -109,6 +110,48 @@ new class extends Component {
         Session::flash('status', 'verification-link-sent');
     }
 
+    /**
+     * Send the confirmation link to the pending email address again.
+     */
+    public function resendEmailChangeLink(): void
+    {
+        $user = Auth::user();
+
+        $refusal = EmailChanges::resend($user);
+
+        if ($refusal !== null) {
+            $this->addError('email', $refusal);
+
+            return;
+        }
+
+        if ($user->pending_email !== null) {
+            Session::flash('email-change-status', 'A new link has been sent to '.$user->pending_email.'.');
+        }
+    }
+
+    /**
+     * Drop the pending email address; its links stop working.
+     */
+    public function cancelEmailChange(): void
+    {
+        $user = Auth::user();
+
+        if ($user->pending_email === null) {
+            return;
+        }
+
+        EmailChanges::cancel($user);
+
+        Session::flash('email-change-status', 'The email change was cancelled. Your email stays '.$user->email.'.');
+    }
+
+    #[Computed]
+    public function pendingEmail(): ?string
+    {
+        return Auth::user()->pending_email;
+    }
+
     #[Computed]
     public function hasUnverifiedEmail(): bool
     {
@@ -134,6 +177,31 @@ new class extends Component {
 
             <div>
                 <flux:input wire:model="email" :label="__('Email')" type="email" required autocomplete="email" />
+
+                @if ($this->pendingEmail !== null)
+                    <flux:text class="mt-4">
+                        {{ __('We sent a link to :pending to confirm your new email address. Your email stays :current until you open it.', ['pending' => $this->pendingEmail, 'current' => auth()->user()->email]) }}
+
+                        <flux:link class="text-sm cursor-pointer" wire:click.prevent="resendEmailChangeLink">
+                            {{ __('Send the link again') }}
+                        </flux:link>
+                        <flux:link class="text-sm cursor-pointer" wire:click.prevent="cancelEmailChange">
+                            {{ __('Cancel the change') }}
+                        </flux:link>
+                    </flux:text>
+                @endif
+
+                @if (session('email-change-status'))
+                    <flux:text class="mt-2 font-medium !dark:text-green-400 !text-green-600">
+                        {{ session('email-change-status') }}
+                    </flux:text>
+                @endif
+
+                @if (session('email-change-error'))
+                    <flux:text class="mt-2 font-medium text-red-600 dark:text-red-400">
+                        {{ session('email-change-error') }}
+                    </flux:text>
+                @endif
 
                 @if ($this->hasUnverifiedEmail)
                     <div>

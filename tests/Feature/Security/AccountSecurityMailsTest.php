@@ -133,6 +133,11 @@ test('changing the email mails the old address only', function () {
         ->call('updateProfileInformation')
         ->assertHasNoErrors();
 
+    Notification::assertNotSentTo($this->ann, AccountSecurityNotification::class);
+    expect(asmSentOnDemandCount())->toBe(0);
+
+    $this->actingAs($this->ann)->get(emailChangeUrlsSentTo('ann.new@example.com')[0])->assertRedirect(route('profile.edit'));
+
     Notification::assertSentOnDemand(
         AccountSecurityNotification::class,
         fn (AccountSecurityNotification $n, array $channels, object $notifiable): bool => $notifiable->routes['mail'] === 'ann.lee@example.com'
@@ -244,6 +249,7 @@ test('the toggle turns every mail off and the log lines stay', function () {
         ->set('current_password', 'N3w-passw0rd!')
         ->call('updateProfileInformation')
         ->assertHasNoErrors();
+    $this->get(emailChangeUrlsSentTo('ann.new@example.com')[0])->assertRedirect(route('profile.edit'));
     $bob = User::factory()->withAppAuthentication()->create();
     asmPanelProvider()->saveSecret($bob, null);
 
@@ -294,9 +300,9 @@ test('typing someone else address as the new email does not mail that address', 
         ->call('updateProfileInformation')
         ->assertHasNoErrors();
 
-    Notification::assertSentOnDemand(AccountSecurityNotification::class, fn ($n, $c, $notifiable): bool => $notifiable->routes['mail'] === 'ann@example.com');
-    expect(asmSentOnDemandCount())->toBe(1);
+    expect(asmSentOnDemandCount())->toBe(0);
     Notification::assertNotSentTo($carl, AccountSecurityNotification::class);
+    Notification::assertNotSentTo($this->ann, AccountSecurityNotification::class);
 });
 
 test('a broken queue never fails a password change', function () {

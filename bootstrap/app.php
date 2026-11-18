@@ -40,6 +40,10 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         $exceptions->render(function (InvalidSignatureException $e, Request $request): ?RedirectResponse {
+            if ($request->routeIs('user-email.confirm')) {
+                return redirect()->route('profile.edit')->with('email-change-error', 'This link has expired or is not valid. Ask for a new one below.');
+            }
+
             if (! $request->routeIs('filament.admin.auth.email-verification.verify')) {
                 return null;
             }

@@ -4,6 +4,7 @@ use App\Filament\Pages\Auth\EmailVerificationPrompt;
 use App\Filament\Pages\Auth\Register;
 use App\Filament\Resources\Contacts\ContactResource;
 use App\Models\User;
+use App\Notifications\ConfirmNewEmailAddress;
 use App\Notifications\QueuedVerifyEmail;
 use App\Support\Auth\VerificationMails;
 use Carbon\CarbonImmutable;
@@ -14,6 +15,7 @@ use Filament\Panel;
 use Illuminate\Auth\Events\Verified;
 use Illuminate\Contracts\Queue\ShouldBeEncrypted;
 use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Notification;
@@ -245,7 +247,7 @@ test('the settings page resend under the cap sends one mail', function () {
     Notification::assertSentToTimes($this->ann, QueuedVerifyEmail::class, 1);
 });
 
-test('changing the email on the settings page mails a verification link to the new address', function () {
+test('changing the email on the settings page mails a confirmation link to the new address and keeps the account verified', function () {
     Notification::fake();
     $this->ann->forceFill(['email_verified_at' => now()])->save();
     $this->actingAs($this->ann);
@@ -258,12 +260,14 @@ test('changing the email on the settings page mails a verification link to the n
         ->assertHasNoErrors();
 
     $ann = $this->ann->fresh();
-    expect($ann->email)->toBe('ann.new@example.com')->and($ann->email_verified_at)->toBeNull();
+    expect($ann->email)->toBe('ann@example.com')->and($ann->pending_email)->toBe('ann.new@example.com')->and($ann->email_verified_at)->not->toBeNull();
 
-    Notification::assertSentToTimes($ann, QueuedVerifyEmail::class, 1);
-    Notification::assertSentTo($ann, QueuedVerifyEmail::class, fn (QueuedVerifyEmail $n): bool => str_contains($n->url, sha1('ann.new@example.com')));
+    Notification::assertNothingSentTo($ann);
+    Notification::assertNotSentTo(new AnonymousNotifiable, QueuedVerifyEmail::class);
+    Notification::assertSentOnDemand(ConfirmNewEmailAddress::class, fn (ConfirmNewEmailAddress $n, array $channels, object $notifiable): bool => $notifiable->routes['mail'] === 'ann.new@example.com'
+        && str_contains($n->url, sha1('ann.new@example.com')));
 
-    $this->get(ContactResource::getUrl('index', tenant: $this->annOrganization))->assertRedirect(pevPanel()->getEmailVerificationPromptUrl());
+    $this->get(ContactResource::getUrl('index', tenant: $this->annOrganization))->assertOk();
 });
 
 test('changing only the name mails no verification link', function () {

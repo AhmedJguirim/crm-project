@@ -8,8 +8,9 @@ use Filament\Facades\Filament;
 use Illuminate\Support\Facades\RateLimiter;
 
 /**
- * Sends the verification mail of the panel, at most 5 per user per 24 hours (SEC-24). The counter lives in the cache
- * through the RateLimiter and is incremented first, then compared, so parallel requests cannot pass the same count.
+ * Sends the verification mail of the panel and claims the email-change links, at most 5 per user per 24 hours in total
+ * (SEC-24, SEC-56). The counter lives in the cache through the RateLimiter and is incremented first, then compared, so
+ * parallel requests cannot pass the same count.
  */
 final class VerificationMails
 {
@@ -28,6 +29,27 @@ final class VerificationMails
             return null;
         }
 
+        $refusal = self::claim($user);
+
+        if ($refusal !== null) {
+            return $refusal;
+        }
+
+        $notification = new QueuedVerifyEmail;
+        $notification->url = Filament::getPanel('admin')->getVerifyEmailUrl($user);
+
+        $user->notify($notification);
+
+        return null;
+    }
+
+    /**
+     * Takes one of the user's 5 daily slots for a link that proves an address; the slot is given back when refused.
+     *
+     * @return string|null the text to show when the cap is reached, null when the slot was taken
+     */
+    public static function claim(User $user): ?string
+    {
         $key = "verification-mails:user:{$user->id}";
 
         if (RateLimiter::increment($key, self::WINDOW_SECONDS) > self::PER_DAY) {
@@ -35,11 +57,6 @@ final class VerificationMails
 
             return 'You have asked for '.self::PER_DAY.' verification emails in the last 24 hours. Try again later.';
         }
-
-        $notification = new QueuedVerifyEmail;
-        $notification->url = Filament::getPanel('admin')->getVerifyEmailUrl($user);
-
-        $user->notify($notification);
 
         return null;
     }

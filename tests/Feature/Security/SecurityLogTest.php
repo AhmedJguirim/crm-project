@@ -284,7 +284,7 @@ test('an email change is logged and a name-only change or a case-only change is 
 
     $entries = securityLogEntries($log);
     expect($entries)->toHaveCount(1);
-    expect($entries[0]['event'])->toBe('account.email_changed');
+    expect($entries[0]['event'])->toBe('account.email_change_requested');
     expect($entries[0]['level'])->toBe('info');
     expect($entries[0]['context'])->toMatchArray(['user_id' => $user->id]);
     expect(json_encode($entries))->not->toContain('ann.lee@example.com')->not->toContain('Ann.Lee@example.com')->not->toContain('ann.new@example.com');
