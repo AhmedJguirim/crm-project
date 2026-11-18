@@ -12,6 +12,7 @@ use App\Models\OrganizationInvite;
 use App\Models\OrganizationUser;
 use App\Models\User;
 use App\Support\NotificationText;
+use App\Support\Security\SecurityLog;
 use App\Support\Tenancy\CurrentOrganization;
 use App\Support\Tenancy\InvitationLimits;
 use App\Support\UserFiles;
@@ -107,9 +108,20 @@ class OrganizationMembers extends Page implements HasTable
                     ])
                     ->fillForm(fn (OrganizationUser $record) => ['role' => $record->role])
                     ->action(function (OrganizationUser $record, array $data) use ($organization): void {
+                        $from = $record->role;
+                        $to = OrganizationRole::from($data['role']);
+
                         $organization->members()->updateExistingPivot($record->user_id, [
                             'role' => $data['role'],
                         ]);
+
+                        if ($from !== $to) {
+                            SecurityLog::warning('organization.member_role_changed', auth()->user(), [
+                                'member_user_id' => $record->user_id,
+                                'from_role' => $from->value,
+                                'to_role' => $to->value,
+                            ]);
+                        }
 
                         Notification::make()
                             ->success()
@@ -127,10 +139,17 @@ class OrganizationMembers extends Page implements HasTable
                     ->modalHeading('Remove Member')
                     ->modalDescription(fn (OrganizationUser $record) => "Are you sure you want to remove {$record->user->name} from this organization? This action is irreversible.")
                     ->action(function (OrganizationUser $record) use ($organization): void {
+                        $role = $record->role;
+
                         DB::transaction(function () use ($organization, $record): void {
                             $organization->deleteInvitesFor($record->user);
                             $organization->members()->detach($record->user_id);
                         });
+
+                        SecurityLog::warning('organization.member_removed', auth()->user(), [
+                            'member_user_id' => $record->user_id,
+                            'role' => $role->value,
+                        ]);
 
                         UserFiles::deleteForMember($record->user_id, $organization->id);
 
@@ -251,6 +270,11 @@ class OrganizationMembers extends Page implements HasTable
                         // Queue the invitation email
                         Mail::to($email)->send(new OrganizationInvitationMail($invite, $token));
 
+                        SecurityLog::info('organization.invitation_sent', $inviter, [
+                            'invite_id' => $invite->id,
+                            'role' => $invite->role->value,
+                        ]);
+
                         Notification::make()
                             ->success()
                             ->title('Invitation sent')
@@ -295,6 +319,10 @@ class OrganizationMembers extends Page implements HasTable
                                 'role' => OrganizationRole::Owner->value,
                             ]);
                         });
+
+                        SecurityLog::warning('organization.ownership_transferred', $currentOwner, [
+                            'new_owner_user_id' => (int) $data['new_owner_id'],
+                        ]);
 
                         $newOwner = User::find($data['new_owner_id']);
 

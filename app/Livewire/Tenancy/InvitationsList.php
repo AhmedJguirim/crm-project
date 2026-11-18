@@ -9,6 +9,7 @@ use App\Models\Organization;
 use App\Models\OrganizationInvite;
 use App\Models\User;
 use App\Support\NotificationText;
+use App\Support\Security\SecurityLog;
 use App\Support\Tenancy\CurrentOrganization;
 use App\Support\Tenancy\InvitationLimits;
 use Filament\Actions\Action;
@@ -72,6 +73,8 @@ class InvitationsList extends Component implements HasActions, HasSchemas, HasTa
                     ->action(function (OrganizationInvite $invite) {
                         $invite->revoke();
 
+                        SecurityLog::info('organization.invitation_revoked', auth()->user(), ['invite_id' => $invite->id]);
+
                         Notification::make()
                             ->success()
                             ->title('Invitation revoked')
@@ -116,6 +119,8 @@ class InvitationsList extends Component implements HasActions, HasSchemas, HasTa
 
                         // Regenerate token and extend expiry by 7 days
                         $token = $invite->regenerateToken(7);
+
+                        SecurityLog::info('organization.invitation_resent', $sender, ['invite_id' => $invite->id]);
 
                         // Re-send the invitation email with the new token
                         Mail::to($invite->email)->send(new OrganizationInvitationMail($invite->fresh(), $token));

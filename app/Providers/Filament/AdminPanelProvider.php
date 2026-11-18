@@ -12,6 +12,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Support\NotificationText;
 use App\Support\Security\LoggedAppAuthentication;
+use App\Support\Security\SecurityLog;
 use App\Support\Tenancy\CurrentOrganization;
 use App\Support\UserFiles;
 use Filament\Actions\Action;
@@ -91,11 +92,15 @@ class AdminPanelProvider extends PanelProvider
                         /** @var User $user */
                         $user = auth()->user();
 
+                        $role = $organization->getMemberRole($user);
+
                         // Detach the user from the organization
                         $organization->members()->detach($user->id);
 
                         // Delete invite if user was invited
                         $organization->deleteInvitesFor($user);
+
+                        SecurityLog::info('organization.member_left', $user, ['role' => $role?->value]);
 
                         UserFiles::deleteForMember($user->id, $organization->id);
 

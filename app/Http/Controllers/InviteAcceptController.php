@@ -6,6 +6,7 @@ use App\Enums\InviteStatus;
 use App\Models\OrganizationInvite;
 use App\Models\User;
 use App\Support\NotificationText;
+use App\Support\Security\SecurityLog;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
 use Illuminate\Contracts\View\View;
@@ -92,11 +93,11 @@ class InviteAcceptController extends Controller
      */
     public function acceptInvite(OrganizationInvite $invite, User $user): bool
     {
-        $accepted = DB::transaction(function () use ($invite, $user): bool {
+        $accepted = DB::transaction(function () use ($invite, $user): ?OrganizationInvite {
             $locked = OrganizationInvite::query()->lockForUpdate()->find($invite->getKey());
 
             if (! $locked || ! $locked->isValid()) {
-                return false;
+                return null;
             }
 
             $locked->organization->members()->attach($user->id, [
@@ -105,12 +106,18 @@ class InviteAcceptController extends Controller
 
             $locked->markAccepted();
 
-            return true;
+            return $locked;
         });
 
         if (! $accepted) {
             return false;
         }
+
+        SecurityLog::info('organization.invitation_accepted', $user, [
+            'invite_id' => $accepted->id,
+            'joined_organization_id' => $accepted->organization_id,
+            'role' => $accepted->role->value,
+        ]);
 
         Notification::make()
             ->success()
