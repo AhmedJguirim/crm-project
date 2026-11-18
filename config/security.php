@@ -18,11 +18,16 @@ return [
     'owner_alerts' => [
         /*
          * Daily mail to the person running the app (not an organization owner) when yesterday's security log shows
-         * more failed sign-ins than the threshold, or any lockout. Needs the address below to be set.
+         * more failed sign-ins than the threshold, or any lockout. Needs the address below to be set. An account that
+         * queued more exports, exported more rows or downloaded more export files than the limits below in the day also
+         * triggers the alert; imports are not counted.
          */
         'enabled' => env('SECURITY_OWNER_ALERTS_ENABLED', true),
         'email' => env('SECURITY_OWNER_ALERTS_EMAIL'),
         'failed_logins_threshold' => (int) env('SECURITY_OWNER_ALERTS_FAILED_LOGINS', 20),
+        'exports_per_user_threshold' => (int) env('SECURITY_OWNER_ALERTS_EXPORTS_PER_USER', 10),
+        'exported_rows_per_user_threshold' => (int) env('SECURITY_OWNER_ALERTS_EXPORTED_ROWS_PER_USER', 50000),
+        'downloads_per_user_threshold' => (int) env('SECURITY_OWNER_ALERTS_DOWNLOADS_PER_USER', 20),
     ],
     'disk_alert' => [
         /*

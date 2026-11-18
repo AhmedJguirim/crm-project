@@ -1,6 +1,8 @@
 <?php
 
+use App\Models\User;
 use App\Notifications\SecurityOwnerAlertNotification;
+use App\Support\Security\ExportAlertLimits;
 use App\Support\Security\SecurityLog;
 use App\Support\Security\SecurityLogDay;
 use Carbon\CarbonImmutable;
@@ -30,6 +32,16 @@ function soaFailedLogins(int $count, string $ip = '203.0.113.7', string $env = '
 function soaLockout(?int $userId, string $source = 'panel_account', string $env = 'testing'): string
 {
     return soaLine($env, 'WARNING', 'auth.lockout', ['source' => $source, 'user_id' => $userId, 'organization_id' => null, 'ip' => '203.0.113.7']);
+}
+
+function soaExport(mixed $userId, mixed $rows = 100, string $env = 'testing'): string
+{
+    return soaLine($env, 'INFO', 'data.export_queued', ['list' => 'contacts', 'format' => 'csv', 'rows' => $rows, 'user_id' => $userId, 'organization_id' => 7, 'ip' => '198.51.100.9']);
+}
+
+function soaDownload(mixed $userId, string $env = 'testing'): string
+{
+    return soaLine($env, 'INFO', 'data.export_downloaded', ['list' => 'contacts', 'format' => 'csv', 'file_organization_id' => 7, 'user_id' => $userId, 'organization_id' => 7, 'ip' => '198.51.100.9']);
 }
 
 function soaWrite(string $content, string $date = '2026-11-12'): void
@@ -72,6 +84,9 @@ beforeEach(function () {
         'security.owner_alerts.enabled' => true,
         'security.owner_alerts.email' => 'ops@example.com',
         'security.owner_alerts.failed_logins_threshold' => 20,
+        'security.owner_alerts.exports_per_user_threshold' => 10,
+        'security.owner_alerts.exported_rows_per_user_threshold' => 50000,
+        'security.owner_alerts.downloads_per_user_threshold' => 20,
     ]);
     Log::forgetChannel('security');
 
@@ -500,7 +515,7 @@ test('below the caps the mail has no cap line', function () {
     $log = SecurityLogDay::read(soaDay());
 
     expect($log->trackingCapped)->toBeFalse();
-    expect(collect(soaLines(new SecurityOwnerAlertNotification($log, 20)))->contains(fn (string $line): bool => str_starts_with($line, 'More than')))->toBeFalse();
+    expect(collect(soaLines(new SecurityOwnerAlertNotification($log, 20, new ExportAlertLimits(10, 50000, 20))))->contains(fn (string $line): bool => str_starts_with($line, 'More than')))->toBeFalse();
 });
 
 test('a log channel that is not a daily file is refused', function () {
@@ -515,7 +530,7 @@ test('a log channel that is not a daily file is refused', function () {
 });
 
 test('the alert is a queued, mail-only notification', function () {
-    $notification = new SecurityOwnerAlertNotification(SecurityLogDay::read(soaDay()), 20);
+    $notification = new SecurityOwnerAlertNotification(SecurityLogDay::read(soaDay()), 20, new ExportAlertLimits(10, 50000, 20));
 
     expect($notification)->toBeInstanceOf(ShouldQueueAfterCommit::class);
     expect($notification->via(new AnonymousNotifiable))->toBe(['mail']);
@@ -524,9 +539,303 @@ test('the alert is a queued, mail-only notification', function () {
 test('the toggle, address and threshold are read from the environment through the config file', function () {
     $config = require base_path('config/security.php');
 
-    expect($config['owner_alerts'])->toHaveKeys(['enabled', 'email', 'failed_logins_threshold']);
+    expect($config['owner_alerts'])->toHaveKeys(['enabled', 'email', 'failed_logins_threshold', 'exports_per_user_threshold', 'exported_rows_per_user_threshold', 'downloads_per_user_threshold']);
     expect(File::get(base_path('.env.example')))
         ->toContain("SECURITY_OWNER_ALERTS_ENABLED=true\n")
         ->toContain("SECURITY_OWNER_ALERTS_EMAIL=\n")
-        ->toContain("SECURITY_OWNER_ALERTS_FAILED_LOGINS=20\n");
+        ->toContain("SECURITY_OWNER_ALERTS_FAILED_LOGINS=20\n")
+        ->toContain("SECURITY_OWNER_ALERTS_EXPORTS_PER_USER=10\n")
+        ->toContain("SECURITY_OWNER_ALERTS_EXPORTED_ROWS_PER_USER=50000\n")
+        ->toContain("SECURITY_OWNER_ALERTS_DOWNLOADS_PER_USER=20\n");
+});
+
+test('one account above the export count sends the mail with the exact lines', function () {
+    soaWrite(str_repeat(soaExport(12), 11).str_repeat(soaDownload(12), 3).str_repeat(soaExport(40), 2));
+
+    $this->artisan('security:alert-owner')
+        ->expectsOutput('Security alert for 2026-11-12 queued to the owner address.')
+        ->assertSuccessful();
+
+    Notification::assertSentOnDemandTimes(SecurityOwnerAlertNotification::class, 1);
+    expect(soaLines(soaSent()[0]))->toBe([
+        'The security log of '.config('app.name').' for 12 Nov 2026 (UTC) crossed an alert threshold.',
+        'Failed sign-ins: 0 (alert above 20).',
+        'Failed two-factor codes: 0.',
+        'Lockouts: 0.',
+        'Exports queued: 13 (1,300 rows); export files downloaded: 3.',
+        'Accounts above an export limit (more than 10 exports, 50,000 rows or 20 downloads in the day): #12 (exports 11, rows 1,100, downloads 3).',
+        'The full lines are in security-2026-11-12.log in the server\'s storage/logs folder.',
+    ]);
+});
+
+test('each export limit is strictly above', function (string $content, ?string $listed) {
+    soaWrite($content);
+
+    $this->artisan('security:alert-owner')->assertSuccessful();
+
+    if ($listed === null) {
+        Notification::assertNothingSent();
+
+        return;
+    }
+
+    expect(soaSent())->toHaveCount(1);
+    expect(soaLines(soaSent()[0]))->toContain(
+        'Accounts above an export limit (more than 10 exports, 50,000 rows or 20 downloads in the day): '.$listed.'.'
+    );
+})->with([
+    '10 exports' => [fn () => str_repeat(soaExport(12, 1), 10), null],
+    '11 exports' => [fn () => str_repeat(soaExport(12, 1), 11), '#12 (exports 11, rows 11, downloads 0)'],
+    '50,000 rows' => [fn () => str_repeat(soaExport(12, 25000), 2), null],
+    '50,001 rows' => [fn () => soaExport(12, 25000).soaExport(12, 25001), '#12 (exports 2, rows 50,001, downloads 0)'],
+    '20 downloads' => [fn () => str_repeat(soaDownload(12), 20), null],
+    '21 downloads' => [fn () => str_repeat(soaDownload(12), 21), '#12 (exports 0, rows 0, downloads 21)'],
+]);
+
+test('exports below the limits on an alert day give the totals line but no accounts line', function () {
+    soaWrite(soaFailedLogins(23).soaExport(12, 5));
+
+    $this->artisan('security:alert-owner')->assertSuccessful();
+
+    $lines = soaLines(soaSent()[0]);
+    expect($lines)->toContain('Exports queued: 1 (5 rows); export files downloaded: 0.');
+    expect(collect($lines)->contains(fn (string $line): bool => str_starts_with($line, 'Accounts above an export limit')))->toBeFalse();
+});
+
+test('a sign-in-only alert has no export line', function () {
+    soaWrite(soaFailedLogins(23));
+
+    $this->artisan('security:alert-owner')->assertSuccessful();
+
+    expect(collect(soaLines(soaSent()[0]))->contains(fn (string $line): bool => str_contains($line, 'xport')))->toBeFalse();
+});
+
+test('more than 10 accounts above are cut at 10, ascending', function () {
+    $content = '';
+    for ($id = 30; $id >= 19; $id--) {
+        $content .= str_repeat(soaDownload($id), 21);
+    }
+    soaWrite($content);
+
+    $this->artisan('security:alert-owner')->assertSuccessful();
+
+    $lines = soaLines(soaSent()[0]);
+    $line = collect($lines)->first(fn (string $line): bool => str_starts_with($line, 'Accounts above an export limit'));
+    expect($line)->toStartWith('Accounts above an export limit (more than 10 exports, 50,000 rows or 20 downloads in the day): #19 (exports 0, rows 0, downloads 21), #20 ');
+    expect($line)->toContain('#28 (exports 0, rows 0, downloads 21) and 2 more.');
+    expect($line)->not->toContain('#29');
+    expect(SecurityLogDay::read(soaDay())->exportAccountsAbove(new ExportAlertLimits(10, 50000, 20)))->toBe(range(19, 30));
+});
+
+test('the limits come from the config and a negative limit is zero', function () {
+    config(['security.owner_alerts.exports_per_user_threshold' => -5]);
+    soaWrite(soaExport(12, 1));
+
+    expect(ExportAlertLimits::fromConfig())->toEqual(new ExportAlertLimits(0, 50000, 20));
+
+    $this->artisan('security:alert-owner')->assertSuccessful();
+
+    expect(soaLines(soaSent()[0]))->toContain(
+        'Accounts above an export limit (more than 0 exports, 50,000 rows or 20 downloads in the day): #12 (exports 1, rows 1, downloads 0).'
+    );
+});
+
+test('the row and download limits come from the config too', function () {
+    config(['security.owner_alerts.exported_rows_per_user_threshold' => 99, 'security.owner_alerts.downloads_per_user_threshold' => 2]);
+
+    expect(ExportAlertLimits::fromConfig())->toEqual(new ExportAlertLimits(10, 99, 2));
+
+    soaWrite(soaExport(12, 100));
+    $this->artisan('security:alert-owner')->assertSuccessful();
+    expect(soaLines(soaSent()[0]))->toContain(
+        'Accounts above an export limit (more than 10 exports, 99 rows or 2 downloads in the day): #12 (exports 1, rows 100, downloads 0).'
+    );
+
+    soaWrite(str_repeat(soaDownload(13), 3), '2026-11-11');
+    $this->artisan('security:alert-owner', ['--date' => '2026-11-11'])->assertSuccessful();
+    expect(soaSent())->toHaveCount(2);
+});
+
+test('the audit line carries the export counts and no address', function () {
+    $this->travelBack();
+    $yesterday = now()->subDay()->format('Y-m-d');
+    $content = str_replace('2026-11-12', $yesterday, str_repeat(soaExport(12), 11).str_repeat(soaDownload(12), 3));
+    soaWrite($content, $yesterday);
+
+    $this->artisan('security:alert-owner')->assertSuccessful();
+
+    $log = File::get($this->soaDir.'/security-'.date('Y-m-d').'.log');
+    expect($log)->toContain('"failed_logins":0,"lockouts":0,"exports_queued":11,"export_downloads":3,"export_accounts_above":1');
+    expect($log)->not->toContain('ops@example.com');
+});
+
+test('the real logger round trip: an export logged today is mailed the next day', function () {
+    $this->travelBack();
+    $user = User::factory()->create();
+    SecurityLog::info('data.export_queued', $user, ['list' => 'contacts', 'format' => 'csv', 'rows' => 60000]);
+
+    $this->travelTo(now()->addDay());
+
+    $this->artisan('security:alert-owner')->assertSuccessful();
+
+    expect(soaLines(soaSent()[0]))->toContain(
+        'Accounts above an export limit (more than 10 exports, 50,000 rows or 20 downloads in the day): #'.$user->id.' (exports 1, rows 60,000, downloads 0).'
+    );
+});
+
+test('an export-only day is mailed once', function () {
+    soaWrite(str_repeat(soaExport(12), 11));
+
+    $this->artisan('security:alert-owner')->assertSuccessful();
+    $this->artisan('security:alert-owner')
+        ->expectsOutput('The security alert for 2026-11-12 was already sent.')
+        ->assertSuccessful();
+
+    expect(soaSent())->toHaveCount(1);
+});
+
+test('imports never count', function () {
+    $imports = str_repeat(soaLine('testing', 'INFO', 'data.import_queued', ['list' => 'contacts', 'rows' => 100000, 'user_id' => 12]), 50)
+        .str_repeat(soaLine('testing', 'INFO', 'data.import_finished', ['list' => 'contacts', 'rows' => 100000, 'user_id' => 12]), 50)
+        .str_repeat(soaLine('testing', 'INFO', 'data.import_failed_rows_downloaded', ['list' => 'contacts', 'user_id' => 12]), 50);
+    soaWrite($imports);
+
+    $log = SecurityLogDay::read(soaDay());
+    expect($log->exportsQueued)->toBe(0);
+    expect($log->exportedRows)->toBe(0);
+    expect($log->exportDownloads)->toBe(0);
+    expect($log->exportsByUser)->toBe([]);
+
+    $this->artisan('security:alert-owner')
+        ->expectsOutput('No security alert for 2026-11-12: 0 failed sign-ins, 0 lockouts.')
+        ->assertSuccessful();
+
+    Notification::assertNothingSent();
+});
+
+test('forged user ids in export lines are counted in the totals but never listed', function (mixed $userId) {
+    soaWrite(str_repeat(soaExport($userId, 100), 11));
+
+    $log = SecurityLogDay::read(soaDay());
+
+    expect($log->exportsQueued)->toBe(11);
+    expect($log->exportedRows)->toBe(1100);
+    expect($log->exportsByUser)->toBe([]);
+    expect($log->crossesExportLimits(new ExportAlertLimits(10, 50000, 20)))->toBeFalse();
+})->with(['string' => '12', 'zero' => 0, 'negative' => -3, 'float' => 1.5, 'null' => null, 'array' => [[12]]]);
+
+test('forged download user ids are counted in the total but never listed', function (mixed $userId) {
+    soaWrite(str_repeat(soaDownload($userId), 25));
+
+    $log = SecurityLogDay::read(soaDay());
+
+    expect($log->exportDownloads)->toBe(25);
+    expect($log->exportsByUser)->toBe([]);
+
+    $this->artisan('security:alert-owner')->assertSuccessful();
+
+    Notification::assertNothingSent();
+})->with(['string' => '12', 'zero' => 0, 'negative' => -3, 'float' => 1.5, 'null' => null]);
+
+test('forged row counts are read as zero', function (mixed $rows) {
+    soaWrite(str_repeat(soaExport(12, $rows), 11));
+
+    $log = SecurityLogDay::read(soaDay());
+
+    expect($log->exportsQueued)->toBe(11);
+    expect($log->exportedRows)->toBe(0);
+    expect($log->exportsByUser)->toBe([12 => ['exports' => 11, 'rows' => 0, 'downloads' => 0]]);
+})->with(['string' => '50000', 'negative' => -1, 'float' => 2.5, 'null' => null, 'array' => [[5]]]);
+
+test('export lines of another environment never count', function () {
+    soaWrite(str_repeat(soaExport(12, 100, 'production'), 11).str_repeat(soaDownload(12, 'production'), 25));
+
+    $log = SecurityLogDay::read(soaDay());
+    expect($log->exportsQueued)->toBe(0);
+    expect($log->exportDownloads)->toBe(0);
+
+    $this->artisan('security:alert-owner')->assertSuccessful();
+
+    Notification::assertNothingSent();
+});
+
+test('the mail never carries list names, file organizations or addresses of export lines', function () {
+    $line = soaLine('testing', 'INFO', 'data.export_queued', [
+        'list' => 'segment-secret-list', 'format' => 'csv', 'rows' => 100, 'segment_id' => 99, 'user_id' => 12,
+        'organization_id' => 7, 'ip' => '198.51.100.9', 'file_organization_id' => 4242,
+    ]);
+    soaWrite(str_repeat($line, 11));
+
+    $this->artisan('security:alert-owner')->assertSuccessful();
+
+    $text = implode("\n", soaLines(soaSent()[0]));
+    expect($text)->toContain('#12 (exports 11, rows 1,100, downloads 0)');
+    expect($text)->not->toContain('segment-secret-list');
+    expect($text)->not->toContain('99');
+    expect($text)->not->toContain('198.51.100.9');
+    expect($text)->not->toContain('4242');
+});
+
+test('the per-account export map is capped, the totals stay exact and the mail says so', function () {
+    $content = '';
+    for ($i = 1; $i <= SecurityLogDay::MAX_TRACKED + 1; $i++) {
+        $content .= soaDownload($i);
+    }
+    soaWrite($content);
+
+    $log = SecurityLogDay::read(soaDay());
+
+    expect($log->exportDownloads)->toBe(SecurityLogDay::MAX_TRACKED + 1);
+    expect($log->exportsByUser)->toHaveCount(SecurityLogDay::MAX_TRACKED);
+    expect($log->trackingCapped)->toBeTrue();
+});
+
+test('an account already tracked still counts after the export map is full', function () {
+    $content = '';
+    for ($i = 1; $i <= SecurityLogDay::MAX_TRACKED + 1; $i++) {
+        $content .= soaExport($i, 1);
+    }
+    soaWrite($content.str_repeat(soaDownload(1), 3).soaExport(1, 4));
+
+    $log = SecurityLogDay::read(soaDay());
+
+    expect($log->exportsQueued)->toBe(SecurityLogDay::MAX_TRACKED + 2);
+    expect($log->exportsByUser[1])->toBe(['exports' => 2, 'rows' => 5, 'downloads' => 3]);
+    expect($log->exportsByUser)->not->toHaveKey(SecurityLogDay::MAX_TRACKED + 1);
+});
+
+test('export-only counts do not change the sign-in decision', function () {
+    soaWrite(str_repeat(soaExport(12, 1), 50).str_repeat(soaDownload(12), 50));
+
+    $log = SecurityLogDay::read(soaDay());
+
+    expect($log->crosses(20))->toBeFalse();
+    expect($log->crossesExportLimits(new ExportAlertLimits(10, 50000, 20)))->toBeTrue();
+});
+
+test('two export lines with the largest integer as rows do not break the day and keep the sign-in alert', function () {
+    soaWrite(soaFailedLogins(23).str_repeat(soaExport(12, PHP_INT_MAX), 2));
+
+    $log = SecurityLogDay::read(soaDay());
+    expect($log->exportedRows)->toBe(PHP_INT_MAX);
+    expect($log->exportsByUser[12]['rows'])->toBe(PHP_INT_MAX);
+    expect($log->failedLogins)->toBe(23);
+
+    $this->artisan('security:alert-owner')
+        ->expectsOutput('Security alert for 2026-11-12 queued to the owner address.')
+        ->assertSuccessful();
+
+    Notification::assertSentOnDemandTimes(SecurityOwnerAlertNotification::class, 1);
+    expect(soaLines(soaSent()[0]))->toContain('Failed sign-ins: 23 (alert above 20).');
+});
+
+test('two export lines with the largest integer as rows alone still list the account', function () {
+    soaWrite(str_repeat(soaExport(12, PHP_INT_MAX), 2));
+
+    $this->artisan('security:alert-owner')->assertSuccessful();
+
+    Notification::assertSentOnDemandTimes(SecurityOwnerAlertNotification::class, 1);
+    $text = implode("\n", soaLines(soaSent()[0]));
+    expect($text)->toContain('Exports queued: 2 ('.number_format(PHP_INT_MAX).' rows)');
+    expect($text)->toContain('#12 (exports 2, rows '.number_format(PHP_INT_MAX).', downloads 0)');
 });

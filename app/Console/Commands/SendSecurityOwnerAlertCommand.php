@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Notifications\SecurityOwnerAlertNotification;
+use App\Support\Security\ExportAlertLimits;
 use App\Support\Security\SecurityLog;
 use App\Support\Security\SecurityLogDay;
 use Carbon\CarbonImmutable;
@@ -14,13 +15,13 @@ use Throwable;
 
 /**
  * Mails the person running the app once a day when the security log of the day before shows too many failed sign-ins
- * or any lockout (SEC-44).
+ * or any lockout (SEC-44), or when one account queued or downloaded too many exports (SEC-60).
  */
 class SendSecurityOwnerAlertCommand extends Command
 {
     protected $signature = 'security:alert-owner {--date= : A past day to report on, YYYY-MM-DD (default: yesterday)}';
 
-    protected $description = "Mail the app owner when yesterday's security log shows too many failed sign-ins or any lockout";
+    protected $description = "Mail the app owner when yesterday's security log shows too many failed sign-ins, any lockout or too many exports by one account";
 
     public function handle(): int
     {
@@ -54,9 +55,10 @@ class SendSecurityOwnerAlertCommand extends Command
 
         $date = $day->format('Y-m-d');
         $threshold = max(0, (int) config('security.owner_alerts.failed_logins_threshold'));
+        $limits = ExportAlertLimits::fromConfig();
         $log = SecurityLogDay::read($day);
 
-        if (! $log->crosses($threshold)) {
+        if (! $log->crosses($threshold) && ! $log->crossesExportLimits($limits)) {
             $this->info("No security alert for {$date}: {$log->failedLogins} failed sign-ins, {$log->lockouts()} lockouts.");
 
             return self::SUCCESS;
@@ -71,7 +73,7 @@ class SendSecurityOwnerAlertCommand extends Command
         }
 
         try {
-            Notification::route('mail', $email)->notify(new SecurityOwnerAlertNotification($log, $threshold));
+            Notification::route('mail', $email)->notify(new SecurityOwnerAlertNotification($log, $threshold, $limits));
         } catch (Throwable $exception) {
             Cache::forget($key);
             report($exception);
@@ -84,6 +86,9 @@ class SendSecurityOwnerAlertCommand extends Command
             'date' => $date,
             'failed_logins' => $log->failedLogins,
             'lockouts' => $log->lockouts(),
+            'exports_queued' => $log->exportsQueued,
+            'export_downloads' => $log->exportDownloads,
+            'export_accounts_above' => count($log->exportAccountsAbove($limits)),
         ]);
 
         $this->info("Security alert for {$date} queued to the owner address.");

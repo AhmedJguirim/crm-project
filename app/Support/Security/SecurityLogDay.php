@@ -6,9 +6,10 @@ use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\File;
 
 /**
- * What one day of the daily `security` log file says about sign-in abuse (SEC-44). Only lines written by this
- * environment count, and only values that pass an allow-list (a valid IP address, a positive integer id, a known
- * lockout source) are kept, so nothing free-form from the log can reach the owner's mail.
+ * What one day of the daily `security` log file says about sign-in abuse (SEC-44) and about exports (SEC-60). Only lines
+ * written by this environment count, and only values that pass an allow-list (a valid IP address, a positive integer
+ * id, a known lockout source, a non-negative integer row count) are kept, so nothing free-form from the log can reach
+ * the owner's mail.
  */
 final readonly class SecurityLogDay
 {
@@ -32,6 +33,7 @@ final readonly class SecurityLogDay
      * @param  array<string, int>  $lockoutsBySource
      * @param  list<int>  $lockedUserIds
      * @param  array<string, int>  $failedLoginsByIp
+     * @param  array<int, array{exports: int, rows: int, downloads: int}>  $exportsByUser
      */
     public function __construct(
         public CarbonImmutable $day,
@@ -41,6 +43,10 @@ final readonly class SecurityLogDay
         public array $lockedUserIds,
         public array $failedLoginsByIp,
         public bool $trackingCapped,
+        public int $exportsQueued = 0,
+        public int $exportedRows = 0,
+        public int $exportDownloads = 0,
+        public array $exportsByUser = [],
     ) {}
 
     public static function read(CarbonImmutable $day): self
@@ -54,6 +60,10 @@ final readonly class SecurityLogDay
         $lockedUserIds = [];
         $failedLoginsByIp = [];
         $capped = false;
+        $exportsQueued = 0;
+        $exportedRows = 0;
+        $exportDownloads = 0;
+        $exportsByUser = [];
 
         if (is_file($path)) {
             foreach (File::lines($path) as $line) {
@@ -86,6 +96,38 @@ final readonly class SecurityLogDay
                     continue;
                 }
 
+                if ($match['event'] === 'data.export_queued') {
+                    $exportsQueued++;
+                    $rows = $context['rows'] ?? null;
+                    $rows = is_int($rows) && $rows >= 0 ? $rows : 0;
+                    $exportedRows = self::addRows($exportedRows, $rows);
+
+                    $userId = self::accountId($context);
+
+                    if ($userId !== null && self::trackExportAccount($exportsByUser, $userId)) {
+                        $exportsByUser[$userId]['exports']++;
+                        $exportsByUser[$userId]['rows'] = self::addRows($exportsByUser[$userId]['rows'], $rows);
+                    } elseif ($userId !== null) {
+                        $capped = true;
+                    }
+
+                    continue;
+                }
+
+                if ($match['event'] === 'data.export_downloaded') {
+                    $exportDownloads++;
+
+                    $userId = self::accountId($context);
+
+                    if ($userId !== null && self::trackExportAccount($exportsByUser, $userId)) {
+                        $exportsByUser[$userId]['downloads']++;
+                    } elseif ($userId !== null) {
+                        $capped = true;
+                    }
+
+                    continue;
+                }
+
                 if ($match['event'] !== 'auth.lockout') {
                     continue;
                 }
@@ -111,7 +153,58 @@ final readonly class SecurityLogDay
         $lockedUserIds = array_keys($lockedUserIds);
         sort($lockedUserIds);
 
-        return new self($day, $failedLogins, $failedTwoFactor, $lockoutsBySource, $lockedUserIds, $failedLoginsByIp, $capped);
+        return new self(
+            $day,
+            $failedLogins,
+            $failedTwoFactor,
+            $lockoutsBySource,
+            $lockedUserIds,
+            $failedLoginsByIp,
+            $capped,
+            $exportsQueued,
+            $exportedRows,
+            $exportDownloads,
+            $exportsByUser,
+        );
+    }
+
+    /**
+     * Adds two row counts and stops at PHP_INT_MAX instead of overflowing to a float, so a forged line can never
+     * make the day unreadable.
+     */
+    private static function addRows(int $sum, int $rows): int
+    {
+        return $rows > PHP_INT_MAX - $sum ? PHP_INT_MAX : $sum + $rows;
+    }
+
+    /**
+     * @param  array<mixed>  $context
+     */
+    private static function accountId(array $context): ?int
+    {
+        $userId = $context['user_id'] ?? null;
+
+        return is_int($userId) && $userId > 0 ? $userId : null;
+    }
+
+    /**
+     * Makes room for the account in the map when it is already there or the map is not full yet.
+     *
+     * @param  array<int, array{exports: int, rows: int, downloads: int}>  $exportsByUser
+     */
+    private static function trackExportAccount(array &$exportsByUser, int $userId): bool
+    {
+        if (isset($exportsByUser[$userId])) {
+            return true;
+        }
+
+        if (count($exportsByUser) >= self::MAX_TRACKED) {
+            return false;
+        }
+
+        $exportsByUser[$userId] = ['exports' => 0, 'rows' => 0, 'downloads' => 0];
+
+        return true;
     }
 
     public function lockouts(): int
@@ -122,6 +215,32 @@ final readonly class SecurityLogDay
     public function crosses(int $threshold): bool
     {
         return $this->failedLogins > $threshold || $this->lockouts() >= 1;
+    }
+
+    /**
+     * Ids of the accounts that, in the day, queued more exports, exported more rows or downloaded more export files
+     * than the limits, ascending.
+     *
+     * @return list<int>
+     */
+    public function exportAccountsAbove(ExportAlertLimits $limits): array
+    {
+        $ids = [];
+
+        foreach ($this->exportsByUser as $userId => $counts) {
+            if ($counts['exports'] > $limits->exports || $counts['rows'] > $limits->rows || $counts['downloads'] > $limits->downloads) {
+                $ids[] = $userId;
+            }
+        }
+
+        sort($ids);
+
+        return $ids;
+    }
+
+    public function crossesExportLimits(ExportAlertLimits $limits): bool
+    {
+        return $this->exportAccountsAbove($limits) !== [];
     }
 
     public function fileName(): string

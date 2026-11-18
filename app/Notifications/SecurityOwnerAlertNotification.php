@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Support\Security\ExportAlertLimits;
 use App\Support\Security\SecurityLogDay;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueueAfterCommit;
@@ -9,8 +10,9 @@ use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
 /**
- * Tells the person running the app that a day of the security log crossed the alert threshold (SEC-44). It is sent to
- * an address, not to a user, and carries only counts, valid IP addresses and account ids.
+ * Tells the person running the app that a day of the security log crossed the alert threshold or an export limit
+ * (SEC-44, exports SEC-60). It is sent to an address, not to a user, and carries only counts, valid IP addresses and
+ * account ids.
  */
 class SecurityOwnerAlertNotification extends Notification implements ShouldQueueAfterCommit
 {
@@ -19,6 +21,8 @@ class SecurityOwnerAlertNotification extends Notification implements ShouldQueue
     private const int MAX_LOCKED_ACCOUNTS_LISTED = 10;
 
     private const int MAX_IPS_LISTED = 5;
+
+    private const int MAX_EXPORT_ACCOUNTS_LISTED = 10;
 
     private const array SOURCE_LABELS = [
         'panel_account' => 'one account',
@@ -31,6 +35,7 @@ class SecurityOwnerAlertNotification extends Notification implements ShouldQueue
     public function __construct(
         public SecurityLogDay $day,
         public int $threshold,
+        public ExportAlertLimits $exportLimits,
     ) {}
 
     /**
@@ -64,12 +69,49 @@ class SecurityOwnerAlertNotification extends Notification implements ShouldQueue
             $mail->line($addresses);
         }
 
+        if ($this->day->exportsQueued + $this->day->exportDownloads > 0) {
+            $mail->line($this->exportTotalsLine());
+
+            $accounts = $this->exportAccountsLine();
+
+            if ($accounts !== null) {
+                $mail->line($accounts);
+            }
+        }
+
         if ($this->day->trackingCapped) {
             $limit = number_format(SecurityLogDay::MAX_TRACKED);
             $mail->line("More than {$limit} addresses or accounts showed up; the lists above cover the first {$limit} seen.");
         }
 
         return $mail->line("The full lines are in {$this->day->fileName()} in the server's storage/logs folder.");
+    }
+
+    private function exportTotalsLine(): string
+    {
+        $rows = number_format($this->day->exportedRows);
+
+        return "Exports queued: {$this->day->exportsQueued} ({$rows} rows); export files downloaded: {$this->day->exportDownloads}.";
+    }
+
+    private function exportAccountsLine(): ?string
+    {
+        $ids = $this->day->exportAccountsAbove($this->exportLimits);
+
+        if ($ids === []) {
+            return null;
+        }
+
+        $listed = array_map(function (int $id): string {
+            $counts = $this->day->exportsByUser[$id];
+
+            return "#{$id} (exports {$counts['exports']}, rows ".number_format($counts['rows']).", downloads {$counts['downloads']})";
+        }, array_slice($ids, 0, self::MAX_EXPORT_ACCOUNTS_LISTED));
+        $more = count($ids) - self::MAX_EXPORT_ACCOUNTS_LISTED;
+        $rows = number_format($this->exportLimits->rows);
+
+        return "Accounts above an export limit (more than {$this->exportLimits->exports} exports, {$rows} rows or {$this->exportLimits->downloads} downloads in the day): "
+            .implode(', ', $listed).($more > 0 ? " and {$more} more" : '').'.';
     }
 
     private function lockoutsLine(): string
