@@ -31,6 +31,8 @@ use TypeError;
  * `refusePaginationArguments()` covers the untyped pagination methods of Livewire, which forward their argument to a
  * typed callee one level deeper and so cannot be recognised by the first guard. Other untyped public methods that
  * forward a forged value keep their 500.
+ *
+ * Each refusal is written to the security log (SEC-21).
  */
 final class RefuseMistypedCallArguments
 {
@@ -71,7 +73,7 @@ final class RefuseMistypedCallArguments
         }
 
         if ($this->isCalledDirectlyByTheBrowser($trace, 1)) {
-            abort(419);
+            ForgedPayload::refuse('mistyped_argument', $target, $frame0['function']);
         }
     }
 
@@ -107,7 +109,7 @@ final class RefuseMistypedCallArguments
         }
 
         if ($this->isCalledDirectlyByTheBrowser($trace, 1)) {
-            abort(419);
+            ForgedPayload::refuse('missing_argument', $target);
         }
     }
 
@@ -126,11 +128,11 @@ final class RefuseMistypedCallArguments
         $name = $params[0] ?? null;
 
         if (! is_string($name) || ! is_array($params[1] ?? null)) {
-            abort(419);
+            ForgedPayload::refuse('malformed_dispatch', $component);
         }
 
         if (! in_array($name, SupportEvents::getListenerEventNames($component), true)) {
-            abort(419);
+            ForgedPayload::refuse('malformed_dispatch', $component);
         }
     }
 
@@ -172,7 +174,7 @@ final class RefuseMistypedCallArguments
 
         foreach ($params as $param) {
             if (! is_int($param) && ! is_string($param)) {
-                abort(419);
+                ForgedPayload::refuse('pagination_argument', $component, $method);
             }
         }
     }

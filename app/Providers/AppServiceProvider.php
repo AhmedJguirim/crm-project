@@ -18,6 +18,7 @@ use App\Support\Livewire\RefuseSubKeyUpdatesOfScalars;
 use App\Support\Security\LoginLimits;
 use App\Support\Security\QueueWaitAlert;
 use App\Support\Security\SecurityEventSubscriber;
+use App\Support\Security\SecurityLog;
 use App\Support\Tenancy\CurrentOrganization;
 use App\Support\Tenancy\TenantContext;
 use Carbon\CarbonImmutable;
@@ -127,6 +128,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configurePanelTimezone();
         $this->configureLivewireUpdateGuard();
         $this->configureLivewireCallGuard();
+        $this->configureLivewireChecksumLog();
         $this->configureSingleValueFormFields();
         $this->configureSecurityLog();
         $this->configureLoginLimits();
@@ -240,6 +242,16 @@ class AppServiceProvider extends ServiceProvider
         on('exception', [$guard, 'refuseMissingArgument']);
         before('call', [$guard, 'refusePaginationArguments']);
         before('call', [$guard, 'refuseMalformedDispatch']);
+    }
+
+    /**
+     * A Livewire snapshot whose checksum fails is logged as a forged payload (SEC-21); Livewire throws its own 419 right after.
+     */
+    protected function configureLivewireChecksumLog(): void
+    {
+        on('checksum.fail', function (): void {
+            SecurityLog::refusal('request.forged_payload', ['guard' => 'checksum', 'component' => null, 'member' => null]);
+        });
     }
 
     /**

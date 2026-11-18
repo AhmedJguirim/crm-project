@@ -13,7 +13,7 @@ use ReflectionProperty;
  * (`record.name`, or a model nested in an array property) is refused with a 419 as well, because the model synthesizer
  * of Livewire throws a plain exception there (BUG-46). A missing or null nested value and any other object parent
  * (a form object, a collection) are left to Livewire and its synthesizer; unknown or non-public properties keep
- * Livewire's own refusal.
+ * Livewire's own refusal. Each refusal is written to the security log (SEC-21).
  */
 class RefuseSubKeyUpdatesOfScalars
 {
@@ -38,17 +38,17 @@ class RefuseSubKeyUpdatesOfScalars
         }
 
         if (! $reflection->isInitialized($component)) {
-            abort(419);
+            ForgedPayload::refuse('sub_key_update', $component, $property);
         }
 
         $target = $component->{$property};
 
         if ($target instanceof Model) {
-            abort(419);
+            ForgedPayload::refuse('sub_key_update', $component, $property);
         }
 
         if (! is_array($target) && ! is_object($target)) {
-            abort(419);
+            ForgedPayload::refuse('sub_key_update', $component, $property);
         }
 
         foreach (array_slice($segments, 0, -1) as $segment) {
@@ -63,11 +63,11 @@ class RefuseSubKeyUpdatesOfScalars
             }
 
             if ($target instanceof Model) {
-                abort(419);
+                ForgedPayload::refuse('sub_key_update', $component, $property);
             }
 
             if (! is_array($target) && ! is_object($target)) {
-                abort(419);
+                ForgedPayload::refuse('sub_key_update', $component, $property);
             }
         }
     }

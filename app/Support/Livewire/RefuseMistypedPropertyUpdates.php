@@ -17,7 +17,7 @@ use Stringable;
  * scalar values (PHP coerces them), dotted paths (`RefuseSubKeyUpdatesOfScalars` and the synthesizers), unknown,
  * non-public and static properties (Livewire's own refusal), untyped properties and every type that admits a
  * non-scalar value (`array`, `mixed`, a class, an enum). A `Stringable` object is let through for a type that contains
- * `string`, because PHP assigns it.
+ * `string`, because PHP assigns it. Each refusal is written to the security log (SEC-21).
  */
 final class RefuseMistypedPropertyUpdates
 {
@@ -49,7 +49,7 @@ final class RefuseMistypedPropertyUpdates
             return;
         }
 
-        abort(419);
+        ForgedPayload::refuse('mistyped_property', $component, $path);
     }
 
     /**
