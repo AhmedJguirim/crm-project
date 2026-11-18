@@ -233,6 +233,6 @@ describe('edit form', function () {
         }
 
         expect($invoice->refresh()->status)->toBe(InvoiceStatus::Sent)
-            ->and(securityLogEntries($log))->toBe([]);
+            ->and(array_filter(securityLogEntries($log), fn (array $entry): bool => str_starts_with($entry['event'], 'invoice.')))->toBe([]);
     });
 });

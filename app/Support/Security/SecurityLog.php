@@ -5,13 +5,17 @@ namespace App\Support\Security;
 use App\Support\Tenancy\CurrentOrganization;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Exceptions\InvalidSignatureException;
+use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 /**
  * Writes one line per security event to the daily `security` log channel (SEC-08). The line always carries the user id,
  * the organization id and the IP, and never a password, email address, token or recovery code. Refusal lines
- * (`refusal()`) are capped per actor so a loop of forged requests cannot fill the disk (SEC-21).
+ * (`refusal()`) are capped per actor so a loop of forged payloads (SEC-21) or refused requests (403, SEC-63) cannot fill the
+ * disk.
  */
 final class SecurityLog
 {
@@ -82,6 +86,25 @@ final class SecurityLog
         }
 
         self::warning('auth.lockout', $request->user(), ['source' => $routeName]);
+    }
+
+    /**
+     * Logs a 403 answer as a capped refusal (SEC-63). Expired or tampered signed links are not logged: they are a normal
+     * path for a user who clicks an old link.
+     */
+    public static function forbiddenRequest(HttpExceptionInterface $exception, Request $request): void
+    {
+        if ($exception->getStatusCode() !== 403) {
+            return;
+        }
+
+        if ($exception instanceof InvalidSignatureException) {
+            return;
+        }
+
+        $route = $request->route();
+
+        self::refusal('request.forbidden', ['route' => $route instanceof Route ? $route->getName() : null]);
     }
 
     /**

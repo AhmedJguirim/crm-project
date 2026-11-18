@@ -385,7 +385,7 @@ describe('a failed rows download', function () {
 
         $this->actingAs($this->people['bob'])->get($this->failedUrl)->assertForbidden();
         expect(dataLogNamed($this->log, 'data.import_failed_rows_downloaded'))->toHaveCount(1)
-            ->and(str_contains(dataLogContexts($this->log), 'failed-'))->toBeFalse();
+            ->and(str_contains(json_encode(array_column(dataLogNamed($this->log, 'data.import_failed_rows_downloaded'), 'context'), JSON_THROW_ON_ERROR), 'failed-'))->toBeFalse();
     });
 
     it('writes nothing when the file was deleted', function () {

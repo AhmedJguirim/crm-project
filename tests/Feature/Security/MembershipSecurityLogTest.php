@@ -164,13 +164,16 @@ test('a resend refused inside 10 minutes logs nothing', function () {
     expect(membershipLogNamed($this->log, 'organization.invitation_resent'))->toHaveCount(1);
 });
 
-test('a revoke or resend by a member writes no line', function () {
+test('a revoke or resend by a member writes no membership line', function () {
     membershipLogSignIn($this, 'bob');
     $invite = membershipLogPendingInvite($this->acme, $this->people['olga'], 'later@example.com');
 
     Livewire::test(InvitationsList::class)->assertForbidden();
 
-    expect(securityLogEntries($this->log))->toBe([])
+    $entries = securityLogEntries($this->log);
+
+    expect(array_filter($entries, fn (array $entry): bool => str_starts_with($entry['event'], 'organization.')))->toBe([])
+        ->and(array_column($entries, 'event'))->toBe(['request.forbidden'])
         ->and($invite->fresh()->status)->toBe(InviteStatus::Pending);
 });
 
