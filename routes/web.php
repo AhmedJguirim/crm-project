@@ -50,10 +50,10 @@ Route::get('/exports/download', DownloadExportController::class)
     ->middleware(['auth', 'signed'])
     ->name('exports.download');
 
-// Invoice PDF download (authenticated users only, tenant check in controller)
+// Invoice PDF download (authenticated users only, tenant check in controller, 20/min and 200/h per user: SEC-57)
 Route::get('/invoices/{invoice}/pdf', InvoicePdfController::class)
     ->where('invoice', '[0-9]{1,18}')
-    ->middleware(['auth'])
+    ->middleware(['auth', 'throttle:invoice-pdf'])
     ->name('invoices.pdf');
 
 // SB-09: the app doesn't use Filament's exporters or importers; their download routes 404 instead of failing on missing tables

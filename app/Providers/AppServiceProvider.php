@@ -30,6 +30,7 @@ use Illuminate\Database\Console\Seeds\SeedCommand;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Mail\Markdown;
 use Illuminate\Session\Middleware\StartSession as FrameworkStartSession;
 use Illuminate\Session\SessionManager;
@@ -128,6 +129,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureSecurityLog();
         $this->configureLoginLimits();
         $this->configureUploadRateLimiting();
+        $this->configureInvoicePdfRateLimiting();
     }
 
     /**
@@ -172,6 +174,29 @@ class AppServiceProvider extends ServiceProvider
                 Limit::perMinute(10)->by('minute|'.$key)->response($refuse),
                 Limit::perHour(30)->by('hour|'.$key)->response($refuse),
                 Limit::perDay(100)->by('day|'.$key)->response($refuse),
+            ];
+        });
+    }
+
+    /**
+     * Each signed-in user may render 20 invoice PDFs a minute and 200 an hour, so one account cannot hog the CPU or walk
+     * invoice ids (SEC-57). A refused download answers 429 with a page that says how long to wait.
+     */
+    protected function configureInvoicePdfRateLimiting(): void
+    {
+        RateLimiter::for('invoice-pdf', function (Request $request): array {
+            $key = (string) ($request->user()?->getAuthIdentifier() ?? $request->ip());
+
+            $refuse = function (Request $request, array $headers): Response {
+                $minutes = max(1, (int) ceil(((int) ($headers['Retry-After'] ?? 60)) / 60));
+                $message = 'Too many PDF downloads in a short time. Please try again in '.$minutes.' '.Str::plural('minute', $minutes).'.';
+
+                return response()->view('errors.invoice-pdf-throttled', ['message' => $message], 429, $headers);
+            };
+
+            return [
+                Limit::perMinute(20)->by('minute|'.$key)->response($refuse),
+                Limit::perHour(200)->by('hour|'.$key)->response($refuse),
             ];
         });
     }
