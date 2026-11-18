@@ -40,7 +40,7 @@ class ExportSegmentMembersAction
                     ->map(fn (mixed $id): int => (int) $id)
                     ->all();
 
-                self::queueExport($ids, self::exportFormatOf($data), self::fileLabel($record), ExportContactsJob::class);
+                self::queueExport($ids, self::exportFormatOf($data), self::fileLabel($record), ExportContactsJob::class, segmentId: $record->getKey());
             });
     }
 

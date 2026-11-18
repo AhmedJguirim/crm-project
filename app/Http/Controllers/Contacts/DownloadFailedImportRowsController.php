@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Contacts;
 
 use App\Http\Controllers\Controller;
 use App\Models\Contact;
+use App\Support\Security\SecurityLog;
 use App\Support\Tenancy\TenantContext;
 use App\Support\UserFiles;
 use Illuminate\Http\Request;
@@ -40,6 +41,10 @@ class DownloadFailedImportRowsController extends Controller
         if (! Storage::disk('local')->exists($path)) {
             abort(404, 'The failed rows file no longer exists.');
         }
+
+        SecurityLog::info('data.import_failed_rows_downloaded', auth()->user(), [
+            'file_organization_id' => (int) $request->query('organization'),
+        ]);
 
         return Storage::disk('local')->download($path, $file, [
             'Content-Type' => 'text/csv',

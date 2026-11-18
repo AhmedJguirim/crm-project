@@ -9,6 +9,7 @@ use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Invoice;
 use App\Models\Task;
+use App\Support\Security\SecurityLog;
 use App\Support\Tenancy\TenantContext;
 use App\Support\UserFiles;
 use Illuminate\Database\Eloquent\Model;
@@ -76,6 +77,12 @@ class DownloadExportController extends Controller
         if (! is_string($name) || preg_match('/^[A-Za-z0-9._-]{1,100}$/', $name) !== 1) {
             $name = $file;
         }
+
+        SecurityLog::info('data.export_downloaded', auth()->user(), [
+            'list' => $matches[1],
+            'format' => $matches[2],
+            'file_organization_id' => (int) $request->query('organization'),
+        ]);
 
         return Storage::disk('local')->download($path, $name, [
             'Content-Type' => $matches[2] === 'zip' ? 'application/zip' : ExportFormat::from($matches[2])->contentType(),

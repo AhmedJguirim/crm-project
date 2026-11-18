@@ -4,6 +4,7 @@ namespace App\Filament\Actions\Concerns;
 
 use App\Enums\ExportFormat;
 use App\Support\NotificationText;
+use App\Support\Security\SecurityLog;
 use App\Support\Tenancy\CurrentOrganization;
 use App\Support\Tenancy\ImportExportLimits;
 use Filament\Forms\Components\Select;
@@ -44,8 +45,10 @@ trait QueuesExports
      * @param  class-string  $jobClass  A job using `DeliversExport`, whose constructor takes the ids, the organization id, the
      *                                  user id, the format value and the download name, in that order.
      * @param  string|null  $downloadExtension  The extension of the download name when it is not the format's (a ZIP).
+     * @param  int|null  $segmentId  Set by the segment export: the security log then says `segment` and this id, never the
+     *                               file label, which carries the segment's name.
      */
-    protected static function queueExport(array $ids, ExportFormat $format, string $fileLabel, string $jobClass, ?string $downloadExtension = null): void
+    protected static function queueExport(array $ids, ExportFormat $format, string $fileLabel, string $jobClass, ?string $downloadExtension = null, ?int $segmentId = null): void
     {
         if ($ids === []) {
             Notification::make()->warning()->title('Nothing to export.')->send();
@@ -75,6 +78,13 @@ trait QueuesExports
             $format->value,
             "{$fileLabel}-{$organization->localNow()->format('Y-m-d')}.".($downloadExtension ?? $format->value),
         )->holdingSlot(ImportExportLimits::EXPORTS, $slot);
+
+        SecurityLog::info('data.export_queued', auth()->user(), [
+            'list' => $segmentId === null ? $fileLabel : 'segment',
+            'format' => $format->value,
+            'rows' => count($ids),
+            ...($segmentId === null ? [] : ['segment_id' => $segmentId]),
+        ]);
 
         Notification::make()
             ->success()

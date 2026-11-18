@@ -13,6 +13,7 @@ use App\Services\ContactImportService;
 use App\Services\ContactImportTemplate;
 use App\Services\Imports\ImportFileIsNotBinary;
 use App\Support\NotificationText;
+use App\Support\Security\SecurityLog;
 use App\Support\Tenancy\CurrentOrganization;
 use App\Support\Tenancy\ImportExportLimits;
 use Filament\Actions\Action;
@@ -128,8 +129,15 @@ class ListContacts extends ListRecords
                         return;
                     }
 
-                    ProcessContactImportJob::dispatch($path, $orgId, $userId, ImportMode::fromState($data['mode'] ?? ImportMode::CreateOnly))
+                    $mode = ImportMode::fromState($data['mode'] ?? ImportMode::CreateOnly);
+
+                    ProcessContactImportJob::dispatch($path, $orgId, $userId, $mode)
                         ->holdingSlot(ImportExportLimits::IMPORTS, $slot);
+
+                    SecurityLog::info('data.import_queued', auth()->user(), [
+                        'list' => 'contacts',
+                        'mode' => $mode->value,
+                    ]);
 
                     Notification::make()
                         ->success()

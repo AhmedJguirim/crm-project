@@ -12,6 +12,7 @@ use App\Services\ContactImportFileReader;
 use App\Services\Imports\ImportCellParser;
 use App\Services\Imports\ImportFileIsNotBinary;
 use App\Support\NotificationText;
+use App\Support\Security\SecurityLog;
 use App\Support\Tenancy\CurrentOrganization;
 use App\Support\Tenancy\ImportExportLimits;
 use Filament\Actions\Action;
@@ -127,8 +128,15 @@ class ListCompanies extends ListRecords
                         return;
                     }
 
-                    ProcessCompanyImportJob::dispatch($path, $orgId, $userId, ImportMode::fromState($data['mode'] ?? ImportMode::CreateOnly))
+                    $mode = ImportMode::fromState($data['mode'] ?? ImportMode::CreateOnly);
+
+                    ProcessCompanyImportJob::dispatch($path, $orgId, $userId, $mode)
                         ->holdingSlot(ImportExportLimits::IMPORTS, $slot);
+
+                    SecurityLog::info('data.import_queued', auth()->user(), [
+                        'list' => 'companies',
+                        'mode' => $mode->value,
+                    ]);
 
                     Notification::make()
                         ->success()
