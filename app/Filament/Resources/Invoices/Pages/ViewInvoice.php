@@ -7,6 +7,7 @@ use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Filament\Resources\Invoices\Schemas\InvoiceForm;
 use App\Filament\Resources\Invoices\Tables\InvoicesTable;
 use App\Models\Invoice;
+use App\Support\Security\SecurityLog;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Resources\Pages\ViewRecord;
@@ -67,10 +68,20 @@ class ViewInvoice extends ViewRecord
                 ->modalSubmitActionLabel('Yes, cancel invoice')
                 ->visible(fn (): bool => ! in_array($this->getRecord()->status, [InvoiceStatus::Cancelled, InvoiceStatus::Paid], true))
                 ->action(function (): void {
+                    $from = $this->getRecord()->status;
+
                     $this->getRecord()->update([
                         'status' => InvoiceStatus::Cancelled,
                         'paid_at' => null,
                     ]);
+
+                    if ($from !== InvoiceStatus::Cancelled) {
+                        SecurityLog::warning('invoice.cancelled', auth()->user(), [
+                            'invoice_id' => $this->getRecord()->getKey(),
+                            'from_status' => $from->value,
+                            'source' => 'action',
+                        ]);
+                    }
                 }),
 
             EditAction::make(),

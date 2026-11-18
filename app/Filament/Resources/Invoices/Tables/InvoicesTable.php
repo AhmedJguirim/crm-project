@@ -18,6 +18,7 @@ use App\Services\Invoices\InvoiceLedger;
 use App\Support\LocalTime;
 use App\Support\MoneyLimit;
 use App\Support\NotificationText;
+use App\Support\Security\SecurityLog;
 use Carbon\CarbonImmutable;
 use Closure;
 use Filament\Actions\Action;
@@ -36,6 +37,8 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\Indicator;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
+use Throwable;
 
 class InvoicesTable
 {
@@ -166,12 +169,48 @@ class InvoicesTable
             ->toolbarActions([
                 BulkActionGroup::make([
                     ExportInvoicesAction::forSelection(),
-                    DeleteBulkAction::make()->authorizeIndividualRecords(),
+                    DeleteBulkAction::make()
+                        ->authorizeIndividualRecords()
+                        ->using(function (DeleteBulkAction $action, Collection $records): void {
+                            $isFirstException = true;
+
+                            foreach ($records as $record) {
+                                try {
+                                    self::deleteInvoice($record) || $action->reportBulkProcessingFailure();
+                                } catch (Throwable $exception) {
+                                    $action->reportBulkProcessingFailure();
+
+                                    if ($isFirstException) {
+                                        report($exception);
+                                        $isFirstException = false;
+                                    }
+                                }
+                            }
+                        }),
                 ]),
             ])
             ->defaultSort('due_at')
             ->emptyStateHeading('No invoices yet')
             ->emptyStateDescription('Create your first invoice from a deal or start from scratch.');
+    }
+
+    /**
+     * Deletes the invoice and writes the security log line only when the delete really happened.
+     */
+    public static function deleteInvoice(Invoice $record): bool
+    {
+        $status = $record->status;
+
+        $deleted = (bool) $record->delete();
+
+        if ($deleted) {
+            SecurityLog::warning('invoice.deleted', auth()->user(), [
+                'invoice_id' => $record->getKey(),
+                'status' => $status->value,
+            ]);
+        }
+
+        return $deleted;
     }
 
     /**
@@ -289,7 +328,7 @@ class InvoicesTable
         $isPayment = $kind === InvoicePaymentKind::Payment;
 
         try {
-            app(InvoiceLedger::class)->record(
+            $entry = app(InvoiceLedger::class)->record(
                 $record,
                 $kind,
                 number_format((float) $data['amount'], 2, '.', ''),
@@ -308,6 +347,13 @@ class InvoicesTable
             $action->halt();
 
             return;
+        }
+
+        if ($kind === InvoicePaymentKind::Refund) {
+            SecurityLog::warning('invoice.refund_recorded', auth()->user(), [
+                'invoice_id' => $record->getKey(),
+                'invoice_payment_id' => $entry->getKey(),
+            ]);
         }
 
         Notification::make()
