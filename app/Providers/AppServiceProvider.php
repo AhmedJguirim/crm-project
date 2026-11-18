@@ -16,6 +16,7 @@ use App\Support\Livewire\RefuseMistypedCallArguments;
 use App\Support\Livewire\RefuseMistypedPropertyUpdates;
 use App\Support\Livewire\RefuseSubKeyUpdatesOfScalars;
 use App\Support\Security\LoginLimits;
+use App\Support\Security\QueueWaitAlert;
 use App\Support\Security\SecurityEventSubscriber;
 use App\Support\Tenancy\CurrentOrganization;
 use App\Support\Tenancy\TenantContext;
@@ -42,6 +43,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules\Password;
+use Laravel\Horizon\Events\LongWaitDetected;
 use Spatie\LaravelTypeScriptTransformer\TypeScriptTransformerApplicationServiceProvider;
 
 use function Livewire\before;
@@ -130,6 +132,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureLoginLimits();
         $this->configureUploadRateLimiting();
         $this->configureInvoicePdfRateLimiting();
+        $this->configureQueueWaitAlert();
     }
 
     /**
@@ -199,6 +202,14 @@ class AppServiceProvider extends ServiceProvider
                 Limit::perHour(200)->by('hour|'.$key)->response($refuse),
             ];
         });
+    }
+
+    /**
+     * Horizon's long-wait event mails the owner address, at most once per queue an hour (SEC-34).
+     */
+    protected function configureQueueWaitAlert(): void
+    {
+        Event::listen(LongWaitDetected::class, QueueWaitAlert::class);
     }
 
     /**

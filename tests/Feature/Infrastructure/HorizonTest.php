@@ -20,13 +20,16 @@ use App\Jobs\ResyncContactSegments;
 use App\Jobs\SyncSegmentMembership;
 use App\Models\Segment;
 use App\Models\User;
+use App\Support\Security\QueueWaitAlert;
 use Filament\Facades\Filament;
 use Illuminate\Console\Scheduling\Event;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Event as EventFacade;
 use Illuminate\Support\Facades\Process;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use Laravel\Horizon\Events\LongWaitDetected;
 use Livewire\Livewire;
 
 function horizonSupervisors(): array
@@ -176,6 +179,32 @@ describe('horizon configuration', function () {
     it('runs every supervisor in each environment', function (string $environment) {
         expect(array_keys(config("horizon.environments.{$environment}")))->toEqualCanonicalizing(array_keys(horizonSupervisors()));
     })->with(['local', 'production']);
+
+    it('gives every queue a supervisor works a wait level', function () {
+        $queues = collect(horizonSupervisors())
+            ->flatMap(fn (array $supervisor): array => array_map(fn (string $queue): string => $supervisor['connection'].':'.$queue, $supervisor['queue']))
+            ->all();
+
+        expect($queues)->not->toBeEmpty();
+
+        foreach ($queues as $queue) {
+            expect(config('horizon.waits'))->toHaveKey($queue)
+                ->and(config("horizon.waits.{$queue}"))->toBeInt()->toBeGreaterThan(0);
+        }
+
+        expect(config('horizon.waits'))->toBe([
+            'redis:default' => 60,
+            'redis-long:segments' => 900,
+            'redis-long:imports' => 1800,
+            'redis-long:exports' => 900,
+        ]);
+    });
+
+    it('mails the owner on a long wait through our own listener', function () {
+        EventFacade::fake();
+
+        EventFacade::assertListening(LongWaitDetected::class, QueueWaitAlert::class);
+    });
 
     it('schedules the horizon snapshots every five minutes', function () {
         $event = collect(app(Schedule::class)->events())

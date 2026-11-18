@@ -33,4 +33,11 @@ return [
         'warn_free_gb' => (float) env('SECURITY_DISK_WARN_FREE_GB', 8),
         'critical_free_gb' => (float) env('SECURITY_DISK_CRITICAL_FREE_GB', 4),
     ],
+    'queue_wait_alert' => [
+        /*
+         * Mail to the person running the app, at most once per queue an hour, when Horizon estimates that a queue
+         * needs longer than its level (horizon.waits) to clear. Uses SECURITY_OWNER_ALERTS_EMAIL.
+         */
+        'enabled' => env('SECURITY_QUEUE_WAIT_ALERT_ENABLED', true),
+    ],
 ];

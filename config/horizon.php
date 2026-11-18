@@ -112,12 +112,17 @@ return [
     |
     | This option allows you to configure when the LongWaitDetected event
     | will be fired. Every connection / queue combination may have its
-    | own, unique threshold (in seconds) before this event is fired.
+    | own, unique threshold (in seconds) before this event is fired. 0 turns
+    | the check off for that queue. The owner alert mail is sent by
+    | App\Support\Security\QueueWaitAlert (SEC-34).
     |
     */
 
     'waits' => [
-        'redis:default' => 60,
+        'redis:default' => (int) env('HORIZON_WAIT_DEFAULT_SECONDS', 60),
+        'redis-long:segments' => (int) env('HORIZON_WAIT_SEGMENTS_SECONDS', 900),
+        'redis-long:imports' => (int) env('HORIZON_WAIT_IMPORTS_SECONDS', 1800),
+        'redis-long:exports' => (int) env('HORIZON_WAIT_EXPORTS_SECONDS', 900),
     ],
 
     /*

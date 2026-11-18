@@ -16,7 +16,9 @@
  */
 function tenantContextAllowList(): array
 {
-    return [];
+    return [
+        'Notifications/QueueWaitAlertNotification.php' => 'Sent to an address, never reads a model: the word "Segment" appears only in the mail text for the segments queue (SEC-34).',
+    ];
 }
 
 /** The folders of `app/` whose code does not run inside the panel. */
