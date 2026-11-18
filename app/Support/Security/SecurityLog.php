@@ -9,12 +9,14 @@ use Illuminate\Routing\Exceptions\InvalidSignatureException;
 use Illuminate\Routing\Route;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
+use Livewire\Component;
+use Livewire\Livewire;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 /**
  * Writes one line per security event to the daily `security` log channel (SEC-08). The line always carries the user id,
  * the organization id and the IP, and never a password, email address, token or recovery code. Refusal lines
- * (`refusal()`) are capped per actor so a loop of forged payloads (SEC-21) or refused requests (403, SEC-63) cannot fill the
+ * (`refusal()`) are capped per actor so a loop of forged payloads (SEC-21), refused requests (403, SEC-63) or forged form values (SEC-64) cannot fill the
  * disk.
  */
 final class SecurityLog
@@ -72,6 +74,20 @@ final class SecurityLog
         if ($hits === self::REFUSALS_PER_MINUTE + 1) {
             self::warning('request.refusals_capped', $user, ['cap' => self::REFUSALS_PER_MINUTE, 'window_seconds' => self::REFUSAL_WINDOW_SECONDS]);
         }
+    }
+
+    /**
+     * Logs a value the real UI cannot send, refused by one of the app's validation rules (SEC-64). Only the guard and the
+     * component are written, never the value or the attribute.
+     */
+    public static function forgedValue(string $guard): void
+    {
+        $component = Livewire::current();
+
+        self::refusal('request.forged_value', [
+            'guard' => $guard,
+            'component' => $component instanceof Component ? $component->getName() : null,
+        ]);
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Support\StateCasts;
 
+use App\Support\Security\SecurityLog;
 use Closure;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Translation\PotentiallyTranslatedString;
@@ -11,6 +12,8 @@ use Illuminate\Translation\PotentiallyTranslatedString;
  */
 final class RecordKeyIsReadable implements ValidationRule
 {
+    public const string GUARD = 'record_key';
+
     /**
      * @param  Closure(string, ?string=): PotentiallyTranslatedString  $fail
      */
@@ -20,6 +23,7 @@ final class RecordKeyIsReadable implements ValidationRule
             return;
         }
 
+        SecurityLog::forgedValue(self::GUARD);
         $fail('validation.integer')->translate();
     }
 }

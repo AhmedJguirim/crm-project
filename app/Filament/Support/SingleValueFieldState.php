@@ -3,6 +3,7 @@
 namespace App\Filament\Support;
 
 use App\Filament\Support\StateCasts\ScalarStateCast;
+use App\Support\Security\SecurityLog;
 use Closure;
 use Filament\Forms\Components\ColorPicker;
 use Filament\Forms\Components\Field;
@@ -20,6 +21,8 @@ use Illuminate\Translation\PotentiallyTranslatedString;
 final class SingleValueFieldState implements ValidationRule
 {
     public const MESSAGE = 'The :attribute field must be a single value.';
+
+    public const string GUARD = 'single_value_field';
 
     /**
      * Adds the guard, ahead of the app's own rules, to every single-value field class. It only applies when the raw
@@ -45,6 +48,7 @@ final class SingleValueFieldState implements ValidationRule
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
         if (is_array($value)) {
+            SecurityLog::forgedValue(self::GUARD);
             $fail(self::MESSAGE);
         }
     }
