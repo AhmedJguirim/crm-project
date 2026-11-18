@@ -21,6 +21,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 class InvoiceForm
@@ -287,7 +288,8 @@ class InvoiceForm
 
     /**
      * The statuses a person can pick: Paid and Partial are set by the payments recorded, so they are only offered (and
-     * the field locked) when the payments decide the status of the invoice.
+     * the field locked) when the payments decide the status of the invoice. Cancelled is offered only to people who may
+     * cancel (admins and the owner) or when the invoice is already cancelled.
      *
      * @return array<string, string>
      */
@@ -295,8 +297,19 @@ class InvoiceForm
     {
         return collect(InvoiceStatus::cases())
             ->reject(fn (InvoiceStatus $status): bool => ! self::isSetByPayments($record) && in_array($status, [InvoiceStatus::Paid, InvoiceStatus::Partial], true))
+            ->reject(fn (InvoiceStatus $status): bool => $status === InvoiceStatus::Cancelled && ! self::canPickCancelled($record))
             ->mapWithKeys(fn (InvoiceStatus $status): array => [$status->value => $status->getLabel()])
             ->all();
+    }
+
+    /**
+     * Whether "Cancelled" can be offered: cancelling is for admins and the owner (the `cancel` ability), and an invoice
+     * that is already cancelled keeps the option so that its other fields can still be saved.
+     */
+    private static function canPickCancelled(?Invoice $record): bool
+    {
+        return $record !== null
+            && ($record->status === InvoiceStatus::Cancelled || (Auth::user()?->can('cancel', $record) ?? false));
     }
 
     /**

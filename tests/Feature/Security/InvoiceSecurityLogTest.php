@@ -3,6 +3,7 @@
 use App\Enums\InvoicePaymentKind;
 use App\Enums\InvoiceStatus;
 use App\Enums\OrganizationRole;
+use App\Filament\Resources\Invoices\Pages\CreateInvoice;
 use App\Filament\Resources\Invoices\Pages\EditInvoice;
 use App\Filament\Resources\Invoices\Pages\ListInvoices;
 use App\Filament\Resources\Invoices\Pages\ViewInvoice;
@@ -199,20 +200,73 @@ describe('cancellations', function () {
             ]]);
     });
 
-    it('logs a member cancelling through the edit form until that path is refused', function () {
-        $max = ($this->actAs)(OrganizationRole::Member);
+    it('refuses a member who forges a cancellation through the edit form and writes no line', function (InvoiceStatus $from) {
+        $this->invoice->update(['status' => $from]);
+        ($this->actAs)(OrganizationRole::Member);
         $log = fakeSecurityLog();
 
         Livewire::test(EditInvoice::class, ['record' => $this->invoice->id])
             ->fillForm(['status' => InvoiceStatus::Cancelled->value])
-            ->call('save');
+            ->call('save')
+            ->assertHasFormErrors(['status' => 'in']);
+
+        expect($this->invoice->refresh()->status)->toBe($from)
+            ->and(securityLogEntries($log))->toBe([]);
+    })->with([InvoiceStatus::Sent, InvoiceStatus::Draft, InvoiceStatus::Overdue]);
+
+    it('offers Cancelled in the status select only to admins and the owner', function (?OrganizationRole $role, array $options) {
+        if ($role !== null) {
+            ($this->actAs)($role);
+        }
+
+        $page = Livewire::test(EditInvoice::class, ['record' => $this->invoice->id]);
+
+        expect(array_keys($page->instance()->getSchema('form')->getComponent('status')->getOptions()))->toBe($options);
+    })->with([
+        'member' => [OrganizationRole::Member, ['draft', 'sent', 'overdue']],
+        'admin' => [OrganizationRole::Admin, ['draft', 'sent', 'overdue', 'cancelled']],
+        'owner' => [null, ['draft', 'sent', 'overdue', 'cancelled']],
+    ]);
+
+    it('has no status select on the create page, so nothing can start cancelled', function () {
+        $page = Livewire::test(CreateInvoice::class);
+
+        expect($page->instance()->getSchema('form')->getComponent('status'))->toBeNull();
+    });
+
+    it('refuses an admin demoted to member while the edit page is open', function () {
+        $ada = ($this->actAs)(OrganizationRole::Admin);
+
+        $page = Livewire::test(EditInvoice::class, ['record' => $this->invoice->id]);
+
+        $this->org->members()->updateExistingPivot($ada->id, ['role' => OrganizationRole::Member->value]);
+        $this->actingAs($ada->fresh());
+        $log = fakeSecurityLog();
+
+        $page->fillForm(['status' => InvoiceStatus::Cancelled->value])
+            ->call('save')
+            ->assertHasFormErrors(['status' => 'in']);
+
+        expect($this->invoice->refresh()->status)->toBe(InvoiceStatus::Sent)
+            ->and(securityLogEntries($log))->toBe([]);
+    });
+
+    it('lets a member save another field of an already cancelled invoice', function () {
+        $this->invoice->update(['status' => InvoiceStatus::Cancelled]);
+        ($this->actAs)(OrganizationRole::Member);
+        $log = fakeSecurityLog();
+
+        $page = Livewire::test(EditInvoice::class, ['record' => $this->invoice->id]);
+
+        expect(array_keys($page->instance()->getSchema('form')->getComponent('status')->getOptions()))->toContain('cancelled');
+
+        $page->fillForm(['notes' => 'Called the client'])
+            ->call('save')
+            ->assertHasNoFormErrors();
 
         expect($this->invoice->refresh()->status)->toBe(InvoiceStatus::Cancelled)
-            ->and(securityLogEntries($log))->toBe([[
-                'event' => 'invoice.cancelled',
-                'level' => 'warning',
-                'context' => invoiceLogContext($this, $max, ['invoice_id' => $this->invoice->id, 'from_status' => 'sent', 'source' => 'edit_form']),
-            ]]);
+            ->and($this->invoice->notes)->toBe('Called the client')
+            ->and(securityLogEntries($log))->toBe([]);
     });
 
     it('writes no line when an already cancelled invoice is saved again', function () {
