@@ -3,6 +3,8 @@
 namespace Tests;
 
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Support\Facades\Log;
+use Monolog\Handler\TestHandler;
 use RuntimeException;
 use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 
@@ -13,7 +15,7 @@ abstract class TestCase extends BaseTestCase
     /**
      * Creates the application and runs the safety guards right away, before the parallel callbacks and the
      * traits (`RefreshDatabase` would run `migrate:fresh` on whatever database is configured). It also clears the
-     * trusted host patterns that Symfony keeps in a static, so a test that ran as production cannot refuse the next test's host.
+     * trusted host patterns that Symfony keeps in a static, so a test that ran as production cannot refuse the next test's host. It also points the security log at memory (BUG-87).
      */
     protected function refreshApplication(): void
     {
@@ -23,6 +25,7 @@ abstract class TestCase extends BaseTestCase
 
         $this->refuseRealMailOrQueue();
         $this->refuseNonTestingDatabase();
+        $this->routeSecurityLogToMemory();
     }
 
     /**
@@ -65,5 +68,16 @@ abstract class TestCase extends BaseTestCase
                 self::TESTING_DATABASE,
             ));
         }
+    }
+
+    /**
+     * Points the security log at an in-memory handler so no test writes to the developer's storage/logs (BUG-87);
+     * a test that needs a real daily file sets its own temp path.
+     */
+    private function routeSecurityLogToMemory(): void
+    {
+        config(['logging.channels.security' => ['driver' => 'monolog', 'handler' => TestHandler::class, 'level' => 'debug']]);
+
+        Log::forgetChannel('security');
     }
 }

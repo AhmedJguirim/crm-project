@@ -25,18 +25,20 @@ function securityEntriesNamed(array $entries, string $event): array
 }
 
 test('the security channel is daily, kept 90 days, at info, outside the stack', function () {
-    expect(config('logging.channels.security'))->toBe([
+    $shipped = require config_path('logging.php');
+
+    expect($shipped['channels']['security'])->toBe([
         'driver' => 'daily',
         'path' => storage_path('logs/security.log'),
         'level' => 'info',
         'days' => 90,
     ]);
-    expect(config('logging.channels.stack.channels'))->not->toContain('security');
+    expect($shipped['channels']['stack']['channels'])->not->toContain('security');
 });
 
 test('the real channel writes a dated file', function () {
     $dir = sys_get_temp_dir().'/security-log-'.bin2hex(random_bytes(6));
-    config(['logging.channels.security.path' => $dir.'/security.log']);
+    config(['logging.channels.security' => ['driver' => 'daily', 'path' => $dir.'/security.log', 'level' => 'info', 'days' => 90]]);
     Log::forgetChannel('security');
 
     $user = User::factory()->create();
