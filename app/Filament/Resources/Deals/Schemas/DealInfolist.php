@@ -25,7 +25,7 @@ class DealInfolist
                             ->placeholder('No contact'),
 
                         TextEntry::make('value')
-                            ->money(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD')
+                            ->money(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD', decimalPlaces: 2)
                             ->placeholder('—'),
 
                         TextEntry::make('pipelineStage.name')

@@ -90,7 +90,7 @@ class DealPipeline extends BoardResourcePage
                         TextEntry::make('value')
                             ->hiddenLabel()
                             ->state(fn (Deal $record): ?string => $record->value !== null
-                                ? Number::currency((float) $record->value, CurrentOrganization::find()?->currencyCode() ?? 'USD')
+                                ? Number::currency((float) $record->value, CurrentOrganization::find()?->currencyCode() ?? 'USD', precision: 2)
                                 : null)
                             ->weight(FontWeight::Bold)
                             ->visible(fn (Deal $record): bool => $record->value !== null),
@@ -458,14 +458,14 @@ class DealPipeline extends BoardResourcePage
         return DefaultPipeline::stagesOf(CurrentOrganization::get()->id)
             ->mapWithKeys(function (PipelineStage $stage) use ($totals, $currency): array {
                 $total = (float) ($totals[$stage->getKey()] ?? 0);
-                $text = 'Total '.Number::currency($total, $currency);
+                $text = 'Total '.Number::currency($total, $currency, precision: 2);
 
                 if ($stage->type !== DealStatus::Open) {
                     return [(string) $stage->getKey() => ['text' => $text, 'hint' => null]];
                 }
 
                 return [(string) $stage->getKey() => [
-                    'text' => $text.' · Weighted '.Number::currency($stage->weightedValue($total), $currency),
+                    'text' => $text.' · Weighted '.Number::currency($stage->weightedValue($total), $currency, precision: 2),
                     'hint' => "Weighted: the total × {$stage->probability}% win probability",
                 ]];
             })

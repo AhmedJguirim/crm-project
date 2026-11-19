@@ -34,7 +34,7 @@ class DealDrawerInfolist
                         TextEntry::make('value')
                             ->label('Value')
                             ->state(fn (?Deal $record): ?string => $record?->value !== null
-                                ? Number::currency((float) $record->value, CurrentOrganization::find()?->currencyCode() ?? 'USD')
+                                ? Number::currency((float) $record->value, CurrentOrganization::find()?->currencyCode() ?? 'USD', precision: 2)
                                 : null)
                             ->placeholder('—'),
 

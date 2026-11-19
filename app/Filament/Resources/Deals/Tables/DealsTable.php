@@ -67,7 +67,7 @@ class DealsTable
                     ->placeholder('No owner'),
 
                 TextColumn::make('value')
-                    ->money(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD')
+                    ->money(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD', decimalPlaces: 2)
                     ->placeholder('—')
                     ->sortable(query: NullsLastSort::column('value')),
 

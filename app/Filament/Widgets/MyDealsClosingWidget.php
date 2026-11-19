@@ -50,7 +50,7 @@ class MyDealsClosingWidget extends TableWidget
                     ->placeholder('—'),
 
                 TextColumn::make('value')
-                    ->money(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD')
+                    ->money(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD', decimalPlaces: 2)
                     ->placeholder('—'),
 
                 TextColumn::make('pipelineStage.name')

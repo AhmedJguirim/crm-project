@@ -46,7 +46,7 @@ class DealDetailsWidget extends Widget
 
         return [
             'formattedValue' => $deal->value !== null
-                ? Number::currency((float) $deal->value, $currency)
+                ? Number::currency((float) $deal->value, $currency, precision: 2)
                 : null,
             'isOverdue' => $deal->isOverdue(),
             'isWon' => $deal->status === DealStatus::Won,

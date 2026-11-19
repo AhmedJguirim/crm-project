@@ -55,6 +55,20 @@ test('every column shows its total, open stages also the weighted total', functi
         ->assertDontSee('99,999');
 });
 
+test('a TND organization sees every total with two decimals', function () {
+    $this->org->update(['currency' => Currency::Tnd]);
+    $nbsp = "\u{00A0}";
+    $page = Livewire::test(DealPipeline::class);
+
+    expect(($this->summary)('Lead', $page)['text'])->toBe("Total TND{$nbsp}6,234.50 · Weighted TND{$nbsp}623.45")
+        ->and(($this->summary)('Discovery', $page)['text'])->toBe("Total TND{$nbsp}12,300.00 · Weighted TND{$nbsp}3,075.00")
+        ->and(($this->summary)('Proposal Sent', $page)['text'])->toBe("Total TND{$nbsp}0.00 · Weighted TND{$nbsp}0.00")
+        ->and(($this->summary)('Won', $page)['text'])->toBe("Total TND{$nbsp}8,000.00");
+
+    $page->assertSee("Total TND{$nbsp}12,300.00 · Weighted TND{$nbsp}3,075.00")
+        ->assertDontSee("TND{$nbsp}12,300.000");
+});
+
 test('the totals follow the search', function () {
     $page = Livewire::test(DealPipeline::class)->set('tableSearch', 'Ret');
 

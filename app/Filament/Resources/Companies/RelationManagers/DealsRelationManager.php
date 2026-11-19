@@ -60,7 +60,7 @@ class DealsRelationManager extends RelationManager
                     ->sortable(),
 
                 TextColumn::make('value')
-                    ->money(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD')
+                    ->money(fn (): string => CurrentOrganization::find()?->currencyCode() ?? 'USD', decimalPlaces: 2)
                     ->placeholder('—')
                     ->sortable(query: NullsLastSort::column('value')),
 
