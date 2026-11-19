@@ -118,6 +118,10 @@ function rawSqlAllowList(): array
         'Services/Segments/Conditions/CustomFieldConditionCompiler.php' => [
             'dynamic' => 'the inlined JSON key is checked with an anchored identifier regex in apply(); values are bindings',
         ],
+        'Console/Commands/BenchmarkSegmentSyncCommand.php' => [
+            'constant' => 'ANALYZE on the guarded benchmark database',
+            'dynamic' => 'EXPLAIN (ANALYZE, BUFFERS) prefixed to the toSql() of the segment query builder, with its bindings; benchmark database only',
+        ],
         'Jobs/ResyncContactSegments.php' => [
             'dynamic' => 'interpolates the toSql() of the segment query builder and an integer segment id; bindings passed',
         ],

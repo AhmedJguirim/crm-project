@@ -16,6 +16,7 @@ use App\Models\Tag;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\Deals\DefaultPipeline;
+use App\Support\Benchmark\BenchmarkDatabase;
 use App\Support\Tenancy\TenantContext;
 use Closure;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -37,11 +38,11 @@ use RuntimeException;
  */
 class VolumeBenchmarkSeeder extends Seeder
 {
-    public const string DATABASE = 'srw-crm-bench';
+    public const string DATABASE = BenchmarkDatabase::NAME;
 
     private const int CHUNK = 1000;
 
-    private const string OWNER_EMAIL = 'bench-owner@bench.invalid';
+    private const string OWNER_EMAIL = BenchmarkDatabase::OWNER_EMAIL;
 
     public function run(): void
     {
@@ -94,23 +95,11 @@ class VolumeBenchmarkSeeder extends Seeder
      */
     private function ensureSafeTarget(): void
     {
-        $connection = (string) config('database.default');
-        $database = (string) config("database.connections.{$connection}.database");
-        $environment = app()->environment();
-        $queue = config('queue.default').'/'.config('queue.long_running_connection');
-
-        $targetAllowed = ($environment === 'benchmark' && $database === self::DATABASE)
-            || ($environment === 'testing' && preg_match('/^srw-crm-test(_test_\d+)?\z/', $database) === 1);
-
-        if (! app()->configurationIsCached()
-            && $connection === 'pgsql'
-            && $targetAllowed
-            && config('queue.default') === 'sync'
-            && config('queue.long_running_connection') === 'sync') {
+        if (BenchmarkDatabase::isSafeTarget()) {
             return;
         }
 
-        throw new RuntimeException("Refusing to seed the volume benchmark: it runs only with --env=benchmark on the srw-crm-bench database with sync queues (found {$environment}, {$connection}/{$database}, queue {$queue}). Run php artisan config:clear and check .env.benchmark.");
+        throw new RuntimeException('Refusing to seed the volume benchmark: it runs only with --env=benchmark on the srw-crm-bench database with sync queues (found '.BenchmarkDatabase::describeTarget().'). Run php artisan config:clear and check .env.benchmark.');
     }
 
     /**
