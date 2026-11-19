@@ -44,4 +44,14 @@ class ContactFactory extends Factory
             'custom_field_values' => $values,
         ]);
     }
+
+    public function mergedInto(Contact $survivor): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'organization_id' => $survivor->organization_id,
+            'merged_into_id' => $survivor->id,
+            'merged_at' => now(),
+            'deleted_at' => now(),
+        ]);
+    }
 }

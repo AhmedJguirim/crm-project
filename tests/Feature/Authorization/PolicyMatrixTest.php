@@ -179,7 +179,29 @@ describe('policies', function () {
             ->and(Gate::forUser($user)->allows('publish', authorizationRecord(Segment::class, $this->acme)))->toBe($allowed)
             ->and(Gate::forUser($user)->allows('cancel', authorizationRecord(Invoice::class, $this->acme)))->toBe($allowed)
             ->and(Gate::forUser($user)->allows('refund', authorizationRecord(Invoice::class, $this->acme)))->toBe($allowed)
-            ->and(Gate::forUser($user)->allows('exportReports', $this->acme))->toBe($allowed);
+            ->and(Gate::forUser($user)->allows('exportReports', $this->acme))->toBe($allowed)
+            ->and(Gate::forUser($user)->allows('merge', authorizationRecord(Contact::class, $this->acme)))->toBe($allowed);
+    })->with([
+        'viewer' => [OrganizationRole::Viewer, false],
+        'member' => [OrganizationRole::Member, false],
+        'admin' => [OrganizationRole::Admin, true],
+        'owner' => [OrganizationRole::Owner, true],
+    ]);
+
+    it('refuses to merge contacts to a member of another organization', function () {
+        $stranger = ($this->userWith)(OrganizationRole::Owner, Organization::factory()->create());
+
+        expect(Gate::forUser($stranger)->allows('merge', authorizationRecord(Contact::class, $this->acme)))->toBeFalse();
+    });
+
+    it('refuses to restore a merged contact to every role, and still restores a plain trashed one for admins', function (OrganizationRole $role, bool $allowed) {
+        $user = ($this->userWith)($role);
+        $survivor = authorizationRecord(Contact::class, $this->acme);
+        $merged = Contact::factory()->mergedInto($survivor)->create();
+        $trashed = Contact::factory()->create(['organization_id' => $this->acme->id, 'deleted_at' => now()]);
+
+        expect(Gate::forUser($user)->allows('restore', $merged))->toBeFalse()
+            ->and(Gate::forUser($user)->allows('restore', $trashed))->toBe($allowed);
     })->with([
         'viewer' => [OrganizationRole::Viewer, false],
         'member' => [OrganizationRole::Member, false],
