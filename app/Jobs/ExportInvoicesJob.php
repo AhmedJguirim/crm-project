@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Enums\Currency;
 use App\Enums\ExportFormat;
 use App\Jobs\Concerns\DeliversExport;
 use App\Models\Invoice;
@@ -62,24 +63,27 @@ class ExportInvoicesJob implements ShouldQueue
     {
         $organization = Organization::find($this->organizationId);
 
-        $writer = new InvoiceExportWriter(Organization::validTimezoneOrUtc($organization?->timezone));
+        $homeCurrency = $organization?->currencyCode() ?? Currency::Usd->value;
 
-        return $writer->write($temporaryPath, $format, $this->invoiceChunks(), $this->paymentChunks());
+        $writer = new InvoiceExportWriter(Organization::validTimezoneOrUtc($organization?->timezone), $homeCurrency);
+
+        return $writer->write($temporaryPath, $format, $this->invoiceChunks($homeCurrency), $this->paymentChunks());
     }
 
     /**
      * The invoices of the export, one chunk at a time, in the order of the ids. An invoice that no longer exists, or
-     * that belongs to another organization, is skipped.
+     * that belongs to another organization, is skipped. Each invoice carries its home amount in `$homeCurrency`.
      *
      * @return Generator<int, Collection<int, Invoice>>
      */
-    private function invoiceChunks(): Generator
+    private function invoiceChunks(string $homeCurrency): Generator
     {
         $positions = array_flip($this->invoiceIds);
 
         foreach (array_chunk($this->invoiceIds, self::CHUNK_SIZE) as $ids) {
             yield Invoice::query()
                 ->forOrganization($this->organizationId)
+                ->withHomeAmount($homeCurrency)
                 ->with([
                     'contact' => fn (BelongsTo $query) => $query->withTrashed(),
                     'deal',

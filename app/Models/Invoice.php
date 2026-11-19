@@ -7,6 +7,7 @@ use App\Enums\InvoiceStatus;
 use App\Models\Concerns\BelongsToOrganization;
 use App\Observers\InvoiceObserver;
 use App\Support\LocalTime;
+use App\Support\Reports\HomeAmount;
 use Database\Factories\InvoiceFactory;
 use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
@@ -98,6 +99,17 @@ class Invoice extends Model
         return $query
             ->where('status', InvoiceStatus::Paid->value)
             ->whereNotNull('paid_at');
+    }
+
+    /**
+     * Adds `home_amount`: the amount in the home currency at the invoice's frozen rate, rounded to cents like every home
+     * total; NULL when the rate is unknown.
+     */
+    public function scopeWithHomeAmount(Builder $query, string $homeCurrency): Builder
+    {
+        return $query
+            ->select('invoices.*')
+            ->selectRaw(HomeAmount::sql('invoices.amount').' AS home_amount', [$homeCurrency]);
     }
 
     public function scopeOutstanding(Builder $query): Builder

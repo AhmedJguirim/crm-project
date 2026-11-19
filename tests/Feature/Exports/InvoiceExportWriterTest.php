@@ -28,7 +28,7 @@ beforeEach(function () {
     $this->actingAs($this->user);
     Filament::setTenant($this->org);
 
-    $this->writer = fn (string $timezone = 'Pacific/Auckland'): InvoiceExportWriter => new InvoiceExportWriter($timezone);
+    $this->writer = fn (string $timezone = 'Pacific/Auckland'): InvoiceExportWriter => new InvoiceExportWriter($timezone, 'TND');
 
     $this->contact = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Hélène Durand', 'email' => 'helene@example.com']);
     $this->deal = Deal::factory()->inStage('Negotiating')->create(['organization_id' => $this->org->id, 'created_by' => $this->user->id, 'title' => 'Website redesign']);
@@ -86,6 +86,7 @@ beforeEach(function () {
     ]);
 
     $this->loadInvoice = fn (Invoice $invoice): Invoice => Invoice::query()
+        ->withHomeAmount('TND')
         ->with(['contact' => fn (BelongsTo $query) => $query->withTrashed(), 'deal', 'creator'])
         ->findOrFail($invoice->id);
 
@@ -110,12 +111,12 @@ beforeEach(function () {
 
 it('names the invoice and payment columns, the timezone on the timestamps only', function () {
     expect(($this->writer)()->invoiceHeaders())->toBe([
-        'id', 'number', 'status', 'currency', 'exchange rate', 'amount', 'amount paid', 'payment terms (days)', 'issued on', 'due on', 'paid on',
+        'id', 'number', 'status', 'currency', 'exchange rate', 'amount', 'amount paid', 'home amount (TND)', 'payment terms (days)', 'issued on', 'due on', 'paid on',
         'contact id', 'contact', 'contact email', 'deal id', 'deal', 'created by', 'notes',
         'created at (Pacific/Auckland)', 'updated at (Pacific/Auckland)',
     ])->and(($this->writer)()->paymentHeaders())->toBe([
         'id', 'invoice id', 'invoice number', 'kind', 'amount', 'currency', 'paid on', 'method', 'reference', 'recorded by', 'created at (Pacific/Auckland)',
-    ])->and(InvoiceExportWriter::INVOICE_COLUMNS)->toHaveCount(20)
+    ])->and(InvoiceExportWriter::INVOICE_COLUMNS)->toHaveCount(21)
         ->and(InvoiceExportWriter::PAYMENT_COLUMNS)->toHaveCount(11);
 });
 
@@ -127,9 +128,9 @@ it('writes an invoice row in a CSV', function () {
     $row = ($this->writer)()->invoiceRow(($this->loadInvoice)($this->invoiceA), ExportFormat::Csv);
 
     expect($row)->toBe([
-        $this->invoiceA->id, 'INV-2026-0001', 'Partial', 'EUR', '3.4', '1200.50', '200.00', 30, '01-11-2026', '01-12-2026', '07-11-2026',
+        $this->invoiceA->id, 'INV-2026-0001', 'Partial', 'EUR', '3.4', '1200.50', '200.00', '4081.70', 30, '01-11-2026', '01-12-2026', '07-11-2026',
         $this->contact->id, 'Hélène Durand', 'helene@example.com', $this->deal->id, 'Website redesign', 'owner@example.com', 'Thanks',
-        '11-11-2026 11:30', $row[19],
+        '11-11-2026 11:30', $row[20],
     ]);
 });
 
@@ -143,19 +144,20 @@ it('writes an invoice without exchange rate, deal or creator as empty cells', fu
         ->and($row[3])->toBe('TND')
         ->and($row[4])->toBe('')
         ->and($row[5])->toBe('50.00')
-        ->and($row[7])->toBe(0)
-        ->and($row[10])->toBe('')
-        ->and($row[14])->toBe('')
+        ->and($row[7])->toBe('')
+        ->and($row[8])->toBe(0)
+        ->and($row[11])->toBe('')
         ->and($row[15])->toBe('')
         ->and($row[16])->toBe('')
-        ->and($row[17])->toBe('');
+        ->and($row[17])->toBe('')
+        ->and($row[18])->toBe('');
 });
 
 it('writes an empty cell for a missing payment term', function () {
     $invoice = ($this->loadInvoice)($this->invoiceA);
     $invoice->payment_terms = null;
 
-    expect(($this->writer)()->invoiceRow($invoice, ExportFormat::Csv)[7])->toBe('');
+    expect(($this->writer)()->invoiceRow($invoice, ExportFormat::Csv)[8])->toBe('');
 });
 
 it('writes the money and the rate as numbers in an xlsx', function () {
@@ -163,7 +165,97 @@ it('writes the money and the rate as numbers in an xlsx', function () {
 
     expect($row[4])->toBe(3.4)
         ->and($row[5])->toBe(1200.5)
-        ->and($row[6])->toBe(200.0);
+        ->and($row[6])->toBe(200.0)
+        ->and($row[7])->toBe(4081.7);
+});
+
+it('names the home currency in the header of the home amount', function () {
+    $headers = (new InvoiceExportWriter('UTC', 'USD'))->invoiceHeaders(ExportFormat::Csv);
+
+    expect($headers[7])->toBe('home amount (USD)')
+        ->and(($this->writer)()->paymentHeaders())->not->toContain('home amount (TND)');
+});
+
+it('writes an empty home amount for a draft, in the home currency and in a foreign one', function () {
+    $foreignDraft = Invoice::factory()->inCurrency(Currency::Eur, '3.10000000')->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $this->contact->id,
+        'status' => InvoiceStatus::Draft,
+        'amount' => '100.00',
+    ]);
+
+    expect(($this->writer)()->invoiceRow(($this->loadInvoice)($this->invoiceB), ExportFormat::Csv)[7])->toBe('')
+        ->and(($this->writer)()->invoiceRow(($this->loadInvoice)($foreignDraft), ExportFormat::Csv)[7])->toBe('')
+        ->and(($this->writer)()->invoiceRow(($this->loadInvoice)($foreignDraft), ExportFormat::Xlsx)[7])->toBe('');
+});
+
+it('counts an issued invoice in the home currency at rate 1', function () {
+    $invoice = Invoice::factory()->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $this->contact->id,
+        'status' => InvoiceStatus::Sent,
+        'currency' => Currency::Tnd,
+        'amount' => '99.99',
+    ]);
+
+    expect(($this->writer)()->invoiceRow(($this->loadInvoice)($invoice), ExportFormat::Csv)[7])->toBe('99.99');
+});
+
+it('counts an issued home-currency invoice without a stored rate at rate 1, and the same invoice in another currency as unknown', function () {
+    $invoice = Invoice::factory()->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $this->contact->id,
+        'status' => InvoiceStatus::Sent,
+        'currency' => Currency::Tnd,
+        'amount' => '99.99',
+    ]);
+    Invoice::query()->whereKey($invoice->id)->toBase()->update(['exchange_rate' => null]);
+
+    expect(($this->writer)()->invoiceRow(($this->loadInvoice)($invoice), ExportFormat::Csv)[7])->toBe('99.99');
+
+    Invoice::query()->whereKey($invoice->id)->toBase()->update(['currency' => Currency::Eur->value]);
+
+    expect(($this->writer)()->invoiceRow(($this->loadInvoice)($invoice), ExportFormat::Csv)[7])->toBe('');
+});
+
+it('rounds the home amount half away from zero, like the reports', function () {
+    $invoice = Invoice::factory()->inCurrency(Currency::Eur, '0.10000000')->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $this->contact->id,
+        'status' => InvoiceStatus::Sent,
+        'amount' => '0.05',
+    ]);
+
+    expect(($this->writer)()->invoiceRow(($this->loadInvoice)($invoice), ExportFormat::Csv)[7])->toBe('0.01');
+});
+
+it('writes an empty home amount for an issued invoice whose rate is unknown', function () {
+    Invoice::query()->whereKey($this->invoiceA->id)->toBase()->update(['exchange_rate' => null, 'status' => InvoiceStatus::Cancelled->value]);
+
+    expect(($this->writer)()->invoiceRow(($this->loadInvoice)($this->invoiceA), ExportFormat::Csv)[7])->toBe('');
+});
+
+it('writes an empty home amount, never an error, for an invoice read without withHomeAmount()', function () {
+    $invoice = Invoice::query()->with(['contact', 'deal', 'creator'])->findOrFail($this->invoiceA->id);
+
+    expect(($this->writer)()->invoiceRow($invoice, ExportFormat::Csv)[7])->toBe('');
+});
+
+it('puts the home amount in the invoices.csv of the ZIP and in the Invoices sheet', function () {
+    $zipPath = tempnam(sys_get_temp_dir(), 'invoice-export').'.zip';
+    $xlsxPath = tempnam(sys_get_temp_dir(), 'invoice-export').'.xlsx';
+    $chunks = ($this->invoices)([$this->invoiceA, $this->invoiceB]);
+
+    ($this->writer)()->write($zipPath, ExportFormat::Csv, $chunks, ($this->payments)([]));
+    ($this->writer)()->write($xlsxPath, ExportFormat::Xlsx, $chunks, ($this->payments)([]));
+
+    $csv = ($this->zipRows)($zipPath, InvoiceExportWriter::INVOICES_CSV);
+    $xlsx = TextPreservingExcelReader::create($xlsxPath, 'xlsx')->fromSheetName('Invoices')->getRows()->all();
+    unlink($zipPath);
+    unlink($xlsxPath);
+
+    expect(array_column($csv, 'home amount (TND)'))->toBe(['4081.70', ''])
+        ->and(array_column($xlsx, 'home amount (TND)'))->toBe([4081.7, '']);
 });
 
 it('never shifts the calendar dates into the timezone of the organization', function () {
@@ -172,7 +264,7 @@ it('never shifts the calendar dates into the timezone of the organization', func
     foreach (['Pacific/Auckland', 'America/Los_Angeles', 'UTC'] as $timezone) {
         $row = ($this->writer)($timezone)->invoiceRow($invoice, ExportFormat::Csv);
 
-        expect([$row[8], $row[9], $row[10]])->toBe(['01-11-2026', '01-12-2026', '07-11-2026']);
+        expect([$row[9], $row[10], $row[11]])->toBe(['01-11-2026', '01-12-2026', '07-11-2026']);
     }
 
     $payment = ($this->writer)('America/Los_Angeles')->paymentRow(($this->loadPayment)($this->payment), ExportFormat::Csv);
@@ -183,8 +275,8 @@ it('never shifts the calendar dates into the timezone of the organization', func
 it('writes the timestamps in the timezone of the organization', function () {
     $invoice = ($this->loadInvoice)($this->invoiceA);
 
-    expect(($this->writer)('Pacific/Auckland')->invoiceRow($invoice, ExportFormat::Csv)[18])->toBe('11-11-2026 11:30')
-        ->and(($this->writer)('UTC')->invoiceRow($invoice, ExportFormat::Csv)[18])->toBe('10-11-2026 22:30');
+    expect(($this->writer)('Pacific/Auckland')->invoiceRow($invoice, ExportFormat::Csv)[19])->toBe('11-11-2026 11:30')
+        ->and(($this->writer)('UTC')->invoiceRow($invoice, ExportFormat::Csv)[19])->toBe('10-11-2026 22:30');
 });
 
 it('writes the payment and the refund rows with a positive amount and the currency of the invoice', function () {
@@ -206,8 +298,8 @@ it('keeps the contact of a soft-deleted contact', function () {
 
     $row = ($this->writer)()->invoiceRow(($this->loadInvoice)($this->invoiceA), ExportFormat::Csv);
 
-    expect($row[12])->toBe('Hélène Durand')
-        ->and($row[13])->toBe('helene@example.com');
+    expect($row[13])->toBe('Hélène Durand')
+        ->and($row[14])->toBe('helene@example.com');
 });
 
 it('neutralises a formula in the notes and in the payment reference in a CSV inside the ZIP', function (string $value) {
@@ -281,7 +373,7 @@ it('keeps both header rows when there is nothing to write, in the ZIP and in the
         ->and($xlsxCount)->toBe(0)
         ->and($invoiceLines)->toHaveCount(1)
         ->and($paymentLines)->toHaveCount(1)
-        ->and($invoiceHeader)->toHaveCount(20)
+        ->and($invoiceHeader)->toHaveCount(21)
         ->and($paymentHeader)->toHaveCount(11);
 });
 

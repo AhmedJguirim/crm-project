@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\ExportFormat;
+use App\Enums\InvoiceStatus;
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
 use App\Services\Exports\ExportCells;
@@ -18,7 +19,8 @@ use ZipArchive;
  * Writes invoices and their payments: in CSV a ZIP holding `invoices.csv` and `payments.csv`, in Excel one file with an
  * `Invoices` and a `Payments` sheet (a CSV file cannot hold two sheets). Ids and related ids come with readable names,
  * timestamps are in the organization timezone (named in their header) and calendar dates are never shifted. Formula
- * safety and number cells are those of {@see ExportCells}.
+ * safety and number cells are those of {@see ExportCells}. The home amount is the invoice amount at its frozen rate,
+ * rounded to cents like the reports.
  */
 class InvoiceExportWriter
 {
@@ -30,7 +32,7 @@ class InvoiceExportWriter
 
     public const PAYMENTS_SHEET = 'Payments';
 
-    /** The invoice columns in file order; the last two get the timezone appended to their header. */
+    /** The invoice columns in file order; the last two get the timezone appended to their header, the home amount the home currency. */
     public const INVOICE_COLUMNS = [
         'id',
         'number',
@@ -39,6 +41,7 @@ class InvoiceExportWriter
         'exchange rate',
         'amount',
         'amount paid',
+        'home amount',
         'payment terms (days)',
         'issued on',
         'due on',
@@ -69,14 +72,17 @@ class InvoiceExportWriter
         'created at',
     ];
 
+    private const HOME_AMOUNT_COLUMN = 'home amount';
+
     private const TIMESTAMP_COLUMNS = ['created at', 'updated at'];
 
     private const TIMESTAMP_FORMAT = 'd-m-Y H:i';
 
     /**
      * @param  string  $timezone  A valid timezone identifier: the timezone of the organization.
+     * @param  string  $homeCurrency  The currency code of the organization, named in the header of the home amount.
      */
-    public function __construct(private readonly string $timezone) {}
+    public function __construct(private readonly string $timezone, private readonly string $homeCurrency) {}
 
     /** @return array<int, string> */
     public function invoiceHeaders(ExportFormat $format = ExportFormat::Xlsx): array
@@ -92,7 +98,8 @@ class InvoiceExportWriter
 
     /**
      * The cells of one invoice, in the order of `invoiceHeaders()`. The invoice needs its `contact` (a deleted one too),
-     * `deal` and `creator` relations loaded.
+     * `deal` and `creator` relations loaded, and must be read with `Invoice::withHomeAmount()`; otherwise the home amount
+     * cell is empty. A draft has no home amount either.
      *
      * @return array<int, string|int|float>
      */
@@ -106,6 +113,7 @@ class InvoiceExportWriter
             $invoice->exchange_rate === null ? '' : ExportCells::number(Invoice::trimExchangeRate((string) $invoice->exchange_rate), $format),
             ExportCells::money($invoice->amount, $format),
             ExportCells::money($invoice->amount_paid, $format),
+            $invoice->status === InvoiceStatus::Draft ? '' : ExportCells::money($invoice->getAttribute('home_amount'), $format),
             $invoice->payment_terms === null ? '' : (int) $invoice->payment_terms,
             (string) $invoice->issued_at?->format(ImportCellParser::DATE_FORMAT),
             (string) $invoice->due_at?->format(ImportCellParser::DATE_FORMAT),
@@ -235,7 +243,11 @@ class InvoiceExportWriter
     {
         return ExportCells::headers(
             array_map(
-                fn (string $column): string => in_array($column, self::TIMESTAMP_COLUMNS, true) ? "{$column} ({$this->timezone})" : $column,
+                fn (string $column): string => match (true) {
+                    in_array($column, self::TIMESTAMP_COLUMNS, true) => "{$column} ({$this->timezone})",
+                    $column === self::HOME_AMOUNT_COLUMN => "{$column} ({$this->homeCurrency})",
+                    default => $column,
+                },
                 $columns,
             ),
             $format,

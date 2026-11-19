@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\Currency;
 use App\Enums\InvoicePaymentKind;
 use App\Enums\InvoiceStatus;
 use App\Enums\PaymentMethod;
@@ -207,6 +208,45 @@ it('writes the headers with the timezone of the organization', function () {
 
     expect(array_keys(($this->zipRows)('invoices.csv')[0]))->toContain('created at (Europe/Paris)', 'updated at (Europe/Paris)')
         ->and(array_keys(($this->zipRows)('payments.csv')[0]))->toContain('created at (Europe/Paris)');
+});
+
+it('reads the home amount at the home currency of the organization', function () {
+    $this->org->forceFill(['currency' => 'TND'])->saveQuietly();
+    $eur = Invoice::factory()->inCurrency(Currency::Eur, '3.40000000')->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $this->contact->id,
+        'invoice_number' => 'INV-EUR',
+        'status' => InvoiceStatus::Sent,
+        'amount' => '1000.00',
+    ]);
+    $tnd = ($this->invoice)('INV-TND', ['currency' => Currency::Tnd]);
+    $draft = Invoice::factory()->inCurrency(Currency::Eur, '3.10000000')->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $this->contact->id,
+        'invoice_number' => 'INV-DRAFT',
+        'status' => InvoiceStatus::Draft,
+        'amount' => '100.00',
+    ]);
+    $ids = [$eur->id, $tnd->id, $draft->id];
+
+    ($this->run)($ids);
+    $csv = ($this->zipRows)('invoices.csv');
+
+    ($this->run)($ids, 'xlsx');
+    $xlsx = ($this->sheetRows)('Invoices');
+
+    expect(array_keys($csv[0]))->toContain('home amount (TND)')
+        ->and(array_column($csv, 'home amount (TND)'))->toBe(['3400.00', '100.00', ''])
+        ->and(array_column($xlsx, 'home amount (TND)'))->toEqual([3400, 100, '']);
+});
+
+it('names the home currency of each organization in the header of the home amount', function () {
+    ($this->run)([$this->a->id]);
+
+    $rows = ($this->zipRows)('invoices.csv');
+
+    expect(array_keys($rows[0]))->toContain('home amount (USD)')
+        ->and($rows[0]['home amount (USD)'])->toBe('100.00');
 });
 
 it('falls back to UTC when the timezone of the organization is not valid', function () {
