@@ -68,7 +68,7 @@ class TeamActivityWidget extends TableWidget
                 TextColumn::make('won_value')
                     ->label('Won value')
                     ->alignEnd()
-                    ->formatStateUsing(fn (float $state): string => Number::currency($state, $currency)),
+                    ->formatStateUsing(fn (float $state): string => Number::currency($state, $currency, precision: 2)),
                 TextColumn::make('win_rate')
                     ->label('Win rate')
                     ->alignEnd(),

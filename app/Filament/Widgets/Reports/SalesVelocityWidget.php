@@ -60,10 +60,10 @@ class SalesVelocityWidget extends StatsOverviewWidget
         $cycleDays = (int) round($velocity['cycle_days']);
 
         return [
-            Stat::make($label, Number::currency($velocity['per_day'], $currency).' per day')
+            Stat::make($label, Number::currency($velocity['per_day'], $currency, precision: 2).' per day')
                 ->description(
                     $openDeals.' open '.Str::plural('deal', $openDeals).
-                    ' × '.Number::currency($velocity['average_won_value'], $currency).' average won deal'.
+                    ' × '.Number::currency($velocity['average_won_value'], $currency, precision: 2).' average won deal'.
                     ' × '.(int) round($velocity['win_rate'] * 100).'% win rate ('.$velocity['won_count'].' of '.$velocity['closed_count'].')'.
                     ' ÷ '.$cycleDays.' '.Str::plural('day', $cycleDays).' average cycle'
                 )

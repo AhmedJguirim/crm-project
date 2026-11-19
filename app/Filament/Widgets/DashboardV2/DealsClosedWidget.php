@@ -34,9 +34,9 @@ class DealsClosedWidget extends DashboardStatsWidget
 
         return [
             ReportStats::compared(Stat::make('Deals Won '.$title, (string) $current['won_count']), $current['won_count'], $previous['won_count'], (string) $previous['won_count'])->url($wonUrl),
-            ReportStats::compared(Stat::make('Won Value '.$title, Number::currency($current['won_value'], $currency)), $current['won_value'], $previous['won_value'], Number::currency($previous['won_value'], $currency))->url($wonUrl),
+            ReportStats::compared(Stat::make('Won Value '.$title, Number::currency($current['won_value'], $currency, precision: 2)), $current['won_value'], $previous['won_value'], Number::currency($previous['won_value'], $currency, precision: 2))->url($wonUrl),
             ReportStats::compared(Stat::make('Deals Lost '.$title, (string) $current['lost_count']), $current['lost_count'], $previous['lost_count'], (string) $previous['lost_count'], higherIsBetter: false)->url($lostUrl),
-            ReportStats::compared(Stat::make('Lost Value '.$title, Number::currency($current['lost_value'], $currency)), $current['lost_value'], $previous['lost_value'], Number::currency($previous['lost_value'], $currency), higherIsBetter: false)->url($lostUrl),
+            ReportStats::compared(Stat::make('Lost Value '.$title, Number::currency($current['lost_value'], $currency, precision: 2)), $current['lost_value'], $previous['lost_value'], Number::currency($previous['lost_value'], $currency, precision: 2), higherIsBetter: false)->url($lostUrl),
         ];
     }
 }

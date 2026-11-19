@@ -60,7 +60,7 @@ class LeadSourcesWidget extends TableWidget
                 TextColumn::make('won_value')
                     ->label('Won value')
                     ->alignEnd()
-                    ->formatStateUsing(fn (float $state): string => Number::currency($state, $currency)),
+                    ->formatStateUsing(fn (float $state): string => Number::currency($state, $currency, precision: 2)),
                 TextColumn::make('share')
                     ->label('Share')
                     ->alignEnd(),

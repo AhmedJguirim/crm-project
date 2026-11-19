@@ -7,7 +7,9 @@ use App\Enums\OrganizationRole;
 use App\Enums\PaymentMethod;
 use App\Enums\ReportPeriodPreset;
 use App\Filament\Resources\Deals\Widgets\DealInvoicesWidget;
+use App\Filament\Widgets\KpiOverviewWidget;
 use App\Filament\Widgets\MoneyOwedWidget;
+use App\Filament\Widgets\Reports\RevenueByClientWidget;
 use App\Models\Contact;
 use App\Models\Deal;
 use App\Models\Invoice;
@@ -74,9 +76,13 @@ test('money owed converts each balance', function () {
         'over_90' => ['count' => 0, 'balance' => 0.0],
     ]);
 
-    Livewire::test(MoneyOwedWidget::class)
-        ->assertSee('TND')
-        ->assertSee('2,570');
+    $html = Livewire::test(MoneyOwedWidget::class)->assertSuccessful()->html();
+
+    expect($html)->toContain("TND{$this->nbsp}2,570.00")
+        ->and($html)->toContain("TND{$this->nbsp}1,950.00")
+        ->and($html)->toContain("TND{$this->nbsp}620.00")
+        ->and($html)->toContain("TND{$this->nbsp}0.00")
+        ->and(preg_match('/TND\x{00A0}[\d,]+\.\d{3}/u', $html))->toBe(0);
 });
 
 test('cash collected converts each payment and refund at its invoice rate', function () {
@@ -125,6 +131,21 @@ test('revenue by client converts collected and outstanding', function () {
 
     expect($rows['contact-'.$this->contact->id])->toMatchArray(['client' => 'Sami Ben Ali', 'collected' => 1700.0, 'outstanding' => 2570.0])
         ->and($rows['total'])->toMatchArray(['collected' => 1700.0, 'outstanding' => 2570.0]);
+});
+
+test('revenue by client shows 2 decimals', function () {
+    $html = Livewire::test(RevenueByClientWidget::class, ['pageFilters' => null])->assertSuccessful()->html();
+
+    expect($html)->toContain("TND{$this->nbsp}1,700.00")
+        ->and($html)->toContain("TND{$this->nbsp}2,570.00")
+        ->and(preg_match('/TND\x{00A0}[\d,]+\.\d{3}/u', $html))->toBe(0);
+});
+
+test('cash collected shows 2 decimals', function () {
+    $html = Livewire::test(KpiOverviewWidget::class, ['pageFilters' => null])->assertSuccessful()->html();
+
+    expect($html)->toContain("TND{$this->nbsp}1,700.00")
+        ->and(preg_match('/TND\x{00A0}[\d,]+\.\d{3}/u', $html))->toBe(0);
 });
 
 test('revenue by client counts a refund negative at its invoice rate', function () {

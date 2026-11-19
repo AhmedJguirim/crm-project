@@ -39,7 +39,7 @@ class MoneyOwedWidget extends StatsOverviewWidget
         $currency = CurrentOrganization::find()?->currencyCode() ?? 'USD';
         $aging = Receivables::aging(LocalTime::todayDate());
 
-        $money = fn (float $amount): string => Number::currency($amount, $currency);
+        $money = fn (float $amount): string => Number::currency($amount, $currency, precision: 2);
         $invoices = fn (int $count): string => $count.' '.($count === 1 ? 'invoice' : 'invoices');
 
         $unpaidCount = array_sum(array_column($aging, 'count'));

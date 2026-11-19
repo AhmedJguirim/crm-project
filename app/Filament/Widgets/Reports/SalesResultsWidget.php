@@ -67,17 +67,17 @@ class SalesResultsWidget extends StatsOverviewWidget
             )->url($wonUrl),
 
             ReportStats::compared(
-                Stat::make('Revenue Won '.$title, Number::currency($current['won_value'], $currency)),
+                Stat::make('Revenue Won '.$title, Number::currency($current['won_value'], $currency, precision: 2)),
                 $current['won_value'],
                 $previous['won_value'],
-                Number::currency($previous['won_value'], $currency),
+                Number::currency($previous['won_value'], $currency, precision: 2),
             )->url($wonUrl),
 
             $this->average(
-                Stat::make('Average Won Deal '.$title, $average === null ? '—' : Number::currency($average, $currency)),
+                Stat::make('Average Won Deal '.$title, $average === null ? '—' : Number::currency($average, $currency, precision: 2)),
                 $average,
                 $previousAverage,
-                $previousAverage === null ? '' : Number::currency($previousAverage, $currency),
+                $previousAverage === null ? '' : Number::currency($previousAverage, $currency, precision: 2),
                 false,
                 $period->phrase(),
             ),
@@ -100,10 +100,10 @@ class SalesResultsWidget extends StatsOverviewWidget
             )->url($lostUrl),
 
             ReportStats::compared(
-                Stat::make('Lost Value '.$title, Number::currency($current['lost_value'], $currency)),
+                Stat::make('Lost Value '.$title, Number::currency($current['lost_value'], $currency, precision: 2)),
                 $current['lost_value'],
                 $previous['lost_value'],
-                Number::currency($previous['lost_value'], $currency),
+                Number::currency($previous['lost_value'], $currency, precision: 2),
                 higherIsBetter: false,
             )->url($lostUrl),
 

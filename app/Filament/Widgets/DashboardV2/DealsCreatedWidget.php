@@ -50,10 +50,10 @@ class DealsCreatedWidget extends DashboardStatsWidget
             )->url(DealListLink::created($filters))->chart($counts)->chartColor('primary'),
 
             ReportStats::compared(
-                Stat::make('Value Created '.$filters->period->title(), Number::currency($value, $currency)),
+                Stat::make('Value Created '.$filters->period->title(), Number::currency($value, $currency, precision: 2)),
                 $value,
                 $previousValue,
-                Number::currency($previousValue, $currency),
+                Number::currency($previousValue, $currency, precision: 2),
             )->url(DealListLink::created($filters)),
         ];
     }

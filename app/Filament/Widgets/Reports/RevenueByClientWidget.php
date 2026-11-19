@@ -64,14 +64,14 @@ class RevenueByClientWidget extends TableWidget
                 TextColumn::make('collected')
                     ->label('Collected')
                     ->alignEnd()
-                    ->formatStateUsing(fn (float $state): string => Number::currency($state, $currency)),
+                    ->formatStateUsing(fn (float $state): string => Number::currency($state, $currency, precision: 2)),
                 TextColumn::make('share')
                     ->label('Share')
                     ->alignEnd(),
                 TextColumn::make('outstanding')
                     ->label('Outstanding')
                     ->alignEnd()
-                    ->formatStateUsing(fn (float $state): string => Number::currency($state, $currency)),
+                    ->formatStateUsing(fn (float $state): string => Number::currency($state, $currency, precision: 2)),
             ]);
     }
 

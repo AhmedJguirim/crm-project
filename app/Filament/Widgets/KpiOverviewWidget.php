@@ -76,10 +76,10 @@ class KpiOverviewWidget extends StatsOverviewWidget
 
         return [
             $this->withTrend(ReportStats::compared(
-                Stat::make('Revenue Won '.$title, Number::currency($current['won_value'], $currency)),
+                Stat::make('Revenue Won '.$title, Number::currency($current['won_value'], $currency, precision: 2)),
                 $current['won_value'],
                 $previous['won_value'],
-                Number::currency($previous['won_value'], $currency),
+                Number::currency($previous['won_value'], $currency, precision: 2),
             )->url($wonUrl), array_column($deals, 'won_value')),
 
             $this->withTrend(ReportStats::winRate($title, $period->phrase(), $current['won_count'], $current['lost_count'], $previous['won_count'], $previous['lost_count']), array_map($this->winRatePoints(...), $deals)),
@@ -92,10 +92,10 @@ class KpiOverviewWidget extends StatsOverviewWidget
             )->url(DealListLink::created($filters)), array_column($deals, 'created_count')),
 
             $this->withTrend(ReportStats::compared(
-                Stat::make('Cash Collected '.$title, Number::currency($cash, $currency)),
+                Stat::make('Cash Collected '.$title, Number::currency($cash, $currency, precision: 2)),
                 $cash,
                 $previousCash,
-                Number::currency($previousCash, $currency),
+                Number::currency($previousCash, $currency, precision: 2),
             )->url(InvoiceListLink::cashCollected($filters)), $cashByPeriod),
 
             $this->withTrend(ReportStats::compared(

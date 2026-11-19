@@ -44,11 +44,11 @@ class DealForecastWidget extends TableWidget
                 TextColumn::make('total')
                     ->label('Total')
                     ->alignEnd()
-                    ->formatStateUsing(fn (float $state): string => Number::currency($state, $currency)),
+                    ->formatStateUsing(fn (float $state): string => Number::currency($state, $currency, precision: 2)),
                 TextColumn::make('weighted')
                     ->label('Weighted')
                     ->alignEnd()
-                    ->formatStateUsing(fn (float $state): string => Number::currency($state, $currency)),
+                    ->formatStateUsing(fn (float $state): string => Number::currency($state, $currency, precision: 2)),
             ]);
     }
 }
