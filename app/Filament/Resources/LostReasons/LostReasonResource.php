@@ -5,6 +5,7 @@ namespace App\Filament\Resources\LostReasons;
 use App\Filament\Resources\LostReasons\Pages\ManageLostReasons;
 use App\Filament\Resources\LostReasons\Schemas\LostReasonForm;
 use App\Filament\Resources\LostReasons\Tables\LostReasonsTable;
+use App\Filament\Support\Concerns\ResolvesReadableRecordKeys;
 use App\Models\LostReason;
 use App\Support\Tenancy\CurrentOrganization;
 use BackedEnum;
@@ -18,6 +19,8 @@ use UnitEnum;
 
 class LostReasonResource extends Resource
 {
+    use ResolvesReadableRecordKeys;
+
     protected static ?string $model = LostReason::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedHandThumbDown;

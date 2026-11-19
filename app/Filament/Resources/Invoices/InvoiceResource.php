@@ -9,6 +9,7 @@ use App\Filament\Resources\Invoices\Pages\ViewInvoice;
 use App\Filament\Resources\Invoices\Schemas\InvoiceForm;
 use App\Filament\Resources\Invoices\Schemas\InvoiceInfolist;
 use App\Filament\Resources\Invoices\Tables\InvoicesTable;
+use App\Filament\Support\Concerns\ResolvesReadableRecordKeys;
 use App\Models\Invoice;
 use App\Support\Tenancy\CurrentOrganization;
 use BackedEnum;
@@ -21,6 +22,8 @@ use UnitEnum;
 
 class InvoiceResource extends Resource
 {
+    use ResolvesReadableRecordKeys;
+
     protected static ?string $model = Invoice::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedDocumentText;

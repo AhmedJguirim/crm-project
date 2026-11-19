@@ -7,6 +7,7 @@ use App\Filament\Resources\CustomFields\Pages\EditCustomField;
 use App\Filament\Resources\CustomFields\Pages\ListCustomFields;
 use App\Filament\Resources\CustomFields\Schemas\CustomFieldForm;
 use App\Filament\Resources\CustomFields\Tables\CustomFieldsTable;
+use App\Filament\Support\Concerns\ResolvesReadableRecordKeys;
 use App\Models\CustomField;
 use App\Support\Tenancy\CurrentOrganization;
 use BackedEnum;
@@ -22,6 +23,8 @@ use UnitEnum;
 
 class CustomFieldResource extends Resource
 {
+    use ResolvesReadableRecordKeys;
+
     protected static ?string $model = CustomField::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedIdentification;

@@ -7,6 +7,7 @@ use App\Filament\Resources\CompanyCustomFields\Pages\EditCompanyCustomField;
 use App\Filament\Resources\CompanyCustomFields\Pages\ListCompanyCustomFields;
 use App\Filament\Resources\CompanyCustomFields\Schemas\CompanyCustomFieldForm;
 use App\Filament\Resources\CompanyCustomFields\Tables\CompanyCustomFieldsTable;
+use App\Filament\Support\Concerns\ResolvesReadableRecordKeys;
 use App\Models\CompanyCustomField;
 use BackedEnum;
 use Filament\Resources\Resource;
@@ -21,6 +22,8 @@ use UnitEnum;
 
 class CompanyCustomFieldResource extends Resource
 {
+    use ResolvesReadableRecordKeys;
+
     protected static ?string $model = CompanyCustomField::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBriefcase;

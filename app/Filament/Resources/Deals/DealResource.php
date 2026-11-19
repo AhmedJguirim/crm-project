@@ -10,6 +10,7 @@ use App\Filament\Resources\Deals\Pages\ViewDeal;
 use App\Filament\Resources\Deals\Schemas\DealForm;
 use App\Filament\Resources\Deals\Schemas\DealInfolist;
 use App\Filament\Resources\Deals\Tables\DealsTable;
+use App\Filament\Support\Concerns\ResolvesReadableRecordKeys;
 use App\Models\Deal;
 use App\Support\Tenancy\CurrentOrganization;
 use BackedEnum;
@@ -22,6 +23,8 @@ use UnitEnum;
 
 class DealResource extends Resource
 {
+    use ResolvesReadableRecordKeys;
+
     protected static ?string $model = Deal::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBanknotes;

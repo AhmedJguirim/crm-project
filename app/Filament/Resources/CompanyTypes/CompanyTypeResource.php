@@ -5,6 +5,7 @@ namespace App\Filament\Resources\CompanyTypes;
 use App\Filament\Resources\CompanyTypes\Pages\ManageCompanyTypes;
 use App\Filament\Resources\CompanyTypes\Schemas\CompanyTypeForm;
 use App\Filament\Resources\CompanyTypes\Tables\CompanyTypesTable;
+use App\Filament\Support\Concerns\ResolvesReadableRecordKeys;
 use App\Models\CompanyType;
 use App\Support\Tenancy\CurrentOrganization;
 use BackedEnum;
@@ -18,6 +19,8 @@ use UnitEnum;
 
 class CompanyTypeResource extends Resource
 {
+    use ResolvesReadableRecordKeys;
+
     protected static ?string $model = CompanyType::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedSquares2x2;

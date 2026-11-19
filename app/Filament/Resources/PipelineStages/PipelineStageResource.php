@@ -5,6 +5,7 @@ namespace App\Filament\Resources\PipelineStages;
 use App\Filament\Resources\PipelineStages\Pages\ManagePipelineStages;
 use App\Filament\Resources\PipelineStages\Schemas\PipelineStageForm;
 use App\Filament\Resources\PipelineStages\Tables\PipelineStagesTable;
+use App\Filament\Support\Concerns\ResolvesReadableRecordKeys;
 use App\Models\PipelineStage;
 use App\Services\Deals\DefaultPipeline;
 use App\Support\Tenancy\CurrentOrganization;
@@ -18,6 +19,8 @@ use UnitEnum;
 
 class PipelineStageResource extends Resource
 {
+    use ResolvesReadableRecordKeys;
+
     protected static ?string $model = PipelineStage::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedAdjustmentsHorizontal;

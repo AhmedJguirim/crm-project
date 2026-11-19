@@ -9,6 +9,7 @@ use App\Filament\Resources\Segments\RelationManagers\ContactsRelationManager;
 use App\Filament\Resources\Segments\Schemas\SegmentForm;
 use App\Filament\Resources\Segments\Schemas\SegmentInfolist;
 use App\Filament\Resources\Segments\Tables\SegmentsTable;
+use App\Filament\Support\Concerns\ResolvesReadableRecordKeys;
 use App\Models\Segment;
 use App\Support\Tenancy\CurrentOrganization;
 use BackedEnum;
@@ -21,6 +22,8 @@ use UnitEnum;
 
 class SegmentResource extends Resource
 {
+    use ResolvesReadableRecordKeys;
+
     protected static ?string $model = Segment::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedQueueList;

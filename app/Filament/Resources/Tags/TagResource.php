@@ -7,6 +7,7 @@ use App\Filament\Resources\Tags\Pages\EditTag;
 use App\Filament\Resources\Tags\Pages\ListTags;
 use App\Filament\Resources\Tags\Schemas\TagForm;
 use App\Filament\Resources\Tags\Tables\TagsTable;
+use App\Filament\Support\Concerns\ResolvesReadableRecordKeys;
 use App\Models\Tag;
 use App\Support\Tenancy\CurrentOrganization;
 use BackedEnum;
@@ -20,6 +21,8 @@ use UnitEnum;
 
 class TagResource extends Resource
 {
+    use ResolvesReadableRecordKeys;
+
     protected static ?string $model = Tag::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedTag;

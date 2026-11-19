@@ -8,6 +8,7 @@ use App\Filament\Resources\Contacts\Pages\ListContacts;
 use App\Filament\Resources\Contacts\Pages\ViewContact;
 use App\Filament\Resources\Contacts\Schemas\ContactForm;
 use App\Filament\Resources\Contacts\Tables\ContactsTable;
+use App\Filament\Support\Concerns\ResolvesReadableRecordKeys;
 use App\Models\Contact;
 use App\Support\Tenancy\CurrentOrganization;
 use BackedEnum;
@@ -24,6 +25,8 @@ use UnitEnum;
 
 class ContactResource extends Resource
 {
+    use ResolvesReadableRecordKeys;
+
     protected static ?string $model = Contact::class;
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedUser;
