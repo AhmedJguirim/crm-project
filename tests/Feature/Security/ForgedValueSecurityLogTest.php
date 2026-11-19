@@ -3,9 +3,12 @@
 use App\Enums\TaskType;
 use App\Filament\Pages\Auth\Register;
 use App\Filament\Resources\Contacts\Pages\CreateContact;
+use App\Filament\Resources\Contacts\Pages\ViewContact;
+use App\Filament\Resources\Deals\Pages\CreateDeal;
 use App\Filament\Resources\Tasks\Pages\CreateTask;
 use App\Filament\Support\StateCasts\RecordKeyIsReadable;
 use App\Models\Contact;
+use App\Models\Deal;
 use App\Models\Tag;
 use App\Models\Task;
 use App\Models\User;
@@ -195,6 +198,164 @@ test('a legitimate save and a normal validation error write nothing', function (
 
     expect(Contact::query()->where('email', 'jane.roe@example.test')->exists())->toBeTrue()
         ->and(securityLogEntries($this->log))->toBeEmpty();
+});
+
+test('a non-numeric record id on the task form is refused with the integer message and logged once', function (string $value) {
+    $name = Livewire::test(CreateTask::class)->instance()->getName();
+    $this->log->clear();
+
+    $page = Livewire::test(CreateTask::class)
+        ->fillForm(['title' => 'Forged', 'type' => TaskType::FollowUp])
+        ->set('data.contact_id', $value)
+        ->call('create');
+
+    expect($page->errors()->get('data.contact_id'))->toBe(['The contact field must be an integer.'])
+        ->and(Task::query()->where('title', 'Forged')->exists())->toBeFalse();
+
+    $entries = securityLogEntries($this->log);
+
+    expect($entries)->toHaveCount(1)
+        ->and($entries[0]['event'])->toBe('request.forged_value')
+        ->and($entries[0]['level'])->toBe('warning')
+        ->and($entries[0]['context'])->toBe([
+            'guard' => 'record_key',
+            'component' => $name,
+            'user_id' => $this->alice->id,
+            'organization_id' => $this->org->id,
+            'ip' => '127.0.0.1',
+        ]);
+})->with([
+    'letters' => ['abc'],
+    'bigint overflow' => ['9223372036854775808'],
+    'decimal' => ['5.0'],
+    'leading zero' => ['05'],
+]);
+
+test('a non-numeric item in a multi-select is refused and logged once', function () {
+    Livewire::test(CreateContact::class)
+        ->fillForm(['name' => 'Jane Roe', 'email' => 'jane.roe@example.test'])
+        ->set('data.tags', ['abc', $this->vip->id])
+        ->call('create')
+        ->tap(function (Testable $page): void {
+            expect($page->errors()->get('data.tags.0')[0] ?? '')->toContain('must be an integer');
+        });
+
+    $lines = forgedValueLines($this->log);
+
+    expect(Contact::query()->where('email', 'jane.roe@example.test')->exists())->toBeFalse()
+        ->and($lines)->toHaveCount(1)
+        ->and($lines[0]['context']['guard'])->toBe('record_key');
+});
+
+test('a scalar forged into a multi-select is refused as not a list and logged once', function (Closure $shape) {
+    $name = Livewire::test(CreateContact::class)->instance()->getName();
+    $this->log->clear();
+
+    $page = Livewire::test(CreateContact::class)
+        ->fillForm(['name' => 'Jane Roe', 'email' => 'jane.roe@example.test'])
+        ->set('data.tags', $shape($this->vip->id))
+        ->call('create');
+
+    expect($page->errors()->get('data.tags'))->toBe(['The tags field must be an array.'])
+        ->and(Contact::query()->where('email', 'jane.roe@example.test')->exists())->toBeFalse();
+
+    $lines = forgedValueLines($this->log);
+
+    expect($lines)->toHaveCount(1)
+        ->and($lines[0]['context'])->toBe([
+            'guard' => 'record_key_list',
+            'component' => $name,
+            'user_id' => $this->alice->id,
+            'organization_id' => $this->org->id,
+            'ip' => '127.0.0.1',
+        ]);
+})->with([
+    'string id' => [fn (int $id): string => (string) $id],
+    'int id' => [fn (int $id): int => $id],
+    'other int' => [fn (int $id): int => $id + 1000],
+    'json text' => [fn (int $id): string => '["'.$id.'"]'],
+]);
+
+test('a forged id in an action modal is logged', function () {
+    $tasksBefore = Task::query()->count();
+
+    Livewire::test(ViewContact::class, ['record' => $this->jane->id])
+        ->mountAction('quickTask')
+        ->set('mountedActions.0.data.title', 'Forged')
+        ->set('mountedActions.0.data.contact_id', 'abc')
+        ->callMountedAction()
+        ->assertHasActionErrors(['contact_id' => RecordKeyIsReadable::class]);
+
+    $lines = forgedValueLines($this->log);
+
+    expect(Task::query()->count())->toBe($tasksBefore)
+        ->and($lines)->toHaveCount(1)
+        ->and($lines[0]['context']['guard'])->toBe('record_key');
+});
+
+test('an array in a single record-id select is still one line from the single-value guard', function () {
+    Livewire::test(CreateTask::class)
+        ->fillForm(['title' => 'Forged', 'type' => TaskType::FollowUp])
+        ->set('data.contact_id', ['abc'])
+        ->call('create');
+
+    $lines = forgedValueLines($this->log);
+
+    expect(Task::query()->where('title', 'Forged')->exists())->toBeFalse()
+        ->and($lines)->toHaveCount(1)
+        ->and($lines[0]['context']['guard'])->toBe('single_value_field');
+});
+
+test('legitimate and empty record ids write nothing', function () {
+    Livewire::test(CreateTask::class)
+        ->fillForm(['title' => 'With contact', 'type' => TaskType::FollowUp, 'contact_id' => $this->jane->id])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    Livewire::test(CreateTask::class)
+        ->fillForm(['title' => 'No contact', 'type' => TaskType::FollowUp, 'contact_id' => null])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    Livewire::test(CreateContact::class)
+        ->fillForm(['name' => 'Tagged', 'email' => 'tagged@example.test', 'tags' => [$this->vip->id]])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    Livewire::test(CreateContact::class)
+        ->fillForm(['name' => 'Untagged', 'email' => 'untagged@example.test', 'tags' => []])
+        ->call('create')
+        ->assertHasNoFormErrors();
+
+    expect(Task::query()->whereIn('title', ['With contact', 'No contact'])->count())->toBe(2)
+        ->and(Contact::query()->whereIn('email', ['tagged@example.test', 'untagged@example.test'])->count())->toBe(2)
+        ->and(securityLogEntries($this->log))->toBeEmpty();
+});
+
+test('a loop of forged record ids shares the refusal cap', function () {
+    foreach (range(1, 10) as $ignored) {
+        RateLimiter::hit('security-log-refusals:user:'.$this->alice->id, 60);
+    }
+
+    $page = Livewire::test(CreateTask::class)
+        ->fillForm(['title' => 'Forged', 'type' => TaskType::FollowUp])
+        ->set('data.contact_id', 'abc')
+        ->call('create');
+
+    expect($page->errors()->get('data.contact_id'))->toBe(['The contact field must be an integer.'])
+        ->and(forgedValueLines($this->log))->toBeEmpty()
+        ->and(forgedValueLines($this->log, 'request.refusals_capped'))->toHaveCount(1);
+});
+
+test('a non-numeric id refused by the options rule is not logged', function () {
+    $page = Livewire::test(CreateDeal::class)
+        ->fillForm(['title' => 'Forged'])
+        ->set('data.owner_id', 'abc')
+        ->call('create');
+
+    expect($page->errors()->get('data.owner_id'))->toBe(['The selected deal owner is invalid.'])
+        ->and(Deal::query()->where('title', 'Forged')->exists())->toBeFalse()
+        ->and(forgedValueLines($this->log))->toBeEmpty();
 });
 
 test('outside livewire the component is null', function () {

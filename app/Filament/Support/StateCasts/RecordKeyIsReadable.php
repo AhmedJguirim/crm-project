@@ -8,7 +8,7 @@ use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Translation\PotentiallyTranslatedString;
 
 /**
- * Refuses what the `integer` rule lets through but RecordKeyStateCast::toKey() reads as no id (" 5", "5 ", "+5"), so a forged value is never silently dropped (BUG-31).
+ * Refuses any value RecordKeyStateCast::toKey() reads as no id ("abc", " 5", "+5"), so a forged value is never silently dropped (BUG-31) and is logged (SEC-64, SEC-65).
  */
 final class RecordKeyIsReadable implements ValidationRule
 {

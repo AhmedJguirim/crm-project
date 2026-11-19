@@ -135,19 +135,19 @@ test('forged ids in action modals are refused', function (string $action, array 
             ->set('mountedActions.0.data.title', $data['title'])
             ->set('mountedActions.0.data.contact_id', $data['contact_id'])
             ->callMountedAction()
-            ->assertHasActionErrors([$errorKey => 'integer']),
+            ->assertHasActionErrors([$errorKey => RecordKeyIsReadable::class]),
         'contact' => Livewire::test(ViewContact::class, ['record' => $this->jane->id])
             ->mountAction('quickTask')
             ->set('mountedActions.0.data.title', $data['title'])
             ->set('mountedActions.0.data.contact_id', $data['contact_id'])
             ->callMountedAction()
-            ->assertHasActionErrors([$errorKey => 'integer']),
+            ->assertHasActionErrors([$errorKey => RecordKeyIsReadable::class]),
         'log' => Livewire::test(ViewDeal::class, ['record' => $deal->id])
             ->mountAction('logActivity')
             ->set('mountedActions.0.data.type', ActivityType::Call->value)
             ->set('mountedActions.0.data.deal_id', $data['deal_id'])
             ->callMountedAction()
-            ->assertHasActionErrors([$errorKey => 'integer']),
+            ->assertHasActionErrors([$errorKey => RecordKeyIsReadable::class]),
     };
 
     expect(Task::query()->count())->toBe($tasksBefore)

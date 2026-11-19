@@ -16,7 +16,7 @@ use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 /**
  * Writes one line per security event to the daily `security` log channel (SEC-08). The line always carries the user id,
  * the organization id and the IP, and never a password, email address, token or recovery code. Refusal lines
- * (`refusal()`) are capped per actor so a loop of forged payloads (SEC-21), refused requests (403, SEC-63) or forged form values (SEC-64) cannot fill the
+ * (`refusal()`) are capped per actor so a loop of forged payloads (SEC-21), refused requests (403, SEC-63) or forged form values (SEC-64, SEC-65) cannot fill the
  * disk.
  */
 final class SecurityLog

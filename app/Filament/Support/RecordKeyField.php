@@ -3,6 +3,7 @@
 namespace App\Filament\Support;
 
 use App\Filament\Support\StateCasts\RecordKeyIsReadable;
+use App\Filament\Support\StateCasts\RecordKeysAreList;
 use App\Filament\Support\StateCasts\RecordKeysStateCast;
 use App\Filament\Support\StateCasts\RecordKeyStateCast;
 use Filament\Forms\Components\Hidden;
@@ -20,7 +21,7 @@ final class RecordKeyField
     {
         return Select::make($name)
             ->stateCast(new RecordKeyStateCast)
-            ->rules(['bail', 'integer', new RecordKeyIsReadable]);
+            ->rules(['bail', new RecordKeyIsReadable]);
     }
 
     /**
@@ -31,8 +32,8 @@ final class RecordKeyField
         return Select::make($name)
             ->multiple()
             ->stateCast(new RecordKeysStateCast)
-            ->rules(['array'])
-            ->nestedRecursiveRules(['bail', 'integer', new RecordKeyIsReadable]);
+            ->rules([new RecordKeysAreList])
+            ->nestedRecursiveRules(['bail', new RecordKeyIsReadable]);
     }
 
     /**
@@ -42,6 +43,6 @@ final class RecordKeyField
     {
         return Hidden::make($name)
             ->stateCast(new RecordKeyStateCast)
-            ->rules(['bail', 'integer', new RecordKeyIsReadable]);
+            ->rules(['bail', new RecordKeyIsReadable]);
     }
 }
