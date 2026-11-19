@@ -498,3 +498,42 @@ test('an impossible calendar date in the invoices filter URL is dropped, not rol
 
     $page->assertCanSeeTableRecords([$january, $march]);
 })->with(['2026-02-30', '2026-13-01', '2026-04-31']);
+
+test('a member forging the invoice creator or payment dates in the URL sees only their organization\'s invoices', function (string $query, bool $listsEverything) {
+    $mine = Invoice::factory()->create([
+        'organization_id' => $this->org->id,
+        'contact_id' => $this->ann->id,
+        'created_by' => $this->owner->id,
+        'status' => InvoiceStatus::Sent,
+    ]);
+    $globexOrganization = $this->gina->personalOrganization();
+    $foreign = Invoice::factory()->create([
+        'organization_id' => $globexOrganization->id,
+        'contact_id' => $this->globexContact->id,
+        'created_by' => $this->gina->id,
+        'status' => InvoiceStatus::Sent,
+    ]);
+    $query = str_replace('<gina>', (string) $this->gina->id, $query);
+
+    $this->get(InvoiceResource::getUrl('index', tenant: $this->org).'?'.$query)->assertOk();
+
+    parse_str($query, $parsed);
+
+    $page = Livewire::withQueryParams($parsed)->test(ListInvoices::class)->assertSuccessful();
+
+    $page->assertCanNotSeeTableRecords([$foreign]);
+
+    if ($listsEverything) {
+        $page->assertCanSeeTableRecords([$mine]);
+
+        return;
+    }
+
+    $page->assertCountTableRecords(0);
+})->with([
+    'a creator of another organization' => ['filters[created_by][value]=<gina>', false],
+    'an injection as creator' => ['filters[created_by][value]=1 OR 1=1', true],
+    'an array as creator' => ['filters[created_by][value][]=1', true],
+    'an injection as payment date' => ["filters[paid_between][from]=2026-10-01' OR '1'='1", true],
+    'an array as payment date' => ['filters[paid_between][until][a]=1', true],
+]);

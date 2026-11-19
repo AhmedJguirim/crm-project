@@ -2,11 +2,11 @@
 
 namespace App\Filament\Widgets;
 
-use App\Filament\Resources\Invoices\InvoiceResource;
 use App\Services\Reports\DashboardKpis;
 use App\Support\Reports\ContactListLink;
 use App\Support\Reports\DashboardFilters;
 use App\Support\Reports\DealListLink;
+use App\Support\Reports\InvoiceListLink;
 use App\Support\Reports\ReportStats;
 use App\Support\Tenancy\CurrentOrganization;
 use Filament\Widgets\Concerns\InteractsWithPageFilters;
@@ -96,7 +96,7 @@ class KpiOverviewWidget extends StatsOverviewWidget
                 $cash,
                 $previousCash,
                 Number::currency($previousCash, $currency),
-            )->url(InvoiceResource::getUrl('index')), $cashByPeriod),
+            )->url(InvoiceListLink::cashCollected($filters)), $cashByPeriod),
 
             $this->withTrend(ReportStats::compared(
                 Stat::make('New Contacts '.$title, (string) $newContacts),

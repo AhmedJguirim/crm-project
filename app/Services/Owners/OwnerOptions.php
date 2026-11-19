@@ -5,6 +5,7 @@ namespace App\Services\Owners;
 use App\Models\Company;
 use App\Models\Contact;
 use App\Models\Deal;
+use App\Models\Invoice;
 use App\Models\Task;
 use App\Models\User;
 use App\Support\Tenancy\CurrentOrganization;
@@ -28,18 +29,18 @@ final class OwnerOptions
     }
 
     /**
-     * The users a table of deals, tasks, contacts or companies can be filtered by: the current members, plus every former member who still owns a record of the organization.
+     * The users a table of deals, tasks, contacts or companies can be filtered by: the current members, plus every former member who still owns a record of the organization. `$column` is the user column to read (`created_by` for invoices).
      *
-     * @param  class-string<Deal|Task|Contact|Company>  $modelClass
+     * @param  class-string<Deal|Task|Contact|Company|Invoice>  $modelClass
      * @return array<int, string>
      */
-    public static function forFilter(string $modelClass): array
+    public static function forFilter(string $modelClass, string $column = 'owner_id'): array
     {
         $options = self::members();
         $organizationId = CurrentOrganization::find()?->getKey();
 
         $former = User::query()
-            ->whereIn('id', $modelClass::query()->where('organization_id', $organizationId)->whereNotNull('owner_id')->select('owner_id'))
+            ->whereIn('id', $modelClass::query()->where('organization_id', $organizationId)->whereNotNull($column)->select($column))
             ->whereNotIn('id', array_keys($options))
             ->orderBy('name')
             ->pluck('name', 'id');

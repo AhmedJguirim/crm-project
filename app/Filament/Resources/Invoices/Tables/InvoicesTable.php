@@ -15,6 +15,7 @@ use App\Filament\Support\Filters\OptionSelectFilter;
 use App\Filament\Support\Filters\RecordKeySelectFilter;
 use App\Models\Invoice;
 use App\Services\Invoices\InvoiceLedger;
+use App\Services\Owners\OwnerOptions;
 use App\Support\LocalTime;
 use App\Support\MoneyLimit;
 use App\Support\NotificationText;
@@ -111,6 +112,11 @@ class InvoicesTable
                     ->searchable()
                     ->preload(),
 
+                RecordKeySelectFilter::make('created_by')
+                    ->label('Created by')
+                    ->options(fn (): array => OwnerOptions::forFilter(Invoice::class, 'created_by'))
+                    ->searchable(),
+
                 Filter::make('issued_at_range')
                     ->label('Issued Date')
                     ->schema([
@@ -137,6 +143,47 @@ class InvoicesTable
 
                         $from = LocalTime::filterDate($data['from'] ?? null);
                         $until = LocalTime::filterDate($data['until'] ?? null);
+
+                        if ($from !== null && $until !== null && $from > $until) {
+                            $indicators[] = Indicator::make('From is after Until — no invoice can match')->color('warning');
+                        }
+
+                        return $indicators;
+                    }),
+
+                Filter::make('paid_between')
+                    ->label('Payment Date')
+                    ->schema([
+                        DatePicker::make('from')->label('From'),
+                        DatePicker::make('until')->label('Until'),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        $from = LocalTime::boundedFilterDate($data['from'] ?? null);
+                        $until = LocalTime::boundedFilterDate($data['until'] ?? null);
+
+                        if ($from === null && $until === null) {
+                            return $query;
+                        }
+
+                        return $query->whereHas('payments', fn (Builder $payments): Builder => $payments
+                            ->when($from !== null, fn (Builder $builder): Builder => $builder->where('invoice_payments.paid_on', '>=', $from))
+                            ->when($until !== null, fn (Builder $builder): Builder => $builder->where('invoice_payments.paid_on', '<=', $until)));
+                    })
+                    ->indicateUsing(function (array $data): array {
+                        $indicators = [];
+
+                        foreach (['from' => 'Payment or refund from', 'until' => 'Payment or refund until'] as $bound => $label) {
+                            $date = LocalTime::boundedFilterDate($data[$bound] ?? null);
+
+                            if ($date === null) {
+                                continue;
+                            }
+
+                            $indicators[] = Indicator::make($label.' '.CarbonImmutable::createFromFormat('!Y-m-d', $date)->format('M j, Y'))->removeField($bound);
+                        }
+
+                        $from = LocalTime::boundedFilterDate($data['from'] ?? null);
+                        $until = LocalTime::boundedFilterDate($data['until'] ?? null);
 
                         if ($from !== null && $until !== null && $from > $until) {
                             $indicators[] = Indicator::make('From is after Until — no invoice can match')->color('warning');

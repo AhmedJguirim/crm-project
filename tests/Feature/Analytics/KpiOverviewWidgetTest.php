@@ -142,7 +142,7 @@ describe('with the mixed deals and contacts of two months', function () {
             DealResource::getUrl('index').'?filters[status][value]=won&filters[closed_between][from]=2026-10-01&filters[closed_between][until]=2026-10-31',
             null,
             DealResource::getUrl('index').'?filters[created_between][from]=2026-10-01&filters[created_between][until]=2026-10-31',
-            InvoiceResource::getUrl('index'),
+            InvoiceResource::getUrl('index').'?filters[paid_between][from]=2026-10-01&filters[paid_between][until]=2026-10-31',
             ContactResource::getUrl('index').'?filters[created_between][from]=2026-10-01&filters[created_between][until]=2026-10-31',
         ]);
     });
@@ -178,6 +178,16 @@ describe('with the mixed deals and contacts of two months', function () {
 
         expect($url((string) $this->bob->id))->toEndWith('&filters[created_between][until]=2026-10-31&filters[owner_id][value]='.$this->bob->id)
             ->and($url('999999'))->not->toContain('owner_id');
+    });
+
+    test('the cash link carries the owner only for a resolved member and a custom period as is', function () {
+        $url = fn (array $pageFilters): string => (string) collect(invade(Livewire::test(KpiOverviewWidget::class, ['pageFilters' => $pageFilters])->instance())->getStats())
+            ->first(fn (Stat $stat): bool => str_starts_with((string) $stat->getLabel(), 'Cash Collected'))
+            ->getUrl();
+
+        expect($url(['owner' => (string) $this->bob->id]))->toEndWith('&filters[paid_between][until]=2026-10-31&filters[created_by][value]='.$this->bob->id)
+            ->and($url(['owner' => '999999']))->not->toContain('created_by')
+            ->and($url(['period' => 'custom', 'from' => '2026-09-15', 'to' => '2026-10-05']))->toBe(InvoiceResource::getUrl('index').'?filters[paid_between][from]=2026-09-15&filters[paid_between][until]=2026-10-05');
     });
 
     test('a custom period goes into the created links as is', function () {

@@ -3,6 +3,7 @@
 use App\Enums\Currency;
 use App\Enums\InvoiceStatus;
 use App\Enums\OrganizationRole;
+use App\Filament\Resources\Invoices\Pages\ListInvoices;
 use App\Filament\Widgets\KpiOverviewWidget;
 use App\Models\Contact;
 use App\Models\Invoice;
@@ -81,17 +82,17 @@ afterEach(function () {
 
 describe('with the ledger of three invoices', function () {
     beforeEach(function () {
-        $invoiceA = ($this->cashInvoice)($this->user);
-        ($this->cashEntry)($invoiceA, '500.00', '2026-10-05');
-        ($this->cashEntry)($invoiceA, '100.00', '2026-10-12', refund: true);
+        $this->invoiceA = ($this->cashInvoice)($this->user);
+        ($this->cashEntry)($this->invoiceA, '500.00', '2026-10-05');
+        ($this->cashEntry)($this->invoiceA, '100.00', '2026-10-12', refund: true);
 
-        $invoiceB = ($this->cashInvoice)($this->bob);
-        ($this->cashEntry)($invoiceB, '1000.00', '2026-10-01');
-        ($this->cashEntry)($invoiceB, '600.00', '2026-09-30');
+        $this->invoiceB = ($this->cashInvoice)($this->bob);
+        ($this->cashEntry)($this->invoiceB, '1000.00', '2026-10-01');
+        ($this->cashEntry)($this->invoiceB, '600.00', '2026-09-30');
 
-        $invoiceC = ($this->cashInvoice)(null);
-        ($this->cashEntry)($invoiceC, '200.00', '2026-09-15');
-        ($this->cashEntry)($invoiceC, '50.00', '2026-08-31');
+        $this->invoiceC = ($this->cashInvoice)(null);
+        ($this->cashEntry)($this->invoiceC, '200.00', '2026-09-15');
+        ($this->cashEntry)($this->invoiceC, '50.00', '2026-08-31');
     });
 
     test('cash collected follows the period and the owner', function (array $filters, string $label, string $value, string $description) {
@@ -105,6 +106,35 @@ describe('with the ledger of three invoices', function () {
         'bob this month' => fn () => [['owner' => (string) $this->bob->id], 'Cash Collected This Month', '$1,000.00', '+66.7% from $600.00'],
         'everyone last month' => fn () => [['period' => 'last_month'], 'Cash Collected Last Month', '$800.00', '+1,500% from $50.00'],
         'a custom range' => fn () => [['period' => 'custom', 'from' => '2026-10-01', 'to' => '2026-10-05'], 'Cash Collected In Period', '$1,500.00', '+150% from $600.00'],
+    ]);
+
+    test('the list behind the link shows the invoices of the stat', function (array $filters, string $value, array $visible) {
+        $filters = array_map(fn (mixed $filter): mixed => $filter === '<bob id>' ? (string) $this->bob->id : $filter, $filters);
+        $carol = User::factory()->onboardingCompleted()->withPersonalOrganization()->create();
+        $globex = $carol->personalOrganization();
+        $foreign = ($this->cashInvoice)($carol, InvoiceStatus::Sent, $globex);
+        ($this->cashEntry)($foreign, '9000.00', '2026-10-10');
+
+        $stat = collect(invade(Livewire::test(KpiOverviewWidget::class, ['pageFilters' => $filters])->instance())->getStats())
+            ->first(fn (Stat $stat): bool => str_starts_with((string) $stat->getLabel(), 'Cash Collected'));
+
+        parse_str((string) parse_url((string) $stat->getUrl(), PHP_URL_QUERY), $query);
+
+        expect((string) $stat->getValue())->toBe($value);
+
+        $visible = array_map(fn (string $name): Invoice => $this->{$name}, $visible);
+        $hidden = array_values(array_filter([$this->invoiceA, $this->invoiceB, $this->invoiceC], fn (Invoice $invoice): bool => ! in_array($invoice, $visible, false)));
+
+        Livewire::withQueryParams($query)->test(ListInvoices::class)
+            ->assertCountTableRecords(count($visible))
+            ->assertCanSeeTableRecords($visible)
+            ->assertCanNotSeeTableRecords([...$hidden, $foreign]);
+    })->with([
+        'everyone this month' => [[], '$1,400.00', ['invoiceA', 'invoiceB']],
+        'me this month' => [['owner' => 'me'], '$400.00', ['invoiceA']],
+        'bob this month' => [['owner' => '<bob id>'], '$1,000.00', ['invoiceB']],
+        'last month' => [['period' => 'last_month'], '$800.00', ['invoiceB', 'invoiceC']],
+        'a custom range' => [['period' => 'custom', 'from' => '2026-10-01', 'to' => '2026-10-05'], '$1,500.00', ['invoiceA', 'invoiceB']],
     ]);
 
     test('cash collected sits fourth, between new deals and new contacts', function () {
