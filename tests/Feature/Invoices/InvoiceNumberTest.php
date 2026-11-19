@@ -274,3 +274,17 @@ function invoiceCounterOf(Organization $organization, int $year = 2026): ?int
 {
     return InvoiceSequence::query()->forOrganization($organization->id)->where('year', $year)->value('last_sequence');
 }
+
+test('a factory invoice without a number never takes a hand-written test number', function () {
+    $year = now()->year;
+
+    $numbers = Invoice::factory()->count(50)->make()->pluck('invoice_number');
+
+    expect($numbers)->toHaveCount(50)->and($numbers->unique())->toHaveCount(50);
+
+    foreach ($numbers as $number) {
+        expect($number)->toMatch('/^INV-'.$year.'-[5-9][0-9]{3}\z/');
+    }
+
+    expect($numbers->all())->not->toContain("INV-{$year}-001", "INV-{$year}-500", "INV-{$year}-999", "INV-{$year}-1001");
+});

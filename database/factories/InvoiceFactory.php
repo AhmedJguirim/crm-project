@@ -33,7 +33,7 @@ class InvoiceFactory extends Factory
             'organization_id' => Organization::factory(),
             'contact_id' => Contact::factory(),
             'deal_id' => null,
-            'invoice_number' => sprintf('INV-%s-%03d', now()->year, fake()->unique()->numberBetween(1, 999)),
+            'invoice_number' => sprintf('INV-%s-%d', now()->year, fake()->unique()->numberBetween(5000, 9999)),
             'amount' => $amount,
             'amount_paid' => $amountPaid,
             'payment_terms' => $paymentTerms,
