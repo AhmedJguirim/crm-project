@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Tasks\Pages;
 
 use App\Filament\Actions\ExportTasksAction;
 use App\Filament\Resources\Tasks\TaskResource;
+use App\Filament\Support\Concerns\ResolvesReadableTableRecordKeys;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
@@ -13,6 +14,7 @@ use Illuminate\Support\Facades\Auth;
 
 class ListTasks extends ListRecords
 {
+    use ResolvesReadableTableRecordKeys;
     use SanitizesTableSearch;
 
     protected static string $resource = TaskResource::class;

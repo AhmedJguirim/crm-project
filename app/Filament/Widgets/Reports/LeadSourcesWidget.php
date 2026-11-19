@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets\Reports;
 
+use App\Filament\Support\Concerns\ResolvesReadableTableRecordKeys;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Services\Reports\LeadSources;
 use App\Support\Reports\DashboardFilters;
@@ -21,6 +22,7 @@ use Illuminate\Support\Number;
 class LeadSourcesWidget extends TableWidget
 {
     use InteractsWithPageFilters;
+    use ResolvesReadableTableRecordKeys;
     use SanitizesTableSearch;
 
     protected static bool $isDiscovered = false;

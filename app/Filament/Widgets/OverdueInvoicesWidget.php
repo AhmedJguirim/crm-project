@@ -4,6 +4,7 @@ namespace App\Filament\Widgets;
 
 use App\Enums\Currency;
 use App\Filament\Resources\Invoices\InvoiceResource;
+use App\Filament\Support\Concerns\ResolvesReadableTableRecordKeys;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Models\Invoice;
 use App\Support\LocalTime;
@@ -21,6 +22,7 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class OverdueInvoicesWidget extends TableWidget
 {
+    use ResolvesReadableTableRecordKeys;
     use SanitizesTableSearch;
 
     protected static ?int $sort = -20;

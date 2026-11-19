@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Companies\Pages;
 use App\Enums\ImportMode;
 use App\Filament\Actions\ExportCompaniesAction;
 use App\Filament\Resources\Companies\CompanyResource;
+use App\Filament\Support\Concerns\ResolvesReadableTableRecordKeys;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Jobs\ProcessCompanyImportJob;
 use App\Services\CompanyImportTemplate;
@@ -30,6 +31,7 @@ use Illuminate\Support\Str;
 
 class ListCompanies extends ListRecords
 {
+    use ResolvesReadableTableRecordKeys;
     use SanitizesTableSearch;
 
     protected static string $resource = CompanyResource::class;

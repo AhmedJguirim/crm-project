@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Filament\Resources\Deals\DealResource;
+use App\Filament\Support\Concerns\ResolvesReadableTableRecordKeys;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Models\Deal;
 use App\Services\Reports\DealsNeedingAttention;
@@ -23,6 +24,7 @@ use Illuminate\Database\Eloquent\Builder;
 class DealsNeedingAttentionWidget extends TableWidget
 {
     use InteractsWithPageFilters;
+    use ResolvesReadableTableRecordKeys;
     use SanitizesTableSearch;
 
     protected static ?int $sort = -25;

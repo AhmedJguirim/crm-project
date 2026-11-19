@@ -6,6 +6,7 @@ use App\Enums\ImportMode;
 use App\Filament\Actions\ExportActivitiesAction;
 use App\Filament\Actions\ExportContactsAction;
 use App\Filament\Resources\Contacts\ContactResource;
+use App\Filament\Support\Concerns\ResolvesReadableTableRecordKeys;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Jobs\ProcessContactImportJob;
 use App\Services\ContactImportFileReader;
@@ -31,6 +32,7 @@ use Illuminate\Support\Str;
 
 class ListContacts extends ListRecords
 {
+    use ResolvesReadableTableRecordKeys;
     use SanitizesTableSearch;
 
     protected static string $resource = ContactResource::class;

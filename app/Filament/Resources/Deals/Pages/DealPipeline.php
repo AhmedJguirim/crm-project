@@ -8,6 +8,7 @@ use App\Filament\Actions\QuickTaskAction;
 use App\Filament\Resources\Deals\DealResource;
 use App\Filament\Resources\Deals\Schemas\DealDrawerInfolist;
 use App\Filament\Resources\Deals\Schemas\DealForm;
+use App\Filament\Support\Concerns\ResolvesReadableTableRecordKeys;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Filament\Support\Filters\OptionSelectFilter;
 use App\Filament\Support\Filters\RecordKeySelectFilter;
@@ -44,6 +45,7 @@ use Relaticle\Flowforge\Components\CardFlex;
 
 class DealPipeline extends BoardResourcePage
 {
+    use ResolvesReadableTableRecordKeys;
     use SanitizesTableSearch;
 
     protected static string $resource = DealResource::class;

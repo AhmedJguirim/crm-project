@@ -3,6 +3,7 @@
 namespace App\Livewire\Tenancy;
 
 use App\Enums\InviteStatus;
+use App\Filament\Support\Concerns\ResolvesReadableTableRecordKeys;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Mail\OrganizationInvitationMail;
 use App\Models\Organization;
@@ -24,6 +25,7 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Mail;
 use Livewire\Component;
@@ -32,8 +34,18 @@ class InvitationsList extends Component implements HasActions, HasSchemas, HasTa
 {
     use InteractsWithActions;
     use InteractsWithSchemas;
-    use InteractsWithTable;
+    use InteractsWithTable, ResolvesReadableTableRecordKeys {
+        InteractsWithTable::getTableRecord as protected getFilamentTableRecord;
+    }
     use SanitizesTableSearch;
+
+    /**
+     * @return Model|array<string, mixed>|null
+     */
+    public function getTableRecord(mixed $key): Model|array|null
+    {
+        return $this->getFilamentTableRecord($this->readableTableRecordKey($key));
+    }
 
     public function mount(): void
     {

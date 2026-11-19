@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Companies\RelationManagers;
 
 use App\Enums\DealStatus;
 use App\Filament\Resources\Deals\DealResource;
+use App\Filament\Support\Concerns\ResolvesReadableTableRecordKeys;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Filament\Support\Filters\OptionSelectFilter;
 use App\Filament\Support\NullsLastSort;
@@ -23,6 +24,7 @@ use Illuminate\Database\Eloquent\Model;
  */
 class DealsRelationManager extends RelationManager
 {
+    use ResolvesReadableTableRecordKeys;
     use SanitizesTableSearch;
 
     protected static string $relationship = 'deals';

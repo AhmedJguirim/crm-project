@@ -4,6 +4,7 @@ namespace App\Filament\Pages\Tenancy;
 
 use App\Enums\InviteStatus;
 use App\Enums\OrganizationRole;
+use App\Filament\Support\Concerns\ResolvesReadableTableRecordKeys;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Filament\Support\RecordKeyField;
 use App\Mail\OrganizationInvitationMail;
@@ -25,6 +26,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -34,8 +36,18 @@ use UnitEnum;
 
 class OrganizationMembers extends Page implements HasTable
 {
-    use InteractsWithTable;
+    use InteractsWithTable, ResolvesReadableTableRecordKeys {
+        InteractsWithTable::getTableRecord as protected getFilamentTableRecord;
+    }
     use SanitizesTableSearch;
+
+    /**
+     * @return Model|array<string, mixed>|null
+     */
+    public function getTableRecord(mixed $key): Model|array|null
+    {
+        return $this->getFilamentTableRecord($this->readableTableRecordKey($key));
+    }
 
     protected static string|\BackedEnum|null $navigationIcon = 'heroicon-o-user-group';
 

@@ -75,6 +75,7 @@ test('each guard writes one line with its guard and member', function (string $g
     'wrong-typed argument' => ['mistyped_argument', 'sortTable', fn () => Livewire::test(ListContacts::class)->call('sortTable', ['x']), ListContacts::class],
     'missing argument' => ['missing_argument', null, fn () => Livewire::test(ListContacts::class)->call('mountAction'), ListContacts::class],
     'malformed dispatch' => ['malformed_dispatch', null, fn () => Livewire::test(ForgedPayloadLogProbeComponent::class)->call('__dispatch', 'no-such-event', []), ForgedPayloadLogProbeComponent::class],
+    'forged table record key' => ['table_record_key', null, fn () => Livewire::test(ListContacts::class)->call('mountAction', 'delete', [], ['table' => true, 'recordKey' => 'abc']), ListContacts::class],
     'forged pagination argument' => ['pagination_argument', 'gotoPage', fn () => Livewire::test(ListContacts::class)->call('gotoPage', ['x']), ListContacts::class],
     'malformed dispatch payload' => ['malformed_dispatch', null, fn () => Livewire::test(ForgedPayloadLogProbeComponent::class)->call('__dispatch', 'probe-selected', 'x'), ForgedPayloadLogProbeComponent::class],
 ]);

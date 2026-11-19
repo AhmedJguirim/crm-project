@@ -5,6 +5,7 @@ namespace App\Filament\Widgets;
 use App\Enums\TaskStatus;
 use App\Filament\Resources\Tasks\Tables\TasksTable;
 use App\Filament\Resources\Tasks\TaskResource;
+use App\Filament\Support\Concerns\ResolvesReadableTableRecordKeys;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Models\Task;
 use App\Support\LocalTime;
@@ -24,6 +25,7 @@ use Illuminate\Support\Facades\Auth;
  */
 class MyTasksWidget extends TableWidget
 {
+    use ResolvesReadableTableRecordKeys;
     use SanitizesTableSearch;
 
     protected static ?int $sort = -40;

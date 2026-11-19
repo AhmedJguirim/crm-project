@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Filament\Support\Concerns\ResolvesReadableTableRecordKeys;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Services\Deals\DealForecast;
 use App\Support\LocalTime;
@@ -20,6 +21,7 @@ use Illuminate\Support\Number;
 class DealForecastWidget extends TableWidget
 {
     use InteractsWithPageFilters;
+    use ResolvesReadableTableRecordKeys;
     use SanitizesTableSearch;
 
     protected static ?int $sort = -18;

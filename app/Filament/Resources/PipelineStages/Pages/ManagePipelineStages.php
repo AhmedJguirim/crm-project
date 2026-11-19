@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\PipelineStages\Pages;
 
 use App\Filament\Resources\PipelineStages\PipelineStageResource;
+use App\Filament\Support\Concerns\ResolvesReadableTableRecordKeys;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Models\PipelineStage;
 use App\Services\Deals\DefaultPipeline;
@@ -14,6 +15,7 @@ use Filament\Resources\Pages\ManageRecords;
 
 class ManagePipelineStages extends ManageRecords
 {
+    use ResolvesReadableTableRecordKeys;
     use SanitizesTableSearch;
 
     protected static string $resource = PipelineStageResource::class;

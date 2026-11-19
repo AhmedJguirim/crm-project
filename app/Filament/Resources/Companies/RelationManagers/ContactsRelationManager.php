@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Companies\RelationManagers;
 
 use App\Filament\Resources\Contacts\ContactResource;
+use App\Filament\Support\Concerns\ResolvesReadableTableRecordKeys;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Jobs\ResyncContactSegments;
 use App\Models\Company;
@@ -25,6 +26,7 @@ use Illuminate\Support\Facades\Auth;
  */
 class ContactsRelationManager extends RelationManager
 {
+    use ResolvesReadableTableRecordKeys;
     use SanitizesTableSearch;
 
     protected static string $relationship = 'contacts';

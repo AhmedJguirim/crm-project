@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets\Reports;
 
 use App\Filament\Actions\ExportReportTableAction;
+use App\Filament\Support\Concerns\ResolvesReadableTableRecordKeys;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Services\Reports\RevenueByClient;
 use App\Support\Reports\DashboardFilters;
@@ -22,6 +23,7 @@ use Illuminate\Support\Number;
 class RevenueByClientWidget extends TableWidget
 {
     use InteractsWithPageFilters;
+    use ResolvesReadableTableRecordKeys;
     use SanitizesTableSearch;
 
     protected static bool $isDiscovered = false;

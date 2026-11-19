@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Filament\Resources\Deals\DealResource;
+use App\Filament\Support\Concerns\ResolvesReadableTableRecordKeys;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Models\Deal;
 use App\Support\LocalTime;
@@ -22,6 +23,7 @@ use Illuminate\Support\Facades\Auth;
  */
 class MyDealsClosingWidget extends TableWidget
 {
+    use ResolvesReadableTableRecordKeys;
     use SanitizesTableSearch;
 
     protected static ?int $sort = -39;

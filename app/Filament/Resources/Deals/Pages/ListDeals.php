@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Deals\Pages;
 
 use App\Filament\Actions\ExportDealsAction;
 use App\Filament\Resources\Deals\DealResource;
+use App\Filament\Support\Concerns\ResolvesReadableTableRecordKeys;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Services\Reports\DealsNeedingAttention;
 use Filament\Actions\Action;
@@ -16,6 +17,7 @@ use Illuminate\Support\Facades\Auth;
 
 class ListDeals extends ListRecords
 {
+    use ResolvesReadableTableRecordKeys;
     use SanitizesTableSearch;
 
     protected static string $resource = DealResource::class;

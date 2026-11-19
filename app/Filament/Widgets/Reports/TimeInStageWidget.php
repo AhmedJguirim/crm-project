@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets\Reports;
 
+use App\Filament\Support\Concerns\ResolvesReadableTableRecordKeys;
 use App\Filament\Support\Concerns\SanitizesTableSearch;
 use App\Services\Reports\TimeInStage;
 use App\Support\Reports\DashboardFilters;
@@ -17,6 +18,7 @@ use Filament\Widgets\TableWidget;
 class TimeInStageWidget extends TableWidget
 {
     use InteractsWithPageFilters;
+    use ResolvesReadableTableRecordKeys;
     use SanitizesTableSearch;
 
     protected static bool $isDiscovered = false;
