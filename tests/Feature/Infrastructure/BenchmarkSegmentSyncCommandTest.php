@@ -132,6 +132,10 @@ test('a run against anything but the benchmark or test database is refused and w
     'benchmark env on a test database' => ['benchmark', 'srw-crm-test', 'sync', 'sync'],
     'redis queue' => ['benchmark', 'srw-crm-bench', 'redis', 'sync'],
     'redis long-running queue' => ['benchmark', 'srw-crm-bench', 'sync', 'redis-long'],
+    'benchmark env on a bench prefix lookalike' => ['benchmark', 'srw-crm-bench_1', 'sync', 'sync'],
+    'benchmark env on a bench dash lookalike' => ['benchmark', 'srw-crm-bench-old', 'sync', 'sync'],
+    'benchmark env on a bench suffix lookalike' => ['benchmark', 'xsrw-crm-bench', 'sync', 'sync'],
+    'benchmark env on an upper-case bench name' => ['benchmark', 'SRW-CRM-BENCH', 'sync', 'sync'],
 ]);
 
 test('a cached configuration is refused and writes nothing', function () {

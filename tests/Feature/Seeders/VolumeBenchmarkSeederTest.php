@@ -179,6 +179,11 @@ test('the seeder refuses anything but the benchmark or test database and writes 
     'testing env on a lookalike database' => ['testing', "srw-crm-test\nsrw-crm", 'sync', 'sync'],
     'redis queue' => ['benchmark', 'srw-crm-bench', 'redis', 'sync'],
     'redis long-running queue' => ['benchmark', 'srw-crm-bench', 'sync', 'redis-long'],
+    'benchmark env on a bench prefix lookalike' => ['benchmark', 'srw-crm-bench_1', 'sync', 'sync'],
+    'benchmark env on a bench dash lookalike' => ['benchmark', 'srw-crm-bench-old', 'sync', 'sync'],
+    'benchmark env on a bench suffix lookalike' => ['benchmark', 'xsrw-crm-bench', 'sync', 'sync'],
+    'benchmark env on an upper-case bench name' => ['benchmark', 'SRW-CRM-BENCH', 'sync', 'sync'],
+    'benchmark env on the bench name with a trailing newline' => ['benchmark', "srw-crm-bench\n", 'sync', 'sync'],
 ]);
 
 test('the seeder refuses a connection that is not pgsql', function () {
