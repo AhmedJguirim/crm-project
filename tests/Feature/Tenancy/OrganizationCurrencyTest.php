@@ -1,10 +1,14 @@
 <?php
 
 use App\Enums\Currency;
+use App\Enums\InvoiceStatus;
 use App\Filament\Pages\Tenancy\EditOrganization;
 use App\Filament\Pages\Tenancy\RegisterOrganization;
+use App\Models\Contact;
+use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\User;
+use App\Support\Tenancy\TenantContext;
 use Filament\Facades\Filament;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Schema;
@@ -15,6 +19,21 @@ beforeEach(function () {
     $this->org = $this->user->personalOrganization();
     $this->actingAs($this->user);
     Filament::setTenant($this->org);
+
+    $this->contact = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Sami Ben Ali']);
+    $this->makeInvoice = fn (InvoiceStatus $status, ?Currency $currency = null, ?string $rate = null): Invoice => Invoice::factory()
+        ->when($currency, fn ($factory) => $factory->inCurrency($currency, $rate))
+        ->create([
+            'organization_id' => $this->org->id,
+            'contact_id' => $this->contact->id,
+            'invoice_number' => 'INV-2026-001',
+            'amount' => 1000,
+            'amount_paid' => 0,
+            'status' => $status,
+        ]);
+    $this->lockedHelp = 'Used for every deal value and invoice amount. It can\'t be changed once an invoice has been issued, because each issued invoice keeps its exchange rate to this currency.';
+    $this->unlockedHelp = 'Used for every deal value and invoice amount. Changing it does not convert existing amounts.';
+    $this->refusal = 'The currency can\'t be changed once an invoice has been issued: each issued invoice keeps its exchange rate to USD.';
 });
 
 describe('the model', function () {
@@ -110,5 +129,144 @@ describe('the schema', function () {
             ->and(Schema::hasColumn('deals', 'currency'))->toBeFalse()
             ->and(Schema::hasColumn('invoices', 'currency'))->toBeTrue()
             ->and(Schema::hasColumn('invoices', 'exchange_rate'))->toBeTrue();
+    });
+});
+
+describe('once an invoice has been issued', function () {
+    it('lets the currency change while only drafts exist', function () {
+        $draft = ($this->makeInvoice)(InvoiceStatus::Draft);
+
+        Livewire::test(EditOrganization::class)
+            ->assertFormFieldEnabled('currency')
+            ->assertSee($this->unlockedHelp)
+            ->fillForm(['currency' => Currency::Eur])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        expect($this->org->fresh()->currency)->toBe(Currency::Eur)
+            ->and($draft->fresh()->currency)->toBe(Currency::Usd);
+    });
+
+    it('locks the currency for every status but Draft', function (InvoiceStatus $status) {
+        ($this->makeInvoice)($status);
+
+        Livewire::test(EditOrganization::class)
+            ->assertFormFieldDisabled('currency')
+            ->assertSee($this->lockedHelp)
+            ->assertDontSee($this->unlockedHelp);
+    })->with([
+        InvoiceStatus::Sent,
+        InvoiceStatus::Paid,
+        InvoiceStatus::Partial,
+        InvoiceStatus::Overdue,
+        InvoiceStatus::Cancelled,
+    ]);
+
+    it('locks it for a foreign-currency invoice too', function () {
+        ($this->makeInvoice)(InvoiceStatus::Sent, Currency::Eur, '1.08');
+
+        Livewire::test(EditOrganization::class)->assertFormFieldDisabled('currency');
+    });
+
+    it('still saves the other fields while locked', function () {
+        ($this->makeInvoice)(InvoiceStatus::Sent);
+
+        Livewire::test(EditOrganization::class)
+            ->fillForm(['description' => 'Freelance studio'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        expect($this->org->fresh())
+            ->description->toBe('Freelance studio')
+            ->currency->toBe(Currency::Usd);
+    });
+
+    it('unlocks again once the last issued invoice is deleted', function () {
+        $invoice = ($this->makeInvoice)(InvoiceStatus::Sent);
+        $invoice->delete();
+
+        Livewire::test(EditOrganization::class)->assertFormFieldEnabled('currency');
+    });
+
+    it('refuses a tab opened before the first invoice was issued', function () {
+        $page = Livewire::test(EditOrganization::class);
+
+        ($this->makeInvoice)(InvoiceStatus::Sent);
+
+        $page->fillForm(['currency' => Currency::Eur])
+            ->call('save')
+            ->assertHasFormErrors(['currency'])
+            ->assertSee($this->refusal);
+
+        expect($this->org->fresh()->currency)->toBe(Currency::Usd);
+    });
+
+    it('lets a locked page save with the unchanged currency', function () {
+        ($this->makeInvoice)(InvoiceStatus::Sent);
+
+        Livewire::test(EditOrganization::class)
+            ->set('data.currency', 'USD')
+            ->call('save')
+            ->assertHasNoFormErrors();
+    });
+
+    it('does not lock the registration of a new organization', function () {
+        ($this->makeInvoice)(InvoiceStatus::Sent);
+
+        Livewire::test(RegisterOrganization::class)
+            ->fillForm(['name' => 'Euro Co', 'timezone' => 'Europe/Paris', 'currency' => Currency::Eur])
+            ->call('register')
+            ->assertHasNoFormErrors();
+
+        expect(Organization::where('name', 'Euro Co')->sole()->currency)->toBe(Currency::Eur);
+    });
+});
+
+describe('abuse', function () {
+    it('an owner forging the disabled currency select is refused', function () {
+        ($this->makeInvoice)(InvoiceStatus::Sent);
+
+        Livewire::test(EditOrganization::class)
+            ->set('data.currency', 'EUR')
+            ->set('data.description', 'Forged')
+            ->call('save')
+            ->assertHasFormErrors(['currency'])
+            ->assertSee($this->refusal);
+
+        expect($this->org->fresh())
+            ->currency->toBe(Currency::Usd)
+            ->description->not->toBe('Forged');
+    });
+
+    it('an owner forging a currency the app does not know is refused without a 500', function () {
+        ($this->makeInvoice)(InvoiceStatus::Sent);
+
+        Livewire::test(EditOrganization::class)
+            ->set('data.currency', 'XXX')
+            ->call('save')
+            ->assertHasFormErrors(['currency']);
+
+        expect($this->org->fresh()->currency)->toBe(Currency::Usd);
+    });
+
+    it("another organization's issued invoices don't lock mine", function () {
+        $globex = Organization::factory()->create(['currency' => Currency::Usd]);
+        app(TenantContext::class)->run($globex->id, fn () => Invoice::factory()->create([
+            'organization_id' => $globex->id,
+            'contact_id' => Contact::factory()->create(['organization_id' => $globex->id])->id,
+            'invoice_number' => 'INV-2026-001',
+            'amount' => 1000,
+            'amount_paid' => 0,
+            'status' => InvoiceStatus::Sent,
+        ]));
+
+        Livewire::test(EditOrganization::class)
+            ->assertFormFieldEnabled('currency')
+            ->fillForm(['currency' => Currency::Eur])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        expect($this->org->fresh()->currency)->toBe(Currency::Eur)
+            ->and($globex->fresh()->currency)->toBe(Currency::Usd);
     });
 });

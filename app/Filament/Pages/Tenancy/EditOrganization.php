@@ -41,7 +41,7 @@ class EditOrganization extends EditTenantProfile
                     ->rows(3),
 
                 OrganizationTimezoneSelect::make(),
-                OrganizationCurrencySelect::make(),
+                OrganizationCurrencySelect::make(CurrentOrganization::find()),
 
                 FileUpload::make('logo_path')
                     ->label('Logo')

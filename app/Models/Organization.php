@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\Currency;
 use App\Enums\InviteStatus;
+use App\Enums\InvoiceStatus;
 use App\Enums\OrganizationRole;
 use App\Observers\OrganizationObserver;
 use Carbon\CarbonImmutable;
@@ -131,6 +132,14 @@ class Organization extends Model
     public function hasMember(User $user): bool
     {
         return $this->members()->where('user_id', $user->id)->exists();
+    }
+
+    /**
+     * Whether an invoice of this organization has left Draft: its exchange rate is relative to the current currency, so the currency is locked.
+     */
+    public function hasIssuedInvoices(): bool
+    {
+        return Invoice::forOrganization($this->getKey())->where('status', '!=', InvoiceStatus::Draft->value)->exists();
     }
 
     /**
