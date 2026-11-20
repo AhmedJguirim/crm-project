@@ -135,6 +135,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureLoginLimits();
         $this->configureUploadRateLimiting();
         $this->configureInvoicePdfRateLimiting();
+        $this->configureCspReportRateLimiting();
         $this->configureQueueWaitAlert();
     }
 
@@ -203,6 +204,23 @@ class AppServiceProvider extends ServiceProvider
             return [
                 Limit::perMinute(20)->by('minute|'.$key)->response($refuse),
                 Limit::perHour(200)->by('hour|'.$key)->response($refuse),
+            ];
+        });
+    }
+
+    /**
+     * Browsers post CSP violation reports without logging in, so the endpoint takes 30 a minute and 300 an hour per IP and
+     * 2,000 an hour in all (SEC-69). A refused report is dropped silently: 429, no log line.
+     */
+    protected function configureCspReportRateLimiting(): void
+    {
+        RateLimiter::for('csp-reports', function (Request $request): array {
+            $refuse = fn (): Response => response()->noContent(429);
+
+            return [
+                Limit::perMinute(30)->by('minute|'.$request->ip())->response($refuse),
+                Limit::perHour(300)->by('hour|'.$request->ip())->response($refuse),
+                Limit::perHour(2000)->by('global')->response($refuse),
             ];
         });
     }

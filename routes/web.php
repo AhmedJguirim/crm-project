@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Contacts\DownloadFailedImportRowsController;
+use App\Http\Controllers\CspReportController;
 use App\Http\Controllers\DownloadExportController;
 use App\Http\Controllers\InviteAcceptController;
 use App\Http\Controllers\InvoicePdfController;
@@ -10,8 +11,13 @@ use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TagsController;
 use App\Http\Middleware\HandleInertiaRequests;
 use Filament\Facades\Filament;
+use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Session\Middleware\AuthenticateSession;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\Facades\Route;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 Route::view('/', 'landing')->name('home');
 
@@ -21,6 +27,12 @@ Route::get('login', fn (): RedirectResponse => redirect()->to(Filament::getLogin
     ->name('login');
 Route::post('login', fn (): RedirectResponse => redirect()->to(Filament::getLoginUrl(), 303))
     ->name('login.store');
+
+// SEC-69: CSP violation reports (report-only). No CSRF token or session: browsers post them bare. Throttled, logged without URLs.
+Route::post('csp-report', CspReportController::class)
+    ->withoutMiddleware([ValidateCsrfToken::class, StartSession::class, ShareErrorsFromSession::class, AuthenticateSession::class, AddQueuedCookiesToResponse::class])
+    ->middleware('throttle:csp-reports')
+    ->name('csp.report');
 
 Route::get('robots.txt', RobotsTxtController::class)->name('robots');
 Route::get('sitemap.xml', SitemapController::class)->name('sitemap');

@@ -40,7 +40,7 @@
         @if ($preloadHero)
             <link rel="preload" as="image" href="{{ asset('images/landing/board-720.webp') }}" imagesrcset="{{ asset('images/landing/board-720.webp') }} 720w, {{ asset('images/landing/board-1440.webp') }} 1440w" imagesizes="(min-width: 1280px) 600px, 47vw" media="(min-width: 64rem)" fetchpriority="high">
         @endif
-        <script>(() => { let theme = null; try { theme = localStorage.getItem('theme'); } catch (e) {} if (theme === 'dark' || ((theme === null || theme === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches)) { document.documentElement.classList.add('dark'); } })();</script>
+        <script nonce="{{ \Illuminate\Support\Facades\Vite::cspNonce() }}">(() => { let theme = null; try { theme = localStorage.getItem('theme'); } catch (e) {} if (theme === 'dark' || ((theme === null || theme === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches)) { document.documentElement.classList.add('dark'); } })();</script>
         @vite(['resources/css/landing.css', 'resources/js/landing.js'])
     </head>
     <body class="min-h-screen bg-white font-sans text-gray-900 antialiased selection:bg-primary-200 selection:text-primary-950 dark:bg-gray-950 dark:text-gray-100">
