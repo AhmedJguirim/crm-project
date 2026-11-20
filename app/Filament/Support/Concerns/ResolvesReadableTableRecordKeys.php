@@ -10,6 +10,9 @@ use Illuminate\Database\Eloquent\Model;
  * Refuses a forged table record key (BUG-89) with a logged 419 before it reaches the database: on a table with a
  * query, a key that is not a readable id (`abc`, `1.5`, a 20-digit number) would make PostgreSQL refuse the bigint
  * lookup and the request would answer 500. A non-scalar key is refused on every table.
+ *
+ * A direct browser call to `getTableRecord()` is refused earlier, by `RefuseInternalMethodCalls` (BUG-90); this check
+ * covers the record keys that reach it through actions and column calls.
  */
 trait ResolvesReadableTableRecordKeys
 {

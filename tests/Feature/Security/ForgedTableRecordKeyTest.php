@@ -17,6 +17,7 @@ use App\Models\User;
 use Filament\Facades\Filament;
 use Livewire\Livewire;
 use Monolog\Handler\TestHandler;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 beforeEach(function () {
     config(['app.debug' => true]);
@@ -104,12 +105,34 @@ test('other entry points to the record lookup refuse the same key', function (st
         ->and($lines[0]['context']['guard'])->toBe('table_record_key')
         ->and($lines[0]['context']['member'])->toBeNull();
 })->with([
-    'direct text key' => ['contacts', 'getTableRecord', ['abc']],
-    'direct array key' => ['contacts', 'getTableRecord', [['x']]],
     'column action' => ['contacts', 'callTableColumnAction', ['name', 'abc']],
-    'widget direct' => ['tasks widget', 'getTableRecord', ['abc']],
-    'array-record widget direct array key' => ['forecast widget', 'getTableRecord', [['x']]],
-    'board direct' => ['pipeline', 'getTableRecord', ['abc']],
+]);
+
+test('the record lookup refuses the same key on the PHP path', function (string $host, array $arguments) {
+    [$class, $params] = tableRecordKeyHost($host, $this);
+    $component = Livewire::test($class, $params);
+
+    $thrown = null;
+
+    try {
+        $component->instance()->getTableRecord(...$arguments);
+    } catch (HttpException $e) {
+        $thrown = $e;
+    }
+
+    $lines = tableRecordKeyLines($this->log);
+
+    expect($thrown)->toBeInstanceOf(HttpException::class)
+        ->and($thrown->getStatusCode())->toBe(419)
+        ->and($lines)->toHaveCount(1)
+        ->and($lines[0]['context']['guard'])->toBe('table_record_key')
+        ->and($lines[0]['context']['member'])->toBeNull();
+})->with([
+    'contacts text key' => ['contacts', ['abc']],
+    'contacts array key' => ['contacts', [['x']]],
+    'widget text key' => ['tasks widget', ['abc']],
+    'array-record widget array key' => ['forecast widget', [['x']]],
+    'board text key' => ['pipeline', ['abc']],
 ]);
 
 test('a well-formed but unknown key still unmounts quietly', function () {
@@ -154,17 +177,15 @@ test('a real record still mounts its action', function () {
 });
 
 test('a table without a query accepts a non-numeric string key', function () {
-    Livewire::test(DealForecastWidget::class)
-        ->call('getTableRecord', 'abc')
-        ->assertStatus(200);
+    $component = Livewire::test(DealForecastWidget::class);
 
-    expect(tableRecordKeyLines($this->log))->toBe([]);
+    expect(fn () => $component->instance()->getTableRecord('abc'))->not->toThrow(HttpException::class)
+        ->and(tableRecordKeyLines($this->log))->toBe([]);
 });
 
 test('a missing key is passed through and never logged', function () {
-    Livewire::test(ListTags::class)
-        ->call('getTableRecord', null)
-        ->assertStatus(200);
+    $component = Livewire::test(ListTags::class);
 
-    expect(tableRecordKeyLines($this->log))->toBe([]);
+    expect($component->instance()->getTableRecord(null))->toBeNull()
+        ->and(tableRecordKeyLines($this->log))->toBe([]);
 });

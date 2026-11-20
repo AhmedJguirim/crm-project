@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Policies\SegmentPolicy;
 use App\Services\Segments\SegmentUsageIndex;
 use App\Support\Auth\CaseInsensitiveEmailUserProvider;
+use App\Support\Livewire\RefuseInternalMethodCalls;
 use App\Support\Livewire\RefuseMistypedCallArguments;
 use App\Support\Livewire\RefuseMistypedPropertyUpdates;
 use App\Support\Livewire\RefuseSubKeysBelowSnapshotStrings;
@@ -275,7 +276,7 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Refuses a forged Livewire call (wrong-typed or missing arguments, malformed `__dispatch`) with a 419 instead of a 500 (BUG-51, BUG-54).
+     * Refuses a forged Livewire call (wrong-typed or missing arguments, malformed `__dispatch`) with a 419 instead of a 500 (BUG-51, BUG-54), and refuses a browser call to a public Filament getter that returns records (BUG-90).
      */
     protected function configureLivewireCallGuard(): void
     {
@@ -285,6 +286,7 @@ class AppServiceProvider extends ServiceProvider
         on('exception', [$guard, 'refuseMissingArgument']);
         before('call', [$guard, 'refusePaginationArguments']);
         before('call', [$guard, 'refuseMalformedDispatch']);
+        before('call', new RefuseInternalMethodCalls);
     }
 
     /**
