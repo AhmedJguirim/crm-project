@@ -54,6 +54,15 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
     ];
 
     /**
+     * The default attribute values, so a freshly created model reads them before a refresh.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'task_reminder_mails' => true,
+    ];
+
+    /**
      * The attributes that should be hidden for serialization.
      *
      * @var list<string>
@@ -76,7 +85,16 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
             'terms_accepted_at' => 'datetime',
             'password' => 'hashed',
             'onboarding_completed' => 'boolean',
+            'task_reminder_mails' => 'boolean',
         ];
+    }
+
+    /**
+     * Task reminder emails go only to a verified address of a user who did not switch them off.
+     */
+    public function wantsTaskReminderMails(): bool
+    {
+        return $this->task_reminder_mails && $this->hasVerifiedEmail();
     }
 
     /**

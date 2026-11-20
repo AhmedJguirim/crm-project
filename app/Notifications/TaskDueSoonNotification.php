@@ -5,6 +5,7 @@ namespace App\Notifications;
 use App\Jobs\Middleware\WithTenantContext;
 use App\Models\Organization;
 use App\Models\Task;
+use App\Notifications\Concerns\RespectsTaskReminderMailSetting;
 use App\Support\LocalTime;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -14,7 +15,7 @@ use Illuminate\Notifications\Notification;
 
 class TaskDueSoonNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, RespectsTaskReminderMailSetting;
 
     public function __construct(
         public Task $task,
@@ -41,7 +42,7 @@ class TaskDueSoonNotification extends Notification implements ShouldQueue
     {
         $channels = ['database'];
 
-        if (config('tasks.notifications.send_email')) {
+        if (config('tasks.notifications.send_email') && $this->mailsTaskRemindersTo($notifiable)) {
             $channels[] = 'mail';
         }
 

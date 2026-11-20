@@ -17,4 +17,5 @@ Route::middleware(['auth'])->group(function () {
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('settings/password', 'pages::settings.password')->name('user-password.edit');
+    Route::livewire('settings/notifications', 'pages::settings.notifications')->name('notification-settings.edit');
 });

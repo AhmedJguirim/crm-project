@@ -4,6 +4,7 @@ namespace App\Notifications;
 
 use App\Jobs\Middleware\WithTenantContext;
 use App\Models\Organization;
+use App\Notifications\Concerns\RespectsTaskReminderMailSetting;
 use App\Support\LocalTime;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -13,7 +14,7 @@ use Illuminate\Support\Collection;
 
 class TaskDailyDigestNotification extends Notification implements ShouldQueue
 {
-    use Queueable;
+    use Queueable, RespectsTaskReminderMailSetting;
 
     public function __construct(
         public Organization $organization,
@@ -38,7 +39,7 @@ class TaskDailyDigestNotification extends Notification implements ShouldQueue
      */
     public function via(object $notifiable): array
     {
-        return ['mail'];
+        return $this->mailsTaskRemindersTo($notifiable) ? ['mail'] : [];
     }
 
     /**
