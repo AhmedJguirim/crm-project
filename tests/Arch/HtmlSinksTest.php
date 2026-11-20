@@ -12,6 +12,9 @@ function htmlSinkAllowList(): array
             'markdown' => 'legal text from the committed resources/markdown files, raw HTML stripped and unsafe links dropped; XssRenderingTest',
             'html-string' => 'legal text from the committed resources/markdown files, raw HTML stripped and unsafe links dropped; XssRenderingTest',
         ],
+        'app/Notifications/Concerns/RespectsTaskReminderMailSetting.php' => [
+            'html-string' => 'footer line of fixed text and app-built signed and route URLs only, no user text; TaskMailUnsubscribeTest',
+        ],
         'app/Services/Segments/SegmentConditionDescriber.php' => [
             'html-string' => 'every piece escaped with e() / highlight(); XssRenderingTest',
         ],

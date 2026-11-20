@@ -13,6 +13,7 @@ use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Exceptions\ThrottleRequestsException;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Routing\Exceptions\InvalidSignatureException;
 use Illuminate\Session\Middleware\AuthenticateSession;
 use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
@@ -46,7 +47,11 @@ return Application::configure(basePath: dirname(__DIR__))
             return null;
         });
 
-        $exceptions->render(function (InvalidSignatureException $e, Request $request): ?RedirectResponse {
+        $exceptions->render(function (InvalidSignatureException $e, Request $request): RedirectResponse|Response|null {
+            if ($request->routeIs('task-mails.unsubscribe', 'task-mails.unsubscribe.store')) {
+                return response()->view('task-mails.unsubscribe', ['state' => 'invalid'], 403);
+            }
+
             if ($request->routeIs('user-email.confirm')) {
                 return redirect()->route('profile.edit')->with('email-change-error', 'This link has expired or is not valid. Ask for a new one below.');
             }

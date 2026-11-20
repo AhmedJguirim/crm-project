@@ -136,6 +136,7 @@ class AppServiceProvider extends ServiceProvider
         $this->configureUploadRateLimiting();
         $this->configureInvoicePdfRateLimiting();
         $this->configureCspReportRateLimiting();
+        $this->configureTaskMailUnsubscribeRateLimiting();
         $this->configureQueueWaitAlert();
     }
 
@@ -221,6 +222,27 @@ class AppServiceProvider extends ServiceProvider
                 Limit::perMinute(30)->by('minute|'.$request->ip())->response($refuse),
                 Limit::perHour(300)->by('hour|'.$request->ip())->response($refuse),
                 Limit::perHour(2000)->by('global')->response($refuse),
+            ];
+        });
+    }
+
+    /**
+     * The task mail unsubscribe link takes 20 requests a minute and 200 an hour per IP (SEC-73). A refused request answers
+     * 429 with a page that says how long to wait.
+     */
+    protected function configureTaskMailUnsubscribeRateLimiting(): void
+    {
+        RateLimiter::for('task-mail-unsubscribe', function (Request $request): array {
+            $refuse = function (Request $request, array $headers): Response {
+                $minutes = max(1, (int) ceil(((int) ($headers['Retry-After'] ?? 60)) / 60));
+                $message = 'Too many requests in a short time. Please try again in '.$minutes.' '.Str::plural('minute', $minutes).'.';
+
+                return response()->view('task-mails.unsubscribe', ['state' => 'throttled', 'message' => $message], 429, $headers);
+            };
+
+            return [
+                Limit::perMinute(20)->by('minute|'.$request->ip())->response($refuse),
+                Limit::perHour(200)->by('hour|'.$request->ip())->response($refuse),
             ];
         });
     }

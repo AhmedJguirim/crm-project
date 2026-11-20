@@ -61,7 +61,9 @@ class TaskDailyDigestNotification extends Notification implements ShouldQueue
             $mail->line('- TODAY: '.$task->title.' ('.LocalTime::format($task->due_at, 'M j, Y g:i A', Organization::validTimezoneOrUtc($this->organization->timezone)).')');
         }
 
-        return $mail->action('Open Tasks', url('/admin/'.$this->organization->slug.'/tasks'));
+        $mail->action('Open Tasks', url('/admin/'.$this->organization->slug.'/tasks'));
+
+        return $this->withUnsubscribeLink($mail, $notifiable);
     }
 
     /**

@@ -54,11 +54,13 @@ class TaskOverdueNotification extends Notification implements ShouldQueue
      */
     public function toMail(object $notifiable): MailMessage
     {
-        return (new MailMessage)
+        $mail = (new MailMessage)
             ->subject('Task overdue: '.$this->task->title)
             ->line('Your task "'.$this->task->title.'" is overdue.')
             ->line('Due date: '.LocalTime::format($this->task->due_at, 'M j, Y g:i A', Organization::validTimezoneOrUtc($this->organization->timezone)))
             ->action('Open Task', $this->getTaskEditUrl());
+
+        return $this->withUnsubscribeLink($mail, $notifiable);
     }
 
     public function toDatabase(object $notifiable): array|DatabaseMessage

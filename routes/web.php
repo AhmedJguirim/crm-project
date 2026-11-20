@@ -9,6 +9,7 @@ use App\Http\Controllers\LegalPageController;
 use App\Http\Controllers\RobotsTxtController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\TagsController;
+use App\Http\Controllers\UnsubscribeTaskMailsController;
 use App\Http\Middleware\HandleInertiaRequests;
 use Filament\Facades\Filament;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -33,6 +34,19 @@ Route::post('csp-report', CspReportController::class)
     ->withoutMiddleware([ValidateCsrfToken::class, StartSession::class, ShareErrorsFromSession::class, AuthenticateSession::class, AddQueuedCookiesToResponse::class])
     ->middleware('throttle:csp-reports')
     ->name('csp.report');
+
+// SEC-73: task reminder mail unsubscribe. A GET only shows the confirmation page (link scanners open links); a POST, from the page or the mail client's one-click, turns the mails off. Signed, never expires, no CSRF token (RFC 8058).
+Route::get('task-emails/unsubscribe/{id}/{hash}', [UnsubscribeTaskMailsController::class, 'show'])
+    ->where('id', '[0-9]{1,18}')
+    ->where('hash', '[0-9a-f]{40}')
+    ->middleware(['signed', 'throttle:task-mail-unsubscribe'])
+    ->name('task-mails.unsubscribe');
+Route::post('task-emails/unsubscribe/{id}/{hash}', [UnsubscribeTaskMailsController::class, 'store'])
+    ->where('id', '[0-9]{1,18}')
+    ->where('hash', '[0-9a-f]{40}')
+    ->withoutMiddleware([ValidateCsrfToken::class])
+    ->middleware(['signed', 'throttle:task-mail-unsubscribe'])
+    ->name('task-mails.unsubscribe.store');
 
 Route::get('robots.txt', RobotsTxtController::class)->name('robots');
 Route::get('sitemap.xml', SitemapController::class)->name('sitemap');
