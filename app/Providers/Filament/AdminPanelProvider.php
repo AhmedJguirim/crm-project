@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Enums\OrganizationRole;
 use App\Filament\Pages\Auth\EditProfile;
 use App\Filament\Pages\Auth\EmailVerificationPrompt;
 use App\Filament\Pages\Auth\Login;
@@ -34,6 +35,7 @@ use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class AdminPanelProvider extends PanelProvider
@@ -92,15 +94,44 @@ class AdminPanelProvider extends PanelProvider
                         /** @var User $user */
                         $user = auth()->user();
 
-                        $role = $organization->getMemberRole($user);
+                        $outcome = DB::transaction(function () use ($organization, $user): string|OrganizationRole {
+                            $locked = Organization::query()->whereKey($organization->getKey())->lockForUpdate()->first();
 
-                        // Detach the user from the organization
-                        $organization->members()->detach($user->id);
+                            if ($locked === null) {
+                                return 'This organization was deleted.';
+                            }
 
-                        // Delete invite if user was invited
-                        $organization->deleteInvitesFor($user);
+                            $current = DB::table('organization_user')
+                                ->where('organization_id', $locked->getKey())
+                                ->where('user_id', $user->id)
+                                ->value('role');
 
-                        SecurityLog::info('organization.member_left', $user, ['role' => $role?->value]);
+                            if ($current === OrganizationRole::Owner->value) {
+                                return 'You are now the owner of this organization. Transfer ownership before leaving.';
+                            }
+
+                            if ($current === null) {
+                                return 'You are no longer a member of this organization.';
+                            }
+
+                            $locked->members()->detach($user->id);
+
+                            $locked->deleteInvitesFor($user);
+
+                            return OrganizationRole::from($current);
+                        });
+
+                        if (is_string($outcome)) {
+                            Notification::make()
+                                ->danger()
+                                ->title('You have not left')
+                                ->body(NotificationText::plain($outcome))
+                                ->send();
+
+                            return;
+                        }
+
+                        SecurityLog::info('organization.member_left', $user, ['role' => $outcome->value]);
 
                         UserFiles::deleteForMember($user->id, $organization->id);
 

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages\Tenancy;
 
+use App\Actions\Organization\TransferOwnership;
 use App\Enums\InviteStatus;
 use App\Enums\OrganizationRole;
 use App\Filament\Support\Concerns\ResolvesReadableTableRecordKeys;
@@ -120,17 +121,49 @@ class OrganizationMembers extends Page implements HasTable
                     ])
                     ->fillForm(fn (OrganizationUser $record) => ['role' => $record->role])
                     ->action(function (OrganizationUser $record, array $data) use ($organization): void {
-                        $from = $record->role;
                         $to = OrganizationRole::from($data['role']);
 
-                        $organization->members()->updateExistingPivot($record->user_id, [
-                            'role' => $data['role'],
-                        ]);
+                        $outcome = DB::transaction(function () use ($organization, $record, $data): string|OrganizationRole {
+                            $locked = Organization::query()->whereKey($organization->getKey())->lockForUpdate()->first();
 
-                        if ($from !== $to) {
+                            if ($locked === null) {
+                                return 'This organization was deleted.';
+                            }
+
+                            $current = DB::table('organization_user')
+                                ->where('organization_id', $locked->getKey())
+                                ->where('user_id', $record->user_id)
+                                ->value('role');
+
+                            if ($current === OrganizationRole::Owner->value) {
+                                return "{$record->user->name} is now the owner of this organization. Their role can't be changed.";
+                            }
+
+                            if ($current === null) {
+                                return "{$record->user->name} is no longer a member of this organization.";
+                            }
+
+                            $locked->members()->updateExistingPivot($record->user_id, [
+                                'role' => $data['role'],
+                            ]);
+
+                            return OrganizationRole::from($current);
+                        });
+
+                        if (is_string($outcome)) {
+                            Notification::make()
+                                ->danger()
+                                ->title('Role not changed')
+                                ->body(NotificationText::plain($outcome))
+                                ->send();
+
+                            return;
+                        }
+
+                        if ($outcome !== $to) {
                             SecurityLog::warning('organization.member_role_changed', auth()->user(), [
                                 'member_user_id' => $record->user_id,
-                                'from_role' => $from->value,
+                                'from_role' => $outcome->value,
                                 'to_role' => $to->value,
                             ]);
                         }
@@ -138,7 +171,7 @@ class OrganizationMembers extends Page implements HasTable
                         Notification::make()
                             ->success()
                             ->title('Role updated')
-                            ->body(NotificationText::plain("{$record->user->name}'s role has been changed to ".OrganizationRole::from($data['role'])->label().'.'))
+                            ->body(NotificationText::plain("{$record->user->name}'s role has been changed to ".$to->label().'.'))
                             ->send();
                     })
                     ->authorize(fn (OrganizationUser $record): bool => Gate::allows('changeRole', [$organization, $record->user])),
@@ -151,16 +184,45 @@ class OrganizationMembers extends Page implements HasTable
                     ->modalHeading('Remove Member')
                     ->modalDescription(fn (OrganizationUser $record) => "Are you sure you want to remove {$record->user->name} from this organization? This action is irreversible.")
                     ->action(function (OrganizationUser $record) use ($organization): void {
-                        $role = $record->role;
+                        $outcome = DB::transaction(function () use ($organization, $record): string|OrganizationRole {
+                            $locked = Organization::query()->whereKey($organization->getKey())->lockForUpdate()->first();
 
-                        DB::transaction(function () use ($organization, $record): void {
-                            $organization->deleteInvitesFor($record->user);
-                            $organization->members()->detach($record->user_id);
+                            if ($locked === null) {
+                                return 'This organization was deleted.';
+                            }
+
+                            $current = DB::table('organization_user')
+                                ->where('organization_id', $locked->getKey())
+                                ->where('user_id', $record->user_id)
+                                ->value('role');
+
+                            if ($current === OrganizationRole::Owner->value) {
+                                return "{$record->user->name} is now the owner of this organization and can't be removed.";
+                            }
+
+                            if ($current === null) {
+                                return "{$record->user->name} is no longer a member of this organization.";
+                            }
+
+                            $locked->deleteInvitesFor($record->user);
+                            $locked->members()->detach($record->user_id);
+
+                            return OrganizationRole::from($current);
                         });
+
+                        if (is_string($outcome)) {
+                            Notification::make()
+                                ->danger()
+                                ->title('Member not removed')
+                                ->body(NotificationText::plain($outcome))
+                                ->send();
+
+                            return;
+                        }
 
                         SecurityLog::warning('organization.member_removed', auth()->user(), [
                             'member_user_id' => $record->user_id,
-                            'role' => $role->value,
+                            'role' => $outcome->value,
                         ]);
 
                         UserFiles::deleteForMember($record->user_id, $organization->id);
@@ -322,19 +384,17 @@ class OrganizationMembers extends Page implements HasTable
                         /** @var User $currentOwner */
                         $currentOwner = auth()->user();
 
-                        DB::transaction(function () use ($organization, $currentOwner, $data): void {
-                            $organization->members()->updateExistingPivot($currentOwner->id, [
-                                'role' => OrganizationRole::Admin->value,
-                            ]);
+                        $refusal = app(TransferOwnership::class)->handle($currentOwner, $organization, (int) $data['new_owner_id']);
 
-                            $organization->members()->updateExistingPivot($data['new_owner_id'], [
-                                'role' => OrganizationRole::Owner->value,
-                            ]);
-                        });
+                        if ($refusal !== null) {
+                            Notification::make()
+                                ->danger()
+                                ->title('Ownership not transferred')
+                                ->body(NotificationText::plain($refusal))
+                                ->send();
 
-                        SecurityLog::warning('organization.ownership_transferred', $currentOwner, [
-                            'new_owner_user_id' => (int) $data['new_owner_id'],
-                        ]);
+                            return;
+                        }
 
                         $newOwner = User::find($data['new_owner_id']);
 
