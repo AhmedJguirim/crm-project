@@ -19,6 +19,13 @@ class ForgedCallArgumentsUnresolvableProbe
     public function __construct(public string $name) {}
 }
 
+interface ForgedCallArgumentsUnboundContract {}
+
+class ForgedCallArgumentsNeedsContractProbe
+{
+    public function __construct(public ForgedCallArgumentsUnboundContract $contract) {}
+}
+
 class ForgedCallArgumentsRequiredMountProbeComponent extends Component
 {
     public function mount(int $start): void {}
@@ -83,6 +90,30 @@ class ForgedCallArgumentsProbeComponent extends Component
     public function bodyBuildsUnresolvableClass(): void
     {
         app()->make(ForgedCallArgumentsUnresolvableProbe::class);
+    }
+
+    public function takesClosure(?Closure $callback = null): void {}
+
+    public function takesUnboundContract(ForgedCallArgumentsUnboundContract $contract): void {}
+
+    public function takesClassNeedingUnboundContract(ForgedCallArgumentsNeedsContractProbe $probe): void {}
+
+    #[On('probe-callback')]
+    public function onCallback(?Closure $callback = null): void {}
+
+    public function bodyMakesClosure(): void
+    {
+        app()->make(Closure::class);
+    }
+
+    public function bodyCallsClosureTakerThroughContainer(): void
+    {
+        app()->call([$this, 'takesClosure']);
+    }
+
+    public function bodyCallsClosureTakerThroughWrap(): void
+    {
+        wrap($this)->takesClosure();
     }
 
     public function render(): string
@@ -280,4 +311,48 @@ test('a mount without its required parameter is not turned into a 419', function
 
     expect($cause)->toBeInstanceOf(BindingResolutionException::class)
         ->and($cause->getMessage())->toStartWith('Unable to resolve dependency [Parameter #0 [ <required> int $start ]]');
+});
+
+test('a forged call with a parameter the container cannot instantiate answers 419', function (string $component, string $method, array $params) {
+    Livewire::test($component)->call($method, ...$params)->assertStatus(419);
+})->with([
+    'summary state of the deals' => [ListDeals::class, 'getTableSummarySelectedState', []],
+    'summary state of the contacts with nulls' => [ListContacts::class, 'getTableSummarySelectedState', [null, null]],
+    'closure taker without params' => [ForgedCallArgumentsProbeComponent::class, 'takesClosure', []],
+    'closure taker with a string' => [ForgedCallArgumentsProbeComponent::class, 'takesClosure', ['x']],
+    'unbound contract' => [ForgedCallArgumentsProbeComponent::class, 'takesUnboundContract', []],
+    'dispatch to a closure listener' => [ForgedCallArgumentsProbeComponent::class, '__dispatch', ['probe-callback', []]],
+]);
+
+test('the refusal of an unbuildable parameter does not depend on debug mode', function () {
+    config(['app.debug' => true]);
+
+    Livewire::test(ListDeals::class)->call('getTableSummarySelectedState')->assertStatus(419);
+});
+
+test('a call with an unbuildable parameter over raw http answers 419 and a plain call answers 200', function () {
+    $snapshot = json_encode(Livewire::test(ListDeals::class)->snapshot);
+
+    $send = fn (string $method, array $params) => $this->postJson(route('default-livewire.update'), [
+        'components' => [['snapshot' => $snapshot, 'updates' => [], 'calls' => [['method' => $method, 'params' => $params, 'metadata' => []]]]],
+    ], ['X-Livewire' => 'true']);
+
+    $send('getTableSummarySelectedState', [])->assertStatus(419);
+    $send('sortTable', ['name'])->assertOk();
+});
+
+test('an unbuildable-parameter error below a method body or from a nested build still propagates', function (string $method, string $message) {
+    expect(fn () => Livewire::test(ForgedCallArgumentsProbeComponent::class)->call($method))
+        ->toThrow(BindingResolutionException::class, $message);
+})->with([
+    'container make of a closure' => ['bodyMakesClosure', 'Target [Closure] is not instantiable'],
+    'container call of a closure taker' => ['bodyCallsClosureTakerThroughContainer', 'Target [Closure] is not instantiable'],
+    'wrap call of a closure taker' => ['bodyCallsClosureTakerThroughWrap', 'Target [Closure] is not instantiable'],
+    'nested constructor dependency' => ['takesClassNeedingUnboundContract', 'Target [ForgedCallArgumentsUnboundContract] is not instantiable while building [ForgedCallArgumentsNeedsContractProbe].'],
+]);
+
+test('the PHP path of a method with an unbuildable parameter is untouched', function () {
+    expect(Livewire::test(ListDeals::class)->instance()->getTableSummarySelectedState())->toBe([]);
+
+    Livewire::test(ListDeals::class)->assertStatus(200);
 });

@@ -6,6 +6,7 @@ use Illuminate\Container\BoundMethod;
 use Illuminate\Container\Container;
 use Illuminate\Container\Util;
 use Illuminate\Contracts\Container\BindingResolutionException;
+use Illuminate\Foundation\Application;
 use Livewire\Component;
 use Livewire\Features\SupportEvents\SupportEvents;
 use Livewire\ImplicitlyBoundMethod;
@@ -16,12 +17,13 @@ use TypeError;
 
 /**
  * Livewire hands the `params` of a client call to the public method as they come. A param that does not match the
- * declared PHP type throws a `TypeError`, a required param that is missing throws a `BindingResolutionException`, and a
- * malformed `__dispatch` (non-array payload, unknown event name) throws a `TypeError`, an `ErrorException` or an
+ * declared PHP type throws a `TypeError`, a required param that is missing throws a `BindingResolutionException`, a param typed
+ * with a class the container cannot instantiate (a `Closure`, an unbound interface) throws a `BindingResolutionException`
+ * from `Container::notInstantiable()`, and a malformed `__dispatch` (non-array payload, unknown event name) throws a `TypeError`, an `ErrorException` or an
  * `EventHandlerDoesNotExist`. All of them end in a 500 and an error-log entry. This guard answers such a forged call
  * with a 419 (like BUG-45 and BUG-46) on every component, without a per-method fix (BUG-51, BUG-54).
  *
- * `refuseMistypedArgument()` and `refuseMissingArgument()` listen to Livewire's `exception` event and only convert an
+ * `refuseMistypedArgument()`, `refuseMissingArgument()` and `refuseUnbuildableArgument()` listen to Livewire's `exception` event and only convert an
  * error that was raised by the argument handling of the called component method itself, during a client call. The same
  * error raised inside a method body, in `mount()`, in another lifecycle hook, or by a container call or `wrap()` made
  * from a body propagates unchanged.
@@ -82,7 +84,7 @@ final class RefuseMistypedCallArguments
      * 1. it is a `BindingResolutionException`;
      * 2. the target is a Livewire component;
      * 3. the innermost frame is `BoundMethod::addDependencyForCallParameter`, so a required parameter of a called method
-     *    has no value (and not `Container::build()` failing to construct a class);
+     *    has no value (a class that cannot be instantiated is `refuseUnbuildableArgument()`);
      * 4. the message starts with `Unable to resolve dependency [`;
      * 5. after the container frames that invoked the method, the next frame is `Wrapped::__call` and the one after it is
      *    `HandleComponents::callMethods` or `SupportEvents::call`, like in `refuseMistypedArgument()`.
@@ -110,6 +112,53 @@ final class RefuseMistypedCallArguments
 
         if ($this->isCalledDirectlyByTheBrowser($trace, 1)) {
             ForgedPayload::refuse('missing_argument', $target);
+        }
+    }
+
+    /**
+     * Refuses the exception with a 419 when all of these hold, otherwise returns and lets it propagate:
+     * 1. it is a `BindingResolutionException`;
+     * 2. the target is a Livewire component;
+     * 3. the innermost frame is `Container::notInstantiable`, so the container was asked for a class it cannot build (a
+     *    `Closure`, an interface or an abstract class without a binding);
+     * 4. from there, only `Container` / `Application` frames `build`, `resolve` and `make` follow, so it is the type of
+     *    the parameter itself that failed and not a dependency of a constructor (`resolveClass`, `resolveDependencies`);
+     * 5. the frame reached is `BoundMethod::addDependencyForCallParameter`, so the type belongs to a parameter of a
+     *    called method;
+     * 6. after the container frames that invoked the method, the next frame is `Wrapped::__call` and the one after it is
+     *    `HandleComponents::callMethods` or `SupportEvents::call`, like in `refuseMistypedArgument()`.
+     *
+     * No browser call of such a method can ever succeed, the browser cannot send a `Closure` (BUG-95).
+     */
+    public function refuseUnbuildableArgument(object $target, Throwable $e): void
+    {
+        if (! $e instanceof BindingResolutionException) {
+            return;
+        }
+
+        if (! $target instanceof Component) {
+            return;
+        }
+
+        $trace = $e->getTrace();
+
+        if (($trace[0]['class'] ?? null) !== Container::class || ($trace[0]['function'] ?? null) !== 'notInstantiable') {
+            return;
+        }
+
+        $index = 1;
+
+        while (in_array($trace[$index]['class'] ?? null, [Container::class, Application::class], true)
+            && in_array($trace[$index]['function'] ?? null, ['build', 'resolve', 'make'], true)) {
+            $index++;
+        }
+
+        if (($trace[$index]['class'] ?? null) !== BoundMethod::class || ($trace[$index]['function'] ?? null) !== 'addDependencyForCallParameter') {
+            return;
+        }
+
+        if ($this->isCalledDirectlyByTheBrowser($trace, $index + 1)) {
+            ForgedPayload::refuse('unbuildable_argument', $target);
         }
     }
 

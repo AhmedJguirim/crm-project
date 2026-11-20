@@ -284,6 +284,7 @@ class AppServiceProvider extends ServiceProvider
 
         on('exception', [$guard, 'refuseMistypedArgument']);
         on('exception', [$guard, 'refuseMissingArgument']);
+        on('exception', [$guard, 'refuseUnbuildableArgument']);
         before('call', [$guard, 'refusePaginationArguments']);
         before('call', [$guard, 'refuseMalformedDispatch']);
         before('call', new RefuseInternalMethodCalls);
