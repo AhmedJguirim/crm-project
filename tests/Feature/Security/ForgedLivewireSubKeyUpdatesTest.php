@@ -19,6 +19,7 @@ use App\Models\Deal;
 use App\Models\Segment;
 use App\Models\User;
 use Filament\Facades\Filament;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Livewire\Component;
 use Livewire\Exceptions\PublicPropertyNotFoundException;
@@ -203,4 +204,120 @@ test('a path below an uninitialized typed property answers 419', function () {
     };
 
     Livewire::test($component::class)->set('title.0', 'x')->assertStatus(419);
+});
+
+test('a forged leading-digit sub-key below a string answers 419 before hydration', function (string $component, string $path) {
+    $parameters = $component === EditContact::class ? ['record' => $this->ann->id] : [];
+
+    Livewire::test($component, $parameters)->set($path, 'x')->assertStatus(419);
+})->with([
+    'search digit then letters' => [ListContacts::class, 'tableSearch.0abc'],
+    'search digit then x' => [ListContacts::class, 'tableSearch.1x'],
+    'search digit then newline' => [ListContacts::class, "tableSearch.0\nfoo"],
+    'search empty last segment' => [ListContacts::class, 'tableSearch.'],
+    'tab of the deals' => [ListDeals::class, 'activeTab.0abc'],
+    'name in the contact form' => [EditContact::class, 'data.name.0abc'],
+]);
+
+test('a forged leading-digit sub-key answers 419 after the search holds text', function () {
+    $component = Livewire::test(ListContacts::class)->set('tableSearch', 'Ann')->assertSuccessful();
+
+    $component->set('tableSearch.0abc', 'x')->assertStatus(419);
+});
+
+test('the raw http probe of a leading-digit sub-key answers 419 and the plain update answers 200', function () {
+    $snapshot = json_encode(Livewire::test(ListContacts::class)->snapshot);
+
+    $send = fn (array $updates) => $this->postJson(route('default-livewire.update'), [
+        'components' => [['snapshot' => $snapshot, 'updates' => $updates, 'calls' => []]],
+    ], ['X-Livewire' => 'true']);
+
+    $send(['tableSearch.0abc' => 'x'])->assertStatus(419);
+    $send(['tableSearch.1x' => 'x'])->assertStatus(419);
+    $send(['tableSearch' => 'Ann'])->assertOk();
+});
+
+test('a forged leading-digit sub-key sent after a plain update in one request answers 419 and changes nothing', function () {
+    $snapshot = json_encode(Livewire::test(ListContacts::class)->snapshot);
+
+    $send = fn (array $updates) => $this->postJson(route('default-livewire.update'), [
+        'components' => [['snapshot' => $snapshot, 'updates' => $updates, 'calls' => []]],
+    ], ['X-Livewire' => 'true']);
+
+    $send(['tableSearch' => 'Ann', 'tableSearch.0abc' => 'x'])->assertStatus(419);
+    $send(['tableSearch.0abc' => 'x', 'tableSearch' => 'Ann'])->assertStatus(419);
+    $send(['tableSearch' => 'Ann', 'tableSearch.1x' => 'x', 'tableSearch.0abc' => 'y'])->assertStatus(419);
+    $send(['tableSearch' => 'Ann', 'tableSearch.0' => 'x'])->assertStatus(419);
+});
+
+test('the leading-digit refusal does not depend on debug mode', function () {
+    config(['app.debug' => true]);
+
+    Livewire::test(ListContacts::class)->set('tableSearch.0abc', 'x')->assertStatus(419);
+});
+
+test('a string inside a synthesizer tuple is refused', function () {
+    $component = new class extends Component
+    {
+        public ?Carbon $due = null;
+
+        public function mount(): void
+        {
+            $this->due = Carbon::parse('2026-11-20 09:00:00', 'UTC');
+        }
+
+        public function render(): string
+        {
+            return '<div></div>';
+        }
+    };
+
+    Livewire::test($component::class)->set('due.0abc', 'x')->assertStatus(419);
+});
+
+test('an array keyed by a digit-led uuid keeps working and a sub-key below its string is refused', function () {
+    $component = new class extends Component
+    {
+        public array $items = ['0a1b2c3d-1111-4222-8333-444455556666' => ['name' => 'Old']];
+
+        public function render(): string
+        {
+            return '<div></div>';
+        }
+    };
+
+    $key = 'items.0a1b2c3d-1111-4222-8333-444455556666.name';
+
+    Livewire::test($component::class)
+        ->set($key, 'New')
+        ->assertSuccessful()
+        ->assertSet($key, 'New')
+        ->set($key.'.0abc', 'x')
+        ->assertStatus(419);
+});
+
+test('a forged leading-digit sub-key runs no component hydrate code', function () {
+    $component = new class extends Component
+    {
+        public string $title = 'Ann';
+
+        public static int $hydrations = 0;
+
+        public function hydrate(): void
+        {
+            self::$hydrations++;
+        }
+
+        public function render(): string
+        {
+            return '<div></div>';
+        }
+    };
+
+    $test = Livewire::test($component::class);
+    $component::$hydrations = 0;
+
+    $test->set('title.0abc', 'x')->assertStatus(419);
+
+    expect($component::$hydrations)->toBe(0);
 });

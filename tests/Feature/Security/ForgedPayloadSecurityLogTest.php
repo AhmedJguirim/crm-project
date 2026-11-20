@@ -3,6 +3,7 @@
 use App\Enums\OrganizationRole;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
 use App\Filament\Resources\Contacts\Widgets\ContactActivityFeed;
+use App\Filament\Resources\Deals\Pages\ListDeals;
 use App\Models\Contact;
 use App\Models\User;
 use App\Support\Security\SecurityLog;
@@ -70,6 +71,7 @@ test('each guard writes one line with its guard and member', function (string $g
         ]);
 })->with([
     'sub key below a string' => ['sub_key_update', 'tableSearch', fn () => Livewire::test(ListContacts::class)->set('tableSearch.0', 'x'), ListContacts::class],
+    'leading-digit sub key below a string' => ['sub_key_update', 'tableSearch', fn () => Livewire::test(ListContacts::class)->set('tableSearch.0abc', 'x'), ListContacts::class],
     'sub key below a model' => ['sub_key_update', 'record', fn ($t) => Livewire::test(ContactActivityFeed::class, ['record' => $t->ann])->set('record.name', 'x'), ContactActivityFeed::class],
     'array sent to a string property' => ['mistyped_property', 'email', fn () => Livewire::test('pages::settings.profile')->set('email', ['x@example.com']), 'pages::settings.profile'],
     'wrong-typed argument' => ['mistyped_argument', 'sortTable', fn () => Livewire::test(ListContacts::class)->call('sortTable', ['x']), ListContacts::class],
@@ -212,6 +214,38 @@ test('one user flooding forged updates is capped at ten lines a minute', functio
     Livewire::test(ListContacts::class)->set('tableSearch.0', 'x')->assertStatus(419);
 
     expect(securityLogEntries($this->log))->toHaveCount(12);
+});
+
+test('a user flooding leading-digit forged paths is capped at ten lines a minute', function () {
+    $this->freezeTime();
+
+    foreach (range(1, 12) as $ignored) {
+        Livewire::test(ListContacts::class)->set('tableSearch.0abc', 'x')->assertStatus(419);
+    }
+
+    expect(forgedPayloadLines($this->log))->toHaveCount(10)
+        ->and(forgedPayloadLines($this->log, 'request.refusals_capped'))->toHaveCount(1)
+        ->and(json_encode(securityLogEntries($this->log)))->not->toContain('0abc');
+});
+
+test('a leading-digit forged path of one component is logged against that component, not its neighbour in the request', function () {
+    $contacts = json_encode(Livewire::test(ListContacts::class)->snapshot);
+    $deals = Livewire::test(ListDeals::class);
+    $dealsName = $deals->instance()->getName();
+
+    $this->postJson(route('default-livewire.update'), [
+        'components' => [
+            ['snapshot' => $contacts, 'updates' => ['tableSearch' => 'Ann'], 'calls' => []],
+            ['snapshot' => json_encode($deals->snapshot), 'updates' => ['activeTab.0abc' => 'x'], 'calls' => []],
+        ],
+    ], ['X-Livewire' => 'true'])->assertStatus(419);
+
+    $lines = forgedPayloadLines($this->log);
+
+    expect($lines)->toHaveCount(1)
+        ->and($lines[0]['context']['guard'])->toBe('sub_key_update')
+        ->and($lines[0]['context']['component'])->toBe($dealsName)
+        ->and($lines[0]['context']['member'])->toBe('activeTab');
 });
 
 test('the cap counts every refusal kind together', function () {

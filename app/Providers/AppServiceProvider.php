@@ -14,6 +14,7 @@ use App\Services\Segments\SegmentUsageIndex;
 use App\Support\Auth\CaseInsensitiveEmailUserProvider;
 use App\Support\Livewire\RefuseMistypedCallArguments;
 use App\Support\Livewire\RefuseMistypedPropertyUpdates;
+use App\Support\Livewire\RefuseSubKeysBelowSnapshotStrings;
 use App\Support\Livewire\RefuseSubKeyUpdatesOfScalars;
 use App\Support\Security\LoginLimits;
 use App\Support\Security\QueueWaitAlert;
@@ -224,9 +225,11 @@ class AppServiceProvider extends ServiceProvider
 
     /**
      * Refuses a Livewire update below a scalar, null or model property, or a forged array sent to a scalar-typed property, with a 419 before Livewire applies it (BUG-45, BUG-46, BUG-68).
+     * An update path that goes below a string of the snapshot, such as `tableSearch.0abc`, is refused even earlier, on `hydrate`, because Livewire reads it before the `update` hooks run (BUG-86).
      */
     protected function configureLivewireUpdateGuard(): void
     {
+        before('hydrate', new RefuseSubKeysBelowSnapshotStrings);
         before('update', new RefuseSubKeyUpdatesOfScalars);
         before('update', new RefuseMistypedPropertyUpdates);
     }
