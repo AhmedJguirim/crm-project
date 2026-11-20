@@ -1,12 +1,13 @@
 <?php
 
-use Inertia\Testing\AssertableInertia;
+use App\Enums\OrganizationRole;
+use App\Models\Organization;
+use App\Models\User;
 
-test('the inertia welcome page renders the Welcome component', function () {
-    $this->get(route('app.welcome'))
-        ->assertOk()
-        ->assertInertia(fn (AssertableInertia $page) => $page
-            ->component('Welcome')
-            ->where('appName', config('app.name'))
-        );
+test('the removed inertia welcome page answers 404 for a signed-in member', function () {
+    $organization = Organization::factory()->create();
+    $user = User::factory()->create();
+    $organization->members()->attach($user, ['role' => OrganizationRole::Member->value]);
+
+    $this->actingAs($user)->get('/app')->assertNotFound();
 });

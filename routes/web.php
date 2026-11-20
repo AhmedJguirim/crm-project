@@ -27,10 +27,6 @@ Route::get('sitemap.xml', SitemapController::class)->name('sitemap');
 Route::get('privacy', [LegalPageController::class, 'privacy'])->name('privacy');
 Route::get('terms', [LegalPageController::class, 'terms'])->name('terms');
 
-Route::view('dashboard', 'dashboard')
-    ->middleware(['auth', 'verified'])
-    ->name('dashboard');
-
 // Invitation acceptance — public route (handles both guest and authenticated users)
 Route::get('/invite/accept/{token}', [InviteAcceptController::class, 'show'])
     ->name('invite.accept');
@@ -65,8 +61,6 @@ Route::middleware(HandleInertiaRequests::class)
     ->prefix('app')
     ->name('app.')
     ->group(function () {
-        Route::inertia('/', 'Welcome', ['appName' => config('app.name')])->name('welcome');
-
         Route::middleware(['auth', 'can:view,organization', 'tenant.context'])
             ->prefix('{organization:slug}')
             ->group(function () {

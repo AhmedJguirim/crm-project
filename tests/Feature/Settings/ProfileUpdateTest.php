@@ -1,8 +1,11 @@
 <?php
 
+use App\Enums\OrganizationRole;
+use App\Models\Organization;
 use App\Models\User;
 use App\Support\Auth\UniqueUserEmail;
 use Carbon\CarbonImmutable;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Validator;
 use Livewire\Livewire;
 
@@ -10,6 +13,41 @@ test('profile page is displayed', function () {
     $this->actingAs($user = User::factory()->create());
 
     $this->get(route('profile.edit'))->assertOk();
+});
+
+test('profile page links back to the panel and no longer shows the starter-kit pages', function () {
+    $organization = Organization::factory()->create(['slug' => 'acme']);
+    $user = User::factory()->create();
+    $organization->members()->attach($user, ['role' => OrganizationRole::Member->value]);
+
+    $this->actingAs($user);
+
+    $panelUrl = filament()->getUrl();
+
+    expect($panelUrl)->toEndWith('/admin/acme');
+
+    $response = $this->get(route('profile.edit'))->assertOk();
+
+    expect(substr_count($response->getContent(), 'href="'.$panelUrl.'"'))->toBeGreaterThanOrEqual(2);
+
+    $response
+        ->assertDontSee('/settings/appearance', false)
+        ->assertDontSee('livewire-starter-kit', false);
+});
+
+test('an already verified user resending the verification mail is sent to the panel without a mail', function () {
+    Notification::fake();
+    $organization = Organization::factory()->create(['slug' => 'acme']);
+    $user = User::factory()->create();
+    $organization->members()->attach($user, ['role' => OrganizationRole::Member->value]);
+
+    $this->actingAs($user);
+
+    Livewire::test('pages::settings.profile')
+        ->call('resendVerificationNotification')
+        ->assertRedirect(filament()->getUrl());
+
+    Notification::assertNothingSent();
 });
 
 test('profile information can be updated', function () {
