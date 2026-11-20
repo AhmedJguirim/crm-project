@@ -1,9 +1,11 @@
 <?php
 
 use App\Enums\OrganizationRole;
+use App\Filament\Resources\Contacts\Pages\EditContact;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
 use App\Filament\Resources\Contacts\Pages\ViewContact;
 use App\Filament\Resources\Deals\Pages\ListDeals;
+use App\Filament\Resources\Segments\Pages\SegmentRuleEngine;
 use App\Filament\Resources\Segments\Pages\ViewSegment;
 use App\Filament\Resources\Segments\RelationManagers\ContactsRelationManager;
 use App\Filament\Widgets\MyTasksWidget;
@@ -51,6 +53,8 @@ function internalMethodHost(string $host, object $test): array
         'deals selected' => [ListDeals::class, ['selectedTableRecords' => [(string) $test->deal->id]]],
         'segment contacts' => [ContactsRelationManager::class, ['ownerRecord' => $test->segment, 'pageClass' => ViewSegment::class]],
         'view contact' => [ViewContact::class, ['record' => $test->ann->id]],
+        'edit contact' => [EditContact::class, ['record' => $test->ann->id]],
+        'rule engine' => [SegmentRuleEngine::class, ['record' => $test->segment->getRouteKey()]],
         'tasks widget' => [MyTasksWidget::class, []],
     };
 }
@@ -89,6 +93,40 @@ test('every record getter is refused from the browser', function (string $host, 
     'widget record' => ['tasks widget', 'getTableRecord', ['1']],
 ]);
 
+test('a viewer reading the contact row through getWidgetData gets 419, not the row', function () {
+    $component = Livewire::test(ViewContact::class, ['record' => $this->ann->id]);
+    $name = $component->instance()->getName();
+    $component->call('getWidgetData')->assertStatus(419);
+
+    $returns = json_encode($component->effects['returns'] ?? []);
+    $lines = internalMethodLines($this->log);
+
+    expect($returns)->not->toContain('custom_field_values')
+        ->and($returns)->not->toContain('Ann Lee')
+        ->and($lines)->toHaveCount(1)
+        ->and($lines[0]['context'])->toMatchArray(['guard' => 'internal_method', 'component' => $name, 'member' => 'getWidgetData']);
+});
+
+test('each new name is refused', function (string $as, string $host, string $method) {
+    $this->actingAs($as === 'owner' ? $this->owner : $this->viewer);
+
+    [$class, $params] = internalMethodHost($host, $this);
+
+    $component = Livewire::test($class, $params)->call($method)->assertStatus(419);
+
+    $returns = json_encode($component->effects['returns'] ?? []);
+    $lines = internalMethodLines($this->log);
+
+    expect($returns)->not->toContain('Ann Lee')
+        ->and($lines)->toHaveCount(1)
+        ->and($lines[0]['context']['guard'])->toBe('internal_method')
+        ->and($lines[0]['context']['member'])->toBe($method);
+})->with([
+    'viewer parent record' => ['viewer', 'view contact', 'getParentRecord'],
+    'owner widget data' => ['owner', 'edit contact', 'getWidgetData'],
+    'owner segment' => ['owner', 'rule engine', 'segment'],
+]);
+
 test('the owner is refused the same way', function () {
     $this->actingAs($this->owner);
 
@@ -117,8 +155,16 @@ test('the PHP path is untouched', function () {
     $record = Livewire::test(ListDeals::class)->instance()->getTableRecord((string) $this->deal->id);
     $component = Livewire::test(ListContacts::class)->instance();
 
+    $widgetData = Livewire::test(ViewContact::class, ['record' => $this->ann->id])->instance()->getWidgetData();
+
     expect($record->is($this->deal))->toBeTrue()
         ->and($component->getTableRecords()->pluck('id')->all())->toContain($this->ann->id)
+        ->and($widgetData['record']->name)->toBe('Ann Lee')
+        ->and(internalMethodLines($this->log))->toBe([]);
+
+    $this->actingAs($this->owner);
+
+    expect(Livewire::test(SegmentRuleEngine::class, ['record' => $this->segment->getRouteKey()])->instance()->segment()->is($this->segment))->toBeTrue()
         ->and(internalMethodLines($this->log))->toBe([]);
 });
 
@@ -130,7 +176,7 @@ test('a different-case method name never reaches the getter', function () {
 });
 
 test('the denied names are still real methods', function () {
-    $classes = [ListDeals::class, ContactsRelationManager::class, ViewContact::class];
+    $classes = [ListDeals::class, ContactsRelationManager::class, ViewContact::class, EditContact::class, SegmentRuleEngine::class];
 
     foreach (RefuseInternalMethodCalls::INTERNAL_METHODS as $name) {
         $found = collect($classes)->contains(fn (string $class): bool => method_exists($class, $name) && (new ReflectionMethod($class, $name))->isPublic());

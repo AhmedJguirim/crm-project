@@ -6,10 +6,11 @@ use Livewire\Component;
 
 /**
  * Livewire lets the browser call every public method of a component, and returns the result JSON-encoded. Filament
- * defines public getters that return whole records (every non-hidden column plus loaded relations), for example
- * `getTableRecord()` on a table host. Filament calls them from PHP only; its JavaScript never calls them, so a browser
- * call to one of them is a forged call and is refused with a 419 and one security log line before the method runs
- * (BUG-90). PHP calls never go through Livewire's `call` event and are untouched.
+ * (and a few app pages) define public getters that return whole records (every non-hidden column plus loaded
+ * relations), for example `getTableRecord()` on a table host or `getWidgetData()` on a record page. Filament calls them
+ * from PHP only; its JavaScript never calls them, so a browser call to one of them is a forged call and is refused with
+ * a 419 and one security log line before the method runs (BUG-90, BUG-94). PHP calls never go through Livewire's `call`
+ * event and are untouched.
  *
  * A name is added to the list only after checking that `vendor/filament/*` resources and dist do not call it from the
  * browser.
@@ -23,6 +24,9 @@ final class RefuseInternalMethodCalls
         'getMountedTableActionRecord',
         'getOwnerRecord',
         'getRecord',
+        'getWidgetData',
+        'getParentRecord',
+        'segment',
     ];
 
     /**
