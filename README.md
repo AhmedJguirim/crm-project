@@ -33,6 +33,8 @@ The project is still in active development and not yet ready for production use.
 
 Requirements: PHP 8.4, Composer, Node.js and npm, PostgreSQL and Redis.
 
+Redis must run with `maxmemory-policy noeviction` (the Redis default): queues, Horizon, login lockouts and rate limits share it, and an eviction policy would silently drop them. `php artisan security:check-redis` checks it, and `deploy.sh` runs that check on every deploy.
+
 1. Clone the repository and enter it:
 
    ```bash

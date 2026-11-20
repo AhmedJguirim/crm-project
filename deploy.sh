@@ -9,7 +9,7 @@
 #   1. maintenance mode with a friendly page, 2. pause Horizon, 3. wait for running jobs (up to 1900 s),
 #   4. git pull, 5. composer install, 6. npm build, 7. database dump (then keep the newest dumps only),
 #   8. migrate, 9. rebuild caches (the cache store is kept: login lockouts and invitation caps survive),
-#   10. production .env check, 11. restart Horizon, 12. back online.
+#   10. production .env check, 11. Redis eviction policy check, 12. restart Horizon, 13. back online.
 # On any error after step 1 the script stops and leaves the app in maintenance mode with Horizon paused,
 # so a half-finished deploy is never served. Fix the problem, then run it again.
 #
@@ -189,6 +189,13 @@ main() {
     if ! bash ./check-production-env.sh; then
         echo
         echo "The production .env check failed (see above). The app stays in maintenance mode and Horizon is paused. Fix the .env, then run deploy.sh again."
+        exit 1
+    fi
+
+    step "Redis eviction policy"
+    if ! php artisan security:check-redis; then
+        echo
+        echo "The Redis check failed (see above). The app stays in maintenance mode and Horizon is paused. Set maxmemory-policy noeviction on the Redis server, then run deploy.sh again."
         exit 1
     fi
 

@@ -161,6 +161,7 @@ function deployHappyLog(array $h): array
         'php artisan optimize:clear --except=cache',
         'php artisan optimize',
         'env-check',
+        'php artisan security:check-redis',
         'php artisan horizon:terminate',
         'php artisan up',
     ];
@@ -308,9 +309,25 @@ test('a failing env check keeps the app down and Horizon paused', function () {
 
     expect($result['code'])->toBe(1)
         ->and(end($log))->toBe('env-check')
+        ->and($log)->not->toContain('php artisan security:check-redis')
         ->and($log)->not->toContain('php artisan horizon:terminate')
         ->and($log)->not->toContain('php artisan up')
         ->and($result['output'])->toContain('The production .env check failed (see above). The app stays in maintenance mode and Horizon is paused.')
+        ->and($result['output'])->not->toContain('Deploy finished.')
+        ->and($result['output'])->not->toContain('DEPLOY FAILED');
+});
+
+test('a failing Redis check keeps the app down and Horizon paused', function () {
+    $h = deployHarness();
+
+    $result = deployRun($h, ['STUB_FAIL' => 'php artisan security:check-redis']);
+    $log = deployLog($h);
+
+    expect($result['code'])->toBe(1)
+        ->and(end($log))->toBe('php artisan security:check-redis')
+        ->and($log)->not->toContain('php artisan horizon:terminate')
+        ->and($log)->not->toContain('php artisan up')
+        ->and($result['output'])->toContain('The Redis check failed (see above). The app stays in maintenance mode and Horizon is paused. Set maxmemory-policy noeviction on the Redis server, then run deploy.sh again.')
         ->and($result['output'])->not->toContain('Deploy finished.')
         ->and($result['output'])->not->toContain('DEPLOY FAILED');
 });
