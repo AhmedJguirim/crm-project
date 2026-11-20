@@ -6,6 +6,8 @@ use App\Support\Security\DiskSpace;
 use Carbon\CarbonImmutable;
 use Illuminate\Bus\Queueable;
 use Illuminate\Cache\ArrayStore;
+use Illuminate\Console\Scheduling\Event;
+use Illuminate\Console\Scheduling\EventMutex;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\AnonymousNotifiable;
@@ -367,13 +369,41 @@ test('nothing is logged when no alert is sent', function () {
     expect(glob($this->dsaDir.'/security-*.log'))->toBe([]);
 });
 
-test('the schedule runs it hourly at :40 without overlapping', function () {
+test('the schedule runs it hourly at :40 without the overlap lock', function () {
     $event = collect(app(Schedule::class)->events())
         ->first(fn ($event): bool => str_contains($event->command, 'security:check-disk'));
 
     expect($event)->not->toBeNull();
     expect($event->expression)->toBe('40 * * * *');
-    expect($event->withoutOverlapping)->toBeTrue();
+    expect($event->withoutOverlapping)->toBeFalse();
+});
+
+test('a Redis that refuses writes cannot stop the scheduled disk alert', function () {
+    $event = collect(app(Schedule::class)->events())
+        ->first(fn ($event): bool => str_contains($event->command, 'security:check-disk'));
+
+    expect($event)->not->toBeNull();
+
+    $event->preventOverlapsUsing(new class implements EventMutex
+    {
+        public function create(Event $event): bool
+        {
+            throw new RuntimeException("MISCONF Redis is configured to save RDB snapshots, but it's currently unable to persist to disk.");
+        }
+
+        public function exists(Event $event): bool
+        {
+            throw new RuntimeException("MISCONF Redis is configured to save RDB snapshots, but it's currently unable to persist to disk.");
+        }
+
+        public function forget(Event $event): void
+        {
+            throw new RuntimeException("MISCONF Redis is configured to save RDB snapshots, but it's currently unable to persist to disk.");
+        }
+    });
+
+    expect($event->filtersPass(app()))->toBeTrue();
+    expect($event->shouldSkipDueToOverlapping())->toBeFalse();
 });
 
 test('the real reader returns numbers for storage_path() and null for a missing folder', function () {

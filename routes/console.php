@@ -41,4 +41,5 @@ Schedule::command('horizon:snapshot')->everyFiveMinutes();
 Schedule::command('security:alert-owner')->dailyAt('00:20')->withoutOverlapping();
 
 // Mails the app owner when the disk that holds storage/ runs low on free space (toggle and levels checked in the command).
-Schedule::command('security:check-disk')->hourlyAt(40)->withoutOverlapping();
+// No withoutOverlapping(): its lock is a Redis write, and a full disk can make Redis refuse writes, which would stop this alert (SEC-75).
+Schedule::command('security:check-disk')->hourlyAt(40);
