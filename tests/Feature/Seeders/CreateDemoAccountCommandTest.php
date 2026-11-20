@@ -1,8 +1,11 @@
 <?php
 
+use App\Enums\Currency;
+use App\Enums\InvoiceStatus;
 use App\Enums\OrganizationRole;
 use App\Models\Contact;
 use App\Models\Deal;
+use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\User;
 use App\Support\Tenancy\TenantContext;
@@ -10,10 +13,12 @@ use Illuminate\Support\Facades\Hash;
 
 /**
  * Runs the command with the password typed at the hidden prompts.
+ *
+ * @param  array<string, string>  $options
  */
-function createDemoAccount(object $test, string $email, string $password = 'Demo-password-2026', ?string $confirmation = null): int
+function createDemoAccount(object $test, string $email, string $password = 'Demo-password-2026', ?string $confirmation = null, array $options = []): int
 {
-    return $test->artisan('demo:create-account', ['name' => 'Jane Demo', 'email' => $email])
+    return $test->artisan('demo:create-account', ['name' => 'Jane Demo', 'email' => $email, ...$options])
         ->expectsQuestion('Password', $password)
         ->expectsQuestion('Confirm the password', $confirmation ?? $password)
         ->run();
@@ -103,3 +108,64 @@ test('it refuses an address stored with capitals and says so', function () {
 
     expect(User::query()->count())->toBe($users);
 });
+
+test('it creates a TND demo workspace with every invoice in TND', function () {
+    $this->artisan('demo:create-account', ['name' => 'Jane Demo', 'email' => 'jane@acme.test', '--currency' => 'TND'])
+        ->expectsQuestion('Password', 'Demo-password-2026')
+        ->expectsQuestion('Confirm the password', 'Demo-password-2026')
+        ->expectsOutputToContain('owns the workspace "Jane Demo\'s Workspace" (currency TND).')
+        ->assertExitCode(0);
+
+    $organization = User::query()->where('email', 'jane@acme.test')->sole()->personalOrganization();
+    $invoices = app(TenantContext::class)->run($organization->id, fn () => Invoice::query()->get());
+    $issued = $invoices->where('status', '!=', InvoiceStatus::Draft);
+    $drafts = $invoices->where('status', InvoiceStatus::Draft);
+
+    expect($organization->fresh()->currency)->toBe(Currency::Tnd)
+        ->and($invoices)->not->toBeEmpty()
+        ->and($invoices->every(fn (Invoice $invoice): bool => $invoice->currency === Currency::Tnd))->toBeTrue()
+        ->and($issued)->not->toBeEmpty()
+        ->and($issued->every(fn (Invoice $invoice): bool => $invoice->exchange_rate === '1.00000000'))->toBeTrue()
+        ->and($drafts->every(fn (Invoice $invoice): bool => $invoice->exchange_rate === null))->toBeTrue()
+        ->and(demoCount($organization, Contact::class))->toBe(20)
+        ->and(demoCount($organization, Deal::class))->toBe(19);
+});
+
+test('the currency option is case-insensitive and trimmed', function (string $given, Currency $stored) {
+    expect(createDemoAccount($this, 'jane@acme.test', options: ['--currency' => $given]))->toBe(0)
+        ->and(User::query()->where('email', 'jane@acme.test')->sole()->personalOrganization()->fresh()->currency)->toBe($stored);
+})->with([
+    'lower-case' => ['tnd', Currency::Tnd],
+    'mixed case' => ['Eur', Currency::Eur],
+    'padded' => [' gbp ', Currency::Gbp],
+]);
+
+test('without the option the workspace keeps the default currency', function () {
+    $this->artisan('demo:create-account', ['name' => 'Jane Demo', 'email' => 'jane@acme.test'])
+        ->expectsQuestion('Password', 'Demo-password-2026')
+        ->expectsQuestion('Confirm the password', 'Demo-password-2026')
+        ->expectsOutputToContain('(currency USD).')
+        ->assertExitCode(0);
+
+    $organization = User::query()->where('email', 'jane@acme.test')->sole()->personalOrganization();
+    $invoices = app(TenantContext::class)->run($organization->id, fn () => Invoice::query()->get());
+
+    expect($organization->fresh()->currency)->toBe(Currency::Usd)
+        ->and($invoices->every(fn (Invoice $invoice): bool => $invoice->currency === Currency::Usd))->toBeTrue();
+});
+
+test('an unknown currency is refused before the password is asked and nothing is created', function (string $given) {
+    $users = User::query()->count();
+
+    $this->artisan('demo:create-account', ['name' => 'Jane Demo', 'email' => 'jane@acme.test', '--currency' => $given])
+        ->expectsOutputToContain('The currency must be one of: USD, EUR, GBP, CAD, AUD, TND.')
+        ->assertExitCode(1);
+
+    expect(User::query()->count())->toBe($users)
+        ->and(Organization::query()->count())->toBe(0);
+})->with([
+    'unknown code' => ['XYZ'],
+    'empty' => [''],
+    'trailing junk' => ['TND1'],
+    'sql' => ["TND'; DROP TABLE users; --"],
+]);

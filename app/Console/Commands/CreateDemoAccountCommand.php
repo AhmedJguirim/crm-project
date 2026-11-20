@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\Currency;
 use App\Enums\OrganizationRole;
 use App\Models\Organization;
 use App\Models\User;
@@ -18,7 +19,8 @@ use Illuminate\Validation\Rules\Password;
  * Creates a login with its own workspace filled with the IT consulting demo data, for a demo on a real server where
  * the dev seed (known emails, plain-text passwords in the repository) must never run. The password is asked at a
  * hidden prompt so it stays out of the shell history. The demo data is spread over the new user and two teammates
- * created with it, who have unknown random passwords and unroutable emails, so nobody can log in as them.
+ * created with it, who have unknown random passwords and unroutable emails, so nobody can log in as them. The
+ * workspace's home currency can be chosen with --currency (TND for the TND human tests).
  */
 class CreateDemoAccountCommand extends Command
 {
@@ -30,7 +32,8 @@ class CreateDemoAccountCommand extends Command
     protected $signature = 'demo:create-account
         {name : The name of the demo user}
         {email : The email the demo user logs in with}
-        {--timezone= : The timezone of the demo workspace (default UTC)}';
+        {--timezone= : The timezone of the demo workspace (default UTC)}
+        {--currency= : The home currency of the demo workspace: USD, EUR, GBP, CAD, AUD or TND (default USD)}';
 
     /**
      * The console command description.
@@ -44,6 +47,14 @@ class CreateDemoAccountCommand extends Command
      */
     public function handle(): int
     {
+        $currency = $this->currencyFromOption();
+
+        if ($currency === false) {
+            $this->error('The currency must be one of: '.implode(', ', array_map(fn (Currency $case): string => $case->value, Currency::cases())).'.');
+
+            return self::FAILURE;
+        }
+
         $password = (string) $this->secret('Password');
         $confirmation = (string) $this->secret('Confirm the password');
 
@@ -70,9 +81,13 @@ class CreateDemoAccountCommand extends Command
             return self::FAILURE;
         }
 
-        $organization = DB::transaction(function () use ($password, $email): Organization {
+        $organization = DB::transaction(function () use ($password, $email, $currency): Organization {
             $owner = $this->createUser((string) $this->argument('name'), $email, $password);
             $organization = $owner->createPersonalOrganization($this->option('timezone'));
+
+            if ($currency !== null) {
+                $organization->update(['currency' => $currency]);
+            }
 
             $admin = $this->createTeammate($organization, 'Alex Morgan', OrganizationRole::Admin);
             $member = $this->createTeammate($organization, 'Sam Rivera', OrganizationRole::Member);
@@ -82,9 +97,23 @@ class CreateDemoAccountCommand extends Command
             return $organization;
         });
 
-        $this->info("Demo account created: {$email} owns the workspace \"{$organization->name}\".");
+        $this->info("Demo account created: {$email} owns the workspace \"{$organization->name}\" (currency {$organization->currencyCode()}).");
 
         return self::SUCCESS;
+    }
+
+    /**
+     * The chosen home currency: null when the option is not passed, false when it is not a known currency.
+     */
+    private function currencyFromOption(): Currency|false|null
+    {
+        $given = $this->option('currency');
+
+        if ($given === null) {
+            return null;
+        }
+
+        return Currency::tryFrom(Str::upper(trim((string) $given))) ?? false;
     }
 
     private function createUser(string $name, string $email, string $password): User
