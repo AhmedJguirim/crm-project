@@ -22,6 +22,9 @@ function htmlSinkAllowList(): array
             'html-string' => 'rule names through e(), conditions from SegmentConditionDescriber; XssRenderingTest',
             'html-method' => 'rule names through e(), conditions from SegmentConditionDescriber; XssRenderingTest',
         ],
+        'resources/views/vendor/filament-panels/components/layout/base.blade.php' => [
+            'raw-echo' => 'the three font family names from the panel config (->font(\'Inter\')), no user input; exact vendor copy plus the SEC-70 CSP nonce (FilamentLayoutNonceOverrideTest)',
+        ],
         'resources/views/vendor/flowforge/livewire/card.blade.php' => [
             'js-attribute-echo' => '$cardAction is an action name from code; x-sortable-item gets the integer deal id; the wire:click record id goes through @js; vendor copy kept close to upstream',
         ],
