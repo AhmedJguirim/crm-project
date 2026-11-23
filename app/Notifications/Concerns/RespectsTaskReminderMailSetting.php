@@ -2,12 +2,17 @@
 
 namespace App\Notifications\Concerns;
 
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\HtmlString;
 use Symfony\Component\Mime\Email;
 
+/**
+ * Shared by the task reminder notifications: honours the user's mail setting and drops every channel once the
+ * notification's organization was deleted.
+ */
 trait RespectsTaskReminderMailSetting
 {
     /**
@@ -40,10 +45,15 @@ trait RespectsTaskReminderMailSetting
     }
 
     /**
-     * Re-checked when the queued mail is delivered, so a user who opts out after it was queued gets nothing.
+     * Re-checked when the queued notification is delivered: every channel is dropped once the organization is deleted
+     * (read from the database, the serialized model may be stale), and the mail also once the user opted out after it was queued.
      */
     public function shouldSend(object $notifiable, string $channel): bool
     {
+        if (! Organization::query()->whereKey($this->organization->getKey())->exists()) {
+            return false;
+        }
+
         return $channel !== 'mail' || $this->mailsTaskRemindersTo($notifiable);
     }
 }

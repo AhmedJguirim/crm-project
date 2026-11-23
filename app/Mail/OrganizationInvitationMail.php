@@ -4,11 +4,14 @@ namespace App\Mail;
 
 use App\Models\OrganizationInvite;
 use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Mail\Factory;
+use Illuminate\Contracts\Mail\Mailer;
 use Illuminate\Contracts\Queue\ShouldBeEncrypted;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
+use Illuminate\Mail\SentMessage;
 use Illuminate\Queue\SerializesModels;
 
 /**
@@ -24,6 +27,24 @@ class OrganizationInvitationMail extends Mailable implements ShouldBeEncrypted, 
         public OrganizationInvite $invite,
         public string $token,
     ) {}
+
+    /**
+     * Re-checked when the queued mail is delivered: nothing is sent once the invitation is no longer valid or its organization was deleted.
+     *
+     * @param  Factory|Mailer  $mailer
+     */
+    public function send($mailer): ?SentMessage
+    {
+        $invite = $this->invite->fresh(['organization']);
+
+        if ($invite === null || ! $invite->isValid() || $invite->organization === null) {
+            return null;
+        }
+
+        $this->invite = $invite;
+
+        return parent::send($mailer);
+    }
 
     public function envelope(): Envelope
     {
