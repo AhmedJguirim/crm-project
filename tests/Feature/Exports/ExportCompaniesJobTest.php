@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\OrganizationRole;
 use App\Jobs\ExportCompaniesJob;
 use App\Jobs\Middleware\ReleasesImportExportSlot;
 use App\Jobs\Middleware\WithTenantContext;
@@ -107,6 +108,7 @@ it('filters by its own organization even when another tenant is the one in use',
     $mine = ($this->company)('Mine');
     $other = User::factory()->withPersonalOrganization()->create()->personalOrganization();
     $theirs = Company::factory()->create(['organization_id' => $other->id, 'name' => 'Theirs', 'custom_field_values' => []]);
+    $other->members()->attach($this->user->id, ['role' => OrganizationRole::Admin->value]);
     $this->actingAs($this->user);
     Filament::setTenant($other);
 

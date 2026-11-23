@@ -10,9 +10,11 @@ use App\Models\User;
 use App\Support\NotificationText;
 use App\Support\TemporaryFile;
 use App\Support\Tenancy\ImportExportLimits;
+use App\Support\Tenancy\TenantContext;
 use App\Support\UserFiles;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Number;
@@ -27,7 +29,9 @@ use Throwable;
  * {@see ExportFormat}) and `$downloadName` properties, call `prepareExportQueue()` in its constructor and implement
  * the three hooks below (`exportFileExtension()` is an optional fourth).
  *
- * The export holds one slot of {@see ImportExportLimits} from the moment it is queued until it ends.
+ * The export holds one slot of {@see ImportExportLimits} from the moment it is queued until it ends. The file is kept
+ * and announced only while the user may still export from the organization: checked after the file is written, a user
+ * removed, demoted or gone meanwhile gets no file and no notification.
  */
 trait DeliversExport
 {
@@ -101,7 +105,7 @@ trait DeliversExport
 
         $user = User::find($this->userId);
 
-        if (! $user) {
+        if (! $user || ! $this->userMayStillExport($user)) {
             Storage::disk('local')->delete($path);
 
             return;
@@ -127,6 +131,20 @@ trait DeliversExport
                     ->openUrlInNewTab(),
             ])
             ->sendToDatabase($user);
+    }
+
+    /**
+     * Whether the user may still export this list from the organization of the export, read now, after the file was
+     * written: a member removed, demoted or gone meanwhile must not keep it.
+     */
+    private function userMayStillExport(User $user): bool
+    {
+        $model = DownloadExportController::EXPORT_MODELS[$this->exportFilePrefix()] ?? null;
+
+        return $model !== null && app(TenantContext::class)->run(
+            $this->organizationId,
+            fn (): bool => Gate::forUser($user)->allows('export', $model),
+        );
     }
 
     public function failed(?Throwable $exception): void

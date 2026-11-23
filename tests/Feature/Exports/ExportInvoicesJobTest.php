@@ -3,6 +3,7 @@
 use App\Enums\Currency;
 use App\Enums\InvoicePaymentKind;
 use App\Enums\InvoiceStatus;
+use App\Enums\OrganizationRole;
 use App\Enums\PaymentMethod;
 use App\Jobs\ExportInvoicesJob;
 use App\Jobs\Middleware\ReleasesImportExportSlot;
@@ -192,6 +193,7 @@ it('filters by its own organization even when another tenant is the one in use',
     $other = User::factory()->withPersonalOrganization()->create()->personalOrganization();
     $globex = ($this->invoice)('INV-GLOBEX', [], $other->id);
     ($this->payment)($globex, '2026-11-03', reference: 'globex secret');
+    $other->members()->attach($this->user->id, ['role' => OrganizationRole::Admin->value]);
     $this->actingAs($this->user);
     Filament::setTenant($other);
 

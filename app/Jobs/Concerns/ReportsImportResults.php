@@ -3,13 +3,16 @@
 namespace App\Jobs\Concerns;
 
 use App\Enums\ImportMode;
+use App\Models\Contact;
 use App\Models\User;
 use App\Services\ContactImportService;
 use App\Support\CsvDialect;
 use App\Support\Security\SecurityLog;
 use App\Support\TemporaryFile;
+use App\Support\Tenancy\TenantContext;
 use App\Support\UserFiles;
 use Filament\Actions\Action;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Spatie\SimpleExcel\SimpleExcelWriter;
@@ -25,6 +28,20 @@ trait ReportsImportResults
     private const MAX_IGNORED_COLUMNS_LISTED = 10;
 
     private const int MAX_FAILED_ROWS_KEPT = 1000;
+
+    /**
+     * Whether the user who started the import may still import in its organization, read again now: a member removed,
+     * demoted or gone meanwhile gets no failed-rows file and no notification.
+     */
+    protected function userMayStillImport(User $user): bool
+    {
+        $user->forgetRoles();
+
+        return app(TenantContext::class)->run(
+            $this->organizationId,
+            fn (): bool => Gate::forUser($user)->allows('import', Contact::class),
+        );
+    }
 
     /**
      * Keeps a failed row for the failed rows file while fewer than {@see self::MAX_FAILED_ROWS_KEPT} are kept, so a

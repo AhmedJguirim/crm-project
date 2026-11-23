@@ -183,7 +183,7 @@ class ProcessContactImportJob implements ShouldQueue
 
         $this->logImportOutcome('contacts', 'completed', $user, $this->outcomeCounts($importedCount, $failedCount, $service));
 
-        if (! $user) {
+        if (! $user || ! $this->userMayStillImport($user)) {
             return;
         }
 
@@ -203,6 +203,13 @@ class ProcessContactImportJob implements ShouldQueue
         }
 
         $failedCsvPath = $this->storeFailedRowsCsv($headers, $failedRows, $dialect);
+
+        if (! $this->userMayStillImport($user)) {
+            Storage::disk('local')->delete($failedCsvPath);
+
+            return;
+        }
+
         $notListedLine = $this->failedRowsNotListedLine($failedCount, count($failedRows));
 
         $errorSummary = collect($failedRows)
@@ -279,7 +286,7 @@ class ProcessContactImportJob implements ShouldQueue
 
         $this->logImportOutcome('contacts', $importedCount > 0 || $failedCount > 0 ? 'stopped' : 'unreadable', $user, $this->outcomeCounts($importedCount, $failedCount, $service));
 
-        if (! $user) {
+        if (! $user || ! $this->userMayStillImport($user)) {
             return;
         }
 
@@ -304,7 +311,15 @@ class ProcessContactImportJob implements ShouldQueue
             ]))));
 
         if ($failedRows !== [] && $headers !== null) {
-            $notification->actions([$this->failedRowsAction($this->storeFailedRowsCsv($headers, $failedRows, $dialect))]);
+            $failedCsvPath = $this->storeFailedRowsCsv($headers, $failedRows, $dialect);
+
+            if (! $this->userMayStillImport($user)) {
+                Storage::disk('local')->delete($failedCsvPath);
+
+                return;
+            }
+
+            $notification->actions([$this->failedRowsAction($failedCsvPath)]);
         }
 
         $notification->sendToDatabase($user);

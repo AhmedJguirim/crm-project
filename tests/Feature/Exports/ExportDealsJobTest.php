@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\DealStatus;
+use App\Enums\OrganizationRole;
 use App\Jobs\ExportDealsJob;
 use App\Jobs\Middleware\ReleasesImportExportSlot;
 use App\Jobs\Middleware\WithTenantContext;
@@ -117,6 +118,7 @@ it('filters by its own organization even when another tenant is the one in use',
     $mine = ($this->deal)('Mine');
     $other = User::factory()->withPersonalOrganization()->create()->personalOrganization();
     $theirs = Deal::factory()->inStage('Negotiating')->create(['organization_id' => $other->id, 'title' => 'Globex secret']);
+    $other->members()->attach($this->user->id, ['role' => OrganizationRole::Admin->value]);
     $this->actingAs($this->user);
     Filament::setTenant($other);
 

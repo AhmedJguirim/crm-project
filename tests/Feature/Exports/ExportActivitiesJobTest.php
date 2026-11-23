@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\ActivityType;
+use App\Enums\OrganizationRole;
 use App\Jobs\ExportActivitiesJob;
 use App\Jobs\Middleware\ReleasesImportExportSlot;
 use App\Jobs\Middleware\WithTenantContext;
@@ -118,6 +119,7 @@ it('filters by its own organization even when another tenant is the one in use',
     $mine = ($this->activity)('Mine');
     $other = User::factory()->withPersonalOrganization()->create()->personalOrganization();
     $theirs = Activity::factory()->create(['organization_id' => $other->id, 'subject' => 'Globex secret']);
+    $other->members()->attach($this->user->id, ['role' => OrganizationRole::Admin->value]);
     $this->actingAs($this->user);
     Filament::setTenant($other);
 
