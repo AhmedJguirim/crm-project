@@ -66,6 +66,27 @@ class LoggedAppAuthentication extends AppAuthentication
         );
     }
 
+    /**
+     * Filament wraps google2fa-qrcode's data URI a second time when imagick is missing (BUG-99); wrap only a raw SVG.
+     */
+    public function generateQrCodeDataUri(#[SensitiveParameter] string $secret): string
+    {
+        /** @var HasAppAuthentication $user */
+        $user = Filament::auth()->user();
+
+        $inlineQrCode = $this->google2FA->getQRCodeInline(
+            $this->getBrandName(),
+            $this->getHolderName($user),
+            $secret,
+        );
+
+        if (str_starts_with($inlineQrCode, 'data:')) {
+            return $inlineQrCode;
+        }
+
+        return 'data:image/svg+xml;base64,'.base64_encode($inlineQrCode);
+    }
+
     private function asAuthenticatable(mixed $user): ?Authenticatable
     {
         return $user instanceof Authenticatable ? $user : null;
