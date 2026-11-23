@@ -29,7 +29,7 @@ Route::get('login', fn (): RedirectResponse => redirect()->to(Filament::getLogin
 Route::post('login', fn (): RedirectResponse => redirect()->to(Filament::getLoginUrl(), 303))
     ->name('login.store');
 
-// SEC-69: CSP violation reports (report-only). No CSRF token or session: browsers post them bare. Throttled, logged without URLs.
+// SEC-69/SEC-71: CSP violation reports (enforced policy). No CSRF token or session: browsers post them bare. Throttled, logged without URLs.
 Route::post('csp-report', CspReportController::class)
     ->withoutMiddleware([ValidateCsrfToken::class, StartSession::class, ShareErrorsFromSession::class, AuthenticateSession::class, AddQueuedCookiesToResponse::class])
     ->middleware('throttle:csp-reports')

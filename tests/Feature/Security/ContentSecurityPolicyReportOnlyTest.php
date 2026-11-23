@@ -11,40 +11,100 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Vite;
 use Tests\TestCase;
 
-const CSP_ENFORCED = "frame-ancestors 'none'; base-uri 'self'; object-src 'none'";
+const CSP_BASE = "frame-ancestors 'none'; base-uri 'self'; object-src 'none'";
 
-function cspReportOnlyNonce(string $header): string
+function cspNonce(string $header): string
 {
-    expect($header)->toMatch("/^script-src 'self' 'nonce-([A-Za-z0-9]{40})' 'unsafe-eval'( \S+)?; report-uri \/csp-report\z/");
+    expect($header)->toMatch("/^frame-ancestors 'none'; base-uri 'self'; object-src 'none'; script-src 'self' 'nonce-([A-Za-z0-9]{40})' 'unsafe-eval'( \S+)?; worker-src 'self' blob:; report-uri \/csp-report\z/");
     preg_match("/'nonce-([A-Za-z0-9]{40})'/", $header, $matches);
 
     return $matches[1];
 }
 
-it('sends the report-only policy on every kind of response and leaves the enforced CSP unchanged', function (Closure $request) {
+it('enforces the script policy on every kind of response and sends no report-only header', function (Closure $request) {
     $this->withoutVite();
     $response = $request($this);
 
-    $response->assertHeader('Content-Security-Policy', CSP_ENFORCED);
-    expect($response->headers->get('Content-Security-Policy-Report-Only'))
-        ->toMatch("/^script-src 'self' 'nonce-[A-Za-z0-9]{40}' 'unsafe-eval'; report-uri \/csp-report\z/");
+    expect($response->headers->get('Content-Security-Policy'))
+        ->toMatch("/^frame-ancestors 'none'; base-uri 'self'; object-src 'none'; script-src 'self' 'nonce-[A-Za-z0-9]{40}' 'unsafe-eval'; worker-src 'self' blob:; report-uri \/csp-report\z/");
+    $response->assertHeaderMissing('Content-Security-Policy-Report-Only');
 })->with([
     'landing page' => [fn ($t) => $t->get('/')->assertOk()],
     'panel login' => [fn ($t) => $t->get(Filament::getLoginUrl())->assertOk()],
     'not found page' => [fn ($t) => $t->get('/no-such-page')->assertNotFound()],
     'livewire update endpoint' => [fn ($t) => $t->postJson(route('default-livewire.update'), ['components' => []], ['X-Livewire' => 'true'])],
+    'health page' => [fn ($t) => $t->get('/up')->assertOk()],
 ]);
+
+it('allows nothing broader than the nonce, self, eval and blob workers', function () {
+    $this->withoutVite();
+
+    $header = (string) $this->get('/')->assertOk()->headers->get('Content-Security-Policy');
+
+    foreach (["'unsafe-inline'", "'strict-dynamic'", ' * ', ' https: ', ' data: ', 'cdn.jsdelivr.net'] as $forbidden) {
+        expect($header)->not->toContain($forbidden);
+    }
+
+    expect(substr_count($header, 'blob:'))->toBe(1)
+        ->and($header)->toContain("worker-src 'self' blob:;")
+        ->and($header)->toContain(CSP_BASE.'; script-src');
+});
+
+it('enforces the policy on the health page without allowing its CDN script', function () {
+    $this->withoutVite();
+
+    $response = $this->get('/up')->assertOk();
+
+    expect($response->getContent())->toContain('Application up')
+        ->and($response->headers->get('Content-Security-Policy'))->not->toContain('jsdelivr');
+});
+
+it('sends only the base policy on the debug exception page', function () {
+    config(['app.debug' => true]);
+    Route::get('/csp-boom', fn () => throw new RuntimeException('csp boom'));
+
+    $response = $this->get('/csp-boom')->assertStatus(500);
+
+    expect($response->headers->get('Content-Security-Policy'))->toBe(CSP_BASE);
+    $response->assertHeaderMissing('Content-Security-Policy-Report-Only');
+});
+
+it('fully enforces the policy on a 500 page when debug is off', function () {
+    config(['app.debug' => false]);
+    Route::get('/csp-boom', fn () => throw new RuntimeException('csp boom'));
+
+    $response = $this->get('/csp-boom')->assertStatus(500);
+
+    cspNonce($response->headers->get('Content-Security-Policy'));
+});
+
+it('fully enforces the policy on a 404 page in debug mode', function () {
+    config(['app.debug' => true]);
+
+    $response = $this->get('/no-such-page')->assertNotFound();
+
+    cspNonce($response->headers->get('Content-Security-Policy'));
+});
+
+it('fully enforces the policy on a debug response that is 500 without an exception', function () {
+    config(['app.debug' => true]);
+    Route::get('/csp-plain-500', fn () => response('plain', 500));
+
+    $response = $this->get('/csp-plain-500')->assertStatus(500);
+
+    cspNonce($response->headers->get('Content-Security-Policy'));
+});
 
 it('puts the header nonce on the scripts of the panel login and the landing page', function () {
     $this->withoutVite();
 
     $login = $this->get(Filament::getLoginUrl())->assertOk();
-    $nonce = cspReportOnlyNonce($login->headers->get('Content-Security-Policy-Report-Only'));
+    $nonce = cspNonce($login->headers->get('Content-Security-Policy'));
 
     expect($login->getContent())->toMatch('/<script[^>]*src="[^"]*livewire[^"]*"[^>]*nonce="'.$nonce.'"|<script[^>]*nonce="'.$nonce.'"[^>]*src="[^"]*livewire/');
 
     $landing = $this->get('/')->assertOk();
-    $landingNonce = cspReportOnlyNonce($landing->headers->get('Content-Security-Policy-Report-Only'));
+    $landingNonce = cspNonce($landing->headers->get('Content-Security-Policy'));
 
     $landing->assertSee('<script nonce="'.$landingNonce.'">(() => { let theme = null;', false);
     expect($landingNonce)->not->toBe($nonce);
@@ -53,8 +113,8 @@ it('puts the header nonce on the scripts of the panel login and the landing page
 it('never reuses a nonce between two requests', function () {
     $this->withoutVite();
 
-    $first = cspReportOnlyNonce($this->get('/')->headers->get('Content-Security-Policy-Report-Only'));
-    $second = cspReportOnlyNonce($this->get('/')->headers->get('Content-Security-Policy-Report-Only'));
+    $first = cspNonce($this->get('/')->headers->get('Content-Security-Policy'));
+    $second = cspNonce($this->get('/')->headers->get('Content-Security-Policy'));
 
     expect($first)->not->toBe($second);
 });
@@ -65,7 +125,7 @@ it('puts the nonce on the Horizon dashboard scripts', function () {
     config(['horizon.allowed_user_ids' => [$ops->id]]);
 
     $response = $this->actingAs($ops)->get('/horizon')->assertOk();
-    $nonce = cspReportOnlyNonce($response->headers->get('Content-Security-Policy-Report-Only'));
+    $nonce = cspNonce($response->headers->get('Content-Security-Policy'));
 
     $response->assertSee('<script type="module" nonce="'.$nonce.'">', false);
 });
@@ -77,12 +137,12 @@ it('allows the Vite dev origin only while the dev server runs and only for a pla
     Route::get('/csp-probe', fn () => response('ok'));
 
     try {
-        $header = $this->get('/csp-probe')->assertOk()->headers->get('Content-Security-Policy-Report-Only');
+        $header = $this->get('/csp-probe')->assertOk()->headers->get('Content-Security-Policy');
     } finally {
         unlink($path);
     }
 
-    expect($header)->toMatch('/^script-src \'self\' \'nonce-[A-Za-z0-9]{40}\' \'unsafe-eval\''.$expected.'; report-uri \/csp-report\z/');
+    expect($header)->toMatch('/^frame-ancestors \'none\'; base-uri \'self\'; object-src \'none\'; script-src \'self\' \'nonce-[A-Za-z0-9]{40}\' \'unsafe-eval\''.$expected.'; worker-src \'self\' blob:; report-uri \/csp-report\z/');
 })->with([
     'ipv6 dev server' => ["http://[::1]:5173\n", ' http:\/\/\[::1\]:5173'],
     'path and query are dropped' => ["https://localhost:5173/some/path?x=1\n", ' https:\/\/localhost:5173'],
@@ -96,8 +156,8 @@ it('adds no origin when there is no hot file', function () {
     Vite::useHotFile(sys_get_temp_dir().'/no-such-hot-file-'.uniqid());
     Route::get('/csp-probe', fn () => response('ok'));
 
-    expect($this->get('/csp-probe')->headers->get('Content-Security-Policy-Report-Only'))
-        ->toMatch("/^script-src 'self' 'nonce-[A-Za-z0-9]{40}' 'unsafe-eval'; report-uri \/csp-report\z/");
+    expect($this->get('/csp-probe')->headers->get('Content-Security-Policy'))
+        ->toMatch("/^frame-ancestors 'none'; base-uri 'self'; object-src 'none'; script-src 'self' 'nonce-[A-Za-z0-9]{40}' 'unsafe-eval'; worker-src 'self' blob:; report-uri \/csp-report\z/");
 });
 
 it('ignores a running Vite dev server once Vite is disabled for the test', function () {
@@ -119,18 +179,20 @@ it('ignores a running Vite dev server once Vite is disabled for the test', funct
 
         $response = $this->get('/csp-probe')->assertOk();
 
-        expect($response->headers->get('Content-Security-Policy-Report-Only'))
-            ->toMatch("/^script-src 'self' 'nonce-[A-Za-z0-9]{40}' 'unsafe-eval'; report-uri \/csp-report\z/");
+        expect($response->headers->get('Content-Security-Policy'))
+            ->toMatch("/^frame-ancestors 'none'; base-uri 'self'; object-src 'none'; script-src 'self' 'nonce-[A-Za-z0-9]{40}' 'unsafe-eval'; worker-src 'self' blob:; report-uri \/csp-report\z/");
     } finally {
         @unlink($directory.'/hot');
         @rmdir($directory);
     }
 });
 
-it('keeps a report-only header the response already sets', function () {
-    Route::get('/csp-probe', fn () => response('ok')->header('Content-Security-Policy-Report-Only', "default-src 'none'"));
+it('keeps a CSP the response already sets and adds no report-only header', function () {
+    Route::get('/csp-probe', fn () => response('ok')->header('Content-Security-Policy', "default-src 'none'"));
 
-    $this->get('/csp-probe')->assertHeader('Content-Security-Policy-Report-Only', "default-src 'none'");
+    $response = $this->get('/csp-probe')->assertHeader('Content-Security-Policy', "default-src 'none'");
+
+    $response->assertHeaderMissing('Content-Security-Policy-Report-Only');
 });
 
 /**
@@ -199,7 +261,7 @@ describe('every inline script carries the request nonce', function () {
         }
 
         $response = $this->get($url($this))->assertOk();
-        $nonce = cspReportOnlyNonce($response->headers->get('Content-Security-Policy-Report-Only'));
+        $nonce = cspNonce($response->headers->get('Content-Security-Policy'));
 
         expect(scriptsMissingTheNonce($response->getContent(), $nonce))->toBe([])
             ->and(inlineEventHandlers($response->getContent()))->toBe([]);
@@ -222,7 +284,7 @@ describe('every inline script carries the request nonce', function () {
         Filament::setTenant($this->cspOrg);
 
         $response = $this->get(Dashboard::getUrl())->assertOk();
-        $nonce = cspReportOnlyNonce($response->headers->get('Content-Security-Policy-Report-Only'));
+        $nonce = cspNonce($response->headers->get('Content-Security-Policy'));
         $html = $response->getContent();
         $open = '<script nonce="'.$nonce.'">\s*';
 
@@ -235,7 +297,7 @@ describe('every inline script carries the request nonce', function () {
         $this->actingAs($this->cspOwner);
 
         $response = $this->get(route('profile.edit'))->assertOk();
-        $nonce = cspReportOnlyNonce($response->headers->get('Content-Security-Policy-Report-Only'));
+        $nonce = cspNonce($response->headers->get('Content-Security-Policy'));
 
         expect($response->getContent())->toMatch('/<script nonce="'.$nonce.'">\s*window\.Flux = \{/');
     });
@@ -247,7 +309,7 @@ describe('every inline script carries the request nonce', function () {
 
         foreach ([ContactResource::getUrl('view', ['record' => $hostile]), ContactResource::getUrl('index')] as $url) {
             $response = $this->get($url)->assertOk();
-            $nonce = cspReportOnlyNonce($response->headers->get('Content-Security-Policy-Report-Only'));
+            $nonce = cspNonce($response->headers->get('Content-Security-Policy'));
             $document = HTMLDocument::createFromString($response->getContent(), LIBXML_NOERROR);
 
             foreach ($document->querySelectorAll('script') as $script) {

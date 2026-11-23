@@ -13,7 +13,6 @@ function securityHeadersExpected(): array
 {
     return [
         'X-Frame-Options' => 'DENY',
-        'Content-Security-Policy' => "frame-ancestors 'none'; base-uri 'self'; object-src 'none'",
         'X-Content-Type-Options' => 'nosniff',
         'Referrer-Policy' => 'strict-origin-when-cross-origin',
         'Permissions-Policy' => 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
@@ -25,6 +24,9 @@ function assertSecurityHeaders(TestResponse $response): void
     foreach (securityHeadersExpected() as $name => $value) {
         $response->assertHeader($name, $value);
     }
+    expect($response->headers->get('Content-Security-Policy'))
+        ->toMatch("/^frame-ancestors 'none'; base-uri 'self'; object-src 'none'; script-src 'self' 'nonce-[A-Za-z0-9]{40}' 'unsafe-eval'( \S+)?; worker-src 'self' blob:; report-uri \/csp-report\z/");
+    $response->assertHeaderMissing('Content-Security-Policy-Report-Only');
     $response->assertHeaderMissing('Strict-Transport-Security');
 }
 
