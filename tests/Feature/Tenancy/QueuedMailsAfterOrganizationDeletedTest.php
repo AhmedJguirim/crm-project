@@ -5,22 +5,28 @@ use App\Actions\Organization\RestoreOrganization;
 use App\Enums\InviteStatus;
 use App\Enums\OrganizationRole;
 use App\Enums\TaskStatus;
+use App\Filament\Pages\Tenancy\OrganizationMembers;
 use App\Mail\OrganizationInvitationMail;
 use App\Models\Organization;
 use App\Models\OrganizationInvite;
+use App\Models\OrganizationUser;
 use App\Models\Task;
 use App\Models\User;
 use App\Notifications\TaskDailyDigestNotification;
 use App\Notifications\TaskDueSoonNotification;
 use App\Notifications\TaskOverdueNotification;
 use Carbon\CarbonImmutable;
+use Filament\Actions\Testing\TestAction;
+use Filament\Facades\Filament;
 use Illuminate\Contracts\Mail\Factory;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
+use Livewire\Livewire;
 
 /*
  * BUG-83: a mail or notification queued before an organization is deleted is dropped when the worker runs it.
+ * BUG-97: a task reminder queued before the user was removed from the organization is dropped.
  */
 
 beforeEach(function () {
@@ -274,4 +280,102 @@ test('a reminder is delivered again after the organization is restored', functio
     $this->mia->notify(new TaskOverdueNotification($this->task, $this->acme->fresh(), 'overdue:key-1'));
 
     expect(($this->bellRows)(TaskOverdueNotification::class))->toBe(1);
+});
+
+test('a member removed after the reminder was queued gets neither bell nor mail', function (string $kind) {
+    $notification = match ($kind) {
+        'due-soon' => new TaskDueSoonNotification($this->task, $this->acme, 'due-soon:key-1'),
+        'overdue' => new TaskOverdueNotification($this->task, $this->acme, 'overdue:key-1'),
+        default => new TaskDailyDigestNotification($this->acme, collect([$this->task]), collect()),
+    };
+
+    $this->acme->members()->detach($this->mia->id);
+
+    $this->mia->fresh()->notify($notification);
+
+    expect($this->acme->hasMember($this->mia))->toBeFalse()
+        ->and(($this->bellRows)($notification::class))->toBe(0)
+        ->and(($this->sentMessages)())->toHaveCount(0);
+})->with(['due-soon', 'overdue', 'digest']);
+
+test('an owner removing a member on the Members page right after the overdue run: no reminder is delivered', function () {
+    $notification = new TaskOverdueNotification($this->task, $this->acme, 'overdue:key-1');
+
+    $this->actingAs($this->olga);
+    Filament::setTenant($this->acme);
+
+    $pivot = OrganizationUser::query()->where('organization_id', $this->acme->id)->where('user_id', $this->mia->id)->sole();
+
+    Livewire::test(OrganizationMembers::class)
+        ->callAction(TestAction::make('removeMember')->table($pivot))
+        ->assertNotified('Member removed');
+
+    expect(OrganizationUser::query()->where('organization_id', $this->acme->id)->where('user_id', $this->mia->id)->exists())->toBeFalse();
+
+    $before = count(($this->sentMessages)());
+
+    $this->mia->fresh()->notify($notification);
+
+    expect(($this->bellRows)(TaskOverdueNotification::class))->toBe(0)
+        ->and(count(($this->sentMessages)()))->toBe($before);
+});
+
+test('shouldSend refuses both channels for a removed member, even with a stale loaded relation', function () {
+    $notification = new TaskOverdueNotification($this->task, $this->acme, 'overdue:key-1');
+    $staleMia = $this->mia->load('organizations');
+
+    expect($staleMia->isMemberOf($this->acme->id))->toBeTrue()
+        ->and($notification->shouldSend($staleMia, 'database'))->toBeTrue();
+
+    $this->acme->members()->detach($this->mia->id);
+
+    expect($staleMia->isMemberOf($this->acme->id))->toBeTrue()
+        ->and($notification->shouldSend($staleMia, 'database'))->toBeFalse()
+        ->and($notification->shouldSend($staleMia, 'mail'))->toBeFalse();
+});
+
+test('removal from one organization does not stop another organization\'s reminder', function () {
+    $globex = Organization::factory()->timezone('UTC')->create(['created_by' => $this->olga->id]);
+    $globex->members()->attach($this->mia->id, ['role' => OrganizationRole::Member->value]);
+    $task = Task::factory()->create([
+        'organization_id' => $globex->id,
+        'created_by' => $this->olga->id,
+        'owner_id' => $this->mia->id,
+        'title' => 'Other task',
+        'status' => TaskStatus::Pending,
+        'due_at' => '2026-02-21 07:30:00',
+    ]);
+
+    $this->acme->members()->detach($this->mia->id);
+
+    $this->mia->fresh()->notify(new TaskOverdueNotification($task, $globex, 'overdue:key-2'));
+
+    expect(($this->bellRows)(TaskOverdueNotification::class))->toBe(1)
+        ->and(($this->sentMessages)())->toHaveCount(1);
+});
+
+test('a member removed and re-added before delivery still gets the reminder', function () {
+    $notification = new TaskOverdueNotification($this->task, $this->acme, 'overdue:key-1');
+
+    $this->acme->members()->detach($this->mia->id);
+    $this->acme->members()->attach($this->mia->id, ['role' => OrganizationRole::Member->value]);
+
+    $this->mia->fresh()->notify($notification);
+
+    $messages = ($this->sentMessages)();
+
+    expect(($this->bellRows)(TaskOverdueNotification::class))->toBe(1)
+        ->and($messages)->toHaveCount(1)
+        ->and($messages[0]->getOriginalMessage()->getSubject())->toBe('Task overdue: Call Acme');
+});
+
+test('a demoted viewer is still a member and still gets the reminder', function () {
+    $notification = new TaskOverdueNotification($this->task, $this->acme, 'overdue:key-1');
+
+    $this->acme->members()->updateExistingPivot($this->mia->id, ['role' => OrganizationRole::Viewer->value]);
+
+    $this->mia->fresh()->notify($notification);
+
+    expect(($this->bellRows)(TaskOverdueNotification::class))->toBe(1)
+        ->and(($this->sentMessages)())->toHaveCount(1);
 });
