@@ -6,8 +6,10 @@ use App\Models\Contact;
 use App\Models\User;
 use Dom\HTMLDocument;
 use Filament\Facades\Filament;
+use Illuminate\Foundation\Vite as FoundationVite;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Vite;
+use Tests\TestCase;
 
 const CSP_ENFORCED = "frame-ancestors 'none'; base-uri 'self'; object-src 'none'";
 
@@ -96,6 +98,33 @@ it('adds no origin when there is no hot file', function () {
 
     expect($this->get('/csp-probe')->headers->get('Content-Security-Policy-Report-Only'))
         ->toMatch("/^script-src 'self' 'nonce-[A-Za-z0-9]{40}' 'unsafe-eval'; report-uri \/csp-report\z/");
+});
+
+it('ignores a running Vite dev server once Vite is disabled for the test', function () {
+    $directory = sys_get_temp_dir().'/bug98-public-'.uniqid();
+    mkdir($directory);
+
+    try {
+        file_put_contents($directory.'/hot', "http://127.0.0.1:5173\n");
+        $this->app->usePublicPath($directory);
+        Route::get('/csp-probe', fn () => response('ok'));
+
+        expect(Vite::isRunningHot())->toBeTrue();
+
+        $this->withoutVite();
+
+        expect(app(FoundationVite::class)::class)->not->toBe(FoundationVite::class)
+            ->and(Vite::isRunningHot())->toBeFalse()
+            ->and(Vite::hotFile())->toBe(TestCase::NO_VITE_HOT_FILE);
+
+        $response = $this->get('/csp-probe')->assertOk();
+
+        expect($response->headers->get('Content-Security-Policy-Report-Only'))
+            ->toMatch("/^script-src 'self' 'nonce-[A-Za-z0-9]{40}' 'unsafe-eval'; report-uri \/csp-report\z/");
+    } finally {
+        @unlink($directory.'/hot');
+        @rmdir($directory);
+    }
 });
 
 it('keeps a report-only header the response already sets', function () {

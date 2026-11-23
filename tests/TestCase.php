@@ -3,6 +3,7 @@
 namespace Tests;
 
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
+use Illuminate\Foundation\Vite;
 use Illuminate\Support\Facades\Log;
 use Monolog\Handler\TestHandler;
 use RuntimeException;
@@ -11,6 +12,8 @@ use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
 abstract class TestCase extends BaseTestCase
 {
     public const string TESTING_DATABASE = 'srw-crm-test';
+
+    public const string NO_VITE_HOT_FILE = '/nonexistent/crm-tests/vite.hot';
 
     /**
      * Creates the application and runs the safety guards right away, before the parallel callbacks and the
@@ -79,5 +82,21 @@ abstract class TestCase extends BaseTestCase
         config(['logging.channels.security' => ['driver' => 'monolog', 'handler' => TestHandler::class, 'level' => 'debug']]);
 
         Log::forgetChannel('security');
+    }
+
+    /**
+     * Disables Vite for the test and makes the fake report "dev server not running" whatever `public/hot` holds.
+     * The framework fake ignores `useHotFile()`, so without this `Vite::isRunningHot()` reads the developer's
+     * real `public/hot` while `composer run dev` runs and the dev origin leaks into the CSP header (BUG-98).
+     */
+    protected function withoutVite(): static
+    {
+        parent::withoutVite();
+
+        $path = self::NO_VITE_HOT_FILE;
+
+        (fn () => $this->hotFile = $path)->call($this->app->make(Vite::class));
+
+        return $this;
     }
 }
