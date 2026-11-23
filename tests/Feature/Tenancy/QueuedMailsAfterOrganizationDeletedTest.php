@@ -82,6 +82,58 @@ test('an owner deleting the organization right after inviting someone: the invit
         ->and(DB::table('failed_jobs')->count())->toBe(0);
 });
 
+test('an invitation hard-deleted after the mail was queued: nothing is sent and no job fails', function () {
+    $mail = new OrganizationInvitationMail($this->invite, $this->token);
+
+    $this->invite->delete();
+
+    Mail::to('new@example.com')->send($mail);
+
+    expect(($this->sentMessages)())->toHaveCount(0)
+        ->and(DB::table('failed_jobs')->count())->toBe(0)
+        ->and(OrganizationInvite::query()->count())->toBe(0);
+});
+
+test('removing the invited person right after inviting them: the queued mail is dropped quietly', function () {
+    $newPerson = User::factory()->onboardingCompleted()->withPersonalOrganization()->create(['name' => 'New Person', 'email' => 'new@example.com']);
+    $mail = new OrganizationInvitationMail($this->invite, $this->token);
+
+    $this->acme->deleteInvitesFor($newPerson);
+
+    Mail::to('new@example.com')->send($mail);
+
+    expect(($this->sentMessages)())->toHaveCount(0)
+        ->and(DB::table('failed_jobs')->count())->toBe(0)
+        ->and(OrganizationInvite::query()->where('organization_id', $this->acme->id)->count())->toBe(0);
+});
+
+test('an invitation row removed by the organization purge cascade is dropped quietly', function () {
+    $mail = new OrganizationInvitationMail($this->invite, $this->token);
+
+    $this->acme->forceDelete();
+
+    Mail::to('new@example.com')->send($mail);
+
+    expect(($this->sentMessages)())->toHaveCount(0)
+        ->and(DB::table('failed_jobs')->count())->toBe(0);
+});
+
+test('only a missing invite is swallowed: another invite of the same mail still restores and sends', function () {
+    $otherToken = Str::random(64);
+    $other = OrganizationInvite::factory()->withToken($otherToken)->create([
+        'organization_id' => $this->acme->id,
+        'email' => 'other@example.com',
+        'status' => InviteStatus::Pending,
+        'invited_by' => $this->olga->id,
+        'expires_at' => '2026-02-28 08:00:00',
+    ]);
+    $this->invite->delete();
+
+    Mail::to('other@example.com')->send(new OrganizationInvitationMail($other, $otherToken));
+
+    expect(($this->sentMessages)())->toHaveCount(1);
+});
+
 test('send called directly on a stale mailable after the deletion returns null', function () {
     $mail = new OrganizationInvitationMail($this->invite, $this->token);
     $this->acme->delete();
