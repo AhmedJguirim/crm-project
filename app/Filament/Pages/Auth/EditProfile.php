@@ -3,6 +3,7 @@
 namespace App\Filament\Pages\Auth;
 
 use App\Actions\Account\ChangePassword;
+use App\Actions\Account\DeleteUserAccount;
 use App\Support\Auth\EmailChanges;
 use App\Support\Auth\UniqueUserEmail;
 use App\Support\NotificationText;
@@ -27,8 +28,7 @@ use Illuminate\Validation\ValidationException;
 use SensitiveParameter;
 
 /**
- * The panel profile page: name, email (SEC-56 pending change), task reminder mails, password and the second factor.
- * Account deletion is still on `/settings/*` until FEAT-150.
+ * The panel profile page: name, email (SEC-56 pending change), task reminder mails, password, the second factor and account deletion (SEC-27).
  */
 class EditProfile extends BaseEditProfile
 {
@@ -139,6 +139,7 @@ class EditProfile extends BaseEditProfile
             $this->getPendingEmailChangeComponent(),
             $this->getPasswordComponent(),
             ...Arr::wrap($this->getMultiFactorAuthenticationContentComponent()),
+            $this->getDeleteAccountComponent(),
         ]);
     }
 
@@ -214,6 +215,77 @@ class EditProfile extends BaseEditProfile
                 app(ChangePassword::class)->handle($this->getUser(), $data['password']);
 
                 Notification::make()->success()->title('Password updated. You are signed out on your other devices.')->send();
+            });
+    }
+
+    protected function getDeleteAccountComponent(): Component
+    {
+        return Section::make('Delete account')
+            ->key('deleteAccountSection')
+            ->description('Delete your account and your personal workspace')
+            ->schema([
+                TextEntry::make('deleteAccountNotice')
+                    ->hiddenLabel()
+                    ->state('This cannot be undone. If you own an organization other people work in, transfer it or delete it first.'),
+            ])
+            ->footerActions([$this->getDeleteAccountAction()]);
+    }
+
+    /**
+     * Asks for the current password, is throttled per IP and per user before validating, and deletes only the
+     * signed-in user's own account through the shared `DeleteUserAccount` action (SEC-27).
+     */
+    protected function getDeleteAccountAction(): Action
+    {
+        return Action::make('deleteAccount')
+            ->label('Delete account')
+            ->color('danger')
+            ->modalHeading('Are you sure you want to delete your account?')
+            ->modalDescription('Your personal workspace and any organization where you are the only member are deleted with all their data. What you created in organizations other people still use stays there. Enter your password to confirm.')
+            ->modalSubmitActionLabel('Delete account')
+            ->rateLimit(5)
+            ->beforeFormValidated(function (Action $action): void {
+                $key = 'profile-account-delete:'.$this->getUser()->getKey();
+
+                if (RateLimiter::tooManyAttempts($key, maxAttempts: 5)) {
+                    $action->sendRateLimitedNotification(new TooManyRequestsException(
+                        static::class,
+                        'deleteAccount',
+                        request()->ip(),
+                        RateLimiter::availableIn($key),
+                    ));
+
+                    $action->halt();
+                }
+
+                RateLimiter::hit($key);
+            })
+            ->schema([
+                TextInput::make('password')
+                    ->label('Password')
+                    ->validationAttribute('password')
+                    ->password()
+                    ->revealable(filament()->arePasswordsRevealable())
+                    ->autocomplete('current-password')
+                    ->required()
+                    ->currentPassword(guard: Filament::getAuthGuard()),
+            ])
+            ->action(function (): void {
+                $user = $this->getUser();
+
+                $refusal = app(DeleteUserAccount::class)->handle($user, function (): void {
+                    Filament::auth()->logout();
+                    session()->invalidate();
+                    session()->regenerateToken();
+                });
+
+                if ($refusal !== null) {
+                    Notification::make()->danger()->title(NotificationText::plain($refusal))->persistent()->send();
+
+                    return;
+                }
+
+                $this->redirect(route('home'));
             });
     }
 
