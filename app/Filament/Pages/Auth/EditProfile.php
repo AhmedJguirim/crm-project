@@ -2,12 +2,16 @@
 
 namespace App\Filament\Pages\Auth;
 
+use App\Actions\Account\ChangePassword;
 use App\Support\Auth\EmailChanges;
 use App\Support\Auth\UniqueUserEmail;
 use App\Support\NotificationText;
+use DanHarrin\LivewireRateLimiting\Exceptions\TooManyRequestsException;
 use Filament\Actions\Action;
 use Filament\Auth\Pages\EditProfile as BaseEditProfile;
+use Filament\Facades\Filament;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Component;
@@ -16,13 +20,15 @@ use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use SensitiveParameter;
 
 /**
- * The panel profile page: name, email (SEC-56 pending change) and the second factor. Password, task mails and account
- * deletion are still on `/settings/*` until FEAT-149/150.
+ * The panel profile page: name, email (SEC-56 pending change), task reminder mails, password and the second factor.
+ * Account deletion is still on `/settings/*` until FEAT-150.
  */
 class EditProfile extends BaseEditProfile
 {
@@ -37,6 +43,13 @@ class EditProfile extends BaseEditProfile
                     $this->getNameFormComponent(),
                     $this->getEmailFormComponent(),
                     $this->getCurrentPasswordFormComponent(),
+                ]),
+            Section::make('Email notifications')
+                ->description('Choose which emails you get from the CRM')
+                ->schema([
+                    Toggle::make('task_reminder_mails')
+                        ->label('Task reminder emails')
+                        ->helperText('Due-tomorrow and overdue reminders, and the daily task digest, in every organization you belong to. Notifications in the app are not affected.'),
                 ]),
         ]);
     }
@@ -73,7 +86,7 @@ class EditProfile extends BaseEditProfile
         $newEmail = Str::lower(trim((string) $data['email']));
 
         if ($newEmail === Str::lower((string) $record->getAttribute('email'))) {
-            $record->forceFill(['name' => $data['name'], 'email' => $newEmail])->save();
+            $record->forceFill(['name' => $data['name'], 'email' => $newEmail, 'task_reminder_mails' => (bool) $data['task_reminder_mails']])->save();
 
             return $record;
         }
@@ -84,7 +97,7 @@ class EditProfile extends BaseEditProfile
             throw ValidationException::withMessages(['data.email' => $refusal]);
         }
 
-        $record->forceFill(['name' => $data['name']])->save();
+        $record->forceFill(['name' => $data['name'], 'task_reminder_mails' => (bool) $data['task_reminder_mails']])->save();
 
         $this->requestedEmail = $newEmail;
 
@@ -124,8 +137,84 @@ class EditProfile extends BaseEditProfile
         return $schema->components([
             $this->getFormContentComponent(),
             $this->getPendingEmailChangeComponent(),
+            $this->getPasswordComponent(),
             ...Arr::wrap($this->getMultiFactorAuthenticationContentComponent()),
         ]);
+    }
+
+    protected function getPasswordComponent(): Component
+    {
+        return Section::make('Password')
+            ->key('passwordSection')
+            ->description('Ensure your account is using a long, random password to stay secure')
+            ->schema([
+                TextEntry::make('passwordNotice')
+                    ->hiddenLabel()
+                    ->state('Changing your password signs you out on your other devices.'),
+            ])
+            ->footerActions([$this->getChangePasswordAction()]);
+    }
+
+    /**
+     * Asks for the current password, is throttled per IP and per user before validating, and changes only the
+     * signed-in user's own password through the shared `ChangePassword` action.
+     */
+    protected function getChangePasswordAction(): Action
+    {
+        return Action::make('changePassword')
+            ->label('Change password')
+            ->modalHeading('Change password')
+            ->modalSubmitActionLabel('Update password')
+            ->rateLimit(5)
+            ->beforeFormValidated(function (Action $action): void {
+                $key = 'profile-password-change:'.$this->getUser()->getKey();
+
+                if (RateLimiter::tooManyAttempts($key, maxAttempts: 5)) {
+                    $action->sendRateLimitedNotification(new TooManyRequestsException(
+                        static::class,
+                        'changePassword',
+                        request()->ip(),
+                        RateLimiter::availableIn($key),
+                    ));
+
+                    $action->halt();
+                }
+
+                RateLimiter::hit($key);
+            })
+            ->schema([
+                TextInput::make('currentPassword')
+                    ->label('Current password')
+                    ->validationAttribute('current password')
+                    ->password()
+                    ->revealable(filament()->arePasswordsRevealable())
+                    ->autocomplete('current-password')
+                    ->required()
+                    ->currentPassword(guard: Filament::getAuthGuard()),
+                TextInput::make('password')
+                    ->label('New password')
+                    ->validationAttribute('new password')
+                    ->password()
+                    ->revealable(filament()->arePasswordsRevealable())
+                    ->autocomplete('new-password')
+                    ->required()
+                    ->rule(Password::default())
+                    ->showAllValidationMessages()
+                    ->same('passwordConfirmation'),
+                TextInput::make('passwordConfirmation')
+                    ->label('Confirm new password')
+                    ->validationAttribute('new password confirmation')
+                    ->password()
+                    ->revealable(filament()->arePasswordsRevealable())
+                    ->autocomplete('new-password')
+                    ->required()
+                    ->dehydrated(false),
+            ])
+            ->action(function (array $data): void {
+                app(ChangePassword::class)->handle($this->getUser(), $data['password']);
+
+                Notification::make()->success()->title('Password updated. You are signed out on your other devices.')->send();
+            });
     }
 
     protected function getPendingEmailChangeComponent(): Component

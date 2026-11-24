@@ -1,14 +1,8 @@
 <?php
 
-use App\Actions\Account\EndOtherSessions;
+use App\Actions\Account\ChangePassword;
 use App\Concerns\PasswordValidationRules;
-use App\Enums\AccountSecurityEvent;
-use App\Support\Security\SecurityLog;
-use App\Support\Security\SecurityMails;
-use Illuminate\Auth\SessionGuard;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Str;
-use Illuminate\Validation\Rules\Password;
 use Illuminate\Validation\ValidationException;
 use Livewire\Component;
 
@@ -35,26 +29,7 @@ new class extends Component {
             throw $e;
         }
 
-        $user = Auth::user();
-
-        $user->forceFill([
-            'password' => $validated['password'],
-            'remember_token' => Str::random(60),
-        ])->save();
-
-        /** @var SessionGuard $guard */
-        $guard = Auth::guard('web');
-
-        session()->put(
-            'password_hash_'.Auth::getDefaultDriver(),
-            $guard->hashPasswordForCookie($user->getAuthPassword()),
-        );
-
-        app(EndOtherSessions::class)->handle($user, session()->getId());
-
-        SecurityLog::info('account.password_changed', $user);
-
-        SecurityMails::send($user, AccountSecurityEvent::PasswordChanged);
+        app(ChangePassword::class)->handle(Auth::user(), $validated['password']);
 
         $this->reset('current_password', 'password', 'password_confirmation');
 

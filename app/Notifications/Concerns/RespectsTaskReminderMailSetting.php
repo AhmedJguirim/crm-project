@@ -4,6 +4,7 @@ namespace App\Notifications\Concerns;
 
 use App\Models\Organization;
 use App\Models\User;
+use Filament\Facades\Filament;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\HtmlString;
@@ -41,7 +42,7 @@ trait RespectsTaskReminderMailSetting
                     ->addTextHeader('List-Unsubscribe', '<'.$unsubscribeUrl.'>')
                     ->addTextHeader('List-Unsubscribe-Post', 'List-Unsubscribe=One-Click');
             })
-            ->line(new HtmlString('You get this email because task reminder emails are on for your account. [Unsubscribe]('.$unsubscribeUrl.') or [change your email settings]('.route('notification-settings.edit').').'));
+            ->line(new HtmlString('You get this email because task reminder emails are on for your account. [Unsubscribe]('.$unsubscribeUrl.') or [change your email settings]('.Filament::getPanel('admin')->getProfileUrl().').'));
     }
 
     /**

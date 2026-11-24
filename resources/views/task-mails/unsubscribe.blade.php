@@ -1,10 +1,10 @@
 @php
     $texts = match ($state) {
         'confirm' => ['Stop task reminder emails', 'You will no longer get due-tomorrow and overdue reminders or the daily task digest by email, in any organization you belong to. Notifications in the app are not affected.'],
-        'already-off' => ['Task reminder emails are already off', 'You can turn them back on in Settings → Notifications.'],
-        'done' => ['You are unsubscribed', 'You will no longer get task reminder emails. You can turn them back on at any time in Settings → Notifications.'],
+        'already-off' => ['Task reminder emails are already off', 'You can turn them back on in your profile, under Email notifications.'],
+        'done' => ['You are unsubscribed', 'You will no longer get task reminder emails. You can turn them back on at any time in your profile, under Email notifications.'],
         'throttled' => ['Too many requests', $message ?? ''],
-        default => ['This link is not valid', 'It may be old or incomplete. Sign in and turn off task reminder emails in Settings → Notifications.'],
+        default => ['This link is not valid', 'It may be old or incomplete. Sign in and turn off task reminder emails in your profile, under Email notifications.'],
     };
 @endphp
 <x-layouts::auth :title="__($state === 'confirm' ? 'Unsubscribe' : $texts[0])">
@@ -22,7 +22,7 @@
         @endif
 
         @if ($state !== 'throttled')
-            <flux:link :href="route('notification-settings.edit')" class="text-center">{{ __('Manage email settings') }}</flux:link>
+            <flux:link :href="\Filament\Facades\Filament::getPanel('admin')->getProfileUrl()" class="text-center">{{ __('Manage email settings') }}</flux:link>
         @endif
     </div>
 </x-layouts::auth>

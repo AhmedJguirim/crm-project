@@ -9,6 +9,7 @@ use App\Notifications\TaskDailyDigestNotification;
 use App\Notifications\TaskDueSoonNotification;
 use App\Notifications\TaskOverdueNotification;
 use Carbon\CarbonImmutable;
+use Filament\Facades\Filament;
 use Illuminate\Foundation\Http\Middleware\ValidateCsrfToken;
 use Illuminate\Notifications\ChannelManager;
 use Illuminate\Support\Facades\Artisan;
@@ -60,7 +61,8 @@ test('each task mail has the two headers and the footer line', function (string 
         ->and($email->getHeaders()->get('List-Unsubscribe-Post')->getBodyAsString())->toBe('List-Unsubscribe=One-Click')
         ->and($html)->toContain('You get this email because task reminder emails are on for your account.')
         ->and($html)->toContain('href="'.$this->url.'"')
-        ->and($html)->toContain('href="'.route('notification-settings.edit').'"');
+        ->and($html)->toContain('href="'.Filament::getPanel('admin')->getProfileUrl().'"')
+        ->and($html)->not->toContain(route('notification-settings.edit'));
 })->with(['due-soon', 'overdue', 'digest']);
 
 test('the existing mail content is unchanged and the footer is the only outro line', function () {
@@ -71,7 +73,7 @@ test('the existing mail content is unchanged and the footer is the only outro li
         ->and($mail->actionText)->toBe('Open Task')
         ->and($mail->actionUrl)->toBe(url('/admin/'.$this->org->slug.'/tasks/'.$this->task->getKey().'/edit'))
         ->and($mail->outroLines)->toHaveCount(1)
-        ->and($mail->outroLines[0]->toHtml())->toBe('You get this email because task reminder emails are on for your account. [Unsubscribe]('.$this->url.') or [change your email settings]('.route('notification-settings.edit').').');
+        ->and($mail->outroLines[0]->toHtml())->toBe('You get this email because task reminder emails are on for your account. [Unsubscribe]('.$this->url.') or [change your email settings]('.Filament::getPanel('admin')->getProfileUrl().').');
 });
 
 test('a notifiable that is not a user gets the mail without the unsubscribe link', function () {
@@ -110,6 +112,8 @@ test('unsubscribing twice is harmless', function () {
     $this->post($this->url)->assertOk()->assertSee('You are unsubscribed');
     $this->get($this->url)->assertOk()
         ->assertSee('Task reminder emails are already off')
+        ->assertSee('You can turn them back on in your profile, under Email notifications.')
+        ->assertSee('href="'.Filament::getPanel('admin')->getProfileUrl().'"', false)
         ->assertDontSee('data-test="unsubscribe-task-mails-button"', false);
 });
 

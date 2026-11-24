@@ -27,13 +27,14 @@ test('a user with app authentication sees it enabled', function () {
         ->assertDontSee('JBSWY3DPEHPK3PXP');
 });
 
-test('the page edits the name and email but not the password', function () {
+test('the page edits the name, email and task mails, and has no password field in its form', function () {
     $user = User::factory()->onboardingCompleted()->create();
 
     $this->actingAs($user)->get(Filament::getProfileUrl())
         ->assertOk()
         ->assertSee('data.name', false)
         ->assertSee('data.email', false)
+        ->assertSee('data.task_reminder_mails', false)
         ->assertDontSee('data.password', false);
 });
 
