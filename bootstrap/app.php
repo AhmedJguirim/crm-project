@@ -53,7 +53,9 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             if ($request->routeIs('user-email.confirm')) {
-                return redirect()->route('profile.edit')->with('email-change-error', 'This link has expired or is not valid. Ask for a new one below.');
+                Notification::make()->danger()->title('This link has expired or is not valid. Ask for a new one below.')->send();
+
+                return redirect()->to(Filament::getPanel('admin')->getProfileUrl());
             }
 
             if (! $request->routeIs('filament.admin.auth.email-verification.verify')) {

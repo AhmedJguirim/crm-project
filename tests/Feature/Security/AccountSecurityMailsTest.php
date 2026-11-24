@@ -136,7 +136,7 @@ test('changing the email mails the old address only', function () {
     Notification::assertNotSentTo($this->ann, AccountSecurityNotification::class);
     expect(asmSentOnDemandCount())->toBe(0);
 
-    $this->actingAs($this->ann)->get(emailChangeUrlsSentTo('ann.new@example.com')[0])->assertRedirect(route('profile.edit'));
+    $this->actingAs($this->ann)->get(emailChangeUrlsSentTo('ann.new@example.com')[0])->assertRedirect(Filament::getPanel('admin')->getProfileUrl());
 
     Notification::assertSentOnDemand(
         AccountSecurityNotification::class,
@@ -249,7 +249,7 @@ test('the toggle turns every mail off and the log lines stay', function () {
         ->set('current_password', 'N3w-passw0rd!')
         ->call('updateProfileInformation')
         ->assertHasNoErrors();
-    $this->get(emailChangeUrlsSentTo('ann.new@example.com')[0])->assertRedirect(route('profile.edit'));
+    $this->get(emailChangeUrlsSentTo('ann.new@example.com')[0])->assertRedirect(Filament::getPanel('admin')->getProfileUrl());
     $bob = User::factory()->withAppAuthentication()->create();
     asmPanelProvider()->saveSecret($bob, null);
 

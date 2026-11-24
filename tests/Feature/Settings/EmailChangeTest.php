@@ -9,6 +9,8 @@ use App\Notifications\QueuedVerifyEmail;
 use App\Support\Auth\EmailChanges;
 use App\Support\Auth\VerificationMails;
 use Carbon\CarbonImmutable;
+use Filament\Facades\Filament;
+use Filament\Notifications\Notification as FilamentNotification;
 use Illuminate\Contracts\Queue\ShouldBeEncrypted;
 use Illuminate\Contracts\Queue\ShouldQueueAfterCommit;
 use Illuminate\Notifications\AnonymousNotifiable;
@@ -98,9 +100,7 @@ test('opening the link swaps the address, verifies it and tells the old address'
     $log = fakeSecurityLog();
     $this->travelTo(CarbonImmutable::parse('2026-11-18 09:30:00', 'UTC'));
 
-    $this->get($url)
-        ->assertRedirect(route('profile.edit'))
-        ->assertSessionHas('email-change-status', 'Your email address is now ann.new@example.com.');
+    $this->get($url)->assertRedirect(Filament::getPanel('admin')->getProfileUrl());
 
     $ann = $this->ann->fresh();
     expect($ann->email)->toBe('ann.new@example.com')
@@ -117,7 +117,7 @@ test('opening the link swaps the address, verifies it and tells the old address'
         ->and($entries[0]['context'])->toMatchArray(['user_id' => $ann->id])
         ->and(json_encode($entries))->not->toContain('ann.new')->not->toContain('ann@example.com');
 
-    $this->get(route('profile.edit'))->assertOk()->assertSee('Your email address is now ann.new@example.com.');
+    $this->get(Filament::getProfileUrl())->assertOk()->assertSee('Your email address is now ann.new@example.com.');
 });
 
 test('opening the link twice changes nothing more', function () {
@@ -126,10 +126,8 @@ test('opening the link twice changes nothing more', function () {
 
     $this->get($url);
     $log = fakeSecurityLog();
-    $this->get($url)
-        ->assertRedirect(route('profile.edit'))
-        ->assertSessionHas('email-change-status', 'Your email address is now ann.new@example.com.')
-        ->assertSessionMissing('email-change-error');
+    $this->get($url)->assertRedirect(Filament::getPanel('admin')->getProfileUrl());
+    FilamentNotification::assertNotified('Your email address is now ann.new@example.com.');
 
     expect(ecSecurityMailCount())->toBe(1)
         ->and(securityLogEntries($log))->toBe([])
@@ -141,9 +139,8 @@ test('an expired link brings the user back with a message', function () {
     $url = emailChangeUrlsSentTo('ann.new@example.com')[0];
     $this->travelTo(CarbonImmutable::parse('2026-11-18 10:01:00', 'UTC'));
 
-    $this->get($url)
-        ->assertRedirect(route('profile.edit'))
-        ->assertSessionHas('email-change-error', 'This link has expired or is not valid. Ask for a new one below.');
+    $this->get($url)->assertRedirect(Filament::getPanel('admin')->getProfileUrl());
+    FilamentNotification::assertNotified('This link has expired or is not valid. Ask for a new one below.');
 
     expect($this->ann->fresh())->email->toBe('ann@example.com')->pending_email->toBe('ann.new@example.com');
     expect(ecSecurityMailCount())->toBe(0);
@@ -153,9 +150,8 @@ test('a newer request voids the older link', function () {
     ecAsk('ann.new@example.com');
     ecAsk('ann.other@example.com');
 
-    $this->get(emailChangeUrlsSentTo('ann.new@example.com')[0])
-        ->assertRedirect(route('profile.edit'))
-        ->assertSessionHas('email-change-error', EmailChanges::NO_LONGER_VALID);
+    $this->get(emailChangeUrlsSentTo('ann.new@example.com')[0])->assertRedirect(Filament::getPanel('admin')->getProfileUrl());
+    FilamentNotification::assertNotified(EmailChanges::NO_LONGER_VALID);
 
     expect($this->ann->fresh())->email->toBe('ann@example.com')->pending_email->toBe('ann.other@example.com');
     expect(ecSecurityMailCount())->toBe(0);
@@ -172,8 +168,8 @@ test('cancelling voids the link', function () {
     expect($this->ann->fresh()->pending_email)->toBeNull()
         ->and(array_column(securityLogEntries($log), 'event'))->toBe(['account.email_change_cancelled']);
 
-    $this->get(emailChangeUrlsSentTo('ann.new@example.com')[0])
-        ->assertSessionHas('email-change-error', EmailChanges::NO_LONGER_VALID);
+    $this->get(emailChangeUrlsSentTo('ann.new@example.com')[0]);
+    FilamentNotification::assertNotified(EmailChanges::NO_LONGER_VALID);
     expect($this->ann->fresh()->email)->toBe('ann@example.com');
 });
 
@@ -188,7 +184,8 @@ test('sending the link again mails the pending address and both links work', fun
     $urls = emailChangeUrlsSentTo('ann.new@example.com');
     expect($urls)->toHaveCount(2);
 
-    $this->get($urls[0])->assertSessionHas('email-change-status', 'Your email address is now ann.new@example.com.');
+    $this->get($urls[0]);
+    FilamentNotification::assertNotified('Your email address is now ann.new@example.com.');
     expect($this->ann->fresh()->email)->toBe('ann.new@example.com');
 });
 
@@ -197,9 +194,8 @@ test('an address taken by someone else in the meantime is refused', function () 
     $url = emailChangeUrlsSentTo('ann.new@example.com')[0];
     User::factory()->create(['email' => 'Ann.New@example.com']);
 
-    $this->get($url)
-        ->assertRedirect(route('profile.edit'))
-        ->assertSessionHas('email-change-error', EmailChanges::TAKEN);
+    $this->get($url)->assertRedirect(Filament::getPanel('admin')->getProfileUrl());
+    FilamentNotification::assertNotified(EmailChanges::TAKEN);
 
     expect($this->ann->fresh())->email->toBe('ann@example.com')->pending_email->toBeNull();
     expect(ecSecurityMailCount())->toBe(0);
@@ -209,7 +205,8 @@ test('an unverified user can fix a typo, and the never-verified old address is n
     $this->ann->forceFill(['email' => 'ann@exmaple.com', 'email_verified_at' => null])->save();
 
     ecAsk('ann@example.com')->assertHasNoErrors();
-    $this->get(emailChangeUrlsSentTo('ann@example.com')[0])->assertSessionHas('email-change-status');
+    $this->get(emailChangeUrlsSentTo('ann@example.com')[0]);
+    FilamentNotification::assertNotified('Your email address is now ann@example.com.');
 
     $ann = $this->ann->fresh();
     expect($ann->email)->toBe('ann@example.com')->and($ann->email_verified_at)->not->toBeNull();
@@ -295,9 +292,8 @@ describe('hostile cases', function () {
         $parts = explode('?', $url, 2);
         $forged = preg_replace('/[0-9a-f]{40}$/', sha1('mallory@example.com'), $parts[0]).'?'.$parts[1];
 
-        $this->get($forged)
-            ->assertRedirect(route('profile.edit'))
-            ->assertSessionHas('email-change-error', 'This link has expired or is not valid. Ask for a new one below.');
+        $this->get($forged)->assertRedirect(Filament::getPanel('admin')->getProfileUrl());
+        FilamentNotification::assertNotified('This link has expired or is not valid. Ask for a new one below.');
 
         expect($this->ann->fresh())->email->toBe('ann@example.com')->pending_email->toBe('ann.new@example.com');
     });
@@ -306,7 +302,8 @@ describe('hostile cases', function () {
         ecAsk('ann.new@example.com');
         $url = URL::temporarySignedRoute('user-email.confirm', now()->addHour(), ['id' => $this->ann->id, 'hash' => sha1('mallory@example.com')]);
 
-        $this->get($url)->assertSessionHas('email-change-error', EmailChanges::NO_LONGER_VALID);
+        $this->get($url);
+        FilamentNotification::assertNotified(EmailChanges::NO_LONGER_VALID);
 
         expect($this->ann->fresh())->email->toBe('ann@example.com')->pending_email->toBe('ann.new@example.com');
     });

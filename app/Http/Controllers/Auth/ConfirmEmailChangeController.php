@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Support\Auth\EmailChanges;
+use App\Support\NotificationText;
+use Filament\Facades\Filament;
+use Filament\Notifications\Notification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -21,10 +24,13 @@ class ConfirmEmailChangeController extends Controller
         $refusal = EmailChanges::confirm($user, $hash);
 
         if ($refusal !== null) {
-            return redirect()->route('profile.edit')->with('email-change-error', $refusal);
+            Notification::make()->danger()->title(NotificationText::plain($refusal))->send();
+
+            return redirect()->to(Filament::getPanel('admin')->getProfileUrl());
         }
 
-        return redirect()->route('profile.edit')
-            ->with('email-change-status', 'Your email address is now '.$user->fresh()->email.'.');
+        Notification::make()->success()->title(NotificationText::plain('Your email address is now '.$user->fresh()->email.'.'))->send();
+
+        return redirect()->to(Filament::getPanel('admin')->getProfileUrl());
     }
 }

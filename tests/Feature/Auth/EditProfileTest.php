@@ -2,6 +2,7 @@
 
 use App\Filament\Pages\Auth\EditProfile;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Livewire;
@@ -26,13 +27,13 @@ test('a user with app authentication sees it enabled', function () {
         ->assertDontSee('JBSWY3DPEHPK3PXP');
 });
 
-test('the page does not edit the name, email or password', function () {
+test('the page edits the name and email but not the password', function () {
     $user = User::factory()->onboardingCompleted()->create();
 
     $this->actingAs($user)->get(Filament::getProfileUrl())
         ->assertOk()
-        ->assertDontSee('data.name', false)
-        ->assertDontSee('data.email', false)
+        ->assertSee('data.name', false)
+        ->assertSee('data.email', false)
         ->assertDontSee('data.password', false);
 });
 
@@ -40,22 +41,25 @@ test('a guest is sent to the panel login', function () {
     $this->get(Filament::getProfileUrl())->assertRedirect(Filament::getLoginUrl());
 });
 
-test('a forged save changes nothing', function () {
-    $ann = User::factory()->onboardingCompleted()->create(['name' => 'Ann Lee', 'email' => 'ann@example.com']);
+test('a forged save cannot change the password or the verification fields', function () {
+    $verifiedAt = CarbonImmutable::parse('2026-11-01 08:00:00', 'UTC');
+    $ann = User::factory()->onboardingCompleted()->create(['name' => 'Ann', 'email' => 'ann@example.com', 'email_verified_at' => $verifiedAt]);
     $this->actingAs($ann);
 
     Livewire::test(EditProfile::class)
-        ->set('data.name', 'Mallory')
-        ->set('data.email', 'mallory@example.com')
+        ->set('data.name', 'Ann')
         ->set('data.password', 'new-password-123')
+        ->set('data.email_verified_at', null)
+        ->set('data.pending_email', 'mallory@example.com')
         ->call('save')
-        ->assertNotNotified();
+        ->assertHasNoFormErrors();
 
     $ann->refresh();
 
-    expect($ann->name)->toBe('Ann Lee')
-        ->and($ann->email)->toBe('ann@example.com')
-        ->and(Hash::check('password', $ann->password))->toBeTrue();
+    expect(Hash::check('password', $ann->password))->toBeTrue()
+        ->and(Hash::check('new-password-123', $ann->password))->toBeFalse()
+        ->and($ann->email_verified_at->equalTo($verifiedAt))->toBeTrue()
+        ->and($ann->pending_email)->toBeNull();
 });
 
 test('the settings nav links to the panel profile', function () {
