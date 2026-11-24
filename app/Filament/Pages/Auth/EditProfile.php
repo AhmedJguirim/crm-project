@@ -15,6 +15,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Notifications\Notification;
+use Filament\Panel;
 use Filament\Schemas\Components\Component;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
@@ -28,11 +29,19 @@ use Illuminate\Validation\ValidationException;
 use SensitiveParameter;
 
 /**
- * The panel profile page: name, email (SEC-56 pending change), task reminder mails, password, the second factor and account deletion (SEC-27).
+ * The panel profile page: name, email (SEC-56 pending change), task reminder mails, password, the second factor and account deletion (SEC-27); an unverified user only gets the profile, notification and pending-change sections (FEAT-151).
  */
 class EditProfile extends BaseEditProfile
 {
     protected ?string $requestedEmail = null;
+
+    /**
+     * Unverified users may open the profile to fix a mistyped address (FEAT-151); every other panel page still requires a verified email.
+     */
+    public static function isEmailVerificationRequired(Panel $panel): bool
+    {
+        return false;
+    }
 
     public function form(Schema $schema): Schema
     {
@@ -134,12 +143,16 @@ class EditProfile extends BaseEditProfile
 
     public function content(Schema $schema): Schema
     {
+        $isVerified = $this->getUser()->hasVerifiedEmail();
+
         return $schema->components([
             $this->getFormContentComponent(),
             $this->getPendingEmailChangeComponent(),
-            $this->getPasswordComponent(),
-            ...Arr::wrap($this->getMultiFactorAuthenticationContentComponent()),
-            $this->getDeleteAccountComponent(),
+            ...($isVerified ? [
+                $this->getPasswordComponent(),
+                ...Arr::wrap($this->getMultiFactorAuthenticationContentComponent()),
+                $this->getDeleteAccountComponent(),
+            ] : []),
         ]);
     }
 

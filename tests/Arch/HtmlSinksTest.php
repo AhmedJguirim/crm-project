@@ -22,6 +22,9 @@ function htmlSinkAllowList(): array
             'html-string' => 'rule names through e(), conditions from SegmentConditionDescriber; XssRenderingTest',
             'html-method' => 'rule names through e(), conditions from SegmentConditionDescriber; XssRenderingTest',
         ],
+        'app/Filament/Pages/Auth/EmailVerificationPrompt.php' => [
+            'html-string' => 'the vendor translation line plus the rendered resend and change-email link actions, fixed text and the panel profile URL only, no user text (the user email is a plain Text string); PanelProfileUnverifiedUserTest',
+        ],
         'resources/views/vendor/filament-panels/components/layout/base.blade.php' => [
             'raw-echo' => 'the three font family names from the panel config (->font(\'Inter\')), no user input; exact vendor copy plus the SEC-70 CSP nonce (FilamentLayoutNonceOverrideTest)',
         ],
