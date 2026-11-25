@@ -12,14 +12,19 @@ use App\Filament\Widgets\DashboardV2\ActivityTypesWidget;
 use App\Filament\Widgets\DashboardV2\AverageTimeToCloseWidget;
 use App\Filament\Widgets\DashboardV2\ContactSourcesWidget;
 use App\Filament\Widgets\DashboardV2\ContactsOverTimeWidget;
+use App\Filament\Widgets\DashboardV2\DealRevenueBySourceWidget;
 use App\Filament\Widgets\DashboardV2\DealsByStageWidget;
+use App\Filament\Widgets\DashboardV2\DealsByStatusWidget;
 use App\Filament\Widgets\DashboardV2\DealsClosedWidget;
 use App\Filament\Widgets\DashboardV2\DealsCreatedWidget;
 use App\Filament\Widgets\DashboardV2\DealsOverTimeWidget;
+use App\Filament\Widgets\DashboardV2\LeadsBySourceWidget;
+use App\Filament\Widgets\DashboardV2\LeadsFunnelWidget;
 use App\Filament\Widgets\DashboardV2\LeadsSummaryWidget;
 use App\Filament\Widgets\DashboardV2\LeadsWorkedWidget;
 use App\Filament\Widgets\DashboardV2\NewContactsWidget;
 use App\Filament\Widgets\DashboardV2\OpenTasksWidget;
+use App\Filament\Widgets\DashboardV2\OwnerPerformanceWidget;
 use App\Filament\Widgets\DashboardV2\TaskStatusWidget;
 use App\Filament\Widgets\DealForecastWidget;
 use App\Filament\Widgets\DealsNeedingAttentionWidget;
@@ -266,7 +271,7 @@ function statValuesOf(Testable $component): array
 /**
  * The label => value pairs of the first dataset the last render already computed (reads the property, runs no query).
  *
- * @return array<string, int>
+ * @return array<string, int|float>
  */
 function chartPointsOf(Testable $component): array
 {
@@ -567,6 +572,75 @@ function guardedTypedActivities(int $from, int $to): void
     }
 }
 
+/**
+ * One contact per number created now: multiples of four are prospects, the others leads; odd numbers from Referral, even numbers from LinkedIn.
+ */
+function guardedSourcedLeads(int $from, int $to): void
+{
+    $organization = test()->org;
+
+    foreach (range($from, $to) as $i) {
+        Contact::factory()->create([
+            'organization_id' => $organization->id,
+            'name' => "Guard Lead {$i}",
+            'status' => $i % 4 === 0 ? ContactStatus::Prospect : ContactStatus::Lead,
+            'lead_source' => $i % 2 === 1 ? LeadSource::Referral : LeadSource::LinkedIn,
+        ]);
+    }
+}
+
+/**
+ * One deal of 1000 per number won now, its contact from Referral (odd numbers) or LinkedIn (even numbers).
+ */
+function guardedSourcedWonDeals(int $from, int $to): void
+{
+    $me = test()->user;
+    $organization = test()->org;
+
+    foreach (range($from, $to) as $i) {
+        $contact = Contact::factory()->create([
+            'organization_id' => $organization->id,
+            'name' => "Guard Contact {$i}",
+            'lead_source' => $i % 2 === 1 ? LeadSource::Referral : LeadSource::LinkedIn,
+        ]);
+
+        Deal::factory()->create([
+            'organization_id' => $organization->id,
+            'created_by' => $me->id,
+            'owner_id' => $me->id,
+            'contact_id' => $contact->id,
+            'title' => "Guard Sourced Deal {$i}",
+            'value' => 1000,
+            ...DealStageMover::attributesFor(pipelineStageNamed($organization->id, 'Won')),
+        ]);
+    }
+}
+
+/**
+ * One member per number with one deal won now worth 100 times the number.
+ */
+function guardedMemberWonDeals(int $from, int $to): void
+{
+    $me = test()->user;
+    $organization = test()->org;
+
+    foreach (range($from, $to) as $i) {
+        $contact = Contact::factory()->create(['organization_id' => $organization->id, 'name' => "Guard Contact {$i}"]);
+        $member = User::factory()->onboardingCompleted()->create(['name' => "Guard Member {$i}"]);
+        $organization->members()->attach($member, ['role' => OrganizationRole::Member->value]);
+
+        Deal::factory()->create([
+            'organization_id' => $organization->id,
+            'created_by' => $me->id,
+            'owner_id' => $member->id,
+            'contact_id' => $contact->id,
+            'title' => "Guard Member Deal {$i}",
+            'value' => $i * 100,
+            ...DealStageMover::attributesFor(pipelineStageNamed($organization->id, 'Won')),
+        ]);
+    }
+}
+
 test('the dashboard runs the same number of queries with 2 and 9 records', function (Closure $seed, Closure $target, array $proof) {
     $seed = $seed();
     $call = $target();
@@ -830,5 +904,60 @@ test('the dashboard runs the same number of queries with 2 and 9 records', funct
             return $component;
         },
         ['Call' => 5, 'Email' => 4],
+    ],
+    'leads by source' => [
+        fn (): Closure => fn (int $from, int $to) => guardedSourcedLeads($from, $to),
+        fn (): Closure => function (array $proof) {
+            $component = Livewire::test(LeadsBySourceWidget::class);
+
+            expect(chartPointsOf($component))->toMatchArray($proof);
+
+            return $component;
+        },
+        ['Referral' => 5, 'LinkedIn' => 2],
+    ],
+    'leads funnel' => [
+        fn (): Closure => fn (int $from, int $to) => guardedNewLeads($from, $to),
+        fn (): Closure => function (array $proof) {
+            $component = Livewire::test(LeadsFunnelWidget::class);
+
+            expect(chartPointsOf($component))->toMatchArray($proof);
+
+            return $component;
+        },
+        ['Lead' => 5, 'Prospect' => 4],
+    ],
+    'deal revenue by source' => [
+        fn (): Closure => fn (int $from, int $to) => guardedSourcedWonDeals($from, $to),
+        fn (): Closure => function (array $proof) {
+            $component = Livewire::test(DealRevenueBySourceWidget::class);
+
+            expect(chartPointsOf($component))->toMatchArray($proof);
+
+            return $component;
+        },
+        ['Referral' => 5000, 'LinkedIn' => 4000],
+    ],
+    'deals by status' => [
+        fn (): Closure => fn (int $from, int $to) => guardedClosedDeals($from, $to),
+        fn (): Closure => function (array $proof) {
+            $component = Livewire::test(DealsByStatusWidget::class);
+
+            expect(chartPointsOf($component))->toMatchArray($proof);
+
+            return $component;
+        },
+        ['Won' => 5, 'Lost' => 4],
+    ],
+    'owner performance' => [
+        fn (): Closure => fn (int $from, int $to) => guardedMemberWonDeals($from, $to),
+        fn (): Closure => function (array $proof) {
+            $component = Livewire::test(OwnerPerformanceWidget::class);
+
+            expect(chartPointsOf($component))->toMatchArray($proof);
+
+            return $component;
+        },
+        ['Guard Member 9' => 900, 'Guard Member 5' => 500, 'Guard Member 1' => 100],
     ],
 ]);
