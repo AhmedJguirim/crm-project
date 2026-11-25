@@ -73,7 +73,7 @@ test('each guard writes one line with its guard and member', function (string $g
     'sub key below a string' => ['sub_key_update', 'tableSearch', fn () => Livewire::test(ListContacts::class)->set('tableSearch.0', 'x'), ListContacts::class],
     'leading-digit sub key below a string' => ['sub_key_update', 'tableSearch', fn () => Livewire::test(ListContacts::class)->set('tableSearch.0abc', 'x'), ListContacts::class],
     'sub key below a model' => ['sub_key_update', 'record', fn ($t) => Livewire::test(ContactActivityFeed::class, ['record' => $t->ann])->set('record.name', 'x'), ContactActivityFeed::class],
-    'array sent to a string property' => ['mistyped_property', 'email', fn () => Livewire::test('pages::settings.profile')->set('email', ['x@example.com']), 'pages::settings.profile'],
+    'array sent to a string property' => ['mistyped_property', 'activeTab', fn () => Livewire::test(ListContacts::class)->set('activeTab', ['x']), ListContacts::class],
     'wrong-typed argument' => ['mistyped_argument', 'sortTable', fn () => Livewire::test(ListContacts::class)->call('sortTable', ['x']), ListContacts::class],
     'missing argument' => ['missing_argument', null, fn () => Livewire::test(ListContacts::class)->call('mountAction'), ListContacts::class],
     'unbuildable argument' => ['unbuildable_argument', null, fn () => Livewire::test(ListDeals::class)->call('getTableSummarySelectedState'), ListDeals::class],

@@ -1,8 +1,11 @@
 <?php
 
+use App\Filament\Resources\Contacts\Pages\ListContacts;
+use App\Filament\Resources\Contacts\Widgets\ContactActivityFeed;
+use App\Models\Contact;
 use App\Models\User;
 use App\Support\Livewire\RefuseMistypedPropertyUpdates;
-use Illuminate\Support\Facades\Hash;
+use Filament\Facades\Filament;
 use Livewire\Component;
 use Livewire\Exceptions\PropertyNotFoundException;
 use Livewire\Exceptions\PublicPropertyNotFoundException;
@@ -38,46 +41,49 @@ class ForgedTypedPropertiesProbeComponent extends Component
 }
 
 beforeEach(function () {
-    $this->user = User::factory()->create(['name' => 'Ann Lee', 'email' => 'ann@example.com']);
-    $this->actingAs($this->user);
+    $this->owner = User::factory()->onboardingCompleted()->withPersonalOrganization()->create(['name' => 'Test Owner']);
+    $this->org = $this->owner->personalOrganization();
+    $this->actingAs($this->owner);
+    Filament::setTenant($this->org);
+
+    $this->ann = Contact::factory()->create(['organization_id' => $this->org->id, 'name' => 'Ann Lee', 'email' => 'ann.lee@example.test']);
 });
 
-test('a forged array on a settings property answers 419 and writes nothing', function (string $component, string $property, bool $debug) {
+test('a forged array on a scalar-typed property of a real component answers 419', function (string $component, string $property, bool $debug) {
     config(['app.debug' => $debug]);
 
-    Livewire::test($component)->set($property, ['x@example.com'])->assertStatus(419);
+    Livewire::test($component, $component === ContactActivityFeed::class ? ['record' => $this->ann] : [])
+        ->set($property, ['x@example.com'])
+        ->assertStatus(419);
 
-    $user = $this->user->fresh();
-
-    expect($user)->not->toBeNull()
-        ->and($user->name)->toBe('Ann Lee')
-        ->and($user->email)->toBe('ann@example.com')
-        ->and(Hash::check('password', $user->password))->toBeTrue();
+    expect($this->ann->fresh()->only(['name', 'email']))->toBe(['name' => 'Ann Lee', 'email' => 'ann.lee@example.test']);
 })->with([
-    'profile name, debug on' => ['pages::settings.profile', 'name', true],
-    'profile email, debug on' => ['pages::settings.profile', 'email', true],
-    'profile current_password, debug on' => ['pages::settings.profile', 'current_password', true],
-    'password current_password, debug on' => ['pages::settings.password', 'current_password', true],
-    'password password, debug on' => ['pages::settings.password', 'password', true],
-    'password confirmation, debug on' => ['pages::settings.password', 'password_confirmation', true],
-    'delete form password, debug on' => ['pages::settings.delete-user-form', 'password', true],
-    'profile email, debug off' => ['pages::settings.profile', 'email', false],
-    'delete form password, debug off' => ['pages::settings.delete-user-form', 'password', false],
+    'contact feed dateFrom, debug on' => [ContactActivityFeed::class, 'dateFrom', true],
+    'contact feed dateTo, debug on' => [ContactActivityFeed::class, 'dateTo', true],
+    'contacts list activeTab, debug on' => [ListContacts::class, 'activeTab', true],
+    'contacts list tableSort, debug on' => [ListContacts::class, 'tableSort', true],
+    'contacts list tableGrouping, debug on' => [ListContacts::class, 'tableGrouping', true],
+    'contacts list isTableReordering, debug on' => [ListContacts::class, 'isTableReordering', true],
+    'contact feed dateFrom, debug off' => [ContactActivityFeed::class, 'dateFrom', false],
+    'contacts list activeTab, debug off' => [ListContacts::class, 'activeTab', false],
 ]);
 
 test('a forged array over raw http answers 419 and a legitimate update still works', function () {
     config(['app.debug' => true]);
 
-    $snapshot = json_encode(Livewire::test('pages::settings.profile')->snapshot);
+    $snapshot = json_encode(Livewire::test(ContactActivityFeed::class, ['record' => $this->ann])->snapshot);
 
     $send = fn (array $updates) => $this->postJson(route('default-livewire.update'), [
         'components' => [['snapshot' => $snapshot, 'updates' => $updates, 'calls' => []]],
     ], ['X-Livewire' => 'true']);
 
-    $send(['email' => ['x@example.com']])->assertStatus(419);
-    $send(['email' => 'new@example.com'])->assertOk();
+    $send(['dateFrom' => ['2026-10-01']])->assertStatus(419);
 
-    expect($this->user->fresh()->email)->toBe('ann@example.com');
+    $response = $send(['dateFrom' => '2026-10-01']);
+    $response->assertOk();
+
+    expect(json_decode($response->json('components.0.snapshot'), true)['data']['dateFrom'])->toBe('2026-10-01')
+        ->and($this->ann->fresh()->only(['name', 'email']))->toBe(['name' => 'Ann Lee', 'email' => 'ann.lee@example.test']);
 });
 
 test('a forged array on a scalar-typed probe property answers 419', function (string $property) {
