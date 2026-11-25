@@ -226,16 +226,4 @@ class User extends Authenticatable implements FilamentUser, HasAppAuthentication
     {
         return $query->whereRaw('lower(users.email) = ?', [Str::lower($email)]);
     }
-
-    /**
-     * Get the user's initials
-     */
-    public function initials(): string
-    {
-        return Str::of($this->name)
-            ->explode(' ')
-            ->take(2)
-            ->map(fn ($word) => Str::substr($word, 0, 1))
-            ->implode('');
-    }
 }

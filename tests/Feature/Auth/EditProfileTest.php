@@ -62,12 +62,3 @@ test('a forged save cannot change the password or the verification fields', func
         ->and($ann->email_verified_at->equalTo($verifiedAt))->toBeTrue()
         ->and($ann->pending_email)->toBeNull();
 });
-
-test('the settings nav links to the panel profile', function () {
-    $user = User::factory()->onboardingCompleted()->create();
-
-    $this->actingAs($user)->get(route('profile.edit'))
-        ->assertOk()
-        ->assertSee('href="'.Filament::getProfileUrl().'"', false)
-        ->assertSee('Two-Factor Auth');
-});

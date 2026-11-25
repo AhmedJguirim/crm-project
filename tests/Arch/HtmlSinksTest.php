@@ -34,9 +34,6 @@ function htmlSinkAllowList(): array
         'resources/views/vendor/flowforge/livewire/column.blade.php' => [
             'js-attribute-echo' => '$isOpen is built with json_encode of the column id; the column id is a pipeline stage id from code (Column::make((string) $stage->getKey())); vendor copy kept close to upstream',
         ],
-        'resources/views/components/action-message.blade.php' => [
-            'js-attribute-echo' => '$on is an event-name literal passed by the calling view',
-        ],
     ];
 }
 

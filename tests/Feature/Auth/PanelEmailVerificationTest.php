@@ -218,36 +218,6 @@ test('a verified user is never mailed', function () {
     expect(RateLimiter::attempts("verification-mails:user:{$this->ann->id}"))->toBe(0);
 });
 
-test('the settings page resend is capped too', function () {
-    Notification::fake();
-    $this->actingAs($this->ann);
-
-    foreach (range(1, VerificationMails::PER_DAY) as $ignored) {
-        VerificationMails::send($this->ann);
-    }
-
-    $page = Livewire::test('pages::settings.profile')
-        ->call('resendVerificationNotification')
-        ->assertHasErrors(['email'])
-        ->assertDontSee('A new verification link has been sent to your email address.');
-
-    expect($page->errors()->get('email'))->toBe(['You have asked for 5 verification emails in the last 24 hours. Try again later.']);
-
-    Notification::assertSentToTimes($this->ann, QueuedVerifyEmail::class, 5);
-});
-
-test('the settings page resend under the cap sends one mail', function () {
-    Notification::fake();
-    $this->actingAs($this->ann);
-
-    Livewire::test('pages::settings.profile')
-        ->call('resendVerificationNotification')
-        ->assertHasNoErrors()
-        ->assertSee('A new verification link has been sent to your email address.');
-
-    Notification::assertSentToTimes($this->ann, QueuedVerifyEmail::class, 1);
-});
-
 test('changing the email on the panel profile mails a confirmation link to the new address and keeps the account verified', function () {
     Notification::fake();
     $this->ann->forceFill(['email_verified_at' => now()])->save();
@@ -338,18 +308,6 @@ test('a guest opening a verification link is sent to the login', function () {
     $this->get(pevPanel()->getVerifyEmailUrl($this->ann))->assertRedirect(Filament::getLoginUrl());
 
     expect($this->ann->fresh()->email_verified_at)->toBeNull();
-});
-
-test('an unverified user forging the old unthrottled resend 10 times gets 5 mails', function () {
-    Notification::fake();
-    $this->actingAs($this->ann);
-
-    $page = Livewire::test('pages::settings.profile');
-    foreach (range(1, 10) as $ignored) {
-        $page->call('resendVerificationNotification');
-    }
-
-    Notification::assertSentToTimes($this->ann, QueuedVerifyEmail::class, 5);
 });
 
 test('the mail is built for the panel link and carries the signed url only', function () {

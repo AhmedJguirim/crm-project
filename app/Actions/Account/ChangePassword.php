@@ -15,7 +15,7 @@ class ChangePassword
 {
     /**
      * Changes the signed-in user's password and ends their other sessions (SEC-28); this device stays signed in.
-     * Used by the panel profile and, until FEAT-151, `/settings/password`.
+     * Used by the panel profile.
      */
     public function handle(User $user, #[SensitiveParameter] string $newPassword): void
     {

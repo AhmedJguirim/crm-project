@@ -162,7 +162,7 @@ test('the old two-factor routes are gone', function () {
         ->and(Route::has('two-factor.login'))->toBeFalse()
         ->and(Route::has('two-factor.enable'))->toBeFalse();
 
-    $this->actingAs($this->ann)->get('/settings/two-factor')->assertNotFound();
+    $this->actingAs($this->ann)->get('/settings/two-factor')->assertRedirect(Filament::getProfileUrl());
     $this->get('/two-factor-challenge')->assertNotFound();
 });
 

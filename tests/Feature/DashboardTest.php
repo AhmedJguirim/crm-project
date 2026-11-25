@@ -5,7 +5,7 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\Route;
 
-dataset('removedStarterKitPaths', ['/dashboard', '/app', '/settings/appearance']);
+dataset('removedStarterKitPaths', ['/dashboard', '/app']);
 
 test('a guest gets a 404 on a removed starter-kit page', function (string $path) {
     $this->get($path)->assertNotFound();

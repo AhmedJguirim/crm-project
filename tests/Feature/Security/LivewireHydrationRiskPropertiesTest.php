@@ -159,7 +159,6 @@ test('no component of the app or single-file page has a hydration-risk property'
     $singleFileComponents = hydrationRiskSingleFileComponents();
 
     expect(count($appComponents))->toBeGreaterThanOrEqual(91);
-    expect(count($singleFileComponents))->toBeGreaterThanOrEqual(4);
 
     $hits = [];
 

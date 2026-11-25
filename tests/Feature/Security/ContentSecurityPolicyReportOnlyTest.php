@@ -275,7 +275,6 @@ describe('every inline script carries the request nonce', function () {
         'contact view' => ['owner', fn ($t) => ContactResource::getUrl('view', ['record' => $t->cspContact])],
         'contact edit' => ['owner', fn ($t) => ContactResource::getUrl('edit', ['record' => $t->cspContact])],
         'panel profile' => ['owner', fn () => Filament::getProfileUrl()],
-        'flux profile' => ['owner', fn () => route('profile.edit')],
         'inertia tags' => ['owner', fn ($t) => route('app.tags.index', $t->cspOrg)],
     ]);
 
@@ -293,10 +292,8 @@ describe('every inline script carries the request nonce', function () {
             ->and($html)->toMatch('/'.$open.'loadDarkMode\(\)\s*<\/script>/');
     });
 
-    it('puts the nonce on the Flux appearance script', function () {
-        $this->actingAs($this->cspOwner);
-
-        $response = $this->get(route('profile.edit'))->assertOk();
+    it('puts the nonce on the Flux appearance script of the auth pages', function () {
+        $response = $this->get(route('password.request'))->assertOk();
         $nonce = cspNonce($response->headers->get('Content-Security-Policy'));
 
         expect($response->getContent())->toMatch('/<script nonce="'.$nonce.'">\s*window\.Flux = \{/');
