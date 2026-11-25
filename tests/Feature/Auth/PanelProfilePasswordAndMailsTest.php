@@ -118,6 +118,22 @@ test('the switch is saved with "Save changes" and needs no password', function (
     expect($this->ann->fresh())->task_reminder_mails->toBe($after)->name->toBe('Ann')->email->toBe('ann@example.com');
 })->with([[true, false], [false, true]]);
 
+test('saving changes only the signed-in user', function () {
+    $this->bob->forceFill(['task_reminder_mails' => true])->save();
+    $before = $this->ann->only(['name', 'email', 'password', 'email_verified_at']);
+
+    Livewire::test(EditProfile::class)
+        ->set('data.task_reminder_mails', false)
+        ->call('save')
+        ->assertHasNoFormErrors();
+
+    $ann = $this->ann->fresh();
+
+    expect($this->bob->fresh()->task_reminder_mails)->toBeTrue()
+        ->and($ann->task_reminder_mails)->toBeFalse()
+        ->and($ann->only(['name', 'email', 'password', 'email_verified_at']))->toEqual($before);
+});
+
 test('the switch is saved together with a new address request', function () {
     Livewire::test(EditProfile::class)
         ->set('data.task_reminder_mails', false)
@@ -300,12 +316,32 @@ describe('hostile', function () {
         expect(Hash::check('password', $this->ann->fresh()->password))->toBeTrue();
     });
 
-    test('a forged non-boolean switch is refused', function () {
+    test('a forged switch value is refused', function (mixed $value) {
         Livewire::test(EditProfile::class)
-            ->set('data.task_reminder_mails', 'maybe')
+            ->set('data.task_reminder_mails', $value)
             ->call('save')
             ->assertHasFormErrors(['task_reminder_mails']);
 
-        expect($this->ann->fresh()->task_reminder_mails)->toBeTrue();
+        expect($this->ann->fresh()->task_reminder_mails)->toBeTrue()
+            ->and(Hash::check('password', $this->ann->fresh()->password))->toBeTrue();
+    })->with([
+        'string' => ['maybe'],
+        'array' => [['0']],
+    ]);
+});
+
+describe('task mail switch rules', function () {
+    test('a new user reads the switch as on before any refresh', function () {
+        expect(new User)->task_reminder_mails->toBeTrue()
+            ->and(User::factory()->make()->task_reminder_mails)->toBeTrue()
+            ->and($this->ann->task_reminder_mails)->toBeTrue()
+            ->and($this->ann->fresh()->task_reminder_mails)->toBeTrue();
+    });
+
+    test('the switch is not mass assignable', function () {
+        $user = User::create(['name' => 'Mass', 'email' => 'mass@example.com', 'password' => 'secret-pass-123', 'task_reminder_mails' => false]);
+
+        expect($user->fresh()->task_reminder_mails)->toBeTrue()
+            ->and((new User)->isFillable('task_reminder_mails'))->toBeFalse();
     });
 });

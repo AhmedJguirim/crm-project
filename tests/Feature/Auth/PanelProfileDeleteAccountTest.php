@@ -1,19 +1,25 @@
 <?php
 
+use App\Actions\Account\DeleteUserAccount;
 use App\Enums\OrganizationRole;
 use App\Filament\Pages\Auth\EditProfile;
 use App\Models\Contact;
 use App\Models\Deal;
+use App\Models\Invoice;
 use App\Models\Organization;
 use App\Models\OrganizationInvite;
+use App\Models\Task;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Filament\Notifications\Livewire\Notifications;
+use Illuminate\Notifications\DatabaseNotification;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 
 const PPDA_REFUSAL = 'Transfer or delete these organizations first: Acme Studio, Zeta Labs.';
@@ -88,6 +94,7 @@ test('a sole member deletes the account with every organization she alone uses',
         ->and(ppdaOrganizationExists($this->annPersonal->id))->toBeFalse()
         ->and(ppdaOrganizationExists($solo->id))->toBeFalse()
         ->and(Contact::query()->withoutGlobalScope('organization')->whereKey($client->id)->exists())->toBeFalse()
+        ->and(DB::table('pipelines')->where('organization_id', $solo->id)->exists())->toBeFalse()
         ->and(array_column($entries, 'event'))->toBe(['account.deleted', 'auth.logout'])
         ->and($entries[0]['level'])->toBe('warning')
         ->and($entries[0]['context'])->toMatchArray(['user_id' => $annId, 'deleted_organizations' => 2, 'left_organizations' => 0]);
@@ -105,28 +112,63 @@ test('the session of the deleted account is invalidated and its token regenerate
         ->and(session()->has('ppda_marker'))->toBeFalse();
 });
 
-test('a member of a shared organization deletes the account and the team keeps the work', function () {
+test('a member of a shared organization deletes the account and the team keeps the work', function (OrganizationRole $role) {
     $log = fakeSecurityLog();
-    $acme = ($this->shared)('Acme Studio', $this->bob, $this->ann);
+    $acme = ($this->shared)('Acme Studio', $this->bob, $this->ann, $role);
     $deal = Deal::factory()->create([
         'organization_id' => $acme->id,
         'title' => 'Website redesign',
         'created_by' => $this->ann->id,
         'owner_id' => $this->bob->id,
     ]);
+    $task = Task::factory()->create([
+        'organization_id' => $acme->id,
+        'title' => 'Send proposal',
+        'created_by' => $this->ann->id,
+        'owner_id' => $this->ann->id,
+    ]);
+    $personalLead = Contact::factory()->create([
+        'organization_id' => $this->annPersonal->id,
+        'name' => 'Personal Lead',
+        'email' => 'lead@example.com',
+    ]);
     OrganizationInvite::factory()->create(['organization_id' => $acme->id, 'email' => 'ANN@example.com', 'invited_by' => $this->bob->id]);
 
     ppdaDelete(['password' => 'password'])->assertHasNoActionErrors()->assertRedirect(route('home'));
 
     $deal = Deal::query()->withoutGlobalScope('organization')->findOrFail($deal->id);
+    $task = Task::query()->withoutGlobalScope('organization')->findOrFail($task->id);
 
     expect(ppdaOrganizationExists($acme->id))->toBeTrue()
         ->and($acme->members()->pluck('users.id')->all())->toBe([$this->bob->id])
         ->and($acme->members()->first()->pivot->role)->toBe(OrganizationRole::Owner->value)
         ->and($deal->created_by)->toBeNull()
         ->and($deal->owner_id)->toBe($this->bob->id)
+        ->and($task->created_by)->toBeNull()
+        ->and($task->owner_id)->toBeNull()
+        ->and(ppdaOrganizationExists($this->annPersonal->id))->toBeFalse()
+        ->and(Contact::query()->withoutGlobalScope('organization')->whereKey($personalLead->id)->exists())->toBeFalse()
         ->and(OrganizationInvite::query()->where('organization_id', $acme->id)->whereRaw('lower(email) = ?', ['ann@example.com'])->exists())->toBeFalse()
         ->and(securityLogEntries($log)[0]['context'])->toMatchArray(['deleted_organizations' => 1, 'left_organizations' => 1]);
+})->with([
+    'admin' => OrganizationRole::Admin,
+    'member' => OrganizationRole::Member,
+    'viewer' => OrganizationRole::Viewer,
+]);
+
+test('the creator of a transferred organization deletes the account and the organization stays', function () {
+    $north = Organization::factory()->create(['name' => 'Studio North', 'created_by' => $this->ann->id]);
+    $north->members()->attach($this->bob->id, ['role' => OrganizationRole::Owner->value]);
+    $north->members()->attach($this->ann->id, ['role' => OrganizationRole::Admin->value]);
+    $client = Contact::factory()->create(['organization_id' => $north->id, 'name' => 'Client One', 'email' => 'client1@example.com']);
+    $invoice = Invoice::factory()->create(['organization_id' => $north->id, 'contact_id' => $client->id]);
+
+    ppdaDelete(['password' => 'password'])->assertHasNoActionErrors()->assertRedirect(route('home'));
+
+    expect(Organization::query()->findOrFail($north->id)->created_by)->toBeNull()
+        ->and(Contact::query()->withoutGlobalScope('organization')->whereKey($client->id)->exists())->toBeTrue()
+        ->and(Invoice::query()->withoutGlobalScope('organization')->whereKey($invoice->id)->exists())->toBeTrue()
+        ->and($north->members()->pluck('users.id')->all())->toBe([$this->bob->id]);
 });
 
 test('the owner of a shared organization is refused and nothing is written', function () {
@@ -156,6 +198,125 @@ test('the owner of a shared organization is refused and nothing is written', fun
         ->and($this->annPersonal->members()->count())->toBe(1)
         ->and(array_column(securityLogEntries($log), 'event'))->toBe(['account.deletion_refused'])
         ->and(securityLogEntries($log)[0]['context'])->toMatchArray(['organizations' => 2]);
+});
+
+test('the blocking organization names are sorted case-insensitively whatever the creation order', function (array $names) {
+    ($this->shared)('Acme Studio', $this->ann, $this->bob);
+    foreach ($names as $name) {
+        ($this->shared)($name, $this->ann, $this->bob);
+    }
+
+    ppdaDelete(['password' => 'password'])
+        ->assertNoRedirect()
+        ->assertNotified('Transfer or delete these organizations first: Acme Studio, beta works, Zeta Labs.');
+
+    expect(User::query()->whereKey($this->ann->id)->exists())->toBeTrue();
+})->with([
+    'alphabetical creation order' => [['beta works', 'Zeta Labs']],
+    'reverse creation order' => [['Zeta Labs', 'beta works']],
+]);
+
+test('a personal workspace with another member blocks the deletion too', function () {
+    $this->annPersonal->update(['name' => "Ann's Workspace"]);
+    $this->annPersonal->members()->attach($this->bob->id, ['role' => OrganizationRole::Member->value]);
+
+    ppdaDelete(['password' => 'password'])
+        ->assertNoRedirect()
+        ->assertNotified("Transfer or delete these organizations first: Ann's Workspace.");
+
+    expect(User::query()->whereKey($this->ann->id)->exists())->toBeTrue()
+        ->and(ppdaOrganizationExists($this->annPersonal->id))->toBeTrue();
+});
+
+test('pending invitations do not count as members', function () {
+    OrganizationInvite::factory()->create(['organization_id' => $this->annPersonal->id, 'invited_by' => $this->ann->id, 'email' => 'someone@example.com']);
+
+    ppdaDelete(['password' => 'password'])->assertHasNoActionErrors()->assertRedirect(route('home'));
+
+    expect(ppdaOrganizationExists($this->annPersonal->id))->toBeFalse()
+        ->and(OrganizationInvite::query()->where('organization_id', $this->annPersonal->id)->exists())->toBeFalse();
+});
+
+test('a wrong password is refused before the organizations are checked', function () {
+    $log = fakeSecurityLog();
+    ($this->shared)('Acme Studio', $this->ann, $this->bob);
+
+    $page = ppdaDelete(['password' => 'wrong'])->assertHasActionErrors(['password']);
+
+    expect($page->errors()->get('mountedActions.0.data.password'))->toBe(['The password is incorrect.'])
+        ->and(securityLogEntries($log))->toBe([])
+        ->and(User::query()->whereKey($this->ann->id)->exists())->toBeTrue();
+
+    $page->assertNotNotified('Transfer or delete these organizations first: Acme Studio.');
+});
+
+test('the user database notifications go with the account', function () {
+    foreach ([1, 2] as $number) {
+        DatabaseNotification::query()->create([
+            'id' => (string) Str::uuid(),
+            'type' => 'App\\Notifications\\Test',
+            'notifiable_type' => $this->ann->getMorphClass(),
+            'notifiable_id' => $this->ann->id,
+            'data' => ['n' => $number],
+        ]);
+    }
+    $other = DatabaseNotification::query()->create([
+        'id' => (string) Str::uuid(),
+        'type' => 'App\\Notifications\\Test',
+        'notifiable_type' => $this->bob->getMorphClass(),
+        'notifiable_id' => $this->bob->id,
+        'data' => [],
+    ]);
+    $annId = $this->ann->id;
+
+    ppdaDelete(['password' => 'password'])->assertHasNoActionErrors()->assertRedirect(route('home'));
+
+    expect(DatabaseNotification::query()->where('notifiable_id', $annId)->count())->toBe(0)
+        ->and(DatabaseNotification::query()->whereKey($other->id)->exists())->toBeTrue();
+});
+
+test('signing out does not insert the deleted user again', function () {
+    $this->ann->forceFill(['remember_token' => Str::random(60)])->save();
+    $annId = $this->ann->id;
+
+    ppdaDelete(['password' => 'password'])->assertHasNoActionErrors()->assertRedirect(route('home'));
+
+    expect(User::query()->whereKey($annId)->exists())->toBeFalse()
+        ->and(DB::table('users')->where('email', 'ann@example.com')->exists())->toBeFalse();
+});
+
+describe('account deletion rules', function () {
+    test('deleting a user row directly never cascades into shared rows', function () {
+        $acme = ($this->shared)('Acme Studio', $this->bob, $this->ann);
+        $deal = Deal::factory()->create(['organization_id' => $acme->id, 'created_by' => $this->ann->id, 'owner_id' => $this->bob->id]);
+        $task = Task::factory()->create(['organization_id' => $acme->id, 'created_by' => $this->ann->id, 'owner_id' => $this->bob->id]);
+        $invite = OrganizationInvite::factory()->create([
+            'organization_id' => $acme->id,
+            'invited_by' => $this->ann->id,
+            'email' => 'eve@example.com',
+        ]);
+
+        $this->ann->delete();
+
+        expect(ppdaOrganizationExists($acme->id))->toBeTrue()
+            ->and(Deal::query()->withoutGlobalScope('organization')->findOrFail($deal->id)->created_by)->toBeNull()
+            ->and(Task::query()->withoutGlobalScope('organization')->findOrFail($task->id)->created_by)->toBeNull()
+            ->and(OrganizationInvite::query()->findOrFail($invite->id)->invited_by)->toBeNull();
+
+        $created = Organization::factory()->create(['created_by' => $this->bob->id]);
+        $this->bob->delete();
+
+        expect(Organization::query()->findOrFail($created->id)->created_by)->toBeNull();
+    });
+
+    test('a failure while deleting leaves the account and its organizations untouched', function () {
+        expect(fn () => app(DeleteUserAccount::class)->handle($this->ann, function (): void {
+            throw new RuntimeException('sign-out failed');
+        }))->toThrow(RuntimeException::class);
+
+        expect(User::query()->whereKey($this->ann->id)->exists())->toBeTrue()
+            ->and(ppdaOrganizationExists($this->annPersonal->id))->toBeTrue();
+    });
 });
 
 test('invalid password input deletes nothing and logs nothing', function (string $password, ?string $message) {
