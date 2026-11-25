@@ -221,3 +221,21 @@ function organizationRowCounts(Organization $organization, array $tables): array
         $table => DB::table($table)->where('organization_id', $organization->id)->count(),
     ])->all();
 }
+
+/**
+ * How many SQL queries the callback runs on the default connection (query-count guards, REF-39).
+ */
+function queryCountOf(Closure $callback): int
+{
+    DB::flushQueryLog();
+    DB::enableQueryLog();
+
+    try {
+        $callback();
+
+        return count(DB::getQueryLog());
+    } finally {
+        DB::disableQueryLog();
+        DB::flushQueryLog();
+    }
+}
