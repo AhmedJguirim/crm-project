@@ -1,11 +1,19 @@
 <?php
 
 use App\Enums\ActivityType;
+use App\Enums\ContactStatus;
 use App\Enums\InvoiceStatus;
 use App\Enums\OrganizationRole;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Filament\Pages\Dashboard;
+use App\Filament\Widgets\DashboardV2\AverageTimeToCloseWidget;
+use App\Filament\Widgets\DashboardV2\DealsClosedWidget;
+use App\Filament\Widgets\DashboardV2\DealsCreatedWidget;
+use App\Filament\Widgets\DashboardV2\LeadsSummaryWidget;
+use App\Filament\Widgets\DashboardV2\LeadsWorkedWidget;
+use App\Filament\Widgets\DashboardV2\NewContactsWidget;
+use App\Filament\Widgets\DashboardV2\OpenTasksWidget;
 use App\Filament\Widgets\DealForecastWidget;
 use App\Filament\Widgets\DealsNeedingAttentionWidget;
 use App\Filament\Widgets\MyDealsClosingWidget;
@@ -22,8 +30,12 @@ use App\Models\User;
 use App\Services\Deals\DealStageMover;
 use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
+use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Carbon;
+use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
+
+use function Livewire\invade;
 
 beforeEach(function () {
     Carbon::setTestNow('2026-11-25 12:00:00');
@@ -232,6 +244,180 @@ function guardedTeamMembers(int $from, int $to): void
     }
 }
 
+/**
+ * The label => value pairs of the stats the last render already computed (reads the property, runs no query).
+ *
+ * @return array<string, string>
+ */
+function statValuesOf(Testable $component): array
+{
+    return collect(invade($component->instance())->cachedStats ?? [])
+        ->mapWithKeys(fn (Stat $stat): array => [(string) $stat->getLabel() => (string) $stat->getValue()])
+        ->all();
+}
+
+/**
+ * One contact per number created now; the first number also adds three contacts created in October.
+ */
+function guardedNewContacts(int $from, int $to): void
+{
+    $organization = test()->org;
+
+    foreach (range($from, $to) as $i) {
+        Contact::factory()->create(['organization_id' => $organization->id, 'name' => "Guard Contact {$i}"]);
+
+        if ($i !== 1) {
+            continue;
+        }
+
+        foreach (range(1, 3) as $n) {
+            Contact::factory()->create([
+                'organization_id' => $organization->id,
+                'name' => "Guard October Contact {$n}",
+                'created_at' => '2026-10-15 10:00:00',
+            ]);
+        }
+    }
+}
+
+/**
+ * One overdue high-priority pending task per number owned by the signed-in user, each with its own contact.
+ */
+function guardedOpenTasks(int $from, int $to): void
+{
+    $me = test()->user;
+    $organization = test()->org;
+
+    foreach (range($from, $to) as $i) {
+        $contact = Contact::factory()->create(['organization_id' => $organization->id, 'name' => "Guard Contact {$i}"]);
+
+        Task::factory()->create([
+            'organization_id' => $organization->id,
+            'created_by' => $me->id,
+            'owner_id' => $me->id,
+            'contact_id' => $contact->id,
+            'title' => "Guard Open Task {$i}",
+            'status' => TaskStatus::Pending,
+            'priority' => TaskPriority::High,
+            'due_at' => '2026-11-20 09:00:00',
+        ]);
+    }
+}
+
+/**
+ * One contact per number created now, odd numbers are leads and even numbers prospects.
+ */
+function guardedNewLeads(int $from, int $to): void
+{
+    $organization = test()->org;
+
+    foreach (range($from, $to) as $i) {
+        Contact::factory()->create([
+            'organization_id' => $organization->id,
+            'name' => "Guard Lead {$i}",
+            'status' => $i % 2 === 1 ? ContactStatus::Lead : ContactStatus::Prospect,
+        ]);
+    }
+}
+
+/**
+ * One lead per number, odd numbers with one call this month.
+ */
+function guardedWorkedLeads(int $from, int $to): void
+{
+    $me = test()->user;
+    $organization = test()->org;
+
+    foreach (range($from, $to) as $i) {
+        $lead = Contact::factory()->create([
+            'organization_id' => $organization->id,
+            'name' => "Guard Lead {$i}",
+            'status' => ContactStatus::Lead,
+        ]);
+
+        if ($i % 2 !== 1) {
+            continue;
+        }
+
+        Activity::factory()->type(ActivityType::Call)->create([
+            'organization_id' => $organization->id,
+            'contact_id' => $lead->id,
+            'user_id' => $me->id,
+            'occurred_at' => '2026-11-20 10:00:00',
+        ]);
+    }
+}
+
+/**
+ * One open deal of 1000 per number created now, each with its own contact.
+ */
+function guardedCreatedDeals(int $from, int $to): void
+{
+    $me = test()->user;
+    $organization = test()->org;
+
+    foreach (range($from, $to) as $i) {
+        $contact = Contact::factory()->create(['organization_id' => $organization->id, 'name' => "Guard Contact {$i}"]);
+
+        Deal::factory()->create([
+            'organization_id' => $organization->id,
+            'created_by' => $me->id,
+            'owner_id' => $me->id,
+            'contact_id' => $contact->id,
+            'title' => "Guard Created Deal {$i}",
+            'value' => 1000,
+            ...DealStageMover::attributesFor(pipelineStageNamed($organization->id, 'Lead')),
+        ]);
+    }
+}
+
+/**
+ * One deal of 1000 per number closed now, odd numbers won and even numbers lost.
+ */
+function guardedClosedDeals(int $from, int $to): void
+{
+    $me = test()->user;
+    $organization = test()->org;
+
+    foreach (range($from, $to) as $i) {
+        $contact = Contact::factory()->create(['organization_id' => $organization->id, 'name' => "Guard Contact {$i}"]);
+
+        Deal::factory()->create([
+            'organization_id' => $organization->id,
+            'created_by' => $me->id,
+            'owner_id' => $me->id,
+            'contact_id' => $contact->id,
+            'title' => "Guard Closed Deal {$i}",
+            'value' => 1000,
+            ...DealStageMover::attributesFor(pipelineStageNamed($organization->id, $i % 2 === 1 ? 'Won' : 'Lost')),
+        ]);
+    }
+}
+
+/**
+ * One deal of 1000 per number created on 15 November and won now, so exactly ten days to close.
+ */
+function guardedWonDeals(int $from, int $to): void
+{
+    $me = test()->user;
+    $organization = test()->org;
+
+    foreach (range($from, $to) as $i) {
+        $contact = Contact::factory()->create(['organization_id' => $organization->id, 'name' => "Guard Contact {$i}"]);
+
+        Deal::factory()->create([
+            'organization_id' => $organization->id,
+            'created_by' => $me->id,
+            'owner_id' => $me->id,
+            'contact_id' => $contact->id,
+            'title' => "Guard Won Deal {$i}",
+            'value' => 1000,
+            'created_at' => '2026-11-15 12:00:00',
+            ...DealStageMover::attributesFor(pipelineStageNamed($organization->id, 'Won')),
+        ]);
+    }
+}
+
 test('the dashboard runs the same number of queries with 2 and 9 records', function (Closure $seed, Closure $target, array $proof) {
     $seed = $seed();
     $call = $target();
@@ -352,5 +538,82 @@ test('the dashboard runs the same number of queries with 2 and 9 records', funct
             return $component;
         },
         ['Guard Member 5', '100% (9 of 9)'],
+    ],
+    'new contacts' => [
+        fn (): Closure => fn (int $from, int $to) => guardedNewContacts($from, $to),
+        fn (): Closure => function (array $proof) {
+            $component = Livewire::test(NewContactsWidget::class);
+
+            expect(statValuesOf($component))->toMatchArray($proof);
+
+            return $component;
+        },
+        ['New Contacts Created This Month' => '9'],
+    ],
+    'open tasks' => [
+        fn (): Closure => fn (int $from, int $to) => guardedOpenTasks($from, $to),
+        fn (): Closure => function (array $proof) {
+            $component = Livewire::test(OpenTasksWidget::class);
+
+            expect(statValuesOf($component))->toMatchArray($proof);
+
+            return $component;
+        },
+        ['Open Tasks' => '9', 'Overdue' => '9', 'Due This Week' => '0', 'High Priority' => '9'],
+    ],
+    'leads summary' => [
+        fn (): Closure => fn (int $from, int $to) => guardedNewLeads($from, $to),
+        fn (): Closure => function (array $proof) {
+            $component = Livewire::test(LeadsSummaryWidget::class);
+
+            expect(statValuesOf($component))->toMatchArray($proof);
+
+            return $component;
+        },
+        ['New Leads This Month' => '5', 'Open Leads' => '5', 'Past Lead Status' => '4'],
+    ],
+    'leads worked' => [
+        fn (): Closure => fn (int $from, int $to) => guardedWorkedLeads($from, $to),
+        fn (): Closure => function (array $proof) {
+            $component = Livewire::test(LeadsWorkedWidget::class);
+
+            expect(statValuesOf($component))->toMatchArray($proof);
+
+            return $component;
+        },
+        ['Leads Worked' => '5', 'Not Worked' => '4', 'Activities On Leads' => '5'],
+    ],
+    'deals created' => [
+        fn (): Closure => fn (int $from, int $to) => guardedCreatedDeals($from, $to),
+        fn (): Closure => function (array $proof) {
+            $component = Livewire::test(DealsCreatedWidget::class);
+
+            expect(statValuesOf($component))->toMatchArray($proof);
+
+            return $component;
+        },
+        ['Deals Created This Month' => '9', 'Value Created This Month' => '$9,000.00'],
+    ],
+    'deals closed' => [
+        fn (): Closure => fn (int $from, int $to) => guardedClosedDeals($from, $to),
+        fn (): Closure => function (array $proof) {
+            $component = Livewire::test(DealsClosedWidget::class);
+
+            expect(statValuesOf($component))->toMatchArray($proof);
+
+            return $component;
+        },
+        ['Deals Won This Month' => '5', 'Won Value This Month' => '$5,000.00', 'Deals Lost This Month' => '4', 'Lost Value This Month' => '$4,000.00'],
+    ],
+    'average time to close' => [
+        fn (): Closure => fn (int $from, int $to) => guardedWonDeals($from, $to),
+        fn (): Closure => function (array $proof) {
+            $component = Livewire::test(AverageTimeToCloseWidget::class);
+
+            expect(statValuesOf($component))->toMatchArray($proof);
+
+            return $component;
+        },
+        ['Average Time To Close This Month' => '10 days'],
     ],
 ]);
