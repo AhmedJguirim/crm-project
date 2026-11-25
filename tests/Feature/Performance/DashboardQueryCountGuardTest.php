@@ -3,17 +3,24 @@
 use App\Enums\ActivityType;
 use App\Enums\ContactStatus;
 use App\Enums\InvoiceStatus;
+use App\Enums\LeadSource;
 use App\Enums\OrganizationRole;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Filament\Pages\Dashboard;
+use App\Filament\Widgets\DashboardV2\ActivityTypesWidget;
 use App\Filament\Widgets\DashboardV2\AverageTimeToCloseWidget;
+use App\Filament\Widgets\DashboardV2\ContactSourcesWidget;
+use App\Filament\Widgets\DashboardV2\ContactsOverTimeWidget;
+use App\Filament\Widgets\DashboardV2\DealsByStageWidget;
 use App\Filament\Widgets\DashboardV2\DealsClosedWidget;
 use App\Filament\Widgets\DashboardV2\DealsCreatedWidget;
+use App\Filament\Widgets\DashboardV2\DealsOverTimeWidget;
 use App\Filament\Widgets\DashboardV2\LeadsSummaryWidget;
 use App\Filament\Widgets\DashboardV2\LeadsWorkedWidget;
 use App\Filament\Widgets\DashboardV2\NewContactsWidget;
 use App\Filament\Widgets\DashboardV2\OpenTasksWidget;
+use App\Filament\Widgets\DashboardV2\TaskStatusWidget;
 use App\Filament\Widgets\DealForecastWidget;
 use App\Filament\Widgets\DealsNeedingAttentionWidget;
 use App\Filament\Widgets\MyDealsClosingWidget;
@@ -257,6 +264,18 @@ function statValuesOf(Testable $component): array
 }
 
 /**
+ * The label => value pairs of the first dataset the last render already computed (reads the property, runs no query).
+ *
+ * @return array<string, int>
+ */
+function chartPointsOf(Testable $component): array
+{
+    $data = invade($component->instance())->cachedData ?? [];
+
+    return $data === [] ? [] : array_combine($data['labels'], $data['datasets'][0]['data']);
+}
+
+/**
  * One contact per number created now; the first number also adds three contacts created in October.
  */
 function guardedNewContacts(int $from, int $to): void
@@ -414,6 +433,136 @@ function guardedWonDeals(int $from, int $to): void
             'value' => 1000,
             'created_at' => '2026-11-15 12:00:00',
             ...DealStageMover::attributesFor(pipelineStageNamed($organization->id, 'Won')),
+        ]);
+    }
+}
+
+/**
+ * One contact per number, created on 25 November (odd numbers) or 20 November (even numbers).
+ */
+function guardedContactsOverTime(int $from, int $to): void
+{
+    $organization = test()->org;
+
+    foreach (range($from, $to) as $i) {
+        Contact::factory()->create([
+            'organization_id' => $organization->id,
+            'name' => "Guard Contact {$i}",
+            'created_at' => $i % 2 === 1 ? '2026-11-25 10:00:00' : '2026-11-20 10:00:00',
+        ]);
+    }
+}
+
+/**
+ * One open deal of 1000 per number, created on 25 November (odd numbers) or 20 November (even numbers), each with its
+ * own contact.
+ */
+function guardedDealsOverTime(int $from, int $to): void
+{
+    $me = test()->user;
+    $organization = test()->org;
+
+    foreach (range($from, $to) as $i) {
+        $contact = Contact::factory()->create(['organization_id' => $organization->id, 'name' => "Guard Contact {$i}"]);
+
+        Deal::factory()->create([
+            'organization_id' => $organization->id,
+            'created_by' => $me->id,
+            'owner_id' => $me->id,
+            'contact_id' => $contact->id,
+            'title' => "Guard Timed Deal {$i}",
+            'value' => 1000,
+            'created_at' => $i % 2 === 1 ? '2026-11-25 10:00:00' : '2026-11-20 10:00:00',
+            ...DealStageMover::attributesFor(pipelineStageNamed($organization->id, 'Lead')),
+        ]);
+    }
+}
+
+/**
+ * One contact per number created now, odd numbers from Referral and even numbers from LinkedIn.
+ */
+function guardedSourcedContacts(int $from, int $to): void
+{
+    $organization = test()->org;
+
+    foreach (range($from, $to) as $i) {
+        Contact::factory()->create([
+            'organization_id' => $organization->id,
+            'name' => "Guard Contact {$i}",
+            'lead_source' => $i % 2 === 1 ? LeadSource::Referral : LeadSource::LinkedIn,
+        ]);
+    }
+}
+
+/**
+ * One open deal of 1000 per number, odd numbers in Lead and even numbers in Discovery, each with its own contact.
+ */
+function guardedStagedDeals(int $from, int $to): void
+{
+    $me = test()->user;
+    $organization = test()->org;
+
+    foreach (range($from, $to) as $i) {
+        $contact = Contact::factory()->create(['organization_id' => $organization->id, 'name' => "Guard Contact {$i}"]);
+
+        Deal::factory()->create([
+            'organization_id' => $organization->id,
+            'created_by' => $me->id,
+            'owner_id' => $me->id,
+            'contact_id' => $contact->id,
+            'title' => "Guard Staged Deal {$i}",
+            'value' => 1000,
+            ...DealStageMover::attributesFor(pipelineStageNamed($organization->id, $i % 2 === 1 ? 'Lead' : 'Discovery')),
+        ]);
+    }
+}
+
+/**
+ * One task per number: odd numbers pending and overdue, numbers 2 and 6 pending and on time, multiples of four done
+ * in November, each with its own contact.
+ */
+function guardedTaskStatuses(int $from, int $to): void
+{
+    $me = test()->user;
+    $organization = test()->org;
+
+    foreach (range($from, $to) as $i) {
+        $contact = Contact::factory()->create(['organization_id' => $organization->id, 'name' => "Guard Contact {$i}"]);
+
+        $state = match (true) {
+            $i % 2 === 1 => ['status' => TaskStatus::Pending, 'due_at' => '2026-11-20 09:00:00'],
+            $i % 4 === 2 => ['status' => TaskStatus::Pending, 'due_at' => '2026-12-10 09:00:00'],
+            default => ['status' => TaskStatus::Done, 'due_at' => '2026-11-18 09:00:00', 'completed_at' => '2026-11-20 10:00:00'],
+        };
+
+        Task::factory()->create([
+            'organization_id' => $organization->id,
+            'created_by' => $me->id,
+            'owner_id' => $me->id,
+            'contact_id' => $contact->id,
+            'title' => "Guard Status Task {$i}",
+            'priority' => TaskPriority::Medium,
+            ...$state,
+        ]);
+    }
+}
+
+/**
+ * One activity per number on 20 November, odd numbers calls and even numbers emails, each with its own contact.
+ */
+function guardedTypedActivities(int $from, int $to): void
+{
+    $me = test()->user;
+    $organization = test()->org;
+
+    foreach (range($from, $to) as $i) {
+        $contact = Contact::factory()->create(['organization_id' => $organization->id, 'name' => "Guard Contact {$i}"]);
+
+        Activity::factory()->type($i % 2 === 1 ? ActivityType::Call : ActivityType::Email)->create([
+            'organization_id' => $organization->id,
+            'contact_id' => $contact->id,
+            'user_id' => $me->id,
+            'occurred_at' => '2026-11-20 10:00:00',
         ]);
     }
 }
@@ -615,5 +764,71 @@ test('the dashboard runs the same number of queries with 2 and 9 records', funct
             return $component;
         },
         ['Average Time To Close This Month' => '10 days'],
+    ],
+    'contacts over time' => [
+        fn (): Closure => fn (int $from, int $to) => guardedContactsOverTime($from, $to),
+        fn (): Closure => function (array $proof) {
+            $component = Livewire::test(ContactsOverTimeWidget::class);
+
+            expect(chartPointsOf($component))->toMatchArray($proof);
+
+            return $component;
+        },
+        ['Nov 25' => 5, 'Nov 20' => 4, 'Nov 1' => 0],
+    ],
+    'deals over time' => [
+        fn (): Closure => fn (int $from, int $to) => guardedDealsOverTime($from, $to),
+        fn (): Closure => function (array $proof) {
+            $component = Livewire::test(DealsOverTimeWidget::class);
+
+            expect(chartPointsOf($component))->toMatchArray($proof);
+
+            return $component;
+        },
+        ['Nov 25' => 5, 'Nov 20' => 4, 'Nov 1' => 0],
+    ],
+    'contact sources' => [
+        fn (): Closure => fn (int $from, int $to) => guardedSourcedContacts($from, $to),
+        fn (): Closure => function (array $proof) {
+            $component = Livewire::test(ContactSourcesWidget::class);
+
+            expect(chartPointsOf($component))->toMatchArray($proof);
+
+            return $component;
+        },
+        ['Referral' => 5, 'LinkedIn' => 4],
+    ],
+    'deals by stage' => [
+        fn (): Closure => fn (int $from, int $to) => guardedStagedDeals($from, $to),
+        fn (): Closure => function (array $proof) {
+            $component = Livewire::test(DealsByStageWidget::class);
+
+            expect(chartPointsOf($component))->toMatchArray($proof);
+
+            return $component;
+        },
+        ['Lead' => 5, 'Discovery' => 4],
+    ],
+    'task status' => [
+        fn (): Closure => fn (int $from, int $to) => guardedTaskStatuses($from, $to),
+        fn (): Closure => function (array $proof) {
+            $component = Livewire::test(TaskStatusWidget::class);
+
+            expect(chartPointsOf($component))->toMatchArray($proof);
+
+            return $component;
+        },
+        ['Open, on time' => 2, 'Overdue' => 5, 'Completed' => 2],
+    ],
+    'activity types' => [
+        fn (): Closure => fn (int $from, int $to) => guardedTypedActivities($from, $to),
+        fn (): Closure => function (array $proof) {
+            $component = Livewire::test(ActivityTypesWidget::class);
+
+            expect(chartPointsOf($component))->toMatchArray($proof);
+
+            return $component;
+        },
+        ['Call' => 5, 'Email' => 4],
     ],
 ]);
