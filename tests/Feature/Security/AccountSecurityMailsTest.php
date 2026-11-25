@@ -1,11 +1,13 @@
 <?php
 
 use App\Enums\AccountSecurityEvent;
+use App\Filament\Pages\Auth\EditProfile;
 use App\Models\User;
 use App\Notifications\AccountSecurityNotification;
 use App\Notifications\QueuedResetPassword;
 use App\Support\Security\SecurityMails;
 use Carbon\CarbonImmutable;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Contracts\Queue\ShouldQueueAfterCommit;
 use Illuminate\Notifications\AnonymousNotifiable;
@@ -52,17 +54,14 @@ beforeEach(function () {
 
 function asmChangePassword(string $current = 'password', string $new = 'N3w-passw0rd!')
 {
-    return Livewire::test('pages::settings.password')
-        ->set('current_password', $current)
-        ->set('password', $new)
-        ->set('password_confirmation', $new)
-        ->call('updatePassword');
+    return Livewire::test(EditProfile::class)
+        ->callAction(TestAction::make('changePassword')->schemaComponent('passwordSection', 'content'), data: ['currentPassword' => $current, 'password' => $new, 'passwordConfirmation' => $new]);
 }
 
-test('changing the password on the settings page mails the account', function () {
+test('changing the password on the panel profile mails the account', function () {
     $this->actingAs($this->ann);
 
-    asmChangePassword()->assertHasNoErrors();
+    asmChangePassword()->assertHasNoActionErrors();
 
     Notification::assertSentToTimes($this->ann, AccountSecurityNotification::class, 1);
     $notification = asmSentTo($this->ann)[0];
@@ -79,7 +78,7 @@ test('changing the password on the settings page mails the account', function ()
 test('a wrong current password mails nothing', function () {
     $this->actingAs($this->ann);
 
-    asmChangePassword('wrong-password')->assertHasErrors(['current_password']);
+    asmChangePassword('wrong-password')->assertHasActionErrors(['currentPassword']);
 
     Notification::assertNothingSent();
 });
@@ -127,11 +126,11 @@ test('changing the email mails the old address only', function () {
     $this->ann->forceFill(['email' => 'Ann.Lee@example.com'])->save();
     $this->actingAs($this->ann);
 
-    Livewire::test('pages::settings.profile')
-        ->set('email', 'ann.new@example.com')
-        ->set('current_password', 'password')
-        ->call('updateProfileInformation')
-        ->assertHasNoErrors();
+    Livewire::test(EditProfile::class)
+        ->set('data.email', 'ann.new@example.com')
+        ->set('data.currentPassword', 'password')
+        ->call('save')
+        ->assertHasNoFormErrors();
 
     Notification::assertNotSentTo($this->ann, AccountSecurityNotification::class);
     expect(asmSentOnDemandCount())->toBe(0);
@@ -160,19 +159,19 @@ test('changing the email mails the old address only', function () {
 test('changes that are not email changes mail nothing', function (array $change) {
     $this->actingAs($this->ann);
 
-    $page = Livewire::test('pages::settings.profile');
+    $page = Livewire::test(EditProfile::class);
 
     foreach ($change as $key => $value) {
-        $page->set($key, $value);
+        $page->set('data.'.$key, $value);
     }
 
-    $page->call('updateProfileInformation');
+    $page->call('save');
 
     Notification::assertNothingSent();
 })->with([
     'name and email in another case' => [['name' => 'Ann', 'email' => 'ANN@example.com']],
     'name only' => [['name' => 'Ann B.']],
-    'email change with a wrong password' => [['email' => 'ann.new@example.com', 'current_password' => 'wrong-password']],
+    'email change with a wrong password' => [['email' => 'ann.new@example.com', 'currentPassword' => 'wrong-password']],
 ]);
 
 test('turning two-factor off mails the account', function () {
@@ -243,12 +242,12 @@ test('the toggle turns every mail off and the log lines stay', function () {
     $log = fakeSecurityLog();
     $this->actingAs($this->ann);
 
-    asmChangePassword()->assertHasNoErrors();
-    Livewire::test('pages::settings.profile')
-        ->set('email', 'ann.new@example.com')
-        ->set('current_password', 'N3w-passw0rd!')
-        ->call('updateProfileInformation')
-        ->assertHasNoErrors();
+    asmChangePassword()->assertHasNoActionErrors();
+    Livewire::test(EditProfile::class)
+        ->set('data.email', 'ann.new@example.com')
+        ->set('data.currentPassword', 'N3w-passw0rd!')
+        ->call('save')
+        ->assertHasNoFormErrors();
     $this->get(emailChangeUrlsSentTo('ann.new@example.com')[0])->assertRedirect(Filament::getPanel('admin')->getProfileUrl());
     $bob = User::factory()->withAppAuthentication()->create();
     asmPanelProvider()->saveSecret($bob, null);
@@ -294,11 +293,11 @@ test('typing someone else address as the new email does not mail that address', 
     $carl = User::factory()->create(['email' => 'carl@example.com']);
     $this->actingAs($this->ann);
 
-    Livewire::test('pages::settings.profile')
-        ->set('email', 'victim@example.org')
-        ->set('current_password', 'password')
-        ->call('updateProfileInformation')
-        ->assertHasNoErrors();
+    Livewire::test(EditProfile::class)
+        ->set('data.email', 'victim@example.org')
+        ->set('data.currentPassword', 'password')
+        ->call('save')
+        ->assertHasNoFormErrors();
 
     expect(asmSentOnDemandCount())->toBe(0);
     Notification::assertNotSentTo($carl, AccountSecurityNotification::class);
@@ -312,7 +311,7 @@ test('a broken queue never fails a password change', function () {
         ->getMock()));
     $this->actingAs($this->ann);
 
-    asmChangePassword()->assertHasNoErrors();
+    asmChangePassword()->assertHasNoActionErrors();
 
     expect(Hash::check('N3w-passw0rd!', $this->ann->fresh()->password))->toBeTrue();
     Exceptions::assertReported(RuntimeException::class);

@@ -2,10 +2,13 @@
 
 use App\Actions\Account\EndOtherSessions;
 use App\Enums\InvoiceStatus;
+use App\Filament\Pages\Auth\EditProfile;
 use App\Models\Contact;
 use App\Models\Invoice;
 use App\Models\User;
 use App\Notifications\QueuedResetPassword;
+use Filament\Actions\Testing\TestAction;
+use Filament\Facades\Filament;
 use Illuminate\Auth\SessionGuard;
 use Illuminate\Session\Middleware\AuthenticateSession;
 use Illuminate\Support\Facades\Auth;
@@ -59,27 +62,30 @@ beforeEach(function () {
     $this->org = $this->ann->personalOrganization();
 });
 
-test('a stolen session still open after the password was changed elsewhere is signed out on web routes', function (string $kind) {
+test('a stolen session still open after the password was changed elsewhere is signed out on web routes', function (string $kind, string $loginKind) {
     $invoice = Invoice::factory()->create([
         'organization_id' => $this->org->id,
         'contact_id' => Contact::factory()->create(['organization_id' => $this->org->id])->id,
         'status' => InvoiceStatus::Sent,
     ]);
-    $url = $kind === 'pdf' ? route('invoices.pdf', $invoice) : '/settings/profile';
+    $url = $kind === 'pdf' ? route('invoices.pdf', $invoice) : Filament::getProfileUrl();
 
     $this->actingAs($this->ann)
         ->withSession(['password_hash_web' => sec28HashInSession($this->ann)])
-        ->get('/settings/profile')
+        ->get(Filament::getProfileUrl())
         ->assertOk();
 
     $this->ann->forceFill(['password' => Hash::make('changed-elsewhere-1')])->save();
 
     $response = $this->get($url);
 
-    $response->assertRedirect(route('login'));
+    $response->assertRedirect($loginKind === 'web' ? route('login') : Filament::getLoginUrl());
     expect($response->headers->get('content-type'))->not->toContain('pdf');
     $this->assertGuest();
-})->with(['pdf', 'profile']);
+})->with([
+    'pdf' => ['pdf', 'web'],
+    'panel profile' => ['panel profile', 'panel'],
+]);
 
 test('a stale session on a JSON request gets a 401, not a 500', function () {
     $this->actingAs($this->ann)
@@ -87,13 +93,13 @@ test('a stale session on a JSON request gets a 401, not a 500', function () {
 
     $this->ann->forceFill(['password' => Hash::make('changed-elsewhere-1')])->save();
 
-    $this->getJson('/settings/profile')->assertUnauthorized();
+    $this->getJson(Filament::getProfileUrl())->assertUnauthorized();
 });
 
 test('a session whose hash is current keeps working on web routes', function () {
     $this->actingAs($this->ann)
         ->withSession(['password_hash_web' => sec28HashInSession($this->ann)])
-        ->get('/settings/profile')
+        ->get(Filament::getProfileUrl())
         ->assertOk();
     $this->assertAuthenticatedAs($this->ann);
 });
@@ -106,12 +112,9 @@ test('a thief remember-me cookie dies with the password change', function () {
     $this->ann->forceFill(['remember_token' => 'old-remember-token-aaaaaaaa'])->save();
     $this->actingAs($this->ann);
 
-    Livewire::test('pages::settings.password')
-        ->set('current_password', 'old-password-1')
-        ->set('password', 'new-password-22')
-        ->set('password_confirmation', 'new-password-22')
-        ->call('updatePassword')
-        ->assertHasNoErrors();
+    Livewire::test(EditProfile::class)
+        ->callAction(TestAction::make('changePassword')->schemaComponent('passwordSection', 'content'), data: ['currentPassword' => 'old-password-1', 'password' => 'new-password-22', 'passwordConfirmation' => 'new-password-22'])
+        ->assertHasNoActionErrors();
 
     $token = $this->ann->refresh()->remember_token;
 
@@ -221,12 +224,9 @@ test('a wrong current password ends nothing', function () {
     $hash = $this->ann->refresh()->password;
     $this->actingAs($this->ann);
 
-    Livewire::test('pages::settings.password')
-        ->set('current_password', 'wrong-password')
-        ->set('password', 'new-password-22')
-        ->set('password_confirmation', 'new-password-22')
-        ->call('updatePassword')
-        ->assertHasErrors(['current_password']);
+    Livewire::test(EditProfile::class)
+        ->callAction(TestAction::make('changePassword')->schemaComponent('passwordSection', 'content'), data: ['currentPassword' => 'wrong-password', 'password' => 'new-password-22', 'passwordConfirmation' => 'new-password-22'])
+        ->assertHasActionErrors(['currentPassword']);
 
     $this->ann->refresh();
 
@@ -235,18 +235,15 @@ test('a wrong current password ends nothing', function () {
         ->and($this->ann->password)->toBe($hash);
 });
 
-test('the settings password change ends the other sessions of the user and spares other users', function () {
+test('the panel password change ends the other sessions of the user and spares other users', function () {
     config(['session.driver' => 'database']);
     $currentId = session()->getId();
     sec28InsertSessions([[$currentId, $this->ann->id], ['ann-laptop', $this->ann->id], ['ann-phone', $this->ann->id], ['bob-desk', $this->bob->id]]);
     $this->actingAs($this->ann);
 
-    Livewire::test('pages::settings.password')
-        ->set('current_password', 'old-password-1')
-        ->set('password', 'new-password-22')
-        ->set('password_confirmation', 'new-password-22')
-        ->call('updatePassword')
-        ->assertHasNoErrors();
+    Livewire::test(EditProfile::class)
+        ->callAction(TestAction::make('changePassword')->schemaComponent('passwordSection', 'content'), data: ['currentPassword' => 'old-password-1', 'password' => 'new-password-22', 'passwordConfirmation' => 'new-password-22'])
+        ->assertHasNoActionErrors();
 
     expect(sec28SessionIds())->toEqualCanonicalizing([$currentId, 'bob-desk']);
 });

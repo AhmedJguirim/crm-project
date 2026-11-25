@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\OrganizationRole;
+use App\Filament\Pages\Auth\EditProfile;
 use App\Mail\OrganizationInvitationMail;
 use App\Models\Contact;
 use App\Models\Deal;
@@ -8,6 +9,7 @@ use App\Models\Organization;
 use App\Models\OrganizationInvite;
 use App\Models\Task;
 use App\Models\User;
+use Filament\Actions\Testing\TestAction;
 use Illuminate\Database\Events\QueryExecuted;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -29,9 +31,8 @@ beforeEach(function () {
     $this->deleteAccountAs = function (User $user) {
         $this->actingAs($user);
 
-        return Livewire::test('pages::settings.delete-user-form')
-            ->set('password', 'password')
-            ->call('deleteUser');
+        return Livewire::test(EditProfile::class)
+            ->callAction(TestAction::make('deleteAccount')->schemaComponent('deleteAccountSection', 'content'), data: ['password' => 'password']);
     };
 });
 
@@ -43,7 +44,7 @@ test('a member deleting their account cannot wipe the team pipeline', function (
     $tasks = Task::query()->withoutGlobalScope('organization')->where('organization_id', $this->acme->id)->count();
     $contacts = Contact::query()->withoutGlobalScope('organization')->where('organization_id', $this->acme->id)->count();
 
-    ($this->deleteAccountAs)($this->bob)->assertHasNoErrors();
+    ($this->deleteAccountAs)($this->bob)->assertHasNoActionErrors();
 
     expect(Deal::query()->withoutGlobalScope('organization')->where('organization_id', $this->acme->id)->count())->toBe($deals)
         ->and(Task::query()->withoutGlobalScope('organization')->where('organization_id', $this->acme->id)->count())->toBe($tasks)
@@ -78,8 +79,9 @@ test('an invitee joining while the owner deletes the account blocks the deletion
 
     $component = ($this->deleteAccountAs)($erin);
 
+    $component->assertNotified('Transfer or delete these organizations first: Solo Shop.');
+
     expect($locked)->toBeTrue()
-        ->and($component->errors()->first('organizations'))->toBe('Transfer or delete these organizations first: Solo Shop.')
         ->and(User::query()->whereKey($erin->id)->exists())->toBeTrue()
         ->and(Organization::query()->whereKey($solo->id)->exists())->toBeTrue()
         ->and(Contact::query()->withoutGlobalScope('organization')->whereKey($contact->id)->exists())->toBeTrue();
@@ -94,7 +96,7 @@ test('the member counts are read after the lock, with a fresh query', function (
         $statements[] = $query->sql;
     });
 
-    ($this->deleteAccountAs)($erin)->assertHasNoErrors();
+    ($this->deleteAccountAs)($erin)->assertHasNoActionErrors();
 
     $lockAt = collect($statements)->search(fn (string $sql): bool => str_contains($sql, 'for update'));
     $countAt = collect($statements)->search(fn (string $sql): bool => str_contains($sql, 'count(*)') && str_contains($sql, '"organization_user"'));
@@ -111,7 +113,7 @@ test('a refusal is logged without organization names and writes no deletion even
     $zeta->members()->attach($this->bob->id, ['role' => OrganizationRole::Member->value]);
     $log = fakeSecurityLog();
 
-    ($this->deleteAccountAs)($this->alice)->assertHasErrors(['organizations']);
+    ($this->deleteAccountAs)($this->alice)->assertNotified('Transfer or delete these organizations first: Acme Studio, Zeta Labs.');
 
     $entries = securityLogEntries($log);
 
@@ -124,7 +126,7 @@ test('a refusal is logged without organization names and writes no deletion even
 test('a successful deletion is logged with counts and no names, before the sign-out', function () {
     $log = fakeSecurityLog();
 
-    ($this->deleteAccountAs)($this->bob)->assertHasNoErrors();
+    ($this->deleteAccountAs)($this->bob)->assertHasNoActionErrors();
 
     $entries = securityLogEntries($log);
 
@@ -143,7 +145,7 @@ test('an invitation from a deleted user still opens, can be accepted and its mai
     ]);
     $eve = User::factory()->onboardingCompleted()->withPersonalOrganization()->create(['email' => 'eve@example.com']);
 
-    ($this->deleteAccountAs)($this->bob)->assertHasNoErrors();
+    ($this->deleteAccountAs)($this->bob)->assertHasNoActionErrors();
 
     expect(OrganizationInvite::query()->findOrFail($invite->id)->invited_by)->toBeNull();
 

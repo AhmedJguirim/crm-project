@@ -1,5 +1,6 @@
 <?php
 
+use App\Filament\Pages\Auth\EditProfile;
 use App\Filament\Pages\Auth\EmailVerificationPrompt;
 use App\Filament\Pages\Auth\Register;
 use App\Filament\Resources\Contacts\ContactResource;
@@ -247,17 +248,16 @@ test('the settings page resend under the cap sends one mail', function () {
     Notification::assertSentToTimes($this->ann, QueuedVerifyEmail::class, 1);
 });
 
-test('changing the email on the settings page mails a confirmation link to the new address and keeps the account verified', function () {
+test('changing the email on the panel profile mails a confirmation link to the new address and keeps the account verified', function () {
     Notification::fake();
     $this->ann->forceFill(['email_verified_at' => now()])->save();
     $this->actingAs($this->ann);
 
-    Livewire::test('pages::settings.profile')
-        ->set('name', $this->ann->name)
-        ->set('email', 'ann.new@example.com')
-        ->set('current_password', 'password')
-        ->call('updateProfileInformation')
-        ->assertHasNoErrors();
+    Livewire::test(EditProfile::class)
+        ->set('data.email', 'ann.new@example.com')
+        ->set('data.currentPassword', 'password')
+        ->call('save')
+        ->assertHasNoFormErrors();
 
     $ann = $this->ann->fresh();
     expect($ann->email)->toBe('ann@example.com')->and($ann->pending_email)->toBe('ann.new@example.com')->and($ann->email_verified_at)->not->toBeNull();
@@ -275,11 +275,10 @@ test('changing only the name mails no verification link', function () {
     $this->ann->forceFill(['email_verified_at' => now()])->save();
     $this->actingAs($this->ann);
 
-    Livewire::test('pages::settings.profile')
-        ->set('name', 'Ann Renamed')
-        ->set('email', 'ann@example.com')
-        ->call('updateProfileInformation')
-        ->assertHasNoErrors();
+    Livewire::test(EditProfile::class)
+        ->set('data.name', 'Ann Renamed')
+        ->call('save')
+        ->assertHasNoFormErrors();
 
     Notification::assertNothingSent();
     expect($this->ann->fresh()->email_verified_at)->not->toBeNull();

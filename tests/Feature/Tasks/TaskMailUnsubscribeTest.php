@@ -62,7 +62,7 @@ test('each task mail has the two headers and the footer line', function (string 
         ->and($html)->toContain('You get this email because task reminder emails are on for your account.')
         ->and($html)->toContain('href="'.$this->url.'"')
         ->and($html)->toContain('href="'.Filament::getPanel('admin')->getProfileUrl().'"')
-        ->and($html)->not->toContain(route('notification-settings.edit'));
+        ->and($html)->not->toContain('/settings/notifications');
 })->with(['due-soon', 'overdue', 'digest']);
 
 test('the existing mail content is unchanged and the footer is the only outro line', function () {

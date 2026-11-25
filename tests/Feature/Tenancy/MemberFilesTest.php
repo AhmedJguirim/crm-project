@@ -1,6 +1,7 @@
 <?php
 
 use App\Enums\OrganizationRole;
+use App\Filament\Pages\Auth\EditProfile;
 use App\Filament\Pages\Tenancy\OrganizationMembers;
 use App\Jobs\ExportContactsJob;
 use App\Models\Organization;
@@ -113,11 +114,10 @@ test('the owner cannot be removed and keeps their files', function () {
 test('deleting the account deletes the user\'s files in every organization', function () {
     $this->actingAs($this->ann);
 
-    Livewire::test('pages::settings.delete-user-form')
-        ->set('password', 'password')
-        ->call('deleteUser')
-        ->assertHasNoErrors()
-        ->assertRedirect('/');
+    Livewire::test(EditProfile::class)
+        ->callAction(TestAction::make('deleteAccount')->schemaComponent('deleteAccountSection', 'content'), data: ['password' => 'password'])
+        ->assertHasNoActionErrors()
+        ->assertRedirect(route('home'));
 
     expect(User::query()->whereKey($this->ann->id)->exists())->toBeFalse()
         ->and(($this->exists)('annExport', 'annFailed', 'annPersonal'))->toBe([false, false, false])
@@ -127,23 +127,20 @@ test('deleting the account deletes the user\'s files in every organization', fun
 test('a refused account deletion deletes nothing', function () {
     $this->actingAs($this->olga);
 
-    $component = Livewire::test('pages::settings.delete-user-form')
-        ->set('password', 'password')
-        ->call('deleteUser')
-        ->assertHasErrors(['organizations']);
+    Livewire::test(EditProfile::class)
+        ->callAction(TestAction::make('deleteAccount')->schemaComponent('deleteAccountSection', 'content'), data: ['password' => 'password'])
+        ->assertNotified('Transfer or delete these organizations first: Acme.');
 
-    expect($component->errors()->first('organizations'))->toBe('Transfer or delete these organizations first: Acme.')
-        ->and(User::query()->whereKey($this->olga->id)->exists())->toBeTrue()
+    expect(User::query()->whereKey($this->olga->id)->exists())->toBeTrue()
         ->and(($this->exists)('annExport', 'annFailed', 'annPersonal', 'bobExport', 'olgaFailed'))->toBe([true, true, true, true, true]);
 });
 
 test('a wrong password deletes nothing', function () {
     $this->actingAs($this->ann);
 
-    Livewire::test('pages::settings.delete-user-form')
-        ->set('password', 'not-the-password')
-        ->call('deleteUser')
-        ->assertHasErrors();
+    Livewire::test(EditProfile::class)
+        ->callAction(TestAction::make('deleteAccount')->schemaComponent('deleteAccountSection', 'content'), data: ['password' => 'not-the-password'])
+        ->assertHasActionErrors(['password']);
 
     expect(($this->exists)('annExport', 'annFailed', 'annPersonal'))->toBe([true, true, true]);
 });

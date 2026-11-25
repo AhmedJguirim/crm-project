@@ -1,11 +1,13 @@
 <?php
 
+use App\Filament\Pages\Auth\EditProfile;
 use App\Filament\Pages\Auth\Login;
 use App\Filament\Pages\Auth\Register;
 use App\Models\User;
 use App\Notifications\QueuedResetPassword;
 use App\Support\Security\LoggedAppAuthentication;
 use App\Support\Security\SecurityLog;
+use Filament\Actions\Testing\TestAction;
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Hash;
@@ -235,17 +237,14 @@ test('a password reset is logged without the token or the new password', functio
     expect($dump)->not->toContain($token)->not->toContain('new-password')->not->toContain($user->email);
 });
 
-test('a password change on the settings page is logged and a wrong current password is not', function () {
+test('a password change on the panel profile is logged and a wrong current password is not', function () {
     $log = fakeSecurityLog();
     $user = User::factory()->create(['password' => Hash::make('password')]);
     $this->actingAs($user);
 
-    Livewire::test('pages::settings.password')
-        ->set('current_password', 'password')
-        ->set('password', 'new-password')
-        ->set('password_confirmation', 'new-password')
-        ->call('updatePassword')
-        ->assertHasNoErrors();
+    Livewire::test(EditProfile::class)
+        ->callAction(TestAction::make('changePassword')->schemaComponent('passwordSection', 'content'), data: ['currentPassword' => 'password', 'password' => 'new-password', 'passwordConfirmation' => 'new-password'])
+        ->assertHasNoActionErrors();
 
     $entries = securityLogEntries($log);
     expect($entries)->toHaveCount(1);
@@ -253,12 +252,9 @@ test('a password change on the settings page is logged and a wrong current passw
     expect($entries[0]['level'])->toBe('info');
     expect($entries[0]['context'])->toMatchArray(['user_id' => $user->id]);
 
-    Livewire::test('pages::settings.password')
-        ->set('current_password', 'wrong-password')
-        ->set('password', 'another-password')
-        ->set('password_confirmation', 'another-password')
-        ->call('updatePassword')
-        ->assertHasErrors(['current_password']);
+    Livewire::test(EditProfile::class)
+        ->callAction(TestAction::make('changePassword')->schemaComponent('passwordSection', 'content'), data: ['currentPassword' => 'wrong-password', 'password' => 'another-password', 'passwordConfirmation' => 'another-password'])
+        ->assertHasActionErrors(['currentPassword']);
 
     expect(securityLogEntries($log))->toHaveCount(1);
     expect(json_encode(securityLogEntries($log)))->not->toContain('new-password')->not->toContain('another-password');
@@ -269,20 +265,20 @@ test('an email change is logged and a name-only change or a case-only change is 
     $user = User::factory()->create(['email' => 'Ann.Lee@example.com']);
     $this->actingAs($user);
 
-    Livewire::test('pages::settings.profile')
-        ->set('name', 'Ann')
-        ->set('email', 'ANN.LEE@example.com')
-        ->call('updateProfileInformation')
-        ->assertHasNoErrors();
+    Livewire::test(EditProfile::class)
+        ->set('data.name', 'Ann')
+        ->set('data.email', 'ANN.LEE@example.com')
+        ->call('save')
+        ->assertHasNoFormErrors();
 
     expect(securityLogEntries($log))->toBe([]);
 
-    Livewire::test('pages::settings.profile')
-        ->set('name', 'Ann')
-        ->set('email', 'ann.new@example.com')
-        ->set('current_password', 'password')
-        ->call('updateProfileInformation')
-        ->assertHasNoErrors();
+    Livewire::test(EditProfile::class)
+        ->set('data.name', 'Ann')
+        ->set('data.email', 'ann.new@example.com')
+        ->set('data.currentPassword', 'password')
+        ->call('save')
+        ->assertHasNoFormErrors();
 
     $entries = securityLogEntries($log);
     expect($entries)->toHaveCount(1);
@@ -297,11 +293,11 @@ test('a failed profile validation logs nothing', function () {
     $user = User::factory()->create();
     $this->actingAs($user);
 
-    Livewire::test('pages::settings.profile')
-        ->set('name', 'Ann')
-        ->set('email', 'not-an-email')
-        ->call('updateProfileInformation')
-        ->assertHasErrors(['email']);
+    Livewire::test(EditProfile::class)
+        ->set('data.name', 'Ann')
+        ->set('data.email', 'not-an-email')
+        ->call('save')
+        ->assertHasFormErrors(['email']);
 
     expect(securityLogEntries($log))->toBe([]);
 });
@@ -311,20 +307,18 @@ test('deleting the account is logged before the logout, and a wrong password log
     $stranger = User::factory()->create();
     $this->actingAs($stranger);
 
-    Livewire::test('pages::settings.delete-user-form')
-        ->set('password', 'wrong-password')
-        ->call('deleteUser')
-        ->assertHasErrors(['password']);
+    Livewire::test(EditProfile::class)
+        ->callAction(TestAction::make('deleteAccount')->schemaComponent('deleteAccountSection', 'content'), data: ['password' => 'wrong-password'])
+        ->assertHasActionErrors(['password']);
 
     expect(securityLogEntries($log))->toBe([]);
 
     $user = User::factory()->create();
     $this->actingAs($user);
 
-    Livewire::test('pages::settings.delete-user-form')
-        ->set('password', 'password')
-        ->call('deleteUser')
-        ->assertHasNoErrors();
+    Livewire::test(EditProfile::class)
+        ->callAction(TestAction::make('deleteAccount')->schemaComponent('deleteAccountSection', 'content'), data: ['password' => 'password'])
+        ->assertHasNoActionErrors();
 
     $entries = securityLogEntries($log);
     expect(array_column($entries, 'event'))->toBe(['account.deleted', 'auth.logout']);

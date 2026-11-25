@@ -6,6 +6,7 @@ use App\Enums\ContactAttribute;
 use App\Enums\ContactStatus;
 use App\Enums\SegmentConditionType;
 use App\Enums\SegmentOperator;
+use App\Filament\Pages\Auth\EditProfile;
 use App\Filament\Pages\Auth\Register;
 use App\Filament\Resources\Contacts\Pages\ListContacts;
 use App\Filament\Resources\Segments\Pages\ViewSegment;
@@ -229,12 +230,11 @@ describe('dashboard access', function () {
     it('keeps access for an allowed user who changes their email', function () {
         $this->actingAs($this->ops);
 
-        Livewire::test('pages::settings.profile')
-            ->set('name', $this->ops->name)
-            ->set('email', 'ops.new@example.com')
-            ->set('current_password', 'password')
-            ->call('updateProfileInformation')
-            ->assertHasNoErrors();
+        Livewire::test(EditProfile::class)
+            ->set('data.email', 'ops.new@example.com')
+            ->set('data.currentPassword', 'password')
+            ->call('save')
+            ->assertHasNoFormErrors();
 
         $this->get('/horizon')->assertSuccessful();
     });
@@ -274,12 +274,12 @@ describe('dashboard access', function () {
         config(['horizon.allowed_user_ids' => [987654], 'horizon.allowed_emails' => ['ops@ourcompany.example']]);
         $this->actingAs(User::factory()->create());
 
-        Livewire::test('pages::settings.profile')
-            ->set('name', 'Impostor')
-            ->set('email', 'ops@ourcompany.example')
-            ->set('current_password', 'password')
-            ->call('updateProfileInformation')
-            ->assertHasNoErrors();
+        Livewire::test(EditProfile::class)
+            ->set('data.name', 'Impostor')
+            ->set('data.email', 'ops@ourcompany.example')
+            ->set('data.currentPassword', 'password')
+            ->call('save')
+            ->assertHasNoFormErrors();
 
         $this->get('/horizon')->assertForbidden();
     });
